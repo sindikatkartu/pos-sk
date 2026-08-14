@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0f1419">
+<meta name="theme-color" content="#ffffff">
 <title>POS Sindikat Kartu</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/app.css">
@@ -43,7 +43,7 @@
       <button class="tombol utama besar" id="btnLoginPassword">Masuk</button>
     </div>
 
-    <button class="tombol" style="width:100%;margin-top:12px;background:transparent;border:none;color:var(--teks-redup)"
+    <button class="tombol sunyi" style="width:100%;margin-top:12px"
             id="btnTukarMode">Masuk dengan password</button>
   </div>
 </div>
@@ -51,16 +51,48 @@
 <!-- ==================== APLIKASI ==================== -->
 <div id="app" class="sembunyi">
 
-  <header class="bar-atas">
-    <span class="merek">POS SK</span>
+  <!-- ---------- SIDEBAR ----------
+       Satu-satunya navigasi. Di layar lebar ia menempel di kiri dan bisa dilipat
+       jadi ikon saja; di layar ≤1024px elemen yang SAMA berubah jadi laci geser.
+       Isinya tidak pernah berbeda, jadi tidak ada menu yang perlu disembunyikan. -->
+  <div class="tirai-sisi" id="tiraiSisi"></div>
+  <aside class="sisi" id="sisi">
+    <div class="sisi-atas">
+      <div class="sisi-logo">SK</div>
+      <div class="sisi-nama">
+        <b>Sindikat Kartu</b>
+        <span id="sisiCabang">—</span>
+      </div>
+      <div style="flex:1"></div>
+      <button class="tombol-ikon" id="btnLipat" aria-label="Lipat menu" title="Lipat menu (Ctrl+B)"></button>
+    </div>
+
     <!-- Menu dibangun dinamis dari hak akses user — lihat MENU di app.js -->
-    <nav class="tab" id="navTab"></nav>
+    <nav class="sisi-isi" id="navSisi"></nav>
+
+    <div class="sisi-bawah">
+      <div class="kartu-user">
+        <div class="avatar" id="avatarUser">—</div>
+        <div class="nm">
+          <b id="namaUser">—</b>
+          <span id="peranUser">—</span>
+        </div>
+        <button class="tombol-ikon keluar" id="btnKeluar" aria-label="Keluar" title="Keluar"></button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="wilayah-utama">
+  <header class="bar-atas">
+    <button class="tombol-ikon" id="btnLaci" aria-label="Buka menu" aria-expanded="false"></button>
+    <h1 id="judulLayar">Kasir</h1>
     <div class="isi-tengah"></div>
-    <span class="lencana" id="lncCabang">—</span>
-    <span class="lencana" id="lncShift">Shift belum dibuka</span>
-    <span class="lencana" id="lncSync">Memeriksa…</span>
-    <span class="lencana" id="lncUser">—</span>
-    <button class="tombol" id="btnKeluar" style="padding:8px 12px">Keluar</button>
+    <div class="lencana-grup">
+      <span class="lencana" id="lncCabang">—</span>
+      <span class="lencana" id="lncShift">Shift belum dibuka</span>
+      <span class="lencana" id="lncSync">Memeriksa…</span>
+      <span class="lencana polos sembunyi" id="lncUser">—</span>
+    </div>
   </header>
 
   <main>
@@ -72,10 +104,10 @@
     <section class="layar kasir" id="layarKasir">
       <div class="panel-produk">
         <div class="kotak-cari">
-          <span class="ikon">⌕</span>
+          <span class="ikon"><svg class="ikon-svg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
           <input type="text" id="inpCari" placeholder="Scan barcode / ketik nama, SKU, tipe HP…  (F2)" autocomplete="off">
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="baris-alat-kasir">
           <select id="selLevel" style="width:auto">
             <option value="eceran">Harga Eceran</option>
             <option value="grosir">Harga Grosir</option>
@@ -206,6 +238,7 @@
     </section>
 
   </main>
+  </div><!-- /.wilayah-utama -->
 </div>
 
 <!-- ==================== MODAL BAYAR ==================== -->
