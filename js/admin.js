@@ -113,7 +113,7 @@ const Admin = (() => {
           <div class="kartu statistik"><div class="label">Omzet hari ini</div><div class="nilai">${rp(h.omzet)}</div></div>
           ${h.laba_kotor !== undefined ? `<div class="kartu statistik"><div class="label">Laba kotor</div><div class="nilai">${rp(h.laba_kotor)}</div></div>` : ''}
           <div class="kartu statistik"><div class="label">Piutang beredar</div><div class="nilai">${rp(d.piutang_total)}</div>
-            ${d.piutang_jatuh_tempo > 0 ? `<div style="color:#f87171;font-size:12px;margin-top:4px">${rp(d.piutang_jatuh_tempo)} lewat tempo</div>` : ''}</div>
+            ${d.piutang_jatuh_tempo > 0 ? `<div style="color:var(--bahaya);font-size:12px;margin-top:4px">${rp(d.piutang_jatuh_tempo)} lewat tempo</div>` : ''}</div>
         </div>
 
         <div class="kartu"><h3>Penjualan per cabang — ${esc(d.tanggal)}</h3>
@@ -852,7 +852,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="kartu statistik"><div class="label">Telat 31–60</div><div class="nilai">${rp(a.h60)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 61–90</div><div class="nilai">${rp(a.h90)}</div></div>
           <div class="kartu statistik"><div class="label">Telat &gt; 90 hari</div>
-            <div class="nilai" style="color:#f87171">${rp(a.lebih)}</div></div>
+            <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Daftar piutang — total ${rp(d.total)}</h3>
@@ -1318,8 +1318,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? `<span class="stok-kritis">${r.jumlah_selisih}</span>` : '—' },
             ...(punyaNilai ? [{ judul: 'Nilai selisih', angka: true, render: r => r.nilai_selisih === undefined ? '—'
                 : (r.nilai_selisih < 0
-                    ? `<span style="color:#f87171">− ${rp(-r.nilai_selisih)}</span>`
-                    : (r.nilai_selisih > 0 ? `<span style="color:#4ade80">+ ${rp(r.nilai_selisih)}</span>` : '—')) }] : []),
+                    ? `<span style="color:var(--bahaya)">− ${rp(-r.nilai_selisih)}</span>`
+                    : (r.nilai_selisih > 0 ? `<span style="color:var(--sukses)">+ ${rp(r.nilai_selisih)}</span>` : '—')) }] : []),
             { judul: 'Status', render: r => `<span class="lencana ${LENCANA_OPNAME[r.status] || ''}">${esc(r.status)}</span>` },
             { judul: '', render: r => `<button class="tombol kecil" data-lanjut-opname="${esc(r.uuid)}">${
                 r.status === 'POSTED' || r.status === 'DIBATALKAN' ? 'Lihat' : 'Lanjutkan'}</button>` }
@@ -1443,11 +1443,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
         <div class="kartu statistik"><div class="label">Dihitung</div><div class="nilai">${d.item.length}</div></div>
         <div class="kartu statistik"><div class="label">Cocok</div>
-          <div class="nilai" style="color:#4ade80">${cocok}</div></div>
+          <div class="nilai" style="color:var(--sukses)">${cocok}</div></div>
         <div class="kartu statistik"><div class="label">Selisih</div>
-          <div class="nilai" style="color:${selisih.length ? '#f87171' : 'inherit'}">${selisih.length}</div></div>
+          <div class="nilai" style="color:${selisih.length ? 'var(--bahaya)' : 'inherit'}">${selisih.length}</div></div>
         ${punyaNilai ? `<div class="kartu statistik"><div class="label">Nilai bersih</div>
-          <div class="nilai" style="color:${d.nilai_selisih < 0 ? '#f87171' : '#4ade80'}">${
+          <div class="nilai" style="color:${d.nilai_selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)'}">${
             (d.nilai_selisih < 0 ? '− ' : '+ ') + rp(Math.abs(d.nilai_selisih))}</div></div>` : ''}
       </div>
 
@@ -1461,7 +1461,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Produk', render: i => `${esc(i.nama_produk)}<div class="meta-kecil">${esc(i.sku)}</div>` },
           { judul: 'Sistem', kunci: 'qty_sistem', angka: true },
           { judul: 'Fisik', kunci: 'qty_fisik', angka: true },
-          { judul: 'Selisih', angka: true, render: i => `<strong style="color:${i.selisih < 0 ? '#f87171' : '#4ade80'}">${
+          { judul: 'Selisih', angka: true, render: i => `<strong style="color:${i.selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)'}">${
               i.selisih > 0 ? '+' : ''}${i.selisih}</strong>` },
           ...(punyaNilai ? [{ judul: 'Nilai', angka: true, render: i => rp(i.nilai_selisih) }] : []),
           { judul: 'Dihitung', render: i => esc(String(i.waktu_hitung).replace('T', ' ').substring(0, 19)) }
@@ -1519,8 +1519,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Jenis', render: r => `<span class="lencana ${r.jenis === 'TUKAR' ? 'kuning' : ''}">${esc(r.jenis)}</span>` },
             { judul: 'Nilai retur', angka: true, render: r => rp(r.nilai_retur) },
             { judul: 'Selisih', angka: true, render: r => r.selisih < 0
-                ? `<span style="color:#f87171">− ${rp(-r.selisih)}</span>`
-                : (r.selisih > 0 ? `<span style="color:#4ade80">+ ${rp(r.selisih)}</span>` : '—') },
+                ? `<span style="color:var(--bahaya)">− ${rp(-r.selisih)}</span>`
+                : (r.selisih > 0 ? `<span style="color:var(--sukses)">+ ${rp(r.selisih)}</span>` : '—') },
             { judul: 'Alasan', kunci: 'alasan' }
           ], rows, { kosong: 'Belum ada retur' })}
         </div>`;
@@ -1539,7 +1539,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div id="hasilCariNota"></div>
       <p class="petunjuk">Pelanggan kehilangan struk?
-        <a href="#" id="lnkTanpaNota" style="color:var(--utama-terang)">Lanjut tanpa nota</a> —
+        <a href="#" id="lnkTanpaNota" style="color:var(--utama-gelap)">Lanjut tanpa nota</a> —
         HPP akan memakai rata-rata saat ini, bukan HPP asli nota, jadi laba historis bisa sedikit meleset.</p>
       <div id="formIsiRetur"></div>`,
       '<button class="tombol" data-tutup="1">Tutup</button>');
@@ -1647,7 +1647,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $('#rtLabelSelisih').textContent = selisih < 0 ? 'Uang dikembalikan' :
                                        (selisih > 0 ? 'Pelanggan menambah bayar' : 'Selisih');
     $('#rtSelisih').textContent = rp(Math.abs(selisih));
-    $('#rtSelisih').style.color = selisih > 0 ? '#4ade80' : (selisih < 0 ? '#f87171' : 'var(--teks)');
+    $('#rtSelisih').style.color = selisih > 0 ? 'var(--sukses)' : (selisih < 0 ? 'var(--bahaya)' : 'var(--teks)');
   }
 
   async function simpanRetur() {
@@ -1686,9 +1686,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <tr><td>Nilai barang kembali</td><td class="angka">${rp(d.nilai_retur)}</td></tr>
           ${d.nilai_pengganti ? `<tr><td>Nilai barang pengganti</td><td class="angka">${rp(d.nilai_pengganti)}</td></tr>` : ''}
           ${d.uang_dikembalikan ? `<tr class="tebal"><td>UANG DIKEMBALIKAN</td>
-            <td class="angka" style="font-size:20px;color:#f87171">${rp(d.uang_dikembalikan)}</td></tr>` : ''}
+            <td class="angka" style="font-size:20px;color:var(--bahaya)">${rp(d.uang_dikembalikan)}</td></tr>` : ''}
           ${d.tambahan_bayar ? `<tr class="tebal"><td>PELANGGAN MENAMBAH BAYAR</td>
-            <td class="angka" style="font-size:20px;color:#4ade80">${rp(d.tambahan_bayar)}</td></tr>` : ''}
+            <td class="angka" style="font-size:20px;color:var(--sukses)">${rp(d.tambahan_bayar)}</td></tr>` : ''}
         </table>`,
         '<button class="tombol utama" data-tutup="1" id="btnSelesaiRetur">Selesai</button>');
     } catch (e) {
@@ -1729,7 +1729,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Klaim', angka: true, render: r => rp(r.nilai_klaim) },
             { judul: 'Persediaan', angka: true, render: r => rp(r.nilai_persediaan) },
             { judul: 'Selisih', angka: true, render: r => r.selisih_nilai
-                ? `<span style="color:${r.selisih_nilai < 0 ? '#f87171' : '#4ade80'}">${
+                ? `<span style="color:${r.selisih_nilai < 0 ? 'var(--bahaya)' : 'var(--sukses)'}">${
                     r.selisih_nilai > 0 ? '+' : ''}${rp(r.selisih_nilai)}</span>` : '—' },
             { judul: 'Penyelesaian', render: r => `<span class="lencana">${
                 r.penyelesaian === 'POTONG_UTANG' ? 'potong utang' : 'uang kembali'}</span>` }
@@ -1751,7 +1751,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="hasilCariBeli"></div>
       <p class="petunjuk">Memakai faktur asal jauh lebih baik: harga beli yang ditagihkan ke supplier
         diambil persis dari faktur itu, bukan dari tebakan.
-        <a href="#" id="lnkTanpaFaktur" style="color:var(--utama-terang)">Lanjut tanpa faktur</a>.</p>
+        <a href="#" id="lnkTanpaFaktur" style="color:var(--utama-gelap)">Lanjut tanpa faktur</a>.</p>
       <div id="formIsiReturBeli"></div>`,
       '<button class="tombol" data-tutup="1">Tutup</button>');
   }

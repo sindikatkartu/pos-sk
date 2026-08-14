@@ -6,16 +6,43 @@
  * dan aplikasi ini harus tetap jalan saat internet mati. Menyertakan pustaka besar ke
  * dalam cache offline juga membengkakkan unduhan awal di perangkat kasir.
  *
- * Palet warnanya sudah diuji terhadap latar gelap aplikasi ini: lolos pemeriksaan
- * pita kecerahan, ambang saturasi, keterbedaan bagi penderita buta warna (ΔE terburuk
- * 8,4 pada pasangan bersebelahan), dan kontras minimum 3:1 terhadap latar.
+ * PALET (v1.8, disesuaikan untuk latar TERANG).
+ *
+ * Palet lama dipilih untuk latar gelap dan tidak boleh dibawa apa adanya: diuji ulang
+ * dengan `node uji/palet.mjs`, dua dari enam warnanya gagal kontras 3:1 terhadap kartu
+ * putih. Palet di bawah lolos kontras untuk keenam slot (`3,55`–`11,99`).
+ *
+ * Soal buta warna — perlu jujur di sini. Enam warna kategoris yang sekaligus (a) enak
+ * dilihat, (b) berkontras cukup di atas putih, dan (c) terbedakan penuh oleh penderita
+ * deuteranopia TIDAK bisa dicapai; setiap kali pemeriksaan ΔE dipaksa lolos, hasilnya
+ * palet keruh yang terlihat murah. Jadi jalan keluarnya bukan memaksa warna, melainkan
+ * BERHENTI bergantung pada warna: setiap seri garis juga punya pola putus dan bentuk
+ * penanda sendiri, legenda menampilkan pola itu (bukan cuma titik warna), dan setiap
+ * grafik punya tombol tabel. Warna tinggal jadi isyarat pendukung, bukan satu-satunya.
  */
 const Grafik = (() => {
 
-  // Urutan slot bukan hiasan — urutan inilah yang membuat warna bersebelahan
-  // tetap terbedakan oleh penderita buta warna. Jangan diacak.
-  const SERI = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9'];
-  const TEKS = '#e8edf2', TEKS_REDUP = '#93a1b0', GARIS = '#2f3a45';
+  // Urutan slot bukan hiasan — urutan inilah yang menjaga jarak warna antar seri
+  // bersebelahan tetap lebar (ΔE >= 20). Jangan diacak.
+  const SERI = ['#3b82f6', '#e0620d', '#0d9068', '#b0338a', '#15307d', '#7a7f89'];
+  // Isyarat kedua: pola garis. Slot 1 sengaja utuh — seri tunggal paling sering dipakai.
+  const POLA = ['', '6 3', '2 3', '9 3 2 3', '1 4', '12 4'];
+  // Isyarat ketiga: bentuk penanda, dipakai saat titik digambar (data <= 14 hari).
+  const BENTUK = ['bulat', 'kotak', 'wajik', 'segitiga', 'silang', 'bulat-kosong'];
+  const TEKS = '#101828', TEKS_REDUP = '#667085', GARIS = '#e4e7ec', KERTAS = '#ffffff';
+
+  /** Gambar penanda seri pada koordinat (cx,cy) sesuai bentuk slotnya. */
+  function penanda(si, cx, cy, warna, r = 4) {
+    const b = BENTUK[si % BENTUK.length];
+    const um = { fill: warna, stroke: KERTAS, 'stroke-width': 1.75 };
+    if (b === 'kotak')    return el('rect', { x: cx - r, y: cy - r, width: r * 2, height: r * 2, rx: 1, ...um });
+    if (b === 'wajik')    return el('polygon', { points: `${cx},${cy - r - 1} ${cx + r + 1},${cy} ${cx},${cy + r + 1} ${cx - r - 1},${cy}`, ...um });
+    if (b === 'segitiga') return el('polygon', { points: `${cx},${cy - r - 1} ${cx + r + 1},${cy + r} ${cx - r - 1},${cy + r}`, ...um });
+    if (b === 'silang')   return el('path', { d: `M${cx - r} ${cy - r}L${cx + r} ${cy + r}M${cx + r} ${cy - r}L${cx - r} ${cy + r}`,
+                                              fill: 'none', stroke: warna, 'stroke-width': 2.6, 'stroke-linecap': 'round' });
+    if (b === 'bulat-kosong') return el('circle', { cx, cy, r, fill: KERTAS, stroke: warna, 'stroke-width': 2.4 });
+    return el('circle', { cx, cy, r, ...um });
+  }
 
   const NS = 'http://www.w3.org/2000/svg';
   const el = (t, a = {}) => {
@@ -128,14 +155,16 @@ const Grafik = (() => {
     seri.forEach((s, si) => {
       const warna = SERI[si % SERI.length];
       const d = s.data.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
-      svg.appendChild(el('path', { d, fill: 'none', stroke: warna, 'stroke-width': 2,
-                                   'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      const atr = { d, fill: 'none', stroke: warna, 'stroke-width': 2.2,
+                    'stroke-linejoin': 'round', 'stroke-linecap': 'round' };
+      // Pola putus = isyarat kedua di samping warna, supaya seri tetap terbedakan
+      // saat warnanya bertabrakan bagi penderita buta warna.
+      const pola = POLA[si % POLA.length];
+      if (pola) { atr['stroke-dasharray'] = pola; atr['stroke-linecap'] = 'butt'; }
+      svg.appendChild(el('path', atr));
       // Titik hanya digambar bila datanya sedikit — kalau 30 hari, titik justru bikin ramai
       if (tanggal.length <= 14) {
-        s.data.forEach((v, i) => {
-          svg.appendChild(el('circle', { cx: x(i), cy: y(v), r: 4, fill: warna,
-                                         stroke: '#1a2027', 'stroke-width': 2 }));
-        });
+        s.data.forEach((v, i) => svg.appendChild(penanda(si, x(i), y(v), warna)));
       }
     });
 
@@ -220,12 +249,24 @@ const Grafik = (() => {
 
   /* ==================== Legenda & tampilan tabel ==================== */
 
-  function legenda(nama) {
+  /**
+   * Legenda menampilkan CONTOH GARIS, bukan sekadar titik warna — sehingga pola
+   * putusnya ikut terbaca dan seri masih bisa dicocokkan tanpa mengandalkan warna.
+   * `garis: false` dipakai grafik batang, yang memang tidak punya pola.
+   */
+  function legenda(nama, garis = true) {
     const d = document.createElement('div');
     d.className = 'grafik-legenda';
-    d.innerHTML = nama.map((n, i) =>
-      `<span class="item"><span class="titik" style="background:${SERI[i % SERI.length]}"></span>${esc(n)}</span>`
-    ).join('');
+    d.innerHTML = nama.map((n, i) => {
+      const w = SERI[i % SERI.length];
+      const p = POLA[i % POLA.length];
+      const contoh = garis
+        ? `<svg class="cth" viewBox="0 0 26 12" aria-hidden="true">
+             <path d="M1 6h24" fill="none" stroke="${w}" stroke-width="2.2"${p ? ` stroke-dasharray="${p}"` : ''}/>
+           </svg>`
+        : `<span class="titik" style="background:${w}"></span>`;
+      return `<span class="item">${contoh}${esc(n)}</span>`;
+    }).join('');
     return d;
   }
 

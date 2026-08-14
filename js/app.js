@@ -48,51 +48,139 @@ function bolehIzin(modul, aksi) {
  *   Kepala Cabang  → + Dashboard, Stok, Transfer, Pembelian, Pelanggan, Piutang, Laporan
  *   Akunting       → Dashboard, Riwayat, Piutang, Laporan, Keuangan, Audit, Perangkat
  *   Owner          → semuanya
+ *
+ * `grup`       : hanya untuk tampilan — mengelompokkan menu di laci (☰) supaya
+ *                daftar 20 menu milik Owner tetap terbaca. Tidak memengaruhi hak akses.
  */
 const MENU = [
-  { id: 'dashboard',  label: 'Dashboard',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
-  { id: 'kasir',      label: 'Kasir',      izin: ['kasir', 'buat'] },
-  { id: 'riwayat',    label: 'Riwayat',    izin: ['penjualan', 'lihat'] },
+  { id: 'dashboard',  label: 'Dashboard',  grup: 'Ringkasan',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
+  { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'] },
+  { id: 'riwayat',    label: 'Riwayat',    grup: 'Penjualan',  izin: ['penjualan', 'lihat'] },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
-  { id: 'retur',      label: 'Retur',      izin: ['retur', 'buat'],              admin: true },
-  { id: 'produk',     label: 'Produk',     izin: ['produk', 'buat'],             admin: true, backoffice: true },
-  { id: 'stok',       label: 'Stok',       izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
-  { id: 'transfer',   label: 'Transfer',   izin: ['transfer', 'lihat'],          admin: true, backoffice: true },
-  { id: 'opname',     label: 'Opname',     izin: ['opname', 'buat'],             admin: true, backoffice: true },
-  { id: 'pembelian',  label: 'Pembelian',  izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
-  { id: 'returbeli',  label: 'Retur Beli', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
-  { id: 'mitra',      label: 'Pelanggan',  izin: ['pelanggan', 'ubah'],          admin: true, backoffice: true },
-  { id: 'piutang',    label: 'Piutang',    izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
-  { id: 'laporan',    label: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
-  { id: 'keuangan',   label: 'Keuangan',   izin: ['laporan_keuangan', 'lihat'] },
-  { id: 'pengguna',   label: 'Pengguna',   izin: ['user', 'lihat'],              admin: true, backoffice: true },
-  { id: 'cabang',     label: 'Cabang',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
-  { id: 'sistem',     label: 'Setting',    izin: ['setting', 'lihat'],           admin: true, backoffice: true },
-  { id: 'audit',      label: 'Audit',      izin: ['audit', 'lihat'],             admin: true, backoffice: true },
-  { id: 'arsip',      label: 'Arsip',      izin: ['setting', 'hapus'],           admin: true, backoffice: true },
-  { id: 'pengaturan', label: 'Perangkat',  izin: null }   // selalu tampil
+  { id: 'retur',      label: 'Retur',      grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
+  { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
+  { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
+  { id: 'transfer',   label: 'Transfer',   grup: 'Persediaan', izin: ['transfer', 'lihat'],          admin: true, backoffice: true },
+  { id: 'opname',     label: 'Opname',     grup: 'Persediaan', izin: ['opname', 'buat'],             admin: true, backoffice: true },
+  { id: 'pembelian',  label: 'Pembelian',  grup: 'Persediaan', izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
+  { id: 'returbeli',  label: 'Retur Beli', grup: 'Persediaan', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
+  { id: 'mitra',      label: 'Pelanggan',  grup: 'Relasi',     izin: ['pelanggan', 'ubah'],          admin: true, backoffice: true },
+  { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
+  { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
+  { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
+  { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
+  { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
+  { id: 'sistem',     label: 'Setting',    grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
+  { id: 'audit',      label: 'Audit',      grup: 'Sistem',     izin: ['audit', 'lihat'],             admin: true, backoffice: true },
+  { id: 'arsip',      label: 'Arsip',      grup: 'Sistem',     izin: ['setting', 'hapus'],           admin: true, backoffice: true },
+  { id: 'pengaturan', label: 'Perangkat',  grup: 'Sistem',     izin: null }   // selalu tampil
 ];
+
+/** Urutan kelompok di sidebar. Menu bergrup lain (kalau ada) diletakkan di akhir. */
+const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Laporan', 'Sistem'];
+
+/**
+ * IKON — digambar sebaris sebagai SVG, BUKAN diambil dari CDN ikon.
+ * Alasannya sama dengan alasan grafik dibuat sendiri: aplikasi ini harus tetap
+ * utuh saat internet mati. Ikon yang gagal dimuat akan membuat sidebar terlihat
+ * rusak persis di saat kasir paling butuh tenang.
+ *
+ * Semua digambar pada kanvas 24×24 dengan tebal garis seragam (lihat .ikon-svg),
+ * supaya tidak terlihat seperti kumpulan ikon dari beberapa sumber berbeda.
+ */
+const IKON = {
+  dashboard : '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  kasir     : '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 11.2a1.8 1.8 0 0 0 1.8 1.4h9a1.8 1.8 0 0 0 1.76-1.4L21 7H5.2"/>',
+  riwayat   : '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/>',
+  retur     : '<path d="M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5"/>',
+  produk    : '<path d="M20.5 7.3 12 12l-8.5-4.7"/><path d="M12 12v9.5"/><path d="M20.5 7.6v8.8a1.5 1.5 0 0 1-.78 1.32l-7 3.9a1.5 1.5 0 0 1-1.44 0l-7-3.9A1.5 1.5 0 0 1 3.5 16.4V7.6a1.5 1.5 0 0 1 .78-1.32l7-3.9a1.5 1.5 0 0 1 1.44 0l7 3.9A1.5 1.5 0 0 1 20.5 7.6Z"/><path d="m7.6 4.6 8.6 4.8"/>',
+  stok      : '<path d="m12 2.8 9 4.6-9 4.6-9-4.6 9-4.6Z"/><path d="m3 12.4 9 4.6 9-4.6"/><path d="m3 17 9 4.6 9-4.6"/>',
+  transfer  : '<path d="M7.5 4 4 7.5 7.5 11"/><path d="M4 7.5h15"/><path d="M16.5 13 20 16.5 16.5 20"/><path d="M20 16.5H5"/>',
+  opname    : '<rect x="8" y="2.5" width="8" height="4" rx="1.4"/><path d="M16 4.5h2A2 2 0 0 1 20 6.5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h2"/><path d="m9 13.5 2 2 4-4"/>',
+  pembelian : '<path d="M13.5 17.5V7a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 7v9a1.5 1.5 0 0 0 1.5 1.5H5"/><path d="M13.5 9.5H17l4 4v4a1.5 1.5 0 0 1-1.5 1.5H19"/><path d="M9 17.5h5.5"/><circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
+  // Retur Beli sengaja TIDAK memakai kotak seperti Produk/Retur Beli lain — di ukuran
+  // 18px dua kotak nyaris kembar. Dipakai truk yang berputar arah: barang keluar ke supplier.
+  returbeli : '<path d="M13.5 16.5V7a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 7v9a1.5 1.5 0 0 0 1.5 1.5H5"/><path d="M13.5 9.5H17l4 4v3a1.5 1.5 0 0 1-1.5 1.5H19"/><circle cx="7" cy="17.5" r="1.9"/><circle cx="17" cy="17.5" r="1.9"/><path d="M11.5 11.5h-5m2-2-2 2 2 2"/>',
+  mitra     : '<path d="M15.5 20.5v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2a3.7 3.7 0 0 0-3.7 3.7v1.8"/><circle cx="9" cy="7.5" r="3.7"/><path d="M21.5 20.5v-1.8a3.7 3.7 0 0 0-2.8-3.58"/><path d="M15.8 4.02a3.7 3.7 0 0 1 0 7.16"/>',
+  piutang   : '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
+  laporan   : '<path d="M3.5 3v17.5H21"/><path d="M7.5 16.5v-4"/><path d="M12 16.5v-8"/><path d="M16.5 16.5v-5.5"/>',
+  keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
+  pengguna  : '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
+  cabang    : '<path d="m2.5 7.5 1.6-4.2h15.8l1.6 4.2"/><path d="M2.5 7.5h19v1.6a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-5.3 0Z"/><path d="M4.6 12.6v8.4h14.8v-8.4"/><path d="M9.6 21v-5h4.8v5"/>',
+  sistem    : '<circle cx="12" cy="12" r="3"/><path d="M19.1 14.4a1.5 1.5 0 0 0 .3 1.65l.05.06a1.85 1.85 0 1 1-2.6 2.6l-.06-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.37v.17a1.85 1.85 0 1 1-3.7 0v-.09a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.06.05a1.85 1.85 0 1 1-2.6-2.6l.05-.06a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.9H4a1.85 1.85 0 1 1 0-3.7h.09a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65l-.05-.06a1.85 1.85 0 1 1 2.6-2.6l.06.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.37V4a1.85 1.85 0 1 1 3.7 0v.09a1.5 1.5 0 0 0 .9 1.37 1.5 1.5 0 0 0 1.65-.3l.06-.05a1.85 1.85 0 1 1 2.6 2.6l-.05.06a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.37.9H20a1.85 1.85 0 1 1 0 3.7h-.09a1.5 1.5 0 0 0-1.37.9Z"/>',
+  audit     : '<path d="M12 21.5s7.5-3.8 7.5-9.5V5.2L12 2.5 4.5 5.2V12c0 5.7 7.5 9.5 7.5 9.5Z"/><path d="m9.2 11.8 2 2 3.6-3.6"/>',
+  arsip     : '<rect x="2.5" y="3.5" width="19" height="4.6" rx="1.4"/><path d="M4.4 8.1v10.4a2 2 0 0 0 2 2h11.2a2 2 0 0 0 2-2V8.1"/><path d="M10 12.2h4"/>',
+  pengaturan: '<rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M12 18.2h.01"/>'
+};
+const svgIkon = (id) =>
+  `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON[id] || IKON.pengaturan}</svg>`;
 
 const menuTampil = () => MENU.filter(m => !m.izin || bolehIzin(m.izin[0], m.izin[1]));
 
+/** Kelompokkan menu yang sudah disaring hak akses, menurut URUT_GRUP. */
+function kelompokMenu(daftar) {
+  const grup = [];
+  daftar.forEach(m => {
+    const nama = m.grup || 'Lainnya';
+    let g = grup.find(x => x.nama === nama);
+    if (!g) grup.push(g = { nama, isi: [] });
+    g.isi.push(m);
+  });
+  const urut = g => { const i = URUT_GRUP.indexOf(g.nama); return i === -1 ? 99 : i; };
+  return grup.sort((a, b) => urut(a) - urut(b));
+}
+
 function bangunNav() {
   const daftar = menuTampil();
-  $('#navTab').innerHTML = daftar.map((m, i) =>
-    `<button data-layar="${m.id}" class="${i === 0 ? 'aktif' : ''}">${esc(m.label)}</button>`).join('');
+
+  $('#navSisi').innerHTML = kelompokMenu(daftar).map(g =>
+    `<div class="sisi-grup">${esc(g.nama)}</div>` +
+    g.isi.map(m =>
+      // title= dipakai saat sidebar terlipat: labelnya hilang, tooltipnya menggantikan.
+      `<button data-layar="${m.id}" title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></button>`
+    ).join('')
+  ).join('');
+
   bukaLayar(daftar[0].id);
 }
 
 function bukaLayar(id) {
-  $$('#navTab button').forEach(b => b.classList.toggle('aktif', b.dataset.layar === id));
+  $$('#navSisi button').forEach(b => b.classList.toggle('aktif', b.dataset.layar === id));
   $$('.layar').forEach(l => l.classList.remove('aktif'));
   const el = $('#layar' + id[0].toUpperCase() + id.slice(1));
   if (el) el.classList.add('aktif');
 
   const m = MENU.find(x => x.id === id);
+  $('#judulLayar').textContent = m ? m.label : '';
+  tutupLaci();
+
   if (m && m.admin) return Admin.muat(id);
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
   if (id === 'kasir') $('#inpCari').focus();
+}
+
+/* ---------- Sidebar: laci (layar sempit) & lipat (layar lebar) ---------- */
+function bukaLaci() {
+  $('#sisi').classList.add('buka');
+  $('#tiraiSisi').classList.add('buka');
+  $('#btnLaci').setAttribute('aria-expanded', 'true');
+}
+function tutupLaci() {
+  $('#sisi').classList.remove('buka');
+  $('#tiraiSisi').classList.remove('buka');
+  $('#btnLaci').setAttribute('aria-expanded', 'false');
+}
+
+/** Keadaan lipat diingat per perangkat — PC kasir sempit dan tablet gudang
+ *  punya kebiasaan berbeda, dan tidak ada yang mau melipatnya tiap pagi. */
+async function terapkanLipat(lipat, simpan = true) {
+  $('#app').classList.toggle('sisi-lipat', !!lipat);
+  $('#btnLipat').setAttribute('title', lipat ? 'Bentangkan menu (Ctrl+B)' : 'Lipat menu (Ctrl+B)');
+  $('#btnLipat').innerHTML = lipat
+    ? '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>'
+    : '<svg class="ikon-svg" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9.5 4v16"/></svg>';
+  if (simpan) await DB.kvSet('sisi_lipat', !!lipat);
 }
 
 /* ==================== IDENTITAS PERANGKAT ==================== */
@@ -165,9 +253,19 @@ async function mulaiSesi(d) {
 
   $('#layarLogin').classList.add('sembunyi');
   $('#app').classList.remove('sembunyi');
-  $('#lncUser').textContent = d.user.nama + ' · ' + d.user.nama_peran;
-  $('#lncCabang').textContent = d.cabang;
 
+  const inisial = String(d.user.nama || '?').trim().split(/\s+/)
+    .slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  $('#avatarUser').textContent = inisial || '?';
+  $('#namaUser').textContent   = d.user.nama;
+  $('#peranUser').textContent  = d.user.nama_peran;
+  $('#namaUser').title         = d.user.nama;
+  $('#lncUser').textContent    = d.user.nama + ' · ' + d.user.nama_peran;
+  $('#lncCabang').textContent  = d.cabang;
+  $('#sisiCabang').textContent = d.cabang + (d.nama_cabang ? ' · ' + d.nama_cabang : '');
+  $('#sisiCabang').title       = $('#sisiCabang').textContent;
+
+  await terapkanLipat(await DB.kvGet('sisi_lipat', false), false);
   bangunNav();
   $('#btnTutupBuku').classList.toggle('sembunyi', !APP_STATE.flag.tutup_buku);
 
@@ -265,8 +363,9 @@ async function gambarProduk(kueri) {
       <div>
         <div class="harga">${rp(harga)}</div>
         <div class="stok ${qty !== null && qty <= 0 ? 'habis' : ''}">${qty === null ? 'stok ?' : 'stok ' + qty}</div>
-        <button class="tombol kecil" data-stok-cabang="${esc(p.sku)}" title="Lihat stok di seluruh cabang"
-                style="margin-top:6px">cabang lain</button>
+        <button class="tombol kecil sunyi" data-stok-cabang="${esc(p.sku)}"
+                title="Lihat stok produk ini di seluruh cabang"
+                style="margin-top:5px">cabang lain</button>
       </div>
     </div>`;
   }).join('') : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Tidak ada produk cocok</p>';
@@ -352,7 +451,7 @@ function gambarKeranjang() {
           ${x.sumber_harga === 'satuan' ? '<span class="tanda-tier">' + esc(x.satuan) + '</span>' : ''}
           ${x.hargaManual ? '<span class="tanda-manual">manual</span>' : ''}
           ${x.diskon > 0 ? '<br>Diskon −' + rp(x.diskon) : ''}
-          ${x.diskonDipotong ? '<br><span style="color:#fbbf24">diskon dipotong ke batas peran</span>' : ''}
+          ${x.diskonDipotong ? '<br><span style="color:var(--peringatan)">diskon dipotong ke batas peran</span>' : ''}
         </div>
         <div class="aksi">
           <button data-aksi="kurang">−</button>
@@ -656,9 +755,26 @@ function pasangEvent() {
   });
 
   /* --- navigasi --- */
-  $('#navTab').addEventListener('click', e => {
+  $('#navSisi').addEventListener('click', e => {
     const b = e.target.closest('button');
     if (b) bukaLayar(b.dataset.layar);
+  });
+  $('#btnLaci').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>';
+  $('#btnKeluar').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="m15.5 16.5 4.5-4.5-4.5-4.5"/><path d="M20 12H9"/></svg>';
+  $('#btnLaci').addEventListener('click', () =>
+    $('#sisi').classList.contains('buka') ? tutupLaci() : bukaLaci());
+  $('#tiraiSisi').addEventListener('click', tutupLaci);
+  // Gambar ikonnya sekarang juga, jangan tunggu sesi dimulai — kalau tidak, tombolnya
+  // sempat tampil kosong dan terlihat seperti bug.
+  terapkanLipat(false, false);
+  $('#btnLipat').addEventListener('click', () =>
+    terapkanLipat(!$('#app').classList.contains('sisi-lipat')));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('#sisi').classList.contains('buka')) tutupLaci();
+    if (e.key.toLowerCase() === 'b' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      e.preventDefault();
+      terapkanLipat(!$('#app').classList.contains('sisi-lipat'));
+    }
   });
 
   $('#btnKeluar').addEventListener('click', async () => {
