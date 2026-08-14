@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>POS Sindikat Kartu</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div class="layar-login" id="layarLogin">
+  <div class="kartu-login">
+    <h1>POS Sindikat Kartu</h1>
+    <p class="sub" id="subLogin">Masuk untuk mulai berjualan</p>
+
+    <div id="pesanLogin"></div>
+
+    <div class="grup">
+      <label>Username</label>
+      <input type="text" id="inpUsername" autocomplete="username" autocapitalize="none">
+    </div>
+
+    <div id="modePin">
+      <label>PIN</label>
+      <div class="titik-pin" id="titikPin"></div>
+      <div class="papan-pin">
+        <button data-pin="1">1</button><button data-pin="2">2</button><button data-pin="3">3</button>
+        <button data-pin="4">4</button><button data-pin="5">5</button><button data-pin="6">6</button>
+        <button data-pin="7">7</button><button data-pin="8">8</button><button data-pin="9">9</button>
+        <button data-pin="hapus">←</button><button data-pin="0">0</button>
+        <button data-pin="masuk" class="tombol utama">OK</button>
+      </div>
+    </div>
+
+    <div id="modePassword" class="sembunyi">
+      <div class="grup">
+        <label>Password</label>
+        <input type="password" id="inpPassword" autocomplete="current-password">
+      </div>
+      <button class="tombol utama besar" id="btnLoginPassword">Masuk</button>
+    </div>
+
+    <button class="tombol" style="width:100%;margin-top:12px;background:transparent;border:none;color:var(--teks-redup)"
+            id="btnTukarMode">Masuk dengan password</button>
+  </div>
+</div>
+
+<!-- ==================== APLIKASI ==================== -->
+<div id="app" class="sembunyi">
+
+  <header class="bar-atas">
+    <span class="merek">POS SK</span>
+    <!-- Menu dibangun dinamis dari hak akses user — lihat MENU di app.js -->
+    <nav class="tab" id="navTab"></nav>
+    <div class="isi-tengah"></div>
+    <span class="lencana" id="lncCabang">—</span>
+    <span class="lencana" id="lncShift">Shift belum dibuka</span>
+    <span class="lencana" id="lncSync">Memeriksa…</span>
+    <span class="lencana" id="lncUser">—</span>
+    <button class="tombol" id="btnKeluar" style="padding:8px 12px">Keluar</button>
+  </header>
+
+  <main>
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="layar" id="layarDashboard"><div id="isiDashboard"></div></section>
+
+    <!-- ---------- KASIR ---------- -->
+    <section class="layar kasir" id="layarKasir">
+      <div class="panel-produk">
+        <div class="kotak-cari">
+          <span class="ikon">⌕</span>
+          <input type="text" id="inpCari" placeholder="Scan barcode / ketik nama, SKU, tipe HP…  (F2)" autocomplete="off">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="selLevel" style="width:auto">
+            <option value="eceran">Harga Eceran</option>
+            <option value="grosir">Harga Grosir</option>
+            <option value="reseller">Harga Reseller</option>
+          </select>
+          <select id="selPelanggan" style="width:auto;max-width:220px"></select>
+          <span class="lencana" id="lncJumlahProduk"></span>
+        </div>
+        <div class="daftar-produk" id="daftarProduk"></div>
+      </div>
+
+      <aside class="panel-keranjang" id="panelKeranjang">
+        <div class="pegangan" id="pegangan">
+          <span id="pegHitung">0 item</span>
+          <span id="pegTotal">Rp 0</span>
+        </div>
+        <div class="keranjang-atas">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Keranjang</strong>
+            <button class="tombol" id="btnKosongkan" style="padding:6px 11px;font-size:13px">Kosongkan</button>
+          </div>
+        </div>
+        <div class="keranjang-isi" id="isiKeranjang">
+          <p style="color:var(--teks-redup);text-align:center;padding:36px 0">Keranjang kosong</p>
+        </div>
+        <div class="keranjang-bawah">
+          <div class="total-baris"><span>Subtotal</span><span id="tSubtotal">Rp 0</span></div>
+          <div class="total-baris"><span>Diskon</span><span id="tDiskon">Rp 0</span></div>
+          <div class="total-baris" id="brsPpn" style="display:none"><span>PPN</span><span id="tPpn">Rp 0</span></div>
+          <div class="total-baris besar"><span>TOTAL</span><span id="tTotal">Rp 0</span></div>
+          <button class="tombol sukses besar" id="btnBayar" style="margin-top:12px">BAYAR  (F12)</button>
+        </div>
+      </aside>
+    </section>
+
+    <!-- ---------- RIWAYAT ---------- -->
+    <section class="layar" id="layarRiwayat">
+      <div class="kartu"><h3>Nota hari ini</h3><div id="isiRiwayat"></div></div>
+    </section>
+
+    <!-- ---------- BACK OFFICE (diisi admin.js) ---------- -->
+    <section class="layar" id="layarRetur"><div id="isiRetur"></div></section>
+    <section class="layar" id="layarProduk"><div id="isiProduk"></div></section>
+    <section class="layar" id="layarStok"><div id="isiStok"></div></section>
+    <section class="layar" id="layarTransfer"><div id="isiTransfer"></div></section>
+    <section class="layar" id="layarOpname"><div id="isiOpname"></div></section>
+    <section class="layar" id="layarReturbeli"><div id="isiReturbeli"></div></section>
+    <section class="layar" id="layarArsip"><div id="isiArsip"></div></section>
+    <section class="layar" id="layarPembelian"><div id="isiPembelian"></div></section>
+    <section class="layar" id="layarMitra"><div id="isiMitra"></div></section>
+    <section class="layar" id="layarPiutang"><div id="isiPiutang"></div></section>
+    <section class="layar" id="layarPengguna"><div id="isiPengguna"></div></section>
+    <section class="layar" id="layarCabang"><div id="isiCabang"></div></section>
+    <section class="layar" id="layarSistem"><div id="isiSistem"></div></section>
+    <section class="layar" id="layarAudit"><div id="isiAudit"></div></section>
+
+    <!-- ---------- LAPORAN ---------- -->
+    <section class="layar" id="layarLaporan">
+      <div class="kartu">
+        <h3>Laporan penjualan</h3>
+        <div class="baris2" style="max-width:520px">
+          <div><label>Dari</label><input type="date" id="lapDari"></div>
+          <div><label>Sampai</label><input type="date" id="lapSampai"></div>
+        </div>
+        <button class="tombol utama" id="btnLaporan" style="margin-top:12px">Tampilkan</button>
+      </div>
+      <div id="hasilLaporan"></div>
+    </section>
+
+    <!-- ---------- KEUANGAN ---------- -->
+    <section class="layar" id="layarKeuangan">
+      <div class="kartu">
+        <h3>Laporan keuangan</h3>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+          <div style="max-width:190px"><label>Periode</label><input type="month" id="keuPeriode"></div>
+          <div style="max-width:190px"><label>Cabang</label><select id="keuCabang"></select></div>
+          <button class="tombol utama" id="btnLabaRugi">Laba Rugi</button>
+          <button class="tombol utama" id="btnNeraca">Neraca</button>
+          <button class="tombol" id="btnUji">Uji kebenaran</button>
+          <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
+        </div>
+      </div>
+      <div id="hasilKeuangan"></div>
+    </section>
+
+    <!-- ---------- PERANGKAT & SHIFT (semua peran) ---------- -->
+    <section class="layar" id="layarPengaturan">
+      <div class="petak">
+        <div class="kartu">
+          <h3>Shift kasir</h3>
+          <div id="infoShift"></div>
+          <div class="grup" style="margin-top:12px">
+            <label>Kas awal laci</label>
+            <input type="number" id="inpKasAwal" value="0">
+          </div>
+          <button class="tombol utama" id="btnBukaShift">Buka shift</button>
+          <button class="tombol bahaya" id="btnTutupShift" style="margin-top:8px">Tutup shift</button>
+        </div>
+
+        <div class="kartu">
+          <h3>Printer</h3>
+          <p style="color:var(--teks-redup);font-size:13px" id="infoPrinter">Belum terhubung</p>
+          <button class="tombol" id="btnHubungkanPrinter">Hubungkan printer Bluetooth</button>
+          <button class="tombol" id="btnUjiCetak" style="margin-top:8px">Uji cetak</button>
+        </div>
+
+        <div class="kartu">
+          <h3>Data &amp; sinkronisasi</h3>
+          <p style="color:var(--teks-redup);font-size:13px" id="infoData"></p>
+          <button class="tombol" id="btnTarikMaster">Tarik ulang data master</button>
+          <button class="tombol" id="btnKirimSekarang" style="margin-top:8px">Kirim antrian sekarang</button>
+        </div>
+
+        <div class="kartu">
+          <h3>Perangkat ini</h3>
+          <p style="color:var(--teks-redup);font-size:13px" id="infoPerangkat"></p>
+          <div id="daftarPerangkat"></div>
+        </div>
+
+        <div class="kartu">
+          <h3>Akun saya</h3>
+          <div class="grup"><label>PIN lama</label><input type="password" id="pinLama" inputmode="numeric"></div>
+          <div class="grup"><label>PIN baru (6 digit)</label><input type="password" id="pinBaru" inputmode="numeric"></div>
+          <button class="tombol utama" id="btnGantiPin">Ganti PIN</button>
+          <div id="pesanGantiPin"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ==================== MODAL BAYAR ==================== -->
+<div class="tirai" id="tiraiBayar">
+  <div class="modal">
+    <h3>Pembayaran</h3>
+    <div class="total-baris besar" style="border:none;margin:0 0 14px"><span>TOTAL</span><span id="byrTotal">Rp 0</span></div>
+    <div class="grup"><label>Diskon nota (Rp)</label><input type="number" id="byrDiskonNota" value="0"></div>
+    <div id="byrDaftarMetode"></div>
+    <button class="tombol" id="btnTambahMetode" style="width:100%;margin-bottom:12px">+ Metode bayar lain (split)</button>
+    <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
+    <div class="total-baris besar" style="font-size:20px"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
+    <div class="grup sembunyi" id="grupJatuhTempo">
+      <label>Jatuh tempo piutang</label>
+      <input type="date" id="byrJatuhTempo">
+    </div>
+    <div id="pesanBayar"></div>
+    <div class="aksi-modal">
+      <button class="tombol" id="btnBatalBayar">Batal</button>
+      <button class="tombol sukses" id="btnSelesaikan">Selesaikan &amp; Cetak</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL DETAIL ITEM ==================== -->
+<div class="tirai" id="tiraiItem">
+  <div class="modal">
+    <h3 id="itmNama">Item</h3>
+    <div class="baris2">
+      <div class="grup"><label>Qty</label><input type="number" id="itmQty" min="0" step="1"></div>
+      <div class="grup"><label>Satuan</label><select id="itmSatuan"></select></div>
+    </div>
+    <div class="baris2">
+      <div class="grup"><label>Harga satuan</label><input type="number" id="itmHarga"></div>
+      <div class="grup"><label>Diskon (Rp)</label><input type="number" id="itmDiskon" value="0"></div>
+    </div>
+    <p style="font-size:12px;color:var(--teks-redup)" id="itmInfo"></p>
+    <div class="aksi-modal">
+      <button class="tombol bahaya" id="btnHapusItem">Hapus</button>
+      <button class="tombol utama" id="btnSimpanItem">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL TUTUP SHIFT ==================== -->
+<div class="tirai" id="tiraiTutupShift">
+  <div class="modal">
+    <h3>Tutup shift</h3>
+    <div class="grup"><label>Uang fisik di laci (Rp)</label><input type="number" id="tsKasFisik" value="0"></div>
+    <div class="grup"><label>Catatan</label><textarea id="tsCatatan" rows="2"></textarea></div>
+    <div id="tsHasil"></div>
+    <div class="aksi-modal">
+      <button class="tombol" id="btnBatalTutup">Batal</button>
+      <button class="tombol bahaya" id="btnKonfirmasiTutup">Tutup shift</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL SERBAGUNA (diisi admin.js) ==================== -->
+<div class="tirai" id="tiraiUmum">
+  <div class="modal lebar" id="modalUmum"></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/api.js"></script>
+<script src="js/pos.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/print.js"></script>
+<script src="js/grafik.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

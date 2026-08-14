@@ -1,0 +1,953 @@
+/**
+ * POS SINDIKAT KARTU — app.js
+ * Perekat seluruh modul: layar, keranjang, pembayaran, shift, laporan.
+ */
+
+/* ==================== STATE ==================== */
+const APP_STATE = {
+  user: null, cabang: null, namaCabang: '', daftarCabang: [],
+  izin: {}, flag: {}, perangkat: null,
+  setting: {}, pkp: false, tarifPpn: 0, diskonMaks: 0,
+  idShift: null, produkTampil: [], indeksSorot: 0, metodeBayar: [],
+  daftarCabangSemua: []
+};
+
+const $  = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const rp = (n) => CONFIG.MATA_UANG + ' ' + new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+function pesan(wadah, teks, jenis = 'info') {
+  $(wadah).innerHTML = teks ? `<div class="pesan ${jenis}">${esc(teks)}</div>` : '';
+}
+
+function bolehIzin(modul, aksi) {
+  const i = APP_STATE.izin;
+  if (i['*'] === '*') return true;
+  const m = i[modul];
+  return m === '*' || (Array.isArray(m) && m.includes(aksi));
+}
+
+/**
+ * DAFTAR MENU — inti dari "menu muncul sesuai hak akses".
+ *
+ * `izin`       : syarat MINIMAL agar menu muncul. Perhatikan pilihannya —
+ *                menu Produk mensyaratkan `produk.buat`, BUKAN `produk.lihat`, sebab kasir
+ *                memang butuh `produk.lihat` untuk berjualan tapi tidak boleh melihat menu
+ *                master produk. Prinsip sama dipakai Stok (laporan_stok) dan Pelanggan (.ubah).
+ *
+ * `admin`      : layarnya digambar oleh admin.js (butuh internet), bukan penanda pembatasan.
+ * `backoffice` : benar-benar menu pengelolaan yang tidak boleh dilihat kasir.
+ *
+ * Dua penanda itu sengaja dipisah karena ada satu pengecualian penting: **Retur** digambar
+ * admin.js tapi justru dikerjakan kasir di depan pelanggan. Menyamakan keduanya akan
+ * menutup akses kasir ke pekerjaannya sendiri.
+ *
+ * Hasilnya untuk peran bawaan:
+ *   Kasir          → Kasir, Riwayat, Retur, Perangkat
+ *   Kepala Cabang  → + Dashboard, Stok, Transfer, Pembelian, Pelanggan, Piutang, Laporan
+ *   Akunting       → Dashboard, Riwayat, Piutang, Laporan, Keuangan, Audit, Perangkat
+ *   Owner          → semuanya
+ */
+const MENU = [
+  { id: 'dashboard',  label: 'Dashboard',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
+  { id: 'kasir',      label: 'Kasir',      izin: ['kasir', 'buat'] },
+  { id: 'riwayat',    label: 'Riwayat',    izin: ['penjualan', 'lihat'] },
+  // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
+  { id: 'retur',      label: 'Retur',      izin: ['retur', 'buat'],              admin: true },
+  { id: 'produk',     label: 'Produk',     izin: ['produk', 'buat'],             admin: true, backoffice: true },
+  { id: 'stok',       label: 'Stok',       izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
+  { id: 'transfer',   label: 'Transfer',   izin: ['transfer', 'lihat'],          admin: true, backoffice: true },
+  { id: 'opname',     label: 'Opname',     izin: ['opname', 'buat'],             admin: true, backoffice: true },
+  { id: 'pembelian',  label: 'Pembelian',  izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
+  { id: 'returbeli',  label: 'Retur Beli', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
+  { id: 'mitra',      label: 'Pelanggan',  izin: ['pelanggan', 'ubah'],          admin: true, backoffice: true },
+  { id: 'piutang',    label: 'Piutang',    izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
+  { id: 'laporan',    label: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
+  { id: 'keuangan',   label: 'Keuangan',   izin: ['laporan_keuangan', 'lihat'] },
+  { id: 'pengguna',   label: 'Pengguna',   izin: ['user', 'lihat'],              admin: true, backoffice: true },
+  { id: 'cabang',     label: 'Cabang',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
+  { id: 'sistem',     label: 'Setting',    izin: ['setting', 'lihat'],           admin: true, backoffice: true },
+  { id: 'audit',      label: 'Audit',      izin: ['audit', 'lihat'],             admin: true, backoffice: true },
+  { id: 'arsip',      label: 'Arsip',      izin: ['setting', 'hapus'],           admin: true, backoffice: true },
+  { id: 'pengaturan', label: 'Perangkat',  izin: null }   // selalu tampil
+];
+
+const menuTampil = () => MENU.filter(m => !m.izin || bolehIzin(m.izin[0], m.izin[1]));
+
+function bangunNav() {
+  const daftar = menuTampil();
+  $('#navTab').innerHTML = daftar.map((m, i) =>
+    `<button data-layar="${m.id}" class="${i === 0 ? 'aktif' : ''}">${esc(m.label)}</button>`).join('');
+  bukaLayar(daftar[0].id);
+}
+
+function bukaLayar(id) {
+  $$('#navTab button').forEach(b => b.classList.toggle('aktif', b.dataset.layar === id));
+  $$('.layar').forEach(l => l.classList.remove('aktif'));
+  const el = $('#layar' + id[0].toUpperCase() + id.slice(1));
+  if (el) el.classList.add('aktif');
+
+  const m = MENU.find(x => x.id === id);
+  if (m && m.admin) return Admin.muat(id);
+  if (id === 'riwayat') return gambarRiwayat();
+  if (id === 'pengaturan') return perbaruiInfoData();
+  if (id === 'kasir') $('#inpCari').focus();
+}
+
+/* ==================== IDENTITAS PERANGKAT ==================== */
+async function idPerangkat() {
+  let id = await DB.kvGet('id_perangkat', null);
+  if (!id) {
+    id = 'DEV-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+    await DB.kvSet('id_perangkat', id);
+  }
+  return id;
+}
+const namaPerangkat = () => (navigator.userAgentData?.platform || navigator.platform || 'Perangkat') +
+                            ' · ' + (screen.width + 'x' + screen.height);
+
+/* ==================== LOGIN ==================== */
+let pinBuffer = '';
+
+function gambarPin() {
+  $('#titikPin').innerHTML = Array.from({ length: 6 },
+    (_, i) => `<span class="${i < pinBuffer.length ? 'isi' : ''}"></span>`).join('');
+}
+
+async function login(pakaiPassword = false) {
+  const username = $('#inpUsername').value.trim();
+  if (!username) return pesan('#pesanLogin', 'Username wajib diisi.', 'galat');
+  const kredensial = pakaiPassword ? { password: $('#inpPassword').value } : { pin: pinBuffer };
+  if (!pakaiPassword && pinBuffer.length < 6) return pesan('#pesanLogin', 'PIN 6 digit.', 'galat');
+
+  pesan('#pesanLogin', 'Menghubungi server…', 'info');
+  try {
+    const d = await API.login({
+      username, ...kredensial,
+      id_perangkat: await idPerangkat(),
+      nama_perangkat: namaPerangkat(),
+      cabang: await DB.kvGet('cabang_terakhir', null)
+    });
+    API.setToken(d.token);
+    await DB.kvSet('token', d.token);
+    await DB.kvSet('sesi', d);
+    await DB.kvSet('cabang_terakhir', d.cabang);
+    await mulaiSesi(d);
+  } catch (e) {
+    pinBuffer = ''; gambarPin();
+    if (e.kode === 'PERANGKAT_MENUNGGU') {
+      pesan('#pesanLogin', e.message + ' Perangkat sudah terdaftar otomatis — minta Owner menyetujuinya, lalu coba lagi.', 'galat');
+    } else if (e.kode === 'JARINGAN' || e.kode === 'OFFLINE') {
+      // Login offline hanya diizinkan bila perangkat ini pernah login dan sesinya belum kedaluwarsa.
+      const sesiLama = await DB.kvGet('sesi', null);
+      if (sesiLama && sesiLama.user.username === username) {
+        pesan('#pesanLogin', 'Offline — masuk memakai sesi tersimpan. Sinkronisasi akan berjalan saat internet kembali.', 'info');
+        API.setToken(sesiLama.token);
+        await mulaiSesi(sesiLama);
+      } else {
+        pesan('#pesanLogin', 'Tidak dapat menghubungi server dan belum ada sesi tersimpan di perangkat ini.', 'galat');
+      }
+    } else {
+      pesan('#pesanLogin', e.message, 'galat');
+    }
+  }
+}
+
+async function mulaiSesi(d) {
+  APP_STATE.user = d.user;
+  APP_STATE.cabang = d.cabang;
+  APP_STATE.daftarCabang = d.daftar_cabang || [d.cabang];
+  APP_STATE.izin = d.izin || {};
+  APP_STATE.flag = d.flag || {};
+  APP_STATE.perangkat = d.perangkat;
+  APP_STATE.diskonMaks = Number(d.flag?.diskon_maks_persen || 0);
+
+  $('#layarLogin').classList.add('sembunyi');
+  $('#app').classList.remove('sembunyi');
+  $('#lncUser').textContent = d.user.nama + ' · ' + d.user.nama_peran;
+  $('#lncCabang').textContent = d.cabang;
+
+  bangunNav();
+  $('#btnTutupBuku').classList.toggle('sembunyi', !APP_STATE.flag.tutup_buku);
+
+  await muatMaster();
+  Sync.mulai();
+  Sync.tarikStok();
+  Sync.tarikStokSemuaCabang();
+  await periksaShift();
+  await gambarProduk('');
+  gambarKeranjang();
+  await perbaruiInfoData();
+
+  if (d.user.wajib_ganti_pin) {
+    alert('PIN Anda masih PIN awal. Segera ganti lewat menu Pengaturan.');
+  }
+}
+
+async function muatMaster() {
+  try { await Sync.tarikMaster(); }
+  catch (e) { console.warn('Master tidak dapat ditarik:', e.message); }
+
+  APP_STATE.setting = await DB.kvGet('setting', {});
+  APP_STATE.pkp = String(APP_STATE.setting.pkp) === 'true';
+  APP_STATE.tarifPpn = Number(APP_STATE.setting.tarif_ppn || 0);
+  $('#brsPpn').style.display = APP_STATE.pkp ? 'flex' : 'none';
+
+  const daftarCabang = await DB.kvGet('cabang_list', []);
+  const cab = daftarCabang.find(c => c.kode === APP_STATE.cabang);
+  APP_STATE.namaCabang = cab ? cab.nama : APP_STATE.cabang;
+  // Seluruh cabang aktif — dipakai layar "intip stok", termasuk cabang yang user ini
+  // tidak berhak bertransaksi di sana. Yang ditampilkan hanya jumlah stok, bukan harga modal.
+  APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode);
+
+  const pel = await DB.all('pelanggan');
+  $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
+    pel.map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.level_harga)})</option>`).join('');
+
+  $('#keuCabang').innerHTML =
+    (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
+    APP_STATE.daftarCabang.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+  $('#lncJumlahProduk').textContent = (await DB.jumlah('produk')) + ' produk';
+}
+
+/* ==================== PRODUK ==================== */
+async function gambarProduk(kueri) {
+  const semua = await DB.all('produk');
+  const stok = await DB.all('stok');
+  const petaStok = Object.fromEntries(stok.map(s => [s.key, s.qty]));
+  const q = (kueri || '').toLowerCase().trim();
+
+  let hasil;
+  if (!q) {
+    hasil = semua.slice(0, 60);
+  } else {
+    // Barcode persis selalu menang — inilah yang membuat scanner terasa instan.
+    const persis = semua.filter(p => String(p.barcode) === q);
+    if (persis.length === 1) { tambahKeKeranjang(persis[0]); $('#inpCari').value = ''; return gambarProduk(''); }
+    hasil = semua.filter(p => p._cari.includes(q) || String(p.barcode).includes(q)).slice(0, 60);
+  }
+
+  APP_STATE.produkTampil = hasil;
+  APP_STATE.indeksSorot = 0;
+  const level = Keranjang.level;
+
+  // Stok cabang lain dari cache — dipakai menandai "ada di cabang lain" saat stok di sini habis
+  const lain = await DB.all('stok_cabang');
+  const petaLain = {};
+  lain.forEach(s => {
+    if (s.cabang === APP_STATE.cabang || s.qty <= 0) return;
+    (petaLain[s.sku] = petaLain[s.sku] || []).push(s);
+  });
+
+  $('#daftarProduk').innerHTML = hasil.length ? hasil.map((p, i) => {
+    const qty = petaStok[p.sku + '|'] ?? null;
+    const harga = Harga.pilihLevel(p.harga, level);
+    const diLain = petaLain[p.sku] || [];
+    // Yang paling menolong kasir: saat barang habis di sini, langsung terlihat cabang mana yang punya
+    const petunjukLain = (qty !== null && qty <= 0 && diLain.length)
+      ? `<div class="ada-di-lain">ada di ${diLain.slice(0, 3).map(s => esc(s.cabang) + ' (' + s.qty + ')').join(', ')}${
+          diLain.length > 3 ? ' +' + (diLain.length - 3) : ''}</div>` : '';
+
+    return `<div class="kartu-produk ${i === 0 ? 'sorot' : ''}" data-sku="${esc(p.sku)}">
+      <div>
+        <div class="nama">${esc(p.nama)}</div>
+        <div class="meta">${esc(p.sku)}${p.merek ? ' · ' + esc(p.merek) : ''}${
+          (p.satuan_lain || []).length ? ' · ' + p.satuan_lain.map(s => esc(s.nama)).join('/') : ''}</div>
+        ${p.tipe_hp || (p.kompatibel || []).length
+          ? `<div class="meta cocok">cocok: ${esc(p.tipe_hp || '')}${
+              p.tipe_hp && (p.kompatibel || []).length ? ', ' : ''}${
+              (p.kompatibel || []).slice(0, 4).map(k => esc(k.tipe)).join(', ')}${
+              (p.kompatibel || []).length > 4 ? ` +${p.kompatibel.length - 4} lagi` : ''}</div>` : ''}
+        ${petunjukLain}
+      </div>
+      <div>
+        <div class="harga">${rp(harga)}</div>
+        <div class="stok ${qty !== null && qty <= 0 ? 'habis' : ''}">${qty === null ? 'stok ?' : 'stok ' + qty}</div>
+        <button class="tombol kecil" data-stok-cabang="${esc(p.sku)}" title="Lihat stok di seluruh cabang"
+                style="margin-top:6px">cabang lain</button>
+      </div>
+    </div>`;
+  }).join('') : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Tidak ada produk cocok</p>';
+}
+
+/* ==================== INTIP STOK ANTAR CABANG ==================== */
+
+async function lihatStokCabangLain(sku, paksaSegar = false) {
+  const produk = await DB.get('produk', sku);
+  const nama = produk ? produk.nama : sku;
+
+  const gambar = (rows, waktu, realtime) => {
+    const daftar = APP_STATE.daftarCabangSemua.length ? APP_STATE.daftarCabangSemua
+                                                      : [...new Set(rows.map(r => r.cabang))];
+    const peta = {};
+    rows.forEach(r => { peta[r.cabang] = (peta[r.cabang] || 0) + (r.qty || 0); });
+
+    Admin.modal(`Stok — ${nama}`, `
+      <p class="petunjuk">
+        ${realtime
+          ? '<span class="lencana hijau">baru dihitung</span> Angka ini dihitung ulang langsung dari mutasi stok tiap cabang.'
+          : `<span class="lencana kuning">ringkasan</span> Diperbarui ${waktu ? new Date(waktu).toLocaleString(CONFIG.LOCALE) : '—'}.
+             Tekan "Cek terkini" sebelum menjanjikan barang ke pelanggan.`}
+      </p>
+      <table>
+        <thead><tr><th>Cabang</th><th class="angka">Stok</th><th></th></tr></thead>
+        <tbody>${daftar.map(c => {
+          const q = peta[c] ?? 0;
+          const sini = c === APP_STATE.cabang;
+          return `<tr>
+            <td>${esc(c)}${sini ? ' <span class="lencana">cabang ini</span>' : ''}</td>
+            <td class="angka" style="font-size:17px;font-weight:700;${q > 0 ? '' : 'color:var(--teks-redup)'}">${q}</td>
+            <td>${q > 0 ? '<span class="lencana hijau">tersedia</span>' : '<span class="lencana">kosong</span>'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`,
+      `<button class="tombol" data-tutup="1">Tutup</button>
+       <button class="tombol utama" id="btnCekStokTerkini" data-sku="${esc(sku)}">Cek terkini</button>`);
+  };
+
+  if (paksaSegar) {
+    Admin.modal(`Stok — ${nama}`,
+      '<p class="petunjuk">Menghitung ulang dari seluruh cabang… ini bisa memakan beberapa detik.</p>');
+    try {
+      const d = await API.cekStokTerkini({ sku });
+      gambar(d.stok, d.waktu, true);
+      await Sync.tarikStokSemuaCabang();
+    } catch (e) {
+      Admin.modal(`Stok — ${nama}`, `<div class="pesan galat">${esc(e.message)}</div>`);
+    }
+    return;
+  }
+
+  const rows = await Sync.stokCabangLain(sku);
+  const waktu = await DB.kvGet('stok_cabang_diperbarui', null);
+  gambar(rows, waktu, false);
+}
+
+async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
+  try {
+    Keranjang.tambah(produk, {
+      qty, satuan,
+      daftarSatuan: produk.satuan_lain || [],
+      daftarTier: produk.tier || []
+    });
+    gambarKeranjang();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+/* ==================== KERANJANG ==================== */
+function gambarKeranjang() {
+  const b = Keranjang.baris;
+  const t = Keranjang.total();
+
+  $('#isiKeranjang').innerHTML = b.length ? b.map(x => `
+    <div class="baris-item" data-id="${x.id}">
+      <div>
+        <div class="judul">${esc(x.nama)}</div>
+        <div class="rinci">${x.qty} ${esc(x.satuan)} × ${rp(x.harga_satuan)}
+          ${x.sumber_harga === 'tier' ? '<span class="tanda-tier">tier</span>' : ''}
+          ${x.sumber_harga === 'satuan' ? '<span class="tanda-tier">' + esc(x.satuan) + '</span>' : ''}
+          ${x.hargaManual ? '<span class="tanda-manual">manual</span>' : ''}
+          ${x.diskon > 0 ? '<br>Diskon −' + rp(x.diskon) : ''}
+          ${x.diskonDipotong ? '<br><span style="color:#fbbf24">diskon dipotong ke batas peran</span>' : ''}
+        </div>
+        <div class="aksi">
+          <button data-aksi="kurang">−</button>
+          <input type="number" value="${x.qty}" data-aksi="qty" min="0">
+          <button data-aksi="tambah">+</button>
+          <button data-aksi="detail">⋯</button>
+        </div>
+      </div>
+      <div class="kanan">${rp(x.qty * x.harga_satuan - x.diskon)}</div>
+    </div>`).join('')
+    : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Keranjang kosong</p>';
+
+  $('#tSubtotal').textContent = rp(t.bruto);
+  $('#tDiskon').textContent = rp(t.diskon_item + t.diskon_nota);
+  $('#tPpn').textContent = rp(t.ppn);
+  $('#tTotal').textContent = rp(t.total);
+  $('#pegHitung').textContent = t.jumlah_item + ' item';
+  $('#pegTotal').textContent = rp(t.total);
+  $('#btnBayar').disabled = b.length === 0;
+}
+
+/* ==================== PEMBAYARAN ==================== */
+function bukaBayar() {
+  if (Keranjang.kosong) return;
+  if (!APP_STATE.idShift) { alert('Buka shift dulu di menu Pengaturan.'); return; }
+  APP_STATE.metodeBayar = [{ metode: 'tunai', jumlah: Keranjang.total().total, referensi: '' }];
+  $('#byrDiskonNota').value = Keranjang.diskonNota;
+  $('#byrJatuhTempo').value = '';
+  pesan('#pesanBayar', '');
+  gambarBayar();
+  $('#tiraiBayar').classList.add('tampil');
+  setTimeout(() => $$('#byrDaftarMetode input[data-f=jumlah]')[0]?.select(), 60);
+}
+
+function gambarBayar() {
+  const t = Keranjang.total();
+  $('#byrTotal').textContent = rp(t.total);
+
+  $('#byrDaftarMetode').innerHTML = APP_STATE.metodeBayar.map((m, i) => `
+    <div class="baris2" style="margin-bottom:8px;align-items:end">
+      <div>
+        <label>Metode ${i + 1}</label>
+        <select data-i="${i}" data-f="metode">
+          ${['tunai','transfer','qris','debit','kredit','piutang'].map(x =>
+            `<option value="${x}" ${m.metode === x ? 'selected' : ''}>${x.toUpperCase()}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;align-items:end">
+        <div style="flex:1"><label>Jumlah</label>
+          <input type="number" data-i="${i}" data-f="jumlah" value="${m.jumlah}"></div>
+        ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : ''}
+      </div>
+    </div>`).join('');
+
+  const dibayar = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);
+  const selisih = dibayar - t.total;
+  const adaPiutang = APP_STATE.metodeBayar.some(m => m.metode === 'piutang');
+
+  $('#byrDibayar').textContent = rp(dibayar);
+  $('#byrLabelSisa').textContent = selisih >= 0 ? 'Kembali' : 'Kurang';
+  $('#byrSisa').textContent = rp(Math.abs(selisih));
+  $('#byrSisa').style.color = selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)';
+  $('#grupJatuhTempo').classList.toggle('sembunyi', !adaPiutang);
+  $('#btnSelesaikan').disabled = !adaPiutang && selisih < 0;
+
+  if (adaPiutang && !Keranjang.pelanggan) {
+    pesan('#pesanBayar', 'Penjualan piutang wajib memilih pelanggan terlebih dahulu.', 'galat');
+    $('#btnSelesaikan').disabled = true;
+  }
+}
+
+async function selesaikanTransaksi() {
+  const btn = $('#btnSelesaikan');
+  btn.disabled = true;
+  try {
+    const t = Keranjang.total();
+    const uid = crypto.randomUUID ? crypto.randomUUID()
+              : 'X' + Date.now() + Math.random().toString(36).slice(2);
+    const prefix = (await DB.kvGet('cabang_list', [])).find(c => c.kode === APP_STATE.cabang)?.prefix
+                   || ('SK-' + APP_STATE.cabang);
+    const noNota = await nomorNotaBerikutnya(prefix, APP_STATE.perangkat.kode);
+
+    // Uang tunai yang melebihi total adalah kembalian — yang dicatat hanya sebesar nota.
+    const dibayar = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);
+    const kembali = Math.max(0, dibayar - t.total);
+    const mdrQris = Number(APP_STATE.setting.mdr_qris || 0);
+
+    let sisaKembali = kembali;
+    const bayar = APP_STATE.metodeBayar.map(m => {
+      let jml = Number(m.jumlah || 0);
+      if (m.metode === 'tunai' && sisaKembali > 0) {
+        const potong = Math.min(sisaKembali, jml);
+        jml -= potong; sisaKembali -= potong;
+      }
+      return {
+        metode: m.metode, jumlah: Math.round(jml), referensi: m.referensi || '',
+        biaya_mdr: m.metode === 'qris' ? Math.round(jml * mdrQris / 100) : 0
+      };
+    }).filter(m => m.jumlah > 0);
+
+    const dok = Keranjang.dokumen({
+      uuid: uid, no_nota: noNota, id_shift: APP_STATE.idShift,
+      bayar, jatuh_tempo: $('#byrJatuhTempo').value
+    });
+
+    // 1) Simpan lokal  2) antre kirim  3) cetak. Kasir tidak menunggu server.
+    const arsip = { ...dok, status_sync: 'PENDING', _total: t,
+                    _kembali: kembali, _nama_pelanggan: Keranjang.pelanggan?.nama || '' };
+    await DB.put('penjualan', arsip);
+    await Sync.antrikanPenjualan(dok);
+
+    $('#tiraiBayar').classList.remove('tampil');
+    Keranjang.kosongkan();
+    $('#selPelanggan').value = '';
+    $('#selLevel').value = 'eceran';
+    gambarKeranjang();
+    $('#inpCari').value = '';
+    $('#inpCari').focus();
+    await gambarProduk('');
+
+    try { await Struk.cetak({ ...arsip, _offline: !API.online }); }
+    catch (e) { console.warn('Cetak gagal:', e.message); }
+
+    kurangiStokLokal(dok);
+  } catch (e) {
+    pesan('#pesanBayar', 'Gagal: ' + e.message, 'galat');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Kurangi perkiraan stok lokal agar tampilan tetap masuk akal selama offline. */
+async function kurangiStokLokal(dok) {
+  for (const it of dok.item) {
+    const key = it.sku + '|' + (it.kode_varian || '');
+    const s = await DB.get('stok', key);
+    if (s) { s.qty -= it.qty * it.faktor; await DB.put('stok', s); }
+  }
+}
+
+/* ==================== SHIFT ==================== */
+async function periksaShift() {
+  try {
+    const d = await API.shiftAktif();
+    APP_STATE.idShift = d.aktif ? d.id_shift : null;
+    await DB.kvSet('id_shift', APP_STATE.idShift);
+  } catch (e) {
+    APP_STATE.idShift = await DB.kvGet('id_shift', null);   // offline: pakai shift terakhir
+  }
+  $('#lncShift').textContent = APP_STATE.idShift ? 'Shift aktif' : 'Shift belum dibuka';
+  $('#lncShift').className = 'lencana ' + (APP_STATE.idShift ? 'hijau' : 'kuning');
+  $('#infoShift').innerHTML = APP_STATE.idShift
+    ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`
+    : '<span class="lencana kuning">Belum dibuka</span>';
+}
+
+/* ==================== LAPORAN ==================== */
+async function tampilkanLaporan() {
+  const w = $('#hasilLaporan');
+  w.innerHTML = '<div class="kartu">Memuat…</div>';
+  try {
+    const par = { dari: $('#lapDari').value, sampai: $('#lapSampai').value };
+    const d = await API.laporanPenjualan(par);
+    const r = d.ringkas;
+    w.innerHTML = `
+      <div class="kartu"><div class="bar-alat"><strong>Unduh laporan ini</strong>
+        <div style="flex:1"></div>
+        <button class="tombol kecil" data-ekspor="penjualan" data-format="xlsx" data-params='${esc(JSON.stringify(par))}'>Excel</button>
+        <button class="tombol kecil" data-ekspor="penjualan" data-format="pdf" data-params='${esc(JSON.stringify(par))}'>PDF</button>
+        <button class="tombol kecil" data-ekspor="penjualan" data-format="csv" data-params='${esc(JSON.stringify(par))}'>CSV</button>
+      </div></div>
+      <div class="petak">
+        <div class="kartu statistik"><div class="label">Jumlah nota</div><div class="nilai">${r.jumlah_nota}</div></div>
+        <div class="kartu statistik"><div class="label">Omzet</div><div class="nilai">${rp(r.total)}</div></div>
+        ${r.laba_kotor !== undefined ? `<div class="kartu statistik"><div class="label">Laba kotor</div><div class="nilai">${rp(r.laba_kotor)}</div></div>` : ''}
+        <div class="kartu statistik"><div class="label">Diskon</div><div class="nilai">${rp(r.diskon)}</div></div>
+      </div>
+      <div class="kartu"><h3>Per metode bayar</h3>
+        <table><tr><th>Metode</th><th class="angka">Jumlah</th><th class="angka">Biaya MDR</th></tr>
+        ${d.per_metode.map(m => `<tr><td>${esc(m.metode.toUpperCase())}</td><td class="angka">${rp(m.jumlah)}</td><td class="angka">${rp(m.mdr)}</td></tr>`).join('')}</table></div>
+      <div class="kartu"><h3>Per cabang</h3>
+        <table><tr><th>Cabang</th><th class="angka">Nota</th><th class="angka">Total</th>${d.per_cabang[0]?.laba_kotor !== undefined ? '<th class="angka">Laba kotor</th>' : ''}</tr>
+        ${d.per_cabang.map(c => `<tr><td>${esc(c.cabang)}</td><td class="angka">${c.nota}</td><td class="angka">${rp(c.total)}</td>${c.laba_kotor !== undefined ? `<td class="angka">${rp(c.laba_kotor)}</td>` : ''}</tr>`).join('')}</table></div>
+      <div class="kartu"><h3>Produk terlaris</h3>
+        <table><tr><th>SKU</th><th>Nama</th><th class="angka">Qty</th><th class="angka">Omzet</th>${d.produk_teratas[0]?.margin_persen !== undefined ? '<th class="angka">Margin</th>' : ''}</tr>
+        ${d.produk_teratas.slice(0, 25).map(p => `<tr><td>${esc(p.sku)}</td><td>${esc(p.nama)}</td><td class="angka">${p.qty}</td><td class="angka">${rp(p.omzet)}</td>${p.margin_persen !== undefined ? `<td class="angka">${p.margin_persen}%</td>` : ''}</tr>`).join('')}</table></div>`;
+  } catch (e) {
+    w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
+  }
+}
+
+/** Tombol unduh laporan keuangan — dikerjakan server agar angkanya pasti sama dengan di layar. */
+const tombolUnduh = (jenis, par) => `<div class="kartu"><div class="bar-alat">
+  <strong>Unduh laporan ini</strong><div style="flex:1"></div>
+  ${['xlsx', 'pdf', 'csv'].map(f => `<button class="tombol kecil" data-ekspor="${jenis}"
+      data-format="${f}" data-params='${esc(JSON.stringify(par))}'>${f.toUpperCase()}</button>`).join('')}
+</div></div>`;
+
+async function tampilkanLabaRugi() {
+  const w = $('#hasilKeuangan');
+  w.innerHTML = '<div class="kartu">Menghitung…</div>';
+  try {
+    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+    const d = await API.labaRugi(par);
+    const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
+    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><table>
+      ${brs('Penjualan Bruto', d.penjualan_bruto)}
+      ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
+      ${brs('(−) Retur Penjualan', -d.retur_penjualan)}
+      ${brs('Penjualan Bersih', d.penjualan_bersih, 'tebal pisah')}
+      ${brs('(−) Harga Pokok Penjualan', -d.hpp)}
+      ${brs('LABA KOTOR (' + d.margin_kotor_persen + '%)', d.laba_kotor, 'tebal pisah')}
+      <tr class="pisah"><td colspan="2" style="color:var(--teks-redup);font-size:12px">BEBAN OPERASIONAL</td></tr>
+      ${d.rincian_beban.map(b => brs('  ' + b.kode + ' ' + b.nama, -b.jumlah)).join('')}
+      ${brs('Total Beban Operasional', -d.beban_operasional, 'tebal')}
+      ${brs('LABA USAHA', d.laba_usaha, 'tebal pisah')}
+      ${brs('(+) Pendapatan Lain', d.pendapatan_lain)}
+      ${brs('(−) Beban Lain', -d.beban_lain)}
+      ${brs('LABA BERSIH (' + d.margin_bersih_persen + '%)', d.laba_bersih, 'tebal pisah')}
+      </table></div>`;
+  } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+}
+
+async function tampilkanNeraca() {
+  const w = $('#hasilKeuangan');
+  w.innerHTML = '<div class="kartu">Menghitung…</div>';
+  try {
+    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+    const d = await API.neraca(par);
+    const tabel = (judul, arr, total) => `<div class="kartu"><h3>${judul}</h3><table>
+      ${arr.map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
+      <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div>`;
+    w.innerHTML = tombolUnduh('neraca', par) + `
+      <div class="pesan ${d.seimbang ? 'sukses' : 'galat'}">
+        ${d.seimbang ? '✓ Neraca seimbang' : '✗ Neraca TIDAK seimbang — selisih ' + rp(d.selisih)}
+      </div>
+      <div class="petak">${tabel('ASET', d.aset, d.total_aset)}
+      <div>${tabel('LIABILITAS', d.liabilitas, d.total_liabilitas)}${tabel('EKUITAS', d.ekuitas, d.total_ekuitas)}</div></div>`;
+  } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+}
+
+async function tampilkanUji() {
+  const w = $('#hasilKeuangan');
+  w.innerHTML = '<div class="kartu">Memeriksa…</div>';
+  try {
+    const d = await API.ujiKebenaran({ periode: $('#keuPeriode').value });
+    w.innerHTML = `<div class="kartu"><h3>Uji kebenaran pembukuan — ${esc(d.periode)}</h3>
+      <table><tr><th>Pemeriksaan</th><th>Nilai</th><th>Hasil</th></tr>
+      ${d.hasil.map(h => `<tr><td>${esc(h.uji)}</td><td>${esc(h.nilai)}</td>
+        <td class="${h.lulus ? 'uji-lulus' : 'uji-gagal'}">${h.lulus ? 'LULUS' : 'GAGAL'}</td></tr>`).join('')}
+      </table></div>`;
+  } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+}
+
+async function gambarRiwayat() {
+  const semua = await DB.all('penjualan');
+  const hariIni = tanggalLokal();
+  const rows = semua.filter(n => n.tanggal === hariIni).sort((a, b) => b.jam.localeCompare(a.jam));
+  $('#isiRiwayat').innerHTML = rows.length ? `<table>
+    <tr><th>No Nota</th><th>Jam</th><th class="angka">Total</th><th>Sinkron</th><th></th></tr>
+    ${rows.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
+      <td class="angka">${rp(n.total)}</td>
+      <td><span class="lencana ${n.status_sync === 'SYNCED' ? 'hijau' : 'kuning'}">${n.status_sync === 'SYNCED' ? 'terkirim' : 'menunggu'}</span></td>
+      <td><button class="tombol" data-cetak="${esc(n.uuid)}" style="padding:5px 10px;font-size:13px">Cetak ulang</button></td>
+    </tr>`).join('')}</table>` : '<p style="color:var(--teks-redup)">Belum ada nota hari ini.</p>';
+}
+
+async function perbaruiInfoData() {
+  const umur = await Sync.umurDataJam();
+  const tertahan = await DB.outboxJumlah();
+  const stokWaktu = await DB.kvGet('stok_diperbarui', null);
+  $('#infoData').innerHTML =
+    `Data master: ${umur === Infinity ? 'belum pernah' : umur.toFixed(1) + ' jam lalu'}<br>
+     Stok: ${stokWaktu ? new Date(stokWaktu).toLocaleString(CONFIG.LOCALE) : '—'}<br>
+     Antrian kirim: <strong>${tertahan}</strong> dokumen`;
+  $('#infoPerangkat').innerHTML =
+    `Kode: <strong>${esc(APP_STATE.perangkat?.kode || '—')}</strong><br>${esc(APP_STATE.perangkat?.nama || '')}`;
+  const pr = await DB.kvGet('printer_nama', null);
+  $('#infoPrinter').textContent = pr ? 'Tersimpan: ' + pr : 'Belum terhubung';
+}
+
+/* ==================== EVENT ==================== */
+function pasangEvent() {
+
+  /* --- login --- */
+  $('#titikPin') && gambarPin();
+  $$('.papan-pin button').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.pin;
+    if (v === 'hapus') pinBuffer = pinBuffer.slice(0, -1);
+    else if (v === 'masuk') return login(false);
+    else if (pinBuffer.length < 6) pinBuffer += v;
+    gambarPin();
+    if (pinBuffer.length === 6) login(false);
+  }));
+  $('#btnLoginPassword').addEventListener('click', () => login(true));
+  $('#inpPassword').addEventListener('keydown', e => { if (e.key === 'Enter') login(true); });
+  $('#btnTukarMode').addEventListener('click', () => {
+    const pin = $('#modePin').classList.toggle('sembunyi');
+    $('#modePassword').classList.toggle('sembunyi', !pin);
+    $('#btnTukarMode').textContent = pin ? 'Masuk dengan PIN' : 'Masuk dengan password';
+  });
+
+  /* --- navigasi --- */
+  $('#navTab').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) bukaLayar(b.dataset.layar);
+  });
+
+  $('#btnKeluar').addEventListener('click', async () => {
+    const tertahan = await DB.outboxJumlah();
+    if (tertahan > 0 && !confirm(`Masih ada ${tertahan} nota belum terkirim. Nota tetap tersimpan di perangkat ini. Tetap keluar?`)) return;
+    try { await API.logout(); } catch (e) {}
+    await DB.kvSet('token', null);
+    location.reload();
+  });
+
+  /* --- pencarian & produk --- */
+  let timerCari;
+  $('#inpCari').addEventListener('input', e => {
+    clearTimeout(timerCari);
+    timerCari = setTimeout(() => gambarProduk(e.target.value), 120);
+  });
+  $('#inpCari').addEventListener('keydown', async e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const p = APP_STATE.produkTampil[APP_STATE.indeksSorot];
+      if (p) { await tambahKeKeranjang(p); $('#inpCari').value = ''; gambarProduk(''); }
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = APP_STATE.produkTampil.length;
+      APP_STATE.indeksSorot = (APP_STATE.indeksSorot + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      $$('.kartu-produk').forEach((el, i) => el.classList.toggle('sorot', i === APP_STATE.indeksSorot));
+      $$('.kartu-produk')[APP_STATE.indeksSorot]?.scrollIntoView({ block: 'nearest' });
+    }
+  });
+  $('#daftarProduk').addEventListener('click', async e => {
+    // Tombol "cabang lain" berada di dalam kartu — jangan sampai ikut menambah ke keranjang
+    const btnLain = e.target.closest('[data-stok-cabang]');
+    if (btnLain) { e.stopPropagation(); return lihatStokCabangLain(btnLain.dataset.stokCabang); }
+
+    const k = e.target.closest('.kartu-produk'); if (!k) return;
+    const p = await DB.get('produk', k.dataset.sku);
+    if (p) await tambahKeKeranjang(p);
+  });
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('#btnCekStokTerkini');
+    if (b) lihatStokCabangLain(b.dataset.sku, true);
+  });
+
+  $('#selLevel').addEventListener('change', e => { Keranjang.setLevel(e.target.value); gambarKeranjang(); gambarProduk($('#inpCari').value); });
+  $('#selPelanggan').addEventListener('change', async e => {
+    const p = e.target.value ? await DB.get('pelanggan', e.target.value) : null;
+    Keranjang.setPelanggan(p);
+    if (p) $('#selLevel').value = Keranjang.level;
+    gambarKeranjang(); gambarProduk($('#inpCari').value);
+  });
+
+  /* --- keranjang --- */
+  $('#isiKeranjang').addEventListener('click', async e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    const id = e.target.closest('.baris-item').dataset.id;
+    const b = Keranjang.baris.find(x => x.id === id);
+    if (btn.dataset.aksi === 'tambah') Keranjang.ubahQty(id, b.qty + 1);
+    if (btn.dataset.aksi === 'kurang') Keranjang.ubahQty(id, b.qty - 1);
+    if (btn.dataset.aksi === 'detail') return bukaDetailItem(b);
+    gambarKeranjang();
+  });
+  $('#isiKeranjang').addEventListener('change', e => {
+    if (e.target.dataset.aksi !== 'qty') return;
+    Keranjang.ubahQty(e.target.closest('.baris-item').dataset.id, Number(e.target.value));
+    gambarKeranjang();
+  });
+  $('#btnKosongkan').addEventListener('click', () => {
+    if (Keranjang.kosong || confirm('Kosongkan keranjang?')) {
+      Keranjang.kosongkan(); $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran'; gambarKeranjang();
+    }
+  });
+  $('#pegangan').addEventListener('click', () => $('#panelKeranjang').classList.toggle('buka'));
+
+  /* --- detail item --- */
+  let itemAktif = null;
+  function bukaDetailItem(b) {
+    itemAktif = b;
+    $('#itmNama').textContent = b.nama;
+    $('#itmQty').value = b.qty;
+    $('#itmHarga').value = b.harga_satuan;
+    $('#itmHarga').disabled = !APP_STATE.flag.ubah_harga_saat_jual;
+    $('#itmDiskon').value = b.diskon;
+    const satuanLain = [{ nama: b._produk.satuan || 'pcs', isi: 1 }, ...(b._produk.satuan_lain || [])];
+    $('#itmSatuan').innerHTML = satuanLain.map(s =>
+      `<option value="${esc(s.nama)}" ${s.nama === b.satuan ? 'selected' : ''}>${esc(s.nama)} (isi ${s.isi})</option>`).join('');
+    $('#itmInfo').textContent =
+      `Sumber harga: ${b.sumber_harga} · batas diskon peran Anda ${APP_STATE.diskonMaks}%` +
+      (APP_STATE.flag.ubah_harga_saat_jual ? '' : ' · Anda tidak berhak mengubah harga');
+    $('#tiraiItem').classList.add('tampil');
+  }
+  $('#btnSimpanItem').addEventListener('click', () => {
+    if (!itemAktif) return;
+    const satuanBaru = $('#itmSatuan').value;
+    if (satuanBaru !== itemAktif.satuan) {
+      // Ganti satuan = hapus lalu tambah ulang agar harga & faktor dihitung dari awal
+      const p = itemAktif._produk;
+      Keranjang.hapus(itemAktif.id);
+      Keranjang.tambah(p, { qty: Number($('#itmQty').value), satuan: satuanBaru,
+                            daftarSatuan: p.satuan_lain || [], daftarTier: p.tier || [] });
+    } else {
+      Keranjang.ubahQty(itemAktif.id, Number($('#itmQty').value));
+      if (APP_STATE.flag.ubah_harga_saat_jual) Keranjang.ubahHarga(itemAktif.id, $('#itmHarga').value);
+      Keranjang.ubahDiskon(itemAktif.id, $('#itmDiskon').value);
+    }
+    $('#tiraiItem').classList.remove('tampil');
+    gambarKeranjang();
+  });
+  $('#btnHapusItem').addEventListener('click', () => {
+    if (itemAktif) Keranjang.hapus(itemAktif.id);
+    $('#tiraiItem').classList.remove('tampil');
+    gambarKeranjang();
+  });
+
+  /* --- pembayaran --- */
+  $('#btnBayar').addEventListener('click', bukaBayar);
+  $('#btnBatalBayar').addEventListener('click', () => $('#tiraiBayar').classList.remove('tampil'));
+  $('#btnTambahMetode').addEventListener('click', () => {
+    const t = Keranjang.total().total;
+    const sudah = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);
+    APP_STATE.metodeBayar.push({ metode: 'transfer', jumlah: Math.max(0, t - sudah), referensi: '' });
+    gambarBayar();
+  });
+  $('#byrDaftarMetode').addEventListener('input', e => {
+    const i = Number(e.target.dataset.i), f = e.target.dataset.f;
+    if (f === 'jumlah') APP_STATE.metodeBayar[i].jumlah = Number(e.target.value);
+    gambarBayar();
+  });
+  $('#byrDaftarMetode').addEventListener('change', e => {
+    const i = Number(e.target.dataset.i), f = e.target.dataset.f;
+    if (f === 'metode') APP_STATE.metodeBayar[i].metode = e.target.value;
+    gambarBayar();
+  });
+  $('#byrDaftarMetode').addEventListener('click', e => {
+    if (e.target.dataset?.f !== 'hapus') return;
+    APP_STATE.metodeBayar.splice(Number(e.target.dataset.i), 1);
+    gambarBayar();
+  });
+  $('#byrDiskonNota').addEventListener('input', e => {
+    Keranjang.setDiskonNota(e.target.value);
+    APP_STATE.metodeBayar[0].jumlah = Keranjang.total().total;
+    gambarKeranjang(); gambarBayar();
+  });
+  $('#btnSelesaikan').addEventListener('click', selesaikanTransaksi);
+
+  /* --- shift --- */
+  $('#btnBukaShift').addEventListener('click', async () => {
+    try {
+      const d = await API.bukaShift({ kas_awal: Number($('#inpKasAwal').value) });
+      APP_STATE.idShift = d.id_shift;
+      await DB.kvSet('id_shift', d.id_shift);
+      await periksaShift();
+      alert('Shift dibuka: ' + d.id_shift);
+    } catch (e) { alert('Gagal membuka shift: ' + e.message); }
+  });
+  $('#btnTutupShift').addEventListener('click', async () => {
+    if (!APP_STATE.idShift) return alert('Tidak ada shift aktif.');
+    const tertahan = await DB.outboxJumlah();
+    if (tertahan > 0) {
+      if (!confirm(`Masih ada ${tertahan} nota belum terkirim. Angka kas sistem bisa belum lengkap. Lanjutkan?`)) return;
+    }
+    $('#tsHasil').innerHTML = '';
+    $('#tiraiTutupShift').classList.add('tampil');
+  });
+  $('#btnBatalTutup').addEventListener('click', () => $('#tiraiTutupShift').classList.remove('tampil'));
+  $('#btnKonfirmasiTutup').addEventListener('click', async () => {
+    try {
+      const d = await API.tutupShift({ id_shift: APP_STATE.idShift,
+        kas_fisik: Number($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
+      $('#tsHasil').innerHTML = `<div class="pesan ${Math.abs(d.selisih) < 1 ? 'sukses' : 'galat'}">
+        Kas sistem ${rp(d.kas_sistem)} · fisik ${rp(d.kas_fisik)}<br>
+        <strong>Selisih ${rp(d.selisih)}</strong><br>
+        ${d.jumlah_nota} nota · omzet ${rp(d.total_penjualan)}</div>`;
+      APP_STATE.idShift = null;
+      await DB.kvSet('id_shift', null);
+      await periksaShift();
+    } catch (e) { $('#tsHasil').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+  });
+
+  /* --- pengaturan --- */
+  $('#btnHubungkanPrinter').addEventListener('click', async () => {
+    try { const n = await Struk.hubungkanBluetooth(); alert('Terhubung: ' + n); perbaruiInfoData(); }
+    catch (e) { alert('Gagal: ' + e.message); }
+  });
+  $('#btnUjiCetak').addEventListener('click', () => {
+    Struk.cetak({
+      no_nota: 'UJI-CETAK', tanggal: tanggalLokal(), jam: new Date().toTimeString().substring(0, 8),
+      level_harga: 'eceran', kode_pelanggan: '',
+      item: [{ nama: 'Uji cetak struk', qty: 1, satuan: 'pcs', harga_satuan: 1000, diskon: 0 }],
+      diskon_nota: 0, ppn: 0, total: 1000,
+      bayar: [{ metode: 'tunai', jumlah: 1000 }],
+      _total: { bruto: 1000, diskon_item: 0 }, _kembali: 0
+    });
+  });
+  $('#btnTarikMaster').addEventListener('click', async () => {
+    try { await Sync.tarikMaster(true); await Sync.tarikStok(); await muatMaster(); await gambarProduk(''); alert('Data master diperbarui.'); }
+    catch (e) { alert('Gagal: ' + e.message); }
+  });
+  $('#btnKirimSekarang').addEventListener('click', async () => { await Sync.kirim(); await perbaruiInfoData(); });
+
+  $('#btnGantiPin').addEventListener('click', async () => {
+    const baru = $('#pinBaru').value;
+    if (!/^\d{6}$/.test(baru)) return pesan('#pesanGantiPin', 'PIN baru harus 6 digit angka.', 'galat');
+    try {
+      await API.gantiPin({ pin_lama: $('#pinLama').value, pin_baru: baru });
+      $('#pinLama').value = ''; $('#pinBaru').value = '';
+      pesan('#pesanGantiPin', 'PIN berhasil diganti.', 'sukses');
+    } catch (e) { pesan('#pesanGantiPin', e.message, 'galat'); }
+  });
+
+  /* --- laporan --- */
+  $('#btnLaporan').addEventListener('click', tampilkanLaporan);
+  $('#btnLabaRugi').addEventListener('click', tampilkanLabaRugi);
+  $('#btnNeraca').addEventListener('click', tampilkanNeraca);
+  $('#btnUji').addEventListener('click', tampilkanUji);
+  $('#btnTutupBuku').addEventListener('click', async () => {
+    const periode = $('#keuPeriode').value;
+    if (!confirm(`Kunci periode ${periode}? Setelah dikunci, tidak ada transaksi baru yang bisa masuk ke periode itu — koreksi harus lewat periode berjalan.`)) return;
+    try {
+      await API.tutupBuku({ periode });
+      Admin.toast('Periode ' + periode + ' dikunci.');
+    } catch (e) {
+      $('#hasilKeuangan').innerHTML = `<div class="pesan galat">${esc(e.message)}
+        ${e.detail ? `<ul style="margin:8px 0 0 16px">${e.detail.map(h =>
+          `<li>${esc(h.uji)} — ${esc(h.nilai)}</li>`).join('')}</ul>` : ''}</div>`;
+    }
+  });
+
+  $('#isiRiwayat').addEventListener('click', async e => {
+    const uuid = e.target.dataset?.cetak; if (!uuid) return;
+    const n = await DB.get('penjualan', uuid);
+    if (n) Struk.cetak({ ...n, _offline: n.status_sync !== 'SYNCED' });
+  });
+
+  /* --- status sinkronisasi --- */
+  document.addEventListener('sync:status', e => {
+    const s = e.detail;
+    const el = $('#lncSync');
+    if (!API.online)          { el.textContent = 'Offline'; el.className = 'lencana merah'; }
+    else if (s.mengirim)      { el.textContent = 'Mengirim…'; el.className = 'lencana kuning'; }
+    else if (s.tertahan > 0)  { el.textContent = s.tertahan + ' menunggu'; el.className = 'lencana kuning'; }
+    else                      { el.textContent = 'Tersinkron'; el.className = 'lencana hijau'; }
+    if (s.tertahan >= CONFIG.PERINGATAN_OUTBOX) {
+      el.textContent = '⚠ ' + s.tertahan + ' tertahan'; el.className = 'lencana merah';
+    }
+  });
+  document.addEventListener('koneksi:berubah', () => document.dispatchEvent(
+    new CustomEvent('sync:status', { detail: Sync.status })));
+  document.addEventListener('sesi:berakhir', () => {
+    alert('Sesi berakhir. Silakan login ulang. Nota yang belum terkirim tetap aman di perangkat ini.');
+    location.reload();
+  });
+  document.addEventListener('stok:diperbarui', () => gambarProduk($('#inpCari').value));
+  document.addEventListener('stok_cabang:diperbarui', () => gambarProduk($('#inpCari').value));
+
+  /* --- pintasan keyboard (kasir PC bisa bekerja tanpa mouse) --- */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'F2') { e.preventDefault(); $('#inpCari').focus(); $('#inpCari').select(); }
+    if (e.key === 'F12') { e.preventDefault(); bukaBayar(); }
+    if (e.key === 'Escape') $$('.tirai').forEach(t => t.classList.remove('tampil'));
+    if (e.key === 'Enter' && $('#tiraiBayar').classList.contains('tampil')
+        && !$('#btnSelesaikan').disabled && e.target.tagName !== 'SELECT') {
+      e.preventDefault(); selesaikanTransaksi();
+    }
+  });
+}
+
+/* ==================== MULAI ==================== */
+(async function mulai() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW gagal:', e));
+  }
+  await DB.buka();
+  pasangEvent();
+  Admin.pasang();
+
+  const hariIni = tanggalLokal();
+  $('#lapDari').value = hariIni;
+  $('#lapSampai').value = hariIni;
+  $('#keuPeriode').value = hariIni.substring(0, 7);
+
+  // Coba lanjutkan sesi yang tersimpan (termasuk saat offline)
+  const token = await DB.kvGet('token', null);
+  const sesi = await DB.kvGet('sesi', null);
+  if (token && sesi) {
+    API.setToken(token);
+    await mulaiSesi(sesi);
+  } else {
+    $('#inpUsername').focus();
+  }
+})();
