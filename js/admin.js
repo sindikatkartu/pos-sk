@@ -76,20 +76,57 @@ const Admin = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 3000);
   }
 
-  /** Tombol ekspor standar. `params` disimpan sebagai JSON di atribut. */
-  const tombolEkspor = (jenis, params = {}) => `
-    <span class="grup-ekspor">
-      <button class="tombol kecil" data-ekspor="${esc(jenis)}" data-format="xlsx"
-              data-params='${esc(JSON.stringify(params))}'>Excel</button>
-      <button class="tombol kecil" data-ekspor="${esc(jenis)}" data-format="pdf"
-              data-params='${esc(JSON.stringify(params))}'>PDF</button>
-      <button class="tombol kecil" data-ekspor="${esc(jenis)}" data-format="csv"
-              data-params='${esc(JSON.stringify(params))}'>CSV</button>
+  /**
+   * Tombol ekspor: SATU tombol dengan menu pilihan format.
+   *
+   * Sebelumnya tiga tombol berjajar (Excel · PDF · CSV) di enam layar berbeda.
+   * Itu memakan lebar bar alat, dan tiga tombol sederajat memberi kesan tiga
+   * pekerjaan berbeda — padahal pekerjaannya satu: mengunduh. Formatnya cuma
+   * detail dari pekerjaan itu, jadi tempatnya di dalam menu.
+   *
+   * `params` disimpan sebagai JSON di atribut, sama seperti versi lama, sehingga
+   * pengirim ekspor di bawah tidak perlu tahu tombolnya berbentuk apa.
+   */
+  const FORMAT_EKSPOR = [
+    { kode: 'xlsx', label: 'Excel',    ket: '.xlsx' },
+    { kode: 'pdf',  label: 'PDF',      ket: '.pdf'  },
+    { kode: 'csv',  label: 'CSV',      ket: '.csv'  }
+  ];
+
+  const tombolEkspor = (jenis, params = {}) => {
+    const p = esc(JSON.stringify(params));
+    return `<span class="ekspor">
+      <button class="tombol kecil" data-ekspor-buka aria-haspopup="true" aria-expanded="false">
+        <svg class="ikon-svg" viewBox="0 0 24 24" style="width:15px;height:15px">
+          <path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/></svg>
+        Ekspor
+        <svg class="ikon-svg tanda-panah" viewBox="0 0 24 24" style="width:13px;height:13px">
+          <path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="ekspor-menu" role="menu">
+        ${FORMAT_EKSPOR.map(f => `<button role="menuitem" data-ekspor="${esc(jenis)}"
+            data-format="${f.kode}" data-params='${p}'>${f.label}<span>${f.ket}</span></button>`).join('')}
+      </div>
     </span>`;
+  };
+
+  /** Tutup semua menu ekspor yang sedang terbuka. */
+  function tutupMenuEkspor() {
+    $$('.ekspor.buka').forEach(g => {
+      g.classList.remove('buka');
+      const b = g.querySelector('[data-ekspor-buka]');
+      if (b) b.setAttribute('aria-expanded', 'false');
+    });
+  }
 
   async function jalankanEkspor(btn) {
-    const semula = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Menyiapkan…';
+    // Keadaan "sedang menyiapkan" ditaruh di tombol pemicu, bukan di item menunya —
+    // menunya menutup begitu dipilih, jadi label di dalamnya tak akan sempat terbaca.
+    const grup = btn.closest('.ekspor');
+    const pemicu = grup ? grup.querySelector('[data-ekspor-buka]') : btn;
+    const semula = pemicu.innerHTML;
+    tutupMenuEkspor();
+    pemicu.disabled = true; pemicu.textContent = 'Menyiapkan…';
     try {
       let params = {};
       try { params = JSON.parse(btn.dataset.params || '{}'); } catch (e) {}
@@ -97,7 +134,8 @@ const Admin = (() => {
       unduhBase64(d.nama, d.mime, d.base64);
       toast('Berkas ' + d.nama + ' diunduh.');
     } catch (e) { toast(e.message, 'galat'); }
-    btn.disabled = false; btn.textContent = semula;
+    // innerHTML, bukan textContent: labelnya berisi ikon SVG yang harus kembali utuh.
+    pemicu.disabled = false; pemicu.innerHTML = semula;
   }
 
   /* ==================== DASHBOARD ==================== */
@@ -2234,6 +2272,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
 
       /* --- ekspor --- */
+      if (d.eksporBuka !== undefined) {
+        const grup = t.closest('.ekspor');
+        const terbuka = grup.classList.contains('buka');
+        tutupMenuEkspor();                       // hanya satu menu boleh terbuka
+        if (!terbuka) {
+          grup.classList.add('buka');
+          t.setAttribute('aria-expanded', 'true');
+        }
+        return;
+      }
       if (d.ekspor) return jalankanEkspor(t);
 
       /* --- retur pembelian --- */
@@ -2535,6 +2583,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
 
     // "Lanjut tanpa nota" — pelanggan kehilangan struk
+    /**
+     * Menu ekspor menutup saat klik di luar atau tekan Escape.
+     * Dipasang di fase CAPTURE supaya berjalan lebih dulu daripada pengirim klik
+     * di atas — kalau tidak, klik pada tombol pemicu akan menutup lalu membuka lagi.
+     */
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.ekspor')) tutupMenuEkspor();
+    }, true);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') tutupMenuEkspor();
+    });
+
     document.addEventListener('click', (e) => {
       if (e.target.id === 'lnkTanpaNota') {
         e.preventDefault();
@@ -2548,5 +2608,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
   }
 
-  return { muat, pasang, toast, modal: bukaModal, tutupModal, tabel };
+  // tombolEkspor ikut diekspor supaya app.js memakai komponen yang SAMA,
+  // bukan menyalin bentuk tombolnya sendiri.
+  return { muat, pasang, toast, modal: bukaModal, tutupModal, tabel, tombolEkspor };
 })();

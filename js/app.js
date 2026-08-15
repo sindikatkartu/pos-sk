@@ -619,9 +619,7 @@ async function tampilkanLaporan() {
     w.innerHTML = `
       <div class="kartu"><div class="bar-alat"><strong>Unduh laporan ini</strong>
         <div style="flex:1"></div>
-        <button class="tombol kecil" data-ekspor="penjualan" data-format="xlsx" data-params='${esc(JSON.stringify(par))}'>Excel</button>
-        <button class="tombol kecil" data-ekspor="penjualan" data-format="pdf" data-params='${esc(JSON.stringify(par))}'>PDF</button>
-        <button class="tombol kecil" data-ekspor="penjualan" data-format="csv" data-params='${esc(JSON.stringify(par))}'>CSV</button>
+        ${Admin.tombolEkspor('penjualan', par)}
       </div></div>
       <div class="petak">
         <div class="kartu statistik"><div class="label">Jumlah nota</div><div class="nilai">${r.jumlah_nota}</div></div>
@@ -643,11 +641,15 @@ async function tampilkanLaporan() {
   }
 }
 
-/** Tombol unduh laporan keuangan — dikerjakan server agar angkanya pasti sama dengan di layar. */
+/**
+ * Tombol unduh laporan keuangan — dikerjakan server agar angkanya pasti sama dengan di layar.
+ * Memakai komponen yang sama dengan layar lain (Admin.tombolEkspor), bukan salinan sendiri:
+ * dulu berkas ini punya versi kembarnya, dan dua salinan berarti dua tempat yang harus
+ * diingat setiap kali bentuk tombolnya berubah.
+ */
 const tombolUnduh = (jenis, par) => `<div class="kartu"><div class="bar-alat">
   <strong>Unduh laporan ini</strong><div style="flex:1"></div>
-  ${['xlsx', 'pdf', 'csv'].map(f => `<button class="tombol kecil" data-ekspor="${jenis}"
-      data-format="${f}" data-params='${esc(JSON.stringify(par))}'>${f.toUpperCase()}</button>`).join('')}
+  ${Admin.tombolEkspor(jenis, par)}
 </div></div>`;
 
 async function tampilkanLabaRugi() {
