@@ -106,6 +106,18 @@ const Admin = (() => {
     memuat('#isiDashboard');
     try {
       const d = await API.dashboard({});
+      /**
+       * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
+       * di-deploy ulang, permintaan pertama mengenai celah propagasi dan jawabannya
+       * kosong. `d.hari_ini` undefined, lalu membaca `.nota` melempar galat — dan
+       * gangguan sesaat yang seharusnya tidak terlihat malah tampil sebagai kotak
+       * merah di depan kasir. Jawaban tak lengkap adalah kondisi jaringan yang wajar,
+       * bukan hal luar biasa, jadi kodenya harus tahan menghadapinya.
+       */
+      if (!d || !d.hari_ini) {
+        throw new Error('Server membalas tanpa data ringkasan. ' +
+                        'Biasanya ini sementara — coba muat ulang beberapa saat lagi.');
+      }
       const h = d.hari_ini;
       $('#isiDashboard').innerHTML = `
         <div class="petak">

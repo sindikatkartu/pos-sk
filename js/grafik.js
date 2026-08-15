@@ -24,12 +24,15 @@ const Grafik = (() => {
 
   // Urutan slot bukan hiasan — urutan inilah yang menjaga jarak warna antar seri
   // bersebelahan tetap lebar (ΔE >= 20). Jangan diacak.
-  const SERI = ['#3b82f6', '#e0620d', '#0d9068', '#b0338a', '#15307d', '#7a7f89'];
+  // Keenamnya warna foreground Primer yang sesungguhnya (accent, severe, success,
+  // done, sponsors, muted) — jadi grafik memakai bahasa warna yang sama dengan
+  // sisa antarmuka, bukan palet asing yang ditempel.
+  const SERI = ['#0969da', '#bc4c00', '#1a7f37', '#8250df', '#bf3989', '#59636e'];
   // Isyarat kedua: pola garis. Slot 1 sengaja utuh — seri tunggal paling sering dipakai.
   const POLA = ['', '6 3', '2 3', '9 3 2 3', '1 4', '12 4'];
   // Isyarat ketiga: bentuk penanda, dipakai saat titik digambar (data <= 14 hari).
   const BENTUK = ['bulat', 'kotak', 'wajik', 'segitiga', 'silang', 'bulat-kosong'];
-  const TEKS = '#101828', TEKS_REDUP = '#667085', GARIS = '#e4e7ec', KERTAS = '#ffffff';
+  const TEKS = '#1f2328', TEKS_REDUP = '#59636e', GARIS = '#d1d9e0', KERTAS = '#ffffff';
 
   /** Gambar penanda seri pada koordinat (cx,cy) sesuai bentuk slotnya. */
   function penanda(si, cx, cy, warna, r = 4) {
