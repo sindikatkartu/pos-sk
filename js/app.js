@@ -496,10 +496,18 @@ function bukaBayar() {
   setTimeout(() => $$('#byrDaftarMetode input[data-f=jumlah]')[0]?.select(), 60);
 }
 
-function gambarBayar() {
-  const t = Keranjang.total();
-  $('#byrTotal').textContent = rp(t.total);
+/* Pecahan rupiah yang beredar. Dipakai sebagai tombol tambah-cepat pada
+   pembayaran tunai: kasir menekan pecahan yang diterima, bukan mengetik. */
+const PECAHAN = [500, 1000, 2000, 5000, 10000, 20000, 50000, 75000, 100000];
+const labelPecahan = (n) => n >= 1000 ? (n / 1000) + 'rb' : String(n);
 
+/* CATATAN PENTING — jangan gabungkan lagi dua fungsi di bawah ini.
+   Sebelumnya seluruh daftar metode digambar ulang lewat innerHTML pada SETIAP
+   ketukan tombol di kolom Jumlah. Itu menghancurkan elemen input yang sedang
+   diketik, sehingga fokus dan posisi kursor hilang dan ketikan terasa macet.
+   Sekarang: gambarMetode() hanya dipanggil saat susunan barisnya berubah,
+   sedangkan setiap ketukan cukup memanggil gambarRingkasBayar(). */
+function gambarMetode() {
   $('#byrDaftarMetode').innerHTML = APP_STATE.metodeBayar.map((m, i) => `
     <div class="baris2" style="margin-bottom:8px;align-items:end">
       <div>
@@ -511,10 +519,24 @@ function gambarBayar() {
       </div>
       <div style="display:flex;gap:6px;align-items:end">
         <div style="flex:1"><label>Jumlah</label>
-          <input type="number" data-i="${i}" data-f="jumlah" value="${m.jumlah}"></div>
+          <input type="number" inputmode="numeric" data-i="${i}" data-f="jumlah" value="${m.jumlah}"></div>
         ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : ''}
       </div>
-    </div>`).join('');
+    </div>
+    ${m.metode === 'tunai' ? `
+    <div class="pecahan" role="group" aria-label="Uang diterima (metode ${i + 1})">
+      ${PECAHAN.map(n => `<button type="button" class="cip" data-i="${i}" data-f="pecahan"
+          data-nilai="${n}" title="Tambah ${rp(n)}">${labelPecahan(n)}</button>`).join('')}
+      <button type="button" class="cip pas" data-i="${i}" data-f="pas">Uang pas</button>
+      <button type="button" class="cip kosong" data-i="${i}" data-f="nol" title="Nolkan">C</button>
+    </div>` : ''}`).join('');
+}
+
+function gambarBayar() { gambarMetode(); gambarRingkasBayar(); }
+
+function gambarRingkasBayar() {
+  const t = Keranjang.total();
+  $('#byrTotal').textContent = rp(t.total);
 
   const dibayar = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);
   const selisih = dibayar - t.total;
@@ -940,23 +962,44 @@ function pasangEvent() {
   });
   $('#byrDaftarMetode').addEventListener('input', e => {
     const i = Number(e.target.dataset.i), f = e.target.dataset.f;
-    if (f === 'jumlah') APP_STATE.metodeBayar[i].jumlah = Number(e.target.value);
-    gambarBayar();
+    if (f !== 'jumlah') return;
+    APP_STATE.metodeBayar[i].jumlah = Number(e.target.value);
+    // Hanya ringkasannya yang diperbarui — kolom yang sedang diketik JANGAN disentuh.
+    gambarRingkasBayar();
   });
   $('#byrDaftarMetode').addEventListener('change', e => {
     const i = Number(e.target.dataset.i), f = e.target.dataset.f;
-    if (f === 'metode') APP_STATE.metodeBayar[i].metode = e.target.value;
-    gambarBayar();
+    if (f !== 'metode') return;
+    APP_STATE.metodeBayar[i].metode = e.target.value;
+    gambarBayar();          // barisnya berubah susunan (deret pecahan muncul/hilang)
   });
   $('#byrDaftarMetode').addEventListener('click', e => {
-    if (e.target.dataset?.f !== 'hapus') return;
-    APP_STATE.metodeBayar.splice(Number(e.target.dataset.i), 1);
-    gambarBayar();
+    const t = e.target.closest('[data-f]');
+    if (!t) return;
+    const f = t.dataset.f, i = Number(t.dataset.i);
+    const m = APP_STATE.metodeBayar[i];
+
+    if (f === 'hapus') { APP_STATE.metodeBayar.splice(i, 1); return gambarBayar(); }
+    if (!m) return;
+
+    if (f === 'pecahan')   m.jumlah = Number(m.jumlah || 0) + Number(t.dataset.nilai);
+    else if (f === 'nol')  m.jumlah = 0;
+    else if (f === 'pas') {
+      // "Uang pas" = sisa yang belum tertutup metode lain, bukan total nota.
+      const lain = APP_STATE.metodeBayar.reduce((a, x, j) => j === i ? a : a + Number(x.jumlah || 0), 0);
+      m.jumlah = Math.max(0, Keranjang.total().total - lain);
+    } else return;
+
+    const inp = $(`#byrDaftarMetode input[data-f=jumlah][data-i="${i}"]`);
+    if (inp) inp.value = m.jumlah;     // isi kolomnya langsung, tanpa gambar ulang
+    gambarRingkasBayar();
   });
   $('#byrDiskonNota').addEventListener('input', e => {
     Keranjang.setDiskonNota(e.target.value);
     APP_STATE.metodeBayar[0].jumlah = Keranjang.total().total;
-    gambarKeranjang(); gambarBayar();
+    const inp = $('#byrDaftarMetode input[data-f=jumlah][data-i="0"]');
+    if (inp) inp.value = APP_STATE.metodeBayar[0].jumlah;
+    gambarKeranjang(); gambarRingkasBayar();
   });
   $('#btnSelesaikan').addEventListener('click', selesaikanTransaksi);
 
