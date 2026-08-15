@@ -230,6 +230,24 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .lencana.merah  { color: var(--bahaya);     border-color: rgba(207,34,46,.35);  background: var(--bahaya-lembut); }
 .lencana.biru   { color: var(--utama);      border-color: rgba(9,105,218,.35);  background: var(--utama-lembut); }
 
+/* Deret pecahan rupiah di layar pembayaran. Sasarannya jari, bukan kursor:
+   tinggi 34px agar nyaman ditekan di layar sentuh, dan membungkus rapi. */
+.pecahan { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
+.pecahan .cip {
+  min-width: 56px; height: 34px; padding: 0 10px;
+  font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums;
+  color: var(--teks); background: var(--panel-2);
+  border: 1px solid var(--garis-tombol); border-radius: var(--radius);
+  cursor: pointer; transition: background .12s, border-color .12s;
+}
+.pecahan .cip:hover  { background: var(--panel-3); border-color: var(--garis-kuat); }
+.pecahan .cip:active { background: var(--garis-halus); }
+.pecahan .cip:focus-visible { outline: none; box-shadow: var(--cincin); }
+.pecahan .cip.pas {
+  color: var(--utama); border-color: rgba(9,105,218,.4); background: var(--utama-lembut);
+}
+.pecahan .cip.kosong { min-width: 34px; color: var(--teks-redup); }
+
 /* Lencana yang berfungsi sebagai jalan pintas (mis. "Shift belum dibuka").
    Harus terlihat bisa ditekan, dan harus bisa dicapai lewat keyboard. */
 .lencana.bisa-klik { cursor: pointer; }
