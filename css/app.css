@@ -230,6 +230,22 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .lencana.merah  { color: var(--bahaya);     border-color: rgba(207,34,46,.35);  background: var(--bahaya-lembut); }
 .lencana.biru   { color: var(--utama);      border-color: rgba(9,105,218,.35);  background: var(--utama-lembut); }
 
+/* Lencana yang berfungsi sebagai jalan pintas (mis. "Shift belum dibuka").
+   Harus terlihat bisa ditekan, dan harus bisa dicapai lewat keyboard. */
+.lencana.bisa-klik { cursor: pointer; }
+.lencana.bisa-klik:hover { border-color: var(--peringatan); }
+.lencana.bisa-klik:focus-visible { outline: none; box-shadow: var(--cincin); }
+
+/* Sorot sesaat pada kartu tujuan supaya mata langsung tahu yang mana. */
+@keyframes sorotKartu {
+  0%   { box-shadow: 0 0 0 3px rgba(9,105,218,.45); }
+  100% { box-shadow: 0 0 0 3px rgba(9,105,218,0); }
+}
+.kartu.sorot { animation: sorotKartu 1.6s ease-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  .kartu.sorot { animation: none; box-shadow: 0 0 0 3px rgba(9,105,218,.45); }
+}
+
 main { flex: 1; overflow: hidden; position: relative; }
 .layar { display: none; height: 100%; overflow: auto; padding: 18px; }
 .layar.aktif { display: block; }
