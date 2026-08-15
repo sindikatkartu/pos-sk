@@ -7,42 +7,55 @@
      2. Warna hanya dipakai untuk arti (aksi utama, uang masuk, peringatan) — bukan hiasan.
      3. Angka selalu memakai font tabular supaya digitnya sejajar antar baris. */
 
+/* Token diambil dari Primer, sistem desain GitHub. Nilainya dipakai apa adanya,
+   bukan ditebak dari tangkapan layar — dan setiap pasangan teks/latar sudah dicek
+   kontrasnya oleh uji otomatis (bagian G di uji/uji.js).
+
+   Satu penyimpangan yang disengaja: GitHub memakai ukuran huruf dan target klik
+   ukuran desktop. Aplikasi ini dipakai kasir di tablet sentuh, jadi kontrol di alur
+   kasir tetap besar. Yang diadopsi adalah WARNA, GARIS, RADIUS, dan BAYANGAN-nya —
+   bukan kerapatannya. */
 :root {
-  /* --- permukaan --- */
-  --bg:        #f5f6f8;   /* latar aplikasi */
-  --panel:     #ffffff;   /* kartu, panel, modal */
-  --panel-2:   #f1f3f7;   /* isian lembut: input, jalur batang, hover */
-  --sisi-bg:   #fbfcfd;   /* sidebar, sedikit lebih dingin dari panel */
+  /* --- permukaan (Primer: canvas) --- */
+  --bg:        #f6f8fa;   /* canvas.subtle — latar aplikasi */
+  --panel:     #ffffff;   /* canvas.default — kartu, panel, modal */
+  --panel-2:   #f6f8fa;   /* canvas.subtle — kepala tabel, isian lembut, hover */
+  --panel-3:   #eff2f5;   /* hover tombol */
+  --sisi-bg:   #ffffff;   /* GitHub memakai sidebar putih, dipisahkan garis */
 
-  /* --- garis --- */
-  --garis:      #e4e7ec;
-  --garis-kuat: #cfd4dc;
+  /* --- garis (Primer: border) --- */
+  --garis:       #d1d9e0;   /* border.default */
+  --garis-halus: #eaeef2;   /* border.muted — pemisah di dalam kartu */
+  --garis-kuat:  #d1d9e0;
+  --garis-tombol: rgba(31,35,40,.15);   /* tepi tombol khas GitHub */
 
-  /* --- teks (semua sudah dicek kontras >= 4.5:1 di atas putih) --- */
-  --teks:       #101828;
-  --teks-2:     #475467;
-  --teks-redup: #616b7a;
+  /* --- teks (Primer: fg) --- */
+  --teks:       #1f2328;   /* fg.default   — 15.8:1 di atas putih */
+  --teks-2:     #424a53;   /*              — 8.99:1 */
+  --teks-redup: #59636e;   /* fg.muted     — 6.11:1 */
+  /* fg.subtle (#818b98) SENGAJA tidak dipakai untuk teks: hanya 3.45:1, gagal AA. */
 
-  /* --- warna arti --- */
-  --utama:         #2563eb;
-  --utama-gelap:   #1d4ed8;
-  --utama-lembut:  #eef4ff;
-  --sukses:        #067647;
-  --sukses-lembut: #ecfdf3;
-  --peringatan:        #b54708;
-  --peringatan-lembut: #fffaeb;
-  --bahaya:        #b42318;
-  --bahaya-lembut: #fef3f2;
+  /* --- warna arti (Primer: accent / success / attention / danger) --- */
+  --utama:         #0969da;
+  --utama-gelap:   #0550ae;
+  --utama-lembut:  #ddf4ff;
+  --sukses:        #1a7f37;
+  --sukses-tombol: #1f883d;   /* success.emphasis — warna tombol hijau GitHub */
+  --sukses-lembut: #dafbe1;
+  --peringatan:        #9a6700;
+  --peringatan-lembut: #fff8c5;
+  --bahaya:        #cf222e;
+  --bahaya-lembut: #ffebe9;
 
-  /* --- bayangan berlapis: makin tinggi, makin lebar dan makin lembut --- */
-  --bayang-1: 0 1px 2px rgba(16,24,40,.05);
-  --bayang-2: 0 1px 3px rgba(16,24,40,.10), 0 1px 2px rgba(16,24,40,.06);
-  --bayang-3: 0 4px 8px -2px rgba(16,24,40,.10), 0 2px 4px -2px rgba(16,24,40,.06);
-  --bayang-4: 0 12px 16px -4px rgba(16,24,40,.08), 0 4px 6px -2px rgba(16,24,40,.03);
-  --cincin:   0 0 0 3px rgba(37,99,235,.16);   /* lingkar fokus */
+  /* --- bayangan Primer: sangat tipis. Kedalaman datang dari GARIS, bukan blur. --- */
+  --bayang-1: 0 1px 0 rgba(31,35,40,.04);
+  --bayang-2: 0 1px 0 rgba(31,35,40,.04), 0 1px 3px rgba(66,74,83,.12);
+  --bayang-3: 0 3px 6px rgba(140,149,159,.15);
+  --bayang-4: 0 8px 24px rgba(140,149,159,.2);
+  --cincin:   0 0 0 3px rgba(9,105,218,.3);   /* lingkar fokus GitHub */
 
-  --radius:    8px;
-  --radius-lg: 12px;
+  --radius:    6px;   /* GitHub memakai 6px hampir di mana-mana */
+  --radius-lg: 6px;
   --sela:      12px;
   --lebar-sisi: 236px;
   --lebar-sisi-lipat: 68px;
@@ -53,10 +66,11 @@
 html, body {
   margin: 0; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--teks);
-  font-family: 'Inter var', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Tumpukan font GitHub, apa adanya */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
+               Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   font-size: 15px; line-height: 1.5;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv11', 'ss01';
 }
 
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
@@ -87,12 +101,13 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   display: flex; align-items: center; gap: 10px; position: relative;
   padding: 14px 14px 12px; flex-shrink: 0;
 }
+/* Tanda merek gelap polos, seperti logo GitHub sendiri — gradien biru tadi
+   adalah satu-satunya sisa gaya lama yang tertinggal di antarmuka baru. */
 .sisi-logo {
-  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-  background: linear-gradient(140deg, #3b82f6, #1d4ed8);
+  width: 30px; height: 30px; border-radius: var(--radius); flex-shrink: 0;
+  background: var(--teks);
   color: #fff; display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 13px; letter-spacing: -.4px;
-  box-shadow: var(--bayang-2);
+  font-weight: 700; font-size: 12.5px; letter-spacing: -.2px;
 }
 .sisi-nama { display: flex; flex-direction: column; min-width: 0; }
 .sisi-nama b { font-size: 14px; font-weight: 650; letter-spacing: -.15px; white-space: nowrap; }
@@ -109,20 +124,23 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 .sisi-grup:first-child { padding-top: 6px; }
 
+/* Item nav mengikuti sidebar pengaturan GitHub: hover abu muda, item aktif
+   ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh. */
 .sisi-isi button {
   display: flex; align-items: center; gap: 10px;
-  width: 100%; text-align: left; background: transparent; color: var(--teks-2);
-  padding: 8px 10px; font-size: 13.5px; font-weight: 550; margin-bottom: 1px;
+  width: 100%; text-align: left; background: transparent; color: var(--teks);
+  padding: 7px 10px; font-size: 14px; font-weight: 400; margin-bottom: 1px;
   white-space: nowrap; position: relative;
-  transition: background .12s, color .12s;
+  transition: background .08s;
 }
-.sisi-isi button .ikon-svg { color: var(--teks-redup); transition: color .12s; }
-.sisi-isi button:hover { background: var(--panel-2); color: var(--teks); }
-.sisi-isi button:hover .ikon-svg { color: var(--teks-2); }
-.sisi-isi button.aktif {
-  background: var(--utama-lembut); color: var(--utama-gelap); font-weight: 650;
+.sisi-isi button .ikon-svg { color: var(--teks-redup); transition: color .08s; }
+.sisi-isi button:hover { background: var(--panel-2); }
+.sisi-isi button.aktif { background: var(--panel-2); font-weight: 600; }
+.sisi-isi button.aktif::before {
+  content: ''; position: absolute; left: -10px; top: 3px; bottom: 3px;
+  width: 3px; border-radius: 0 6px 6px 0; background: #fd8c73;   /* aksen "aktif" GitHub */
 }
-.sisi-isi button.aktif .ikon-svg { color: var(--utama); }
+.sisi-isi button.aktif .ikon-svg { color: var(--teks); }
 
 .sisi-bawah { padding: 10px; border-top: 1px solid var(--garis); flex-shrink: 0; }
 .kartu-user {
@@ -169,6 +187,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat #btnLipat:focus-visible { opacity: 1; }
 #app.sisi-lipat .sisi-isi { padding: 4px 8px 14px; }
 #app.sisi-lipat .sisi-isi button { justify-content: center; padding: 9px 0; }
+#app.sisi-lipat .sisi-isi button.aktif::before { left: -8px; }
 #app.sisi-lipat .sisi-grup {
   /* Judul kelompok diganti garis pemisah — tetap ada jeda visual, tanpa teks terpotong */
   height: 1px; padding: 10px 0 0; margin: 6px 8px 6px; overflow: hidden;
@@ -191,25 +210,25 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .lencana-grup { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
 #btnLaci { display: none; }
 
+/* Lencana = "Label" Primer: pil bertepi tipis, latar transparan, warna dibawa
+   oleh teks dan garisnya — bukan oleh blok warna penuh. */
 .lencana {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
-  background: var(--panel-2); color: var(--teks-2); white-space: nowrap;
-  border: 1px solid var(--garis);
+  padding: 1px 8px; border-radius: 2em; font-size: 12px; font-weight: 500;
+  background: transparent; color: var(--teks-redup); white-space: nowrap;
+  border: 1px solid var(--garis); line-height: 20px;
 }
 .lencana::before {
-  content: ''; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--garis-kuat); flex-shrink: 0;
+  content: ''; width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0; opacity: .85;
 }
 .lencana.polos::before { display: none; }
 /* Lencana kosong jangan menyisakan titik melayang tanpa keterangan */
 .lencana:empty { display: none; }
-.lencana.hijau  { background: var(--sukses-lembut);     color: var(--sukses);     border-color: #abefc6; }
-.lencana.hijau::before  { background: var(--sukses); }
-.lencana.kuning { background: var(--peringatan-lembut); color: var(--peringatan); border-color: #fedf89; }
-.lencana.kuning::before { background: var(--peringatan); }
-.lencana.merah  { background: var(--bahaya-lembut);     color: var(--bahaya);     border-color: #fecdca; }
-.lencana.merah::before  { background: var(--bahaya); }
+.lencana.hijau  { color: var(--sukses);     border-color: rgba(26,127,55,.35);  background: var(--sukses-lembut); }
+.lencana.kuning { color: var(--peringatan); border-color: rgba(154,103,0,.35);  background: var(--peringatan-lembut); }
+.lencana.merah  { color: var(--bahaya);     border-color: rgba(207,34,46,.35);  background: var(--bahaya-lembut); }
+.lencana.biru   { color: var(--utama);      border-color: rgba(9,105,218,.35);  background: var(--utama-lembut); }
 
 main { flex: 1; overflow: hidden; position: relative; }
 .layar { display: none; height: 100%; overflow: auto; padding: 18px; }
@@ -269,7 +288,9 @@ main { flex: 1; overflow: hidden; position: relative; }
 }
 .kartu-produk .stok.habis { color: var(--bahaya); font-weight: 600; }
 .kartu-produk .ada-di-lain { font-size: 12px; color: var(--sukses); margin-top: 4px; font-weight: 600; }
-.kartu-produk .meta.cocok { color: var(--utama-gelap); }
+/* Biru di GitHub berarti "bisa diklik". Baris ini hanya keterangan, jadi ia
+   dibedakan lewat kata "cocok:" dan huruf tebal — bukan lewat warna tautan. */
+.kartu-produk .meta.cocok { color: var(--teks-redup); font-weight: 500; }
 
 /* ---------- Panel keranjang ---------- */
 .panel-keranjang {
@@ -317,31 +338,38 @@ main { flex: 1; overflow: hidden; position: relative; }
 .total-baris.besar span:first-child { font-size: 13px; font-weight: 600; color: var(--teks-redup);
   letter-spacing: .4px; text-transform: uppercase; }
 
-/* ==================== KONTROL ==================== */
+/* ==================== KONTROL ====================
+   Tombol GitHub: latar abu sangat muda, tepi semi-transparan gelap (bukan abu solid,
+   supaya tetap terbaca di atas latar apa pun), dan bayangan setipis satu piksel. */
 .tombol {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 10px 15px; background: var(--panel); color: var(--teks);
-  font-weight: 600; font-size: 14px; border: 1px solid var(--garis-kuat);
-  box-shadow: var(--bayang-1); transition: background .12s, border-color .12s, box-shadow .12s;
+  padding: 9px 14px; background: var(--panel-2); color: var(--teks);
+  font-weight: 500; font-size: 14px; border: 1px solid var(--garis-tombol);
+  box-shadow: var(--bayang-1); transition: background .08s, border-color .08s;
 }
-.tombol:hover { background: var(--panel-2); }
-.tombol:active { box-shadow: none; }
-.tombol.utama  { background: var(--utama);   border-color: var(--utama);   color: #fff; }
-.tombol.utama:hover  { background: var(--utama-gelap); border-color: var(--utama-gelap); }
-.tombol.sukses { background: var(--sukses);  border-color: var(--sukses);  color: #fff; }
-.tombol.sukses:hover { background: #05603a; border-color: #05603a; }
-.tombol.bahaya { background: var(--bahaya);  border-color: var(--bahaya);  color: #fff; }
-.tombol.bahaya:hover { background: #912018; border-color: #912018; }
-.tombol.besar  { padding: 15px; font-size: 16px; width: 100%; border-radius: 10px; }
-.tombol.kecil  { padding: 6px 11px; font-size: 13px; }
-.tombol.sunyi  { background: transparent; border-color: transparent; box-shadow: none; color: var(--teks-2); }
-.tombol.sunyi:hover { background: var(--panel-2); }
-.tombol:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.tombol:hover { background: var(--panel-3); border-color: rgba(31,35,40,.15); }
+.tombol:active { background: #e6eaef; box-shadow: none; transition: none; }
+.tombol.utama  { background: var(--utama);        border-color: var(--garis-tombol); color: #fff; }
+.tombol.utama:hover  { background: var(--utama-gelap); }
+.tombol.sukses { background: var(--sukses-tombol); border-color: var(--garis-tombol); color: #fff; }
+.tombol.sukses:hover { background: var(--sukses); }
+/* Tombol bahaya Primer: DIAM ia hanya tombol biasa berteks merah; baru berubah
+   merah penuh saat disentuh. Deretan tombol "Hapus" jadi tidak berteriak-teriak
+   di dalam formulir, tapi niatnya tetap terbaca jelas. */
+.tombol.bahaya { background: var(--panel-2); border-color: var(--garis-tombol); color: var(--bahaya); }
+.tombol.bahaya:hover { background: var(--bahaya); border-color: var(--garis-tombol); color: #fff; }
+.tombol.bahaya:hover .ikon-svg { color: #fff; }
+.tombol.utama:active, .tombol.sukses:active, .tombol.bahaya:active { filter: brightness(.95); }
+.tombol.besar  { padding: 14px; font-size: 16px; font-weight: 600; width: 100%; }
+.tombol.kecil  { padding: 4px 10px; font-size: 12.5px; }
+.tombol.sunyi  { background: transparent; border-color: transparent; box-shadow: none; color: var(--utama); }
+.tombol.sunyi:hover { background: var(--panel-3); text-decoration: none; }
+.tombol:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 
 select, input[type=text], input[type=number], input[type=password], input[type=date], textarea {
-  padding: 9px 11px; background: var(--panel); border: 1px solid var(--garis-kuat);
-  border-radius: var(--radius); width: 100%; box-shadow: var(--bayang-1);
-  transition: border-color .12s, box-shadow .12s;
+  padding: 7px 12px; background: var(--panel); border: 1px solid var(--garis);
+  border-radius: var(--radius); width: 100%; box-shadow: none;
+  transition: border-color .08s, box-shadow .08s;
 }
 select:focus, input:focus, textarea:focus { outline: none; border-color: var(--utama); box-shadow: var(--cincin); }
 input[type=number], td .angka { font-variant-numeric: tabular-nums; }
@@ -392,49 +420,48 @@ label {
 .titik-pin span { width: 12px; height: 12px; border-radius: 50%; background: var(--garis-kuat); transition: background .12s; }
 .titik-pin span.isi { background: var(--utama); }
 
-/* ==================== TABEL & KARTU ==================== */
+/* ==================== TABEL & KARTU ====================
+   Gaya GitHub: kotak berbingkai datar TANPA bayangan, kepala tabel abu muda,
+   pemisah baris memakai garis halus. Kedalaman datang dari bingkainya. */
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--garis); }
+th, td { padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--garis-halus); }
 th {
-  color: var(--teks-redup); font-size: 11.5px; font-weight: 650;
-  text-transform: uppercase; letter-spacing: .5px; background: var(--panel-2);
-  border-bottom: 1px solid var(--garis);
+  color: var(--teks); font-size: 12.5px; font-weight: 600;
+  background: var(--panel-2); border-bottom: 1px solid var(--garis);
 }
 tbody tr:hover td { background: var(--panel-2); }
 tbody tr:last-child td { border-bottom: none; }
 td.angka, th.angka { text-align: right; font-variant-numeric: tabular-nums; }
-tr.tebal td { font-weight: 700; }
-tr.pisah td { border-top: 2px solid var(--garis-kuat); }
+tr.tebal td { font-weight: 600; }
+tr.pisah td { border-top: 1px solid var(--garis); }
 
 .kartu {
-  background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius-lg);
-  padding: 18px; margin-bottom: 14px; box-shadow: var(--bayang-1);
+  background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 16px; box-shadow: none;
 }
-.kartu h3 { margin: 0 0 14px; font-size: 15px; font-weight: 650; letter-spacing: -.15px; }
+.kartu h3 { margin: 0 0 14px; font-size: 14px; font-weight: 600; }
 /* Tabel menempel ke tepi kartu supaya bar kepala terbaca sebagai satu kesatuan */
-.kartu > table { margin: -18px; width: calc(100% + 36px); }
-.kartu > table:first-child th:first-child,
-.kartu > table th:first-child { padding-left: 18px; }
-.kartu > table th:last-child, .kartu > table td:last-child { padding-right: 18px; }
-.kartu > table td:first-child { padding-left: 18px; }
+.kartu > table { margin: -16px; width: calc(100% + 32px); }
+.kartu > table th:first-child, .kartu > table td:first-child { padding-left: 16px; }
+.kartu > table th:last-child,  .kartu > table td:last-child  { padding-right: 16px; }
+/* Sudut kepala tabel ikut membulat mengikuti bingkai kartu */
+.kartu > table tr:first-child th:first-child { border-top-left-radius: 5px; }
+.kartu > table tr:first-child th:last-child  { border-top-right-radius: 5px; }
 
 .petak { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .statistik .nilai {
-  font-size: 25px; font-weight: 700; margin-top: 4px;
-  letter-spacing: -.7px; font-variant-numeric: tabular-nums;
+  font-size: 24px; font-weight: 600; margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
-.statistik .label {
-  font-size: 12px; color: var(--teks-redup); font-weight: 600;
-  text-transform: uppercase; letter-spacing: .4px;
-}
+.statistik .label { font-size: 12.5px; color: var(--teks-redup); font-weight: 400; }
 
 .pesan {
   padding: 11px 14px; border-radius: var(--radius); margin-bottom: 12px;
   font-size: 13.5px; border: 1px solid transparent;
 }
-.pesan.galat  { background: var(--bahaya-lembut);     color: var(--bahaya);     border-color: #fecdca; }
-.pesan.sukses { background: var(--sukses-lembut);     color: var(--sukses);     border-color: #abefc6; }
-.pesan.info   { background: var(--utama-lembut);      color: var(--utama-gelap); border-color: #c7d7fe; }
+.pesan.galat  { background: var(--bahaya-lembut);     color: var(--teks); border-color: rgba(207,34,46,.4); }
+.pesan.sukses { background: var(--sukses-lembut);     color: var(--teks); border-color: rgba(26,127,55,.4); }
+.pesan.info   { background: var(--utama-lembut);      color: var(--teks); border-color: rgba(9,105,218,.4); }
 
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
@@ -465,7 +492,7 @@ label.cek.kartu-cek {
   border-bottom: 2px solid transparent;
 }
 .tab-modal button:hover { color: var(--teks-2); }
-.tab-modal button.aktif { color: var(--utama-gelap); border-bottom-color: var(--utama); }
+.tab-modal button.aktif { color: var(--teks); font-weight: 600; border-bottom-color: #fd8c73; }
 
 .baris-anak { display: flex; gap: 7px; margin-bottom: 7px; align-items: center; }
 .baris-anak input, .baris-anak select { flex: 1; min-width: 0; padding: 8px 10px; }
@@ -475,6 +502,9 @@ label.cek.kartu-cek {
 .matriks table { font-size: 13px; }
 .matriks th { position: sticky; top: 0; z-index: 1; padding: 9px 6px; font-size: 11px; }
 .matriks td { padding: 6px; }
+/* Kepala kolom dan kotak centangnya harus segaris — sebelumnya judul rata kiri
+   sementara centangnya rata tengah, dan itu terbaca sebagai berantakan. */
+.matriks th:not(:first-child), .matriks td:not(:first-child) { text-align: center; }
 .matriks input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--utama); box-shadow: none; }
 
 .petak-flag { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px; }
@@ -604,7 +634,7 @@ input.sudah-hitung {
   .kartu { overflow-x: auto; }
   table { min-width: 560px; }
   .modal.lebar { max-width: 100%; }
-  .kartu > table { margin: -18px 0; width: 100%; }
+  .kartu > table { margin: -16px 0; width: 100%; }
 }
 
 /* Contoh garis di legenda — membawa pola putus, bukan cuma warna */
