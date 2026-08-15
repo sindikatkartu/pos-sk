@@ -89,7 +89,7 @@
     <div class="isi-tengah"></div>
     <div class="lencana-grup">
       <span class="lencana" id="lncCabang">—</span>
-      <span class="lencana" id="lncShift">Shift belum dibuka</span>
+      <span class="lencana" id="lncShift">Shift belum dibuka</span><!-- jadi tombol saat shift belum dibuka: lihat periksaShift() -->
       <span class="lencana" id="lncSync">Memeriksa…</span>
       <span class="lencana polos sembunyi" id="lncUser">—</span>
     </div>
@@ -196,7 +196,7 @@
     <!-- ---------- PERANGKAT & SHIFT (semua peran) ---------- -->
     <section class="layar" id="layarPengaturan">
       <div class="petak">
-        <div class="kartu">
+        <div class="kartu" id="kartuShift">
           <h3>Shift kasir</h3>
           <div id="infoShift"></div>
           <div class="grup" style="margin-top:12px">
@@ -227,7 +227,7 @@
           <div id="daftarPerangkat"></div>
         </div>
 
-        <div class="kartu">
+        <div class="kartu" id="kartuAkun">
           <h3>Akun saya</h3>
           <div class="grup"><label>PIN lama</label><input type="password" id="pinLama" inputmode="numeric"></div>
           <div class="grup"><label>PIN baru (6 digit)</label><input type="password" id="pinBaru" inputmode="numeric"></div>
