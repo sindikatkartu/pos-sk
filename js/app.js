@@ -279,7 +279,10 @@ async function mulaiSesi(d) {
   await perbaruiInfoData();
 
   if (d.user.wajib_ganti_pin) {
-    alert('PIN Anda masih PIN awal. Segera ganti lewat menu Pengaturan.');
+    // Kasus yang sama seperti shift: jangan sebut nama menu, antar saja.
+    if (confirm('PIN Anda masih PIN awal dan sebaiknya segera diganti.\n\nGanti PIN sekarang?')) {
+      menujuKartu('kartuAkun', '#pinLama');
+    }
   }
 }
 
@@ -476,7 +479,14 @@ function gambarKeranjang() {
 /* ==================== PEMBAYARAN ==================== */
 function bukaBayar() {
   if (Keranjang.kosong) return;
-  if (!APP_STATE.idShift) { alert('Buka shift dulu di menu Pengaturan.'); return; }
+  if (!APP_STATE.idShift) {
+    /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
+       berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
+       tidak ada — dan menu Setting memang tersembunyi bagi kasir. Sekarang
+       pengguna langsung diantar ke kartu shift-nya. */
+    if (confirm('Shift belum dibuka, jadi transaksi belum bisa disimpan.\n\nBuka shift sekarang?')) menujuBukaShift();
+    return;
+  }
   APP_STATE.metodeBayar = [{ metode: 'tunai', jumlah: Keranjang.total().total, referensi: '' }];
   $('#byrDiskonNota').value = Keranjang.diskonNota;
   $('#byrJatuhTempo').value = '';
@@ -593,6 +603,23 @@ async function kurangiStokLokal(dok) {
 }
 
 /* ==================== SHIFT ==================== */
+
+/* Antar pengguna ke satu kartu di layar Perangkat, lalu sorot sebentar supaya
+   jelas yang mana. Lebih baik daripada menyebut nama menu di dalam pesan:
+   namanya bisa berubah, dan sebagian peran tidak melihat menu yang disebut. */
+function menujuKartu(idKartu, selektorFokus) {
+  bukaLayar('pengaturan');
+  const kartu = document.getElementById(idKartu);
+  if (!kartu) return;
+  kartu.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  kartu.classList.remove('sorot');
+  void kartu.offsetWidth;              // paksa reflow agar animasi bisa diulang
+  kartu.classList.add('sorot');
+  if (selektorFokus) setTimeout(() => $(selektorFokus)?.focus(), 350);
+}
+
+function menujuBukaShift() { menujuKartu('kartuShift', '#inpKasAwal'); }
+
 async function periksaShift() {
   try {
     const d = await API.shiftAktif();
@@ -601,8 +628,18 @@ async function periksaShift() {
   } catch (e) {
     APP_STATE.idShift = await DB.kvGet('id_shift', null);   // offline: pakai shift terakhir
   }
-  $('#lncShift').textContent = APP_STATE.idShift ? 'Shift aktif' : 'Shift belum dibuka';
-  $('#lncShift').className = 'lencana ' + (APP_STATE.idShift ? 'hijau' : 'kuning');
+  const lnc = $('#lncShift');
+  const perluBuka = !APP_STATE.idShift;
+  lnc.textContent = perluBuka ? 'Shift belum dibuka' : 'Shift aktif';
+  lnc.className = 'lencana ' + (perluBuka ? 'kuning bisa-klik' : 'hijau');
+  /* Saat belum dibuka, lencana ini jadi jalan pintas — bukan sekadar keterangan. */
+  if (perluBuka) {
+    lnc.setAttribute('role', 'button');
+    lnc.setAttribute('tabindex', '0');
+    lnc.title = 'Klik untuk membuka shift';
+  } else {
+    lnc.removeAttribute('role'); lnc.removeAttribute('tabindex'); lnc.removeAttribute('title');
+  }
   $('#infoShift').innerHTML = APP_STATE.idShift
     ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`
     : '<span class="lencana kuning">Belum dibuka</span>';
@@ -924,6 +961,10 @@ function pasangEvent() {
   $('#btnSelesaikan').addEventListener('click', selesaikanTransaksi);
 
   /* --- shift --- */
+  $('#lncShift').addEventListener('click', () => { if (!APP_STATE.idShift) menujuBukaShift(); });
+  $('#lncShift').addEventListener('keydown', (e) => {
+    if (!APP_STATE.idShift && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); menujuBukaShift(); }
+  });
   $('#btnBukaShift').addEventListener('click', async () => {
     try {
       const d = await API.bukaShift({ kas_awal: Number($('#inpKasAwal').value) });
