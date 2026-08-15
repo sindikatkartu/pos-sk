@@ -639,3 +639,34 @@ input.sudah-hitung {
 
 /* Contoh garis di legenda — membawa pola putus, bukan cuma warna */
 .grafik-legenda .cth { width: 26px; height: 12px; flex-shrink: 0; display: block; }
+
+/* ==================== MENU EKSPOR ====================
+   Satu tombol "Ekspor" dengan menu pilihan format, menggantikan tiga tombol
+   berjajar. Bentuknya mengikuti dropdown Primer: kotak putih berbingkai,
+   bayangan overlay, item selebar menu. */
+.ekspor { position: relative; display: inline-flex; }
+.ekspor .tanda-panah { transition: transform .12s; opacity: .7; }
+.ekspor.buka .tanda-panah { transform: rotate(180deg); }
+.ekspor.buka > [data-ekspor-buka] { background: var(--panel-3); }
+
+.ekspor-menu {
+  display: none; position: absolute; top: calc(100% + 4px); right: 0; z-index: 60;
+  min-width: 180px; padding: 4px;
+  background: var(--panel); border: 1px solid var(--garis);
+  border-radius: var(--radius); box-shadow: var(--bayang-4);
+}
+.ekspor.buka .ekspor-menu { display: block; }
+
+.ekspor-menu button {
+  display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left;
+  padding: 7px 10px; font-size: 14px; font-weight: 400;
+  background: transparent; color: var(--teks); border: none; white-space: nowrap;
+}
+.ekspor-menu button span { color: var(--teks-redup); font-size: 12.5px; margin-left: auto; }
+.ekspor-menu button:hover { background: var(--utama); color: #fff; }
+.ekspor-menu button:hover span { color: rgba(255,255,255,.8); }
+
+/* Di layar sempit menu bisa melewati tepi kanan bila tombolnya dekat pinggir */
+@media (max-width: 480px) {
+  .ekspor-menu { right: auto; left: 0; }
+}
