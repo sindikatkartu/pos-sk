@@ -13,6 +13,7 @@ const APP_STATE = {
   // Daftar frontliner yang boleh mengklaim penjualan di cabang ini. Diisi dari
   // IndexedDB saat master dimuat, jadi tetap ada walau internet mati.
   daftarPetugas: [], klaimWajib: false, timBaris: null,
+  bobotPeran: { PENJUAL: 60, PEMASANG: 30, PEMBANTU: 10 },
   // uuid nota disiapkan saat layar bayar dibuka, bukan saat disimpan: persetujuan
   // diskon menempel pada uuid, jadi nomornya harus sudah ada sebelum diminta.
   uuidNota: null, otorisasiDiskon: null
@@ -78,7 +79,7 @@ const MENU = [
   { id: 'petugas',    label: 'Petugas',    grup: 'Relasi',     izin: ['petugas', 'buat'],            admin: true, backoffice: true },
   { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
-  { id: 'komisi',     label: 'Komisi',     grup: 'Laporan',    izin: ['laporan_komisi', 'lihat'],    admin: true, backoffice: true },
+  { id: 'poin',       label: 'Poin',       grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
@@ -218,9 +219,10 @@ const IKON = {
   // di ukuran 18px ketiganya akan tampak kembar, padahal artinya jauh berbeda:
   // Pengguna adalah akun yang bisa masuk, Petugas adalah orang yang berjualan.
   petugas   : '<rect x="4" y="4.5" width="16" height="17" rx="2"/><path d="M9.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M7.8 18.6a4.4 4.4 0 0 1 8.4 0"/>',
-  // Komisi: koin yang berpindah ke tangan. Dibedakan dari Keuangan (dompet) dan
-  // Diskon (label persen) supaya tiga menu Laporan tidak saling tertukar.
-  komisi    : '<circle cx="16.5" cy="6.5" r="4"/><path d="M16.5 4.8v3.4"/><path d="M2.5 14v6.5"/><path d="M6 20.5h7.6a3 3 0 0 0 2.1-.86l4-3.9a1.55 1.55 0 0 0-2.14-2.24l-2.5 2.1"/><path d="M6 15.4h4.4a1.65 1.65 0 0 1 0 3.3H8.2"/>',
+  // Poin: bintang penghargaan. Dibedakan dari Keuangan (dompet) dan Diskon (label
+  // persen) supaya tiga menu Laporan tidak saling tertukar — dan sengaja BUKAN
+  // koin, karena poin memang bukan uang.
+  poin      : '<circle cx="16.5" cy="6.5" r="4"/><path d="M16.5 4.8v3.4"/><path d="M2.5 14v6.5"/><path d="M6 20.5h7.6a3 3 0 0 0 2.1-.86l4-3.9a1.55 1.55 0 0 0-2.14-2.24l-2.5 2.1"/><path d="M6 15.4h4.4a1.65 1.65 0 0 1 0 3.3H8.2"/>',
   piutang   : '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
   laporan   : '<path d="M3.5 3v17.5H21"/><path d="M7.5 16.5v-4"/><path d="M12 16.5v-8"/><path d="M16.5 16.5v-5.5"/>',
   keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
@@ -440,6 +442,14 @@ async function muatMaster() {
   APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode);
 
   APP_STATE.klaimWajib = String(APP_STATE.setting.klaim_petugas_wajib) === 'true';
+  // Bobot peran dipakai layar kasir untuk MENGUSULKAN pembagian poin. Yang
+  // memutuskan tetap server; ini semata supaya angkanya sudah masuk akal saat
+  // dialognya terbuka, bukan nol yang harus diisi dari awal setiap kali.
+  try { APP_STATE.bobotPeran = JSON.parse(APP_STATE.setting.bobot_peran_klaim || '{}'); }
+  catch (e) { APP_STATE.bobotPeran = {}; }
+  if (!Object.keys(APP_STATE.bobotPeran).length) {
+    APP_STATE.bobotPeran = { PENJUAL: 60, PEMASANG: 30, PEMBANTU: 10 };
+  }
 
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
@@ -736,18 +746,26 @@ function bukaTim(idBaris) {
 
   APP_STATE.timBaris = idBaris;
   const min = nota ? 1 : (b.butuh_tim ? Math.max(2, Number(b.min_petugas) || 2) : 1);
+  // Poin bawaan pekerjaan ini — dari `poin_satuan` produk dikali qty dasarnya.
+  const poinDasar = nota ? Keranjang.poinSisaNota() : Keranjang.poinBaris(idBaris);
+  APP_STATE._timPoinDasar = poinDasar;
 
   $('#timJudul').textContent = nota ? 'Pramuniaga nota ini' : 'Tim — ' + b.nama;
   $('#timRingkas').innerHTML = `<p class="petunjuk">${nota
     ? 'Berlaku untuk seluruh baris yang <strong>tidak</strong> punya timnya sendiri.'
     : `Baris ini dikerjakan minimal <strong>${min}</strong> orang, dan karena itu keluar dari klaim nota.`}
-    Porsi boleh dikosongkan semuanya — pembagiannya mengikuti bobot peran.
-    Kalau diisi, harus diisi untuk semua orang dan jumlahnya tepat 100%.</p>`;
+    Pekerjaan ini bernilai <strong>${poinDasar} poin</strong> menurut master produk.
+    Angka itu boleh diubah — jumlahnya tidak harus sama, dan tidak harus 100.
+    Pembagian omzet mengikuti perbandingan poinnya.</p>
+    ${poinDasar > 0 ? '' : `<div class="pesan info">Produk ini belum diberi nilai poin,
+      jadi usulannya 0. Atur di menu Produk → tab <strong>Tim &amp; poin</strong>
+      kalau pekerjaan ini memang layak dihitung.</div>`}`;
 
   const awal = nota ? Keranjang.petugasNota : Keranjang.timBaris(idBaris);
   APP_STATE._timDraft = awal.length
-    ? awal.map(x => ({ kode: x.kode, peran: x.peran || '', porsi: x.porsi ?? '' }))
-    : Array.from({ length: min }, () => ({ kode: '', peran: '', porsi: '' }));
+    ? awal.map(x => ({ kode: x.kode, peran: x.peran || '', poin: x.poin ?? '' }))
+    : Array.from({ length: min }, () => ({ kode: '', peran: '', poin: '' }));
+  if (!awal.length) _usulkanPoin();
 
   pesan('#pesanTim', '');
   gambarAnggotaTim();
@@ -755,7 +773,29 @@ function bukaTim(idBaris) {
   setTimeout(() => $$('#timDaftar select[data-f=kode]')[0]?.focus(), 60);
 }
 
-/* Dipisah dari gambarTotalPorsi dengan alasan yang sama seperti gambarMetode():
+/**
+ * Usulkan pembagian poin menurut bobot peran, dibulatkan supaya jumlahnya persis
+ * sama dengan nilai pekerjaannya. Hanya dipakai untuk MENGISI AWAL — begitu kasir
+ * mengetik sendiri, angkanya tidak pernah ditimpa lagi.
+ */
+function _usulkanPoin() {
+  const d = APP_STATE._timDraft || [];
+  const total = Number(APP_STATE._timPoinDasar) || 0;
+  const bobot = d.map(a => {
+    const p = APP_STATE.daftarPetugas.find(x => x.kode === a.kode);
+    const peran = a.peran || (p && p.peran_utama) || 'PENJUAL';
+    return Math.max(Number((APP_STATE.bobotPeran || {})[peran]) || 0, 0.0001);
+  });
+  const jml = bobot.reduce((x, y) => x + y, 0);
+  let sisa = total;
+  d.forEach((a, i) => {
+    if (i === d.length - 1) { a.poin = Math.round(sisa * 100) / 100; return; }
+    const v = Math.round(total * bobot[i] / jml * 100) / 100;
+    a.poin = v; sisa = Math.round((sisa - v) * 100) / 100;
+  });
+}
+
+/* Dipisah dari gambarTotalPoin dengan alasan yang sama seperti gambarMetode():
    menggambar ulang seluruh daftar pada setiap ketukan akan menghancurkan elemen
    input yang sedang diketik, dan ketikan terasa macet. */
 function gambarAnggotaTim() {
@@ -773,23 +813,42 @@ function gambarAnggotaTim() {
           ${PERAN_TIM.map(x => `<option value="${x}" ${a.peran === x ? 'selected' : ''}>${
             x.charAt(0) + x.slice(1).toLowerCase()}</option>`).join('')}
         </select></div>
-      <div><label>Porsi %</label>
-        <input type="number" inputmode="decimal" min="0" max="100" step="0.01"
-               data-i="${i}" data-f="porsi" value="${a.porsi ?? ''}" placeholder="auto"></div>
+      <div><label>Poin</label>
+        <input type="number" inputmode="decimal" min="0" step="0.5"
+               data-i="${i}" data-f="poin" value="${a.poin ?? ''}" placeholder="auto"></div>
       ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : '<span></span>'}
     </div>`).join('');
-  gambarTotalPorsi();
+  gambarTotalPoin();
 }
 
-function gambarTotalPorsi() {
+function gambarTotalPoin() {
   const d = APP_STATE._timDraft || [];
-  const terisi = d.filter(a => String(a.porsi).trim() !== '');
-  const el = $('#timTotalPorsi');
-  if (!terisi.length) { el.textContent = 'otomatis'; el.style.color = 'var(--teks-redup)'; return; }
-  const total = Math.round(terisi.reduce((a, x) => a + (Number(x.porsi) || 0), 0) * 100) / 100;
-  const pas = terisi.length === d.length && Math.abs(total - 100) <= 0.011;
-  el.textContent = total + '%';
-  el.style.color = pas ? 'var(--sukses)' : 'var(--bahaya)';
+  const terisi = d.filter(a => String(a.poin).trim() !== '');
+  const elP = $('#timTotalPoin');
+  const elR = $('#timPorsi');
+
+  if (!terisi.length) {
+    elP.textContent = 'otomatis';
+    elP.style.color = 'var(--teks-redup)';
+    elR.textContent = 'menurut bobot peran';
+    return;
+  }
+
+  const total = Math.round(terisi.reduce((a, x) => a + (Number(x.poin) || 0), 0) * 100) / 100;
+  const adaNegatif = terisi.some(x => Number(x.poin) < 0);
+  elP.textContent = total + ' poin';
+  elP.style.color = adaNegatif ? 'var(--bahaya)' : 'var(--sukses)';
+
+  /* Pembagian omzet diperlihatkan hidup — inilah yang membuat "poin juga membagi
+     uang" terasa nyata, bukan cuma tertulis di petunjuk. */
+  if (terisi.length !== d.length) { elR.textContent = 'isi poin semuanya dulu'; return; }
+  if (total <= 0) { elR.textContent = 'menurut bobot peran'; return; }
+  // Sebelum namanya dipilih, angka pembagian tidak berarti apa-apa — menampilkan
+  // "? 50%" cuma memancing orang menafsirkannya sebagai nama yang gagal dimuat.
+  if (d.some(a => !a.kode)) { elR.textContent = 'pilih petugasnya dulu'; return; }
+  elR.textContent = d.map(a =>
+    namaPetugas(a.kode).split(' ')[0] + ' ' +
+    (Math.round(Number(a.poin) / total * 1000) / 10) + '%').join(' · ');
 }
 
 function simpanTim() {
@@ -809,28 +868,23 @@ function simpanTim() {
     return pesan('#pesanTim', `Baris ini butuh minimal ${min} petugas, baru terisi ${d.length}.`, 'galat');
   }
 
-  const terisi = d.filter(a => String(a.porsi).trim() !== '');
+  const terisi = d.filter(a => String(a.poin).trim() !== '');
   if (terisi.length && terisi.length !== d.length) {
     return pesan('#pesanTim',
-      'Porsi harus diisi untuk semua petugas, atau dikosongkan semuanya.', 'galat');
+      'Poin harus diisi untuk semua petugas, atau dikosongkan semuanya.', 'galat');
   }
-  if (terisi.length) {
-    const total = terisi.reduce((a, x) => a + (Number(x.porsi) || 0), 0);
-    if (Math.abs(total - 100) > 0.011) {
-      return pesan('#pesanTim',
-        `Jumlah porsi harus tepat 100%, sekarang ${Math.round(total * 100) / 100}%.`, 'galat');
-    }
-    if (terisi.some(x => Number(x.porsi) <= 0)) {
-      return pesan('#pesanTim', 'Porsi harus lebih dari 0 untuk setiap petugas.', 'galat');
-    }
+  if (terisi.some(x => Number(x.poin) < 0)) {
+    return pesan('#pesanTim', 'Poin tidak boleh negatif.', 'galat');
   }
 
-  // Porsi kosong dikirim sebagai undefined, bukan 0: server membedakan "tidak diisi"
-  // (dibagi menurut bobot peran) dari "diisi nol" (ditolak).
+  /* Poin kosong dikirim sebagai undefined, BUKAN 0. Server membedakan keduanya:
+     "tidak diisi" berarti bagikan poin bawaan produk menurut bobot peran,
+     sedangkan "diisi nol" adalah keputusan sadar bahwa pekerjaan ini tidak
+     berpoin — dan keputusan itu harus bertahan. */
   const bersih = d.map(a => ({
     kode: a.kode,
     peran: a.peran || (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama || 'PENJUAL',
-    porsi: String(a.porsi).trim() === '' ? undefined : Number(a.porsi)
+    poin: String(a.poin).trim() === '' ? undefined : Number(a.poin)
   }));
 
   if (nota) Keranjang.setPetugasNota(bersih);
@@ -1396,7 +1450,7 @@ function pasangEvent() {
   });
   $('#btnSimpanTim').addEventListener('click', simpanTim);
   $('#btnTambahAnggota').addEventListener('click', () => {
-    (APP_STATE._timDraft = APP_STATE._timDraft || []).push({ kode: '', peran: '', porsi: '' });
+    (APP_STATE._timDraft = APP_STATE._timDraft || []).push({ kode: '', peran: '', poin: '' });
     gambarAnggotaTim();
   });
   $('#timDaftar').addEventListener('click', e => {
@@ -1405,13 +1459,15 @@ function pasangEvent() {
     APP_STATE._timDraft.splice(Number(b.dataset.i), 1);
     gambarAnggotaTim();
   });
-  /* 'input' untuk kolom porsi (tiap ketukan hanya memperbarui totalnya, daftarnya
+  /* 'input' untuk kolom poin (tiap ketukan hanya memperbarui ringkasannya, daftarnya
      tidak digambar ulang), 'change' untuk dropdown yang memang mengubah susunan. */
   $('#timDaftar').addEventListener('input', e => {
     const f = e.target.dataset.f;
-    if (f !== 'porsi') return;
-    APP_STATE._timDraft[Number(e.target.dataset.i)].porsi = e.target.value;
-    gambarTotalPorsi();
+    if (f !== 'poin') return;
+    const a = APP_STATE._timDraft[Number(e.target.dataset.i)];
+    a.poin = e.target.value;
+    a._manual = true;              // sekali diketik, usulan tidak pernah menimpanya
+    gambarTotalPoin();
   });
   $('#timDaftar').addEventListener('change', e => {
     const f = e.target.dataset.f, i = Number(e.target.dataset.i);
@@ -1422,9 +1478,12 @@ function pasangEvent() {
     // sudah mengubahnya sendiri.
     if (f === 'kode' && !a._peranManual) {
       a.peran = (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama || 'PENJUAL';
-      gambarAnggotaTim();
     }
     if (f === 'peran') a._peranManual = true;
+    // Perannya menentukan bobot, jadi usulan poin ikut dihitung ulang — kecuali
+    // untuk baris yang poinnya sudah diketik sendiri.
+    if (!APP_STATE._timDraft.some(x => x._manual)) _usulkanPoin();
+    gambarAnggotaTim();
   });
 
   /* --- keranjang --- */

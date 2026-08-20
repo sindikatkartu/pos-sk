@@ -312,7 +312,7 @@ const Admin = (() => {
         <button data-tabm="satuan">Satuan bertingkat</button>
         <button data-tabm="tier">Tier harga</button>
         <button data-tabm="varian">Varian</button>
-        <button data-tabm="tim">Tim &amp; komisi</button>
+        <button data-tabm="tim">Tim &amp; poin</button>
       </div>
 
       <div data-panel="umum">
@@ -391,28 +391,26 @@ const Admin = (() => {
           kasus utamanya <strong>pemasangan tempered glass</strong>: satu memasang, satu memegang
           dan membersihkan. Baris nota yang berisi produk bertanda ini <strong>wajib</strong> punya
           daftar petugasnya sendiri, dan karena itu keluar dari klaim nota. Tanpa pemisahan itu,
-          satu pemasangan akan membayar komisi dua kali.</p>
+          satu pemasangan akan dihargai dua kali.</p>
 
         <label class="cek"><input type="checkbox" id="pButuhTim" ${p?.butuh_tim ? 'checked' : ''}>
           Dikerjakan tim — kasir wajib memilih petugasnya per baris</label>
 
-        <div class="baris3" style="margin-top:12px">
+        <div class="baris2" style="margin-top:12px">
           <div class="grup"><label>Minimal petugas</label>
             <input type="number" id="pMinPetugas" min="2" step="1" value="${p?.min_petugas || 2}"></div>
-          <div class="grup"><label>Tarif komisi produk</label><select id="pKomisiTipe">
-            <option value=""         ${!p?.komisi_tipe ? 'selected' : ''}>Ikut tarif umum</option>
-            <option value="persen"   ${p?.komisi_tipe === 'persen' ? 'selected' : ''}>Persen dari dasar komisi</option>
-            <option value="nominal"  ${p?.komisi_tipe === 'nominal' ? 'selected' : ''}>Rupiah per satuan dasar</option>
-            <option value="nonaktif" ${p?.komisi_tipe === 'nonaktif' ? 'selected' : ''}>Tanpa komisi</option>
-          </select></div>
-          <div class="grup"><label>Nilai tarif</label>
-            <input type="number" id="pKomisiNilai" min="0" step="0.01" value="${p?.komisi_nilai || 0}"></div>
+          <div class="grup"><label>Poin per satuan dasar</label>
+            <input type="number" id="pPoinSatuan" min="0" step="0.5" value="${p?.poin_satuan || 0}"></div>
         </div>
 
-        <p class="petunjuk"><strong>Rupiah per satuan dasar</strong> dihitung dari qty dasar, bukan per baris:
-          satu lusin tempered glass adalah dua belas pemasangan, bukan satu.
-          Urutan yang berlaku bila lebih dari satu tarif terisi:
-          <strong>tarif petugas → tarif produk → tarif umum</strong>.</p>
+        <p class="petunjuk"><strong>Poin per satuan dasar</strong> — bukan per baris.
+          Satu lusin tempered glass adalah dua belas pemasangan, bukan satu.<br>
+          Angkanya sengaja tidak terikat harga: memasang tempered glass boleh bernilai
+          3 poin walau harganya seperempat casing yang tinggal diserahkan. Persen selalu
+          memihak barang mahal; poin bisa memihak pekerjaan berat.<br>
+          <strong>0 berarti penjualan produk ini tidak berpoin</strong> — omzetnya tetap
+          tercatat atas nama petugasnya, hanya poinnya nol. Nilai ini cuma usulan;
+          kasir boleh menaikkannya untuk pekerjaan yang luar biasa sulit.</p>
       </div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        ${!baru && bolehIzin('produk', 'hapus') ? '<button class="tombol bahaya" id="btnNonaktifProduk">Nonaktifkan</button>' : ''}
@@ -486,7 +484,7 @@ const Admin = (() => {
       aktif: centang('pAktif'),
       deskripsi: nilai('pDeskripsi'), kata_kunci: nilai('pKataKunci'),
       butuh_tim: centang('pButuhTim'), min_petugas: angka('pMinPetugas'),
-      komisi_tipe: nilai('pKomisiTipe'), komisi_nilai: angka('pKomisiNilai'),
+      poin_satuan: angka('pPoinSatuan'),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
       varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel')
     };
@@ -926,7 +924,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * memaksa mereka punya akun berarti membagikan kredensial tanpa alasan.
    *
    * Tidak ada tombol Hapus. Baris petugas adalah rujukan klaim-klaim lama; yang
-   * keluar dinonaktifkan, supaya laporan komisi bulan lalu tetap bisa dibaca.
+   * keluar dinonaktifkan, supaya laporan poin bulan lalu tetap bisa dibaca.
    */
   const LABEL_PERAN_PETUGAS = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang', PEMBANTU: 'Pembantu' };
 
@@ -940,15 +938,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${bolehIzin('petugas', 'buat') ? '<button class="tombol utama" id="btnPetugasBaru">+ Petugas</button>' : ''}</div>
           <p class="petunjuk">Nama di daftar inilah yang muncul di layar kasir saat menutup nota.
              Petugas yang sudah keluar cukup dinonaktifkan — jangan dihapus, karena
-             klaim dan komisi lamanya masih menunjuk ke sini.</p>
+             klaim dan poin lamanya masih menunjuk ke sini.</p>
           ${tabel([
             { judul: 'Kode', kunci: 'kode' },
             { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
             { judul: 'Peran utama', render: r => `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[r.peran_utama] || r.peran_utama)}</span>` },
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua cabang' : esc(r.cabang) },
             { judul: 'Telepon', kunci: 'telepon' },
-            { judul: 'Tarif komisi', angka: true,
-              render: r => r.komisi_persen > 0 ? r.komisi_persen + '%' : '<span style="color:var(--teks-redup)">ikut tarif umum</span>' },
             { judul: '', render: r => bolehIzin('petugas', 'ubah')
                 ? `<button class="tombol kecil" data-edit-petugas="${esc(r.kode)}">Ubah</button>` : '' }
           ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun' })}
@@ -979,87 +975,87 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             `<option value="${esc(c)}" ${p?.cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           ${lintas ? `<option value="*" ${p?.cabang === '*' ? 'selected' : ''}>Semua cabang</option>` : ''}
         </select></div>
-        <div class="grup"><label>Tarif komisi khusus (%)</label>
-          <input type="number" id="ptKomisi" min="0" max="100" step="0.01" value="${p?.komisi_persen || 0}"></div>
       </div>
       <label class="cek"><input type="checkbox" id="ptAktif" ${p?.aktif !== false ? 'checked' : ''}> Aktif</label>
       <p class="petunjuk"><strong>Peran utama</strong> dipakai sebagai bawaan saat namanya
         dimasukkan ke sebuah tim, dan menentukan bobot pembagian bila kasir tidak
-        mengisi porsi sendiri.<br>
-        <strong>Tarif komisi khusus</strong> mengalahkan tarif produk maupun tarif umum.
-        Isi <strong>0</strong> bila orang ini mengikuti tarif yang berlaku umum.</p>`,
+        mengisi poin sendiri.<br>
+        Tidak ada tarif per orang: nilai pekerjaan melekat pada <strong>produk</strong>,
+        supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnSimpanPetugas">Simpan</button>`);
   }
 
-  /* ==================== LAPORAN KOMISI ==================== */
+  /* ==================== LAPORAN POIN ====================
+   * Sistem berhenti pada poin. Berapa rupiah satu poin sengaja tidak ada di sini —
+   * itu keputusan pemilik, bisa berubah tiap bulan, dan bisa berbentuk apa pun.
+   */
 
-  async function muatKomisi() {
-    memuat('#isiKomisi');
+  async function muatPoin() {
+    memuat('#isiPoin');
     try {
       const rows = await API.daftarPetugas().catch(() => []);
       const kini = new Date();
       const awal = new Date(kini.getFullYear(), kini.getMonth(), 1);
-      $('#isiKomisi').innerHTML = `
+      $('#isiPoin').innerHTML = `
         <div class="kartu">
-          <h3>Komisi &amp; klaim per petugas</h3>
+          <h3>Poin &amp; klaim per petugas</h3>
           <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
             <div style="max-width:170px"><label>Dari</label>
-              <input type="date" id="komDari" value="${awal.toISOString().substring(0, 10)}"></div>
+              <input type="date" id="poinDari" value="${awal.toISOString().substring(0, 10)}"></div>
             <div style="max-width:170px"><label>Sampai</label>
-              <input type="date" id="komSampai" value="${tanggalLokal(kini)}"></div>
-            <div style="max-width:220px"><label>Petugas</label><select id="komPetugas">
+              <input type="date" id="poinSampai" value="${tanggalLokal(kini)}"></div>
+            <div style="max-width:220px"><label>Petugas</label><select id="poinPetugas">
               <option value="">Semua petugas</option>
               ${rows.map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
             </select></div>
-            <button class="tombol utama" id="btnLaporanKomisi">Tampilkan</button>
+            <button class="tombol utama" id="btnLaporanPoin">Tampilkan</button>
           </div>
           <p class="petunjuk">Angka di sini dibekukan saat notanya masuk, bukan dihitung ulang
-             sekarang. Menaikkan tarif hari ini tidak akan mengubah komisi bulan lalu.
-             Nota yang dibatalkan otomatis keluar dari hitungan.</p>
+             sekarang. Menaikkan poin sebuah produk hari ini tidak mengubah pekerjaan yang
+             sudah selesai bulan lalu. Nota yang dibatalkan otomatis keluar dari hitungan.</p>
         </div>
-        <div id="hasilKomisi"></div>`;
-    } catch (e) { galat('#isiKomisi', e); }
+        <div id="hasilPoin"></div>`;
+    } catch (e) { galat('#isiPoin', e); }
   }
 
-  async function gambarHasilKomisi() {
-    const wadah = $('#hasilKomisi');
+  async function gambarHasilPoin() {
+    const wadah = $('#hasilPoin');
     wadah.innerHTML = '<div class="kartu">Menghitung…</div>';
     try {
-      const d = await API.laporanKomisi({
-        dari: nilai('komDari'), sampai: nilai('komSampai'),
-        kode_petugas: nilai('komPetugas') || undefined
+      const d = await API.laporanPoin({
+        dari: nilai('poinDari'), sampai: nilai('poinSampai'),
+        kode_petugas: nilai('poinPetugas') || undefined
       });
       const r = d.ringkas;
       const adaLaba = r.laba !== undefined;
-
-      const tarif = d.tarif.tipe === 'nonaktif'
-        ? 'Perhitungan komisi sedang <strong>dimatikan</strong> — yang tercatat hanya atribusi omzet. Nyalakan di menu Setting.'
-        : `Tarif umum: <strong>${d.tarif.tipe === 'persen'
-              ? d.tarif.nilai + '% dari ' + esc(d.tarif.dasar)
-              : rp(d.tarif.nilai) + ' per satuan'}</strong>. Tarif produk dan tarif petugas bisa menimpanya.`;
+      const bobot = Object.keys(d.bobot || {})
+        .map(k => `${esc(LABEL_PERAN_PETUGAS[k] || k)} ${d.bobot[k]}`).join(' : ');
 
       wadah.innerHTML = `
         <div class="petak">
           <div class="kartu statistik"><div class="label">Petugas</div><div class="nilai">${r.petugas}</div></div>
           <div class="kartu statistik"><div class="label">Nota terklaim</div><div class="nilai">${r.nota}</div></div>
+          <div class="kartu statistik"><div class="label">Total poin</div><div class="nilai">${r.poin}</div></div>
           <div class="kartu statistik"><div class="label">Omzet terklaim</div><div class="nilai">${rp(r.omzet)}</div></div>
-          <div class="kartu statistik"><div class="label">Komisi</div><div class="nilai">${rp(r.komisi)}</div></div>
         </div>
 
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Rekap per petugas</h3><div style="flex:1"></div>
-            ${tombolEkspor('komisi', { dari: nilai('komDari'), sampai: nilai('komSampai') })}</div>
-          <p class="petunjuk">${tarif}</p>
+            ${tombolEkspor('poin', { dari: nilai('poinDari'), sampai: nilai('poinSampai') })}</div>
+          <p class="petunjuk">Nilai poin diatur per produk di menu Produk → tab
+             <strong>Tim &amp; poin</strong>. Bobot peran saat kasir tidak mengisi
+             sendiri: ${bobot || '—'}. Berapa rupiah satu poin sengaja tidak dihitung
+             sistem — itu keputusan Anda.</p>
           ${tabel([
             { judul: 'Petugas', kunci: 'nama' },
+            { judul: 'Poin', angka: true, render: x => `<strong>${x.poin}</strong>` },
             { judul: 'Nota', angka: true, kunci: 'nota' },
             { judul: 'Klaim', angka: true, kunci: 'klaim' },
             { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
             ...(adaLaba ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba) }] : []),
-            { judul: 'Komisi', angka: true, render: x => `<strong>${rp(x.komisi)}</strong>` },
             { judul: 'Rincian peran', render: x => x.per_peran.map(p =>
-                `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[p.peran] || p.peran)} ${p.klaim}</span>`).join(' ') }
+                `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[p.peran] || p.peran)} ${p.poin}</span>`).join(' ') }
           ], d.petugas, { kosong: 'Belum ada klaim pada rentang tanggal ini' })}
         </div>
 
@@ -1073,12 +1069,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Cakupan', render: x => x.jenis === 'NOTA'
                 ? '<span class="lencana">seluruh nota</span>'
                 : `<span class="lencana kuning">baris ${x.baris}</span>` },
-            { judul: 'Porsi', angka: true, render: x => x.porsi + '%' },
-            { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
-            { judul: 'Komisi', angka: true, render: x => rp(x.komisi) }
+            { judul: 'Poin', angka: true, kunci: 'poin' },
+            { judul: 'Bagian', angka: true, render: x => x.porsi + '%' },
+            { judul: 'Omzet', angka: true, render: x => rp(x.omzet) }
           ], d.rinci, { kosong: 'Belum ada klaim' })}
         </div>`;
-    } catch (e) { galat('#hasilKomisi', e); }
+    } catch (e) { galat('#hasilPoin', e); }
   }
 
   /* ==================== PIUTANG ==================== */
@@ -2253,7 +2249,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muat(layar) {
     if (!API.online) {
       const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian',
-                      mitra: '#isiMitra', petugas: '#isiPetugas', komisi: '#isiKomisi',
+                      mitra: '#isiMitra', petugas: '#isiPetugas', poin: '#isiPoin',
                       piutang: '#isiPiutang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
@@ -2273,7 +2269,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'pembelian': return muatPembelian();
       case 'mitra':     return muatMitra();
       case 'petugas':   return muatPetugas();
-      case 'komisi':    return muatKomisi();
+      case 'poin':      return muatPoin();
       case 'piutang':   return muatPiutang();
       case 'pengguna':  return muatPengguna();
       case 'cabang':    return muatCabang();
@@ -2358,17 +2354,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
-      /* --- petugas & komisi --- */
+      /* --- petugas & poin --- */
       if (t.id === 'btnPetugasBaru')   return editorPetugas(null);
       if (d.editPetugas)               return editorPetugas(d.editPetugas);
-      if (t.id === 'btnLaporanKomisi') return gambarHasilKomisi();
+      if (t.id === 'btnLaporanPoin')   return gambarHasilPoin();
       if (t.id === 'btnSimpanPetugas') {
         try {
           await API.simpanPetugas({
             kode: nilai('ptKode') || undefined, nama: nilai('ptNama'),
             peran_utama: nilai('ptPeran'), telepon: nilai('ptTelepon'),
-            cabang: nilai('ptCabang'), komisi_persen: angka('ptKomisi'),
-            aktif: centang('ptAktif')
+            cabang: nilai('ptCabang'), aktif: centang('ptAktif')
           });
           // Daftar petugas ikut turun lewat tarik_master, jadi layar kasir di
           // perangkat ini langsung mengenal nama baru itu tanpa perlu login ulang.

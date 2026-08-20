@@ -139,7 +139,7 @@ const API = (() => {
     /* --- klaim penjualan per petugas --- */
     daftarPetugas:     ()  => panggil('daftar_petugas'),
     simpanPetugas:     (d) => panggil('simpan_petugas', d),
-    laporanKomisi:     (d) => panggil('laporan_komisi', d, { timeout: 90000 }),
+    laporanPoin:       (d) => panggil('laporan_poin', d, { timeout: 90000 }),
 
     tutupBuku:         (d) => panggil('tutup_buku', d, { timeout: 120000 }),
 

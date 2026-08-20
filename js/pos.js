@@ -81,9 +81,12 @@ const Keranjang = (() => {
    * tempered glass akan terhitung dua kali — sekali untuk timnya, sekali lagi
    * untuk pramuniaga yang memegang notanya.
    *
-   * Bentuk anggota: { kode, peran, porsi }. `porsi` boleh dikosongkan SEMUA, dan
-   * server membaginya menurut bobot peran. Yang tidak boleh: mengisi sebagian
-   * saja — itu ditolak, bukan ditebak.
+   * Bentuk anggota: { kode, peran, poin }. `poin` boleh dikosongkan SEMUA, dan
+   * server membagi poin bawaan produk menurut bobot peran. Yang tidak boleh:
+   * mengisi sebagian saja — itu ditolak, bukan ditebak.
+   *
+   * Jumlah poin TIDAK harus 100. Porsi omzet & laba diturunkan server dari
+   * perbandingan poinnya, jadi satu angka mengerjakan dua hal sekaligus.
    */
   let petugasNota = [];
 
@@ -146,6 +149,19 @@ const Keranjang = (() => {
       petugasNota = (daftar || []).filter(x => x && x.kode);
     },
 
+    /** Nilai poin bawaan sebuah baris: qty dasar x poin per satuan produknya. */
+    poinBaris(id) {
+      const b = baris.find(x => x.id === id);
+      if (!b) return 0;
+      return Math.round(b.qty * b.faktor * (Number(b.poin_satuan) || 0) * 100) / 100;
+    },
+
+    /** Poin bawaan seluruh baris yang TIDAK punya timnya sendiri — dasar klaim nota. */
+    poinSisaNota() {
+      return Math.round(baris.reduce((a, b) =>
+        a + ((b.tim || []).length ? 0 : b.qty * b.faktor * (Number(b.poin_satuan) || 0)), 0) * 100) / 100;
+    },
+
     /** Tim yang mengerjakan satu baris. Daftar kosong = baris itu ikut klaim nota. */
     setTimBaris(id, daftar) {
       const b = baris.find(x => x.id === id);
@@ -206,10 +222,12 @@ const Keranjang = (() => {
         harga_satuan: h.harga_satuan, diskon: 0,
         sumber_harga: h.sumber, hargaManual: false,
         // Disalin ke baris, bukan dibaca ulang dari produk saat dibutuhkan: baris
-        // nota harus tetap tahu ia butuh tim walau master produk berubah di
-        // tengah transaksi (mis. tarik master kebetulan jalan saat itu juga).
+        // nota harus tetap tahu ia butuh tim dan bernilai berapa poin walau master
+        // produk berubah di tengah transaksi (mis. tarik master kebetulan jalan
+        // saat itu juga).
         butuh_tim: !!produk.butuh_tim,
         min_petugas: Number(produk.min_petugas) || (produk.butuh_tim ? 2 : 0),
+        poin_satuan: Number(produk.poin_satuan) || 0,
         _produk: produk, _varian: varian, _satuan: daftarSatuan, _tier: daftarTier
       };
       baris.push(b);
@@ -283,9 +301,9 @@ const Keranjang = (() => {
           qty: b.qty, satuan: b.satuan, faktor: b.faktor,
           harga_satuan: b.harga_satuan, diskon: b.diskon,
           // Tim baris ikut dikirim mentah; server yang memutuskan sah atau tidak.
-          klaim: (b.tim || []).map(t => ({ kode: t.kode, peran: t.peran, porsi: t.porsi }))
+          klaim: (b.tim || []).map(t => ({ kode: t.kode, peran: t.peran, poin: t.poin }))
         })),
-        klaim: petugasNota.map(t => ({ kode: t.kode, peran: t.peran, porsi: t.porsi })),
+        klaim: petugasNota.map(t => ({ kode: t.kode, peran: t.peran, poin: t.poin })),
         bayar,
         diskon_nota: t.diskon_nota,
         ppn: t.ppn,
