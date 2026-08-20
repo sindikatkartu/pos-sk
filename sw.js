@@ -6,7 +6,11 @@
  *   - Berkas aplikasi (HTML/CSS/JS) : cache-first  -> aplikasi selalu membuka instan
  *   - Panggilan API                 : network-only -> tidak pernah di-cache, agar data tak basi
  */
-const CACHE = 'possk-v1.9.0';
+/* Nama cache dinaikkan ke -b setelah sebuah kesalahan urutan penerbitan:
+   sw.js sempat di-commit SEBELUM config.js, sehingga service worker baru
+   menyimpan config.js versi lama dan tidak pernah mengambilnya ulang.
+   ATURAN: config.js selalu di-commit LEBIH DULU, sw.js paling akhir. */
+const CACHE = 'possk-v1.9.0-b';
 const BERKAS = [
   './', './index.html',
   './css/app.css',
