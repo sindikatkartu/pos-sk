@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>POS Sindikat Kartu</title>
+<title>POS SINDIKAT KARTU</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/app.css">
 </head>
@@ -13,7 +13,7 @@
 <!-- ==================== LOGIN ==================== -->
 <div class="layar-login" id="layarLogin">
   <div class="kartu-login">
-    <h1>POS Sindikat Kartu</h1>
+    <h1>POS SINDIKAT KARTU</h1>
     <p class="sub" id="subLogin">Masuk untuk mulai berjualan</p>
 
     <div id="pesanLogin"></div>
@@ -49,6 +49,10 @@
 </div>
 
 <!-- ==================== APLIKASI ==================== -->
+<!-- Garis kemajuan global. Muncul otomatis selama ada permintaan ke server —
+     lihat pasangPenandaSibuk() di app.js. Tidak perlu dipasang per tombol. -->
+<div id="garisMuat" aria-hidden="true"></div>
+
 <div id="app" class="sembunyi">
 
   <!-- ---------- SIDEBAR ----------
@@ -60,7 +64,7 @@
     <div class="sisi-atas">
       <div class="sisi-logo">SK</div>
       <div class="sisi-nama">
-        <b>Sindikat Kartu</b>
+        <b>SINDIKAT KARTU</b>
         <span id="sisiCabang">—</span>
       </div>
       <div style="flex:1"></div>
@@ -163,6 +167,7 @@
     <section class="layar" id="layarCabang"><div id="isiCabang"></div></section>
     <section class="layar" id="layarSistem"><div id="isiSistem"></div></section>
     <section class="layar" id="layarAudit"><div id="isiAudit"></div></section>
+    <section class="layar" id="layarDiskon"><div id="isiDiskon"></div></section>
 
     <!-- ---------- LAPORAN ---------- -->
     <section class="layar" id="layarLaporan">
@@ -194,8 +199,12 @@
     </section>
 
     <!-- ---------- PERANGKAT & SHIFT (semua peran) ---------- -->
-    <section class="layar" id="layarPengaturan">
-      <div class="petak">
+    <!-- ---------- SHIFT ----------
+         Dipisahkan dari Perangkat: membuka dan menutup shift adalah pekerjaan
+         harian kasir, bukan pengaturan alat. Menaruhnya di antara setelan
+         printer membuatnya sulit ditemukan tepat saat paling dibutuhkan. -->
+    <section class="layar" id="layarShift">
+      <div class="petak-tunggal">
         <div class="kartu" id="kartuShift">
           <h3>Shift kasir</h3>
           <div id="infoShift"></div>
@@ -206,7 +215,37 @@
           <button class="tombol utama" id="btnBukaShift">Buka shift</button>
           <button class="tombol bahaya" id="btnTutupShift" style="margin-top:8px">Tutup shift</button>
         </div>
+      </div>
+    </section>
 
+    <!-- ---------- AKUN SAYA ---------- -->
+    <section class="layar" id="layarAkun">
+      <div class="petak-tunggal">
+        <div class="kartu" id="kartuAkun">
+          <h3>Ganti PIN</h3>
+          <div class="grup"><label>PIN lama</label><input type="password" id="pinLama" inputmode="numeric"></div>
+          <div class="grup"><label>PIN baru (6 digit)</label><input type="password" id="pinBaru" inputmode="numeric"></div>
+          <button class="tombol utama" id="btnGantiPin">Ganti PIN</button>
+          <div id="pesanGantiPin"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- TENTANG ----------
+         Versi aplikasi diberi tempatnya sendiri di menu. Angka ini yang pertama
+         ditanyakan saat ada laporan masalah; kalau hanya terselip kecil di kaki
+         sidebar, ia terlewat justru saat paling dibutuhkan. -->
+    <section class="layar" id="layarTentang">
+      <div class="petak-tunggal">
+        <div class="kartu">
+          <h3>POS SINDIKAT KARTU</h3>
+          <div id="isiTentang"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="layar" id="layarPengaturan">
+      <div class="petak">
         <div class="kartu">
           <h3>Printer</h3>
           <p style="color:var(--teks-redup);font-size:13px" id="infoPrinter">Belum terhubung</p>
@@ -227,13 +266,6 @@
           <div id="daftarPerangkat"></div>
         </div>
 
-        <div class="kartu" id="kartuAkun">
-          <h3>Akun saya</h3>
-          <div class="grup"><label>PIN lama</label><input type="password" id="pinLama" inputmode="numeric"></div>
-          <div class="grup"><label>PIN baru (6 digit)</label><input type="password" id="pinBaru" inputmode="numeric"></div>
-          <button class="tombol utama" id="btnGantiPin">Ganti PIN</button>
-          <div id="pesanGantiPin"></div>
-        </div>
       </div>
     </section>
 
@@ -242,11 +274,34 @@
 </div>
 
 <!-- ==================== MODAL BAYAR ==================== -->
+<div class="tirai" id="tiraiOtorisasi">
+  <div class="modal" style="max-width:400px">
+    <h3>Persetujuan diskon</h3>
+    <div id="otRingkas"></div>
+    <p style="color:var(--teks-redup);font-size:13px;margin:10px 0 14px">
+      Minta atasan memasukkan sendiri username dan PIN-nya di perangkat ini.
+      PIN tidak disimpan; yang tercatat hanya siapa yang menyetujui.
+    </p>
+    <div class="grup"><label>Username penyetuju</label>
+      <input type="text" id="otUser" autocomplete="off" autocapitalize="none"></div>
+    <div class="grup"><label>PIN</label>
+      <input type="password" id="otPin" inputmode="numeric" autocomplete="off"></div>
+    <div class="grup"><label>Alasan diskon</label>
+      <input type="text" id="otAlasan" placeholder="mis. barang display, langganan lama"></div>
+    <div id="pesanOtorisasi"></div>
+    <div class="aksi-modal">
+      <button class="tombol" id="btnBatalOtorisasi">Batal</button>
+      <button class="tombol utama" id="btnKirimOtorisasi">Setujui</button>
+    </div>
+  </div>
+</div>
+
 <div class="tirai" id="tiraiBayar">
   <div class="modal">
     <h3>Pembayaran</h3>
     <div class="total-baris besar" style="border:none;margin:0 0 14px"><span>TOTAL</span><span id="byrTotal">Rp 0</span></div>
     <div class="grup"><label>Diskon nota (Rp)</label><input type="number" id="byrDiskonNota" value="0"></div>
+    <div id="byrJagaDiskon"></div>
     <div id="byrDaftarMetode"></div>
     <button class="tombol" id="btnTambahMetode" style="width:100%;margin-bottom:12px">+ Metode bayar lain (split)</button>
     <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
