@@ -135,6 +135,12 @@ const API = (() => {
     bayarPiutang:      (d) => panggil('bayar_piutang', d),
     logAudit:          (d) => panggil('log_audit', d, { timeout: 60000 }),
     daftarPembelian:   (d) => panggil('daftar_pembelian', d),
+
+    /* --- klaim penjualan per petugas --- */
+    daftarPetugas:     ()  => panggil('daftar_petugas'),
+    simpanPetugas:     (d) => panggil('simpan_petugas', d),
+    laporanKomisi:     (d) => panggil('laporan_komisi', d, { timeout: 90000 }),
+
     tutupBuku:         (d) => panggil('tutup_buku', d, { timeout: 120000 }),
 
     /* --- transfer & stok antar cabang --- */

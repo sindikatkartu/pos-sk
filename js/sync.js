@@ -115,6 +115,14 @@ const Sync = (() => {
     await DB.kosongkan('pelanggan');
     await DB.putBanyak('pelanggan', d.pelanggan);
 
+    // Server lama (belum dimigrasi) tidak mengirim `petugas` sama sekali. Menimpa
+    // daftar lokal dengan array kosong dalam keadaan itu akan menghapus pilihan
+    // petugas dari layar kasir tanpa sebab, jadi yang tidak dikirim dibiarkan.
+    if (Array.isArray(d.petugas)) {
+      await DB.kosongkan('petugas');
+      await DB.putBanyak('petugas', d.petugas);
+    }
+
     await DB.kvSet('versi_master', d.versi);
     await DB.kvSet('setting', d.setting);
     await DB.kvSet('cabang_list', d.cabang);

@@ -10,6 +10,9 @@ const APP_STATE = {
   setting: {}, pkp: false, tarifPpn: 0, diskonMaks: 0,
   idShift: null, produkTampil: [], indeksSorot: 0, metodeBayar: [],
   daftarCabangSemua: [],
+  // Daftar frontliner yang boleh mengklaim penjualan di cabang ini. Diisi dari
+  // IndexedDB saat master dimuat, jadi tetap ada walau internet mati.
+  daftarPetugas: [], klaimWajib: false, timBaris: null,
   // uuid nota disiapkan saat layar bayar dibuka, bukan saat disimpan: persetujuan
   // diskon menempel pada uuid, jadi nomornya harus sudah ada sebelum diminta.
   uuidNota: null, otorisasiDiskon: null
@@ -69,8 +72,13 @@ const MENU = [
   { id: 'pembelian',  label: 'Pembelian',  grup: 'Persediaan', izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
   { id: 'returbeli',  label: 'Retur Beli', grup: 'Persediaan', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
   { id: 'mitra',      label: 'Pelanggan',  grup: 'Relasi',     izin: ['pelanggan', 'ubah'],          admin: true, backoffice: true },
+  // Petugas digantung pada `petugas.buat`, bukan `.lihat` — kasir memang butuh
+  // `petugas.lihat` untuk memilih pramuniaga di layar kasir, tapi tidak boleh
+  // membuka master petugas. Pola yang sama dipakai menu Produk.
+  { id: 'petugas',    label: 'Petugas',    grup: 'Relasi',     izin: ['petugas', 'buat'],            admin: true, backoffice: true },
   { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
+  { id: 'komisi',     label: 'Komisi',     grup: 'Laporan',    izin: ['laporan_komisi', 'lihat'],    admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
@@ -206,6 +214,13 @@ const IKON = {
   // 18px dua kotak nyaris kembar. Dipakai truk yang berputar arah: barang keluar ke supplier.
   returbeli : '<path d="M13.5 16.5V7a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 7v9a1.5 1.5 0 0 0 1.5 1.5H5"/><path d="M13.5 9.5H17l4 4v3a1.5 1.5 0 0 1-1.5 1.5H19"/><circle cx="7" cy="17.5" r="1.9"/><circle cx="17" cy="17.5" r="1.9"/><path d="M11.5 11.5h-5m2-2-2 2 2 2"/>',
   mitra     : '<path d="M15.5 20.5v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2a3.7 3.7 0 0 0-3.7 3.7v1.8"/><circle cx="9" cy="7.5" r="3.7"/><path d="M21.5 20.5v-1.8a3.7 3.7 0 0 0-2.8-3.58"/><path d="M15.8 4.02a3.7 3.7 0 0 1 0 7.16"/>',
+  // Petugas: kartu nama bertali. Sengaja BUKAN ikon orang seperti Pengguna/Akun —
+  // di ukuran 18px ketiganya akan tampak kembar, padahal artinya jauh berbeda:
+  // Pengguna adalah akun yang bisa masuk, Petugas adalah orang yang berjualan.
+  petugas   : '<rect x="4" y="4.5" width="16" height="17" rx="2"/><path d="M9.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M7.8 18.6a4.4 4.4 0 0 1 8.4 0"/>',
+  // Komisi: koin yang berpindah ke tangan. Dibedakan dari Keuangan (dompet) dan
+  // Diskon (label persen) supaya tiga menu Laporan tidak saling tertukar.
+  komisi    : '<circle cx="16.5" cy="6.5" r="4"/><path d="M16.5 4.8v3.4"/><path d="M2.5 14v6.5"/><path d="M6 20.5h7.6a3 3 0 0 0 2.1-.86l4-3.9a1.55 1.55 0 0 0-2.14-2.24l-2.5 2.1"/><path d="M6 15.4h4.4a1.65 1.65 0 0 1 0 3.3H8.2"/>',
   piutang   : '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
   laporan   : '<path d="M3.5 3v17.5H21"/><path d="M7.5 16.5v-4"/><path d="M12 16.5v-8"/><path d="M16.5 16.5v-5.5"/>',
   keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
@@ -424,9 +439,18 @@ async function muatMaster() {
   // tidak berhak bertransaksi di sana. Yang ditampilkan hanya jumlah stok, bukan harga modal.
   APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode);
 
+  APP_STATE.klaimWajib = String(APP_STATE.setting.klaim_petugas_wajib) === 'true';
+
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
     pel.map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.level_harga)})</option>`).join('');
+
+  /* Daftar petugas. Store `petugas` baru ada sejak DB_VERSI 3; perangkat yang
+     belum sempat memutakhirkan skema lokalnya tidak boleh gagal memuat kasir
+     hanya karena satu store belum ada. */
+  try { APP_STATE.daftarPetugas = await DB.all('petugas'); }
+  catch (e) { APP_STATE.daftarPetugas = []; console.warn('Daftar petugas belum tersedia:', e.message); }
+  gambarPilihanPetugas();
 
   $('#keuCabang').innerHTML =
     (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
@@ -563,6 +587,28 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
 }
 
 /* ==================== KERANJANG ==================== */
+
+/** Baris tim di bawah rincian item — merah selagi belum lengkap. */
+function gambarBarisTim(x) {
+  const tim = x.tim || [];
+  if (!x.butuh_tim && !tim.length) return '';
+  const min = Math.max(2, Number(x.min_petugas) || 2);
+  if (x.butuh_tim && tim.length < min) {
+    return `<br><span style="color:var(--bahaya)">butuh ${min} petugas — baru ${tim.length}</span>`;
+  }
+  return `<br><span class="tanda-tier">tim: ${esc(tim.map(t => namaPetugas(t.kode)).join(', '))}</span>`;
+}
+
+/** Tombol Tim hanya muncul di baris yang memang relevan, bukan di semua baris. */
+function tombolTimBaris(x) {
+  const tim = x.tim || [];
+  if (!x.butuh_tim && !tim.length) return '';
+  const min = Math.max(2, Number(x.min_petugas) || 2);
+  const kurang = x.butuh_tim && tim.length < min;
+  return `<button data-aksi="tim" title="Petugas yang mengerjakan baris ini"${
+    kurang ? ' style="color:var(--bahaya);font-weight:700"' : ''}>Tim</button>`;
+}
+
 function gambarKeranjang() {
   const b = Keranjang.baris;
   const t = Keranjang.total();
@@ -577,11 +623,13 @@ function gambarKeranjang() {
           ${x.hargaManual ? '<span class="tanda-manual">manual</span>' : ''}
           ${x.diskon > 0 ? '<br>Diskon −' + rp(x.diskon) : ''}
           ${x.diskonDipotong ? '<br><span style="color:var(--peringatan)">diskon dipotong ke batas peran</span>' : ''}
+          ${gambarBarisTim(x)}
         </div>
         <div class="aksi">
           <button data-aksi="kurang">−</button>
           <input type="number" value="${x.qty}" data-aksi="qty" min="0">
           <button data-aksi="tambah">+</button>
+          ${tombolTimBaris(x)}
           <button data-aksi="detail">⋯</button>
         </div>
       </div>
@@ -596,6 +644,203 @@ function gambarKeranjang() {
   $('#pegHitung').textContent = t.jumlah_item + ' item';
   $('#pegTotal').textContent = rp(t.total);
   $('#btnBayar').disabled = b.length === 0;
+}
+
+/* ==================== KLAIM PETUGAS ====================
+ * Kolom `id_user` pada nota mencatat siapa yang MENGETIK. Di toko ini itu hampir
+ * tidak pernah orang yang sama dengan yang MENJUAL — satu kasir menutup nota untuk
+ * pekerjaan tiga pramuniaga. Bagian inilah yang memisahkan keduanya.
+ *
+ * Penjagaan di sini semata demi kejelasan bagi kasir; yang benar-benar menahan ada
+ * di server (_susunKlaim), sama seperti pada diskon. Tapi tanpa penjagaan di layar,
+ * kasir baru tahu notanya ditolak beberapa menit kemudian — saat pelanggannya sudah
+ * pergi dan struknya sudah tercetak.
+ */
+const PERAN_TIM = ['PENJUAL', 'PEMASANG', 'PEMBANTU'];
+
+const namaPetugas = (kode) =>
+  (APP_STATE.daftarPetugas.find(p => p.kode === kode) || {}).nama || kode;
+
+/** Isi dropdown pramuniaga di bar alat kasir. */
+function gambarPilihanPetugas() {
+  const sel = $('#selPetugas');
+  if (!sel) return;
+  const daftar = APP_STATE.daftarPetugas || [];
+  const dipilih = Keranjang.petugasNota;
+
+  // Toko yang belum mengisi daftar petugas tidak perlu melihat kolom yang selalu kosong.
+  sel.classList.toggle('sembunyi', daftar.length === 0);
+  $('#btnTimNota')?.classList.toggle('sembunyi', daftar.length === 0);
+  if (!daftar.length) return;
+
+  // Lebih dari satu orang tidak muat di satu dropdown — dalam keadaan itu kolomnya
+  // menampilkan ringkasan dan penyuntingannya lewat tombol "Tim".
+  if (dipilih.length > 1) {
+    sel.innerHTML = `<option value="__tim__" selected>${esc(dipilih.length + ' pramuniaga')}</option>`;
+    return;
+  }
+  const terpilih = (dipilih[0] || {}).kode || '';
+  sel.innerHTML =
+    `<option value="">${APP_STATE.klaimWajib ? '— pilih pramuniaga —' : 'Tanpa pramuniaga'}</option>` +
+    daftar.map(p => `<option value="${esc(p.kode)}" ${p.kode === terpilih ? 'selected' : ''}>${
+      esc(p.nama)}${p.peran_utama && p.peran_utama !== 'PENJUAL'
+        ? ' · ' + esc(String(p.peran_utama).toLowerCase()) : ''}</option>`).join('');
+}
+
+/**
+ * Penjagaan klaim di layar bayar.
+ * @return {boolean} boleh dilanjutkan
+ */
+function gambarJagaKlaim() {
+  const w = $('#byrJagaKlaim');
+  if (!w) return true;
+  const kurang = Keranjang.barisTimKurang();
+
+  if (kurang.length) {
+    w.innerHTML = `<div class="pesan peringatan">
+      Baris berikut dikerjakan tim dan belum lengkap petugasnya:
+      <ul style="margin:6px 0 0 18px">${kurang.map(b => `<li>${esc(b.nama)} — butuh ${
+        Math.max(2, Number(b.min_petugas) || 2)} orang, terisi ${(b.tim || []).length}</li>`).join('')}</ul>
+      <div style="margin-top:8px">Tutup layar ini, lalu tekan tombol <strong>Tim</strong> pada baris itu di keranjang.</div>
+    </div>`;
+    return false;
+  }
+
+  // Ada baris yang masih bergantung pada klaim nota?
+  const adaSisa = Keranjang.baris.some(b => !(b.tim || []).length);
+  if (APP_STATE.klaimWajib && adaSisa && !Keranjang.petugasNota.length) {
+    w.innerHTML = `<div class="pesan galat">Nota ini belum ada pramuniaganya.
+      Pilih siapa yang melayani di kolom pramuniaga pada layar kasir.</div>`;
+    return false;
+  }
+
+  const daftar = Keranjang.petugasNota;
+  w.innerHTML = daftar.length
+    ? `<div class="pesan info">Diklaim oleh <strong>${
+        esc(daftar.map(x => namaPetugas(x.kode)).join(', '))}</strong>${
+        adaSisa ? '' : ' — seluruh baris sudah punya timnya sendiri, jadi klaim nota tidak dipakai.'}</div>`
+    : '';
+  return true;
+}
+
+/* ---------- Modal tim ---------- */
+
+/** @param idBaris id baris keranjang, atau '#NOTA' untuk klaim seluruh nota. */
+function bukaTim(idBaris) {
+  const nota = idBaris === '#NOTA';
+  const b = nota ? null : Keranjang.baris.find(x => x.id === idBaris);
+  if (!nota && !b) return;
+  if (!APP_STATE.daftarPetugas.length) {
+    return alert('Daftar petugas masih kosong. Isi lebih dulu lewat menu Petugas.');
+  }
+
+  APP_STATE.timBaris = idBaris;
+  const min = nota ? 1 : (b.butuh_tim ? Math.max(2, Number(b.min_petugas) || 2) : 1);
+
+  $('#timJudul').textContent = nota ? 'Pramuniaga nota ini' : 'Tim — ' + b.nama;
+  $('#timRingkas').innerHTML = `<p class="petunjuk">${nota
+    ? 'Berlaku untuk seluruh baris yang <strong>tidak</strong> punya timnya sendiri.'
+    : `Baris ini dikerjakan minimal <strong>${min}</strong> orang, dan karena itu keluar dari klaim nota.`}
+    Porsi boleh dikosongkan semuanya — pembagiannya mengikuti bobot peran.
+    Kalau diisi, harus diisi untuk semua orang dan jumlahnya tepat 100%.</p>`;
+
+  const awal = nota ? Keranjang.petugasNota : Keranjang.timBaris(idBaris);
+  APP_STATE._timDraft = awal.length
+    ? awal.map(x => ({ kode: x.kode, peran: x.peran || '', porsi: x.porsi ?? '' }))
+    : Array.from({ length: min }, () => ({ kode: '', peran: '', porsi: '' }));
+
+  pesan('#pesanTim', '');
+  gambarAnggotaTim();
+  $('#tiraiTim').classList.add('tampil');
+  setTimeout(() => $$('#timDaftar select[data-f=kode]')[0]?.focus(), 60);
+}
+
+/* Dipisah dari gambarTotalPorsi dengan alasan yang sama seperti gambarMetode():
+   menggambar ulang seluruh daftar pada setiap ketukan akan menghancurkan elemen
+   input yang sedang diketik, dan ketikan terasa macet. */
+function gambarAnggotaTim() {
+  const d = APP_STATE._timDraft || [];
+  $('#timDaftar').innerHTML = d.map((a, i) => `
+    <div class="baris-anak" style="display:grid;grid-template-columns:1fr auto 92px auto;gap:6px;align-items:end;margin-bottom:8px">
+      <div><label>Petugas ${i + 1}</label>
+        <select data-i="${i}" data-f="kode">
+          <option value="">— pilih —</option>
+          ${APP_STATE.daftarPetugas.map(p =>
+            `<option value="${esc(p.kode)}" ${p.kode === a.kode ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
+        </select></div>
+      <div><label>Peran</label>
+        <select data-i="${i}" data-f="peran">
+          ${PERAN_TIM.map(x => `<option value="${x}" ${a.peran === x ? 'selected' : ''}>${
+            x.charAt(0) + x.slice(1).toLowerCase()}</option>`).join('')}
+        </select></div>
+      <div><label>Porsi %</label>
+        <input type="number" inputmode="decimal" min="0" max="100" step="0.01"
+               data-i="${i}" data-f="porsi" value="${a.porsi ?? ''}" placeholder="auto"></div>
+      ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : '<span></span>'}
+    </div>`).join('');
+  gambarTotalPorsi();
+}
+
+function gambarTotalPorsi() {
+  const d = APP_STATE._timDraft || [];
+  const terisi = d.filter(a => String(a.porsi).trim() !== '');
+  const el = $('#timTotalPorsi');
+  if (!terisi.length) { el.textContent = 'otomatis'; el.style.color = 'var(--teks-redup)'; return; }
+  const total = Math.round(terisi.reduce((a, x) => a + (Number(x.porsi) || 0), 0) * 100) / 100;
+  const pas = terisi.length === d.length && Math.abs(total - 100) <= 0.011;
+  el.textContent = total + '%';
+  el.style.color = pas ? 'var(--sukses)' : 'var(--bahaya)';
+}
+
+function simpanTim() {
+  const d = (APP_STATE._timDraft || []).filter(a => a.kode);
+  const nota = APP_STATE.timBaris === '#NOTA';
+  const b = nota ? null : Keranjang.baris.find(x => x.id === APP_STATE.timBaris);
+
+  if (!nota && !b) { $('#tiraiTim').classList.remove('tampil'); return; }
+
+  const kode = d.map(a => a.kode);
+  if (new Set(kode).size !== kode.length) {
+    return pesan('#pesanTim', 'Ada petugas yang dipilih dua kali.', 'galat');
+  }
+
+  const min = nota ? 0 : (b.butuh_tim ? Math.max(2, Number(b.min_petugas) || 2) : 0);
+  if (d.length < min) {
+    return pesan('#pesanTim', `Baris ini butuh minimal ${min} petugas, baru terisi ${d.length}.`, 'galat');
+  }
+
+  const terisi = d.filter(a => String(a.porsi).trim() !== '');
+  if (terisi.length && terisi.length !== d.length) {
+    return pesan('#pesanTim',
+      'Porsi harus diisi untuk semua petugas, atau dikosongkan semuanya.', 'galat');
+  }
+  if (terisi.length) {
+    const total = terisi.reduce((a, x) => a + (Number(x.porsi) || 0), 0);
+    if (Math.abs(total - 100) > 0.011) {
+      return pesan('#pesanTim',
+        `Jumlah porsi harus tepat 100%, sekarang ${Math.round(total * 100) / 100}%.`, 'galat');
+    }
+    if (terisi.some(x => Number(x.porsi) <= 0)) {
+      return pesan('#pesanTim', 'Porsi harus lebih dari 0 untuk setiap petugas.', 'galat');
+    }
+  }
+
+  // Porsi kosong dikirim sebagai undefined, bukan 0: server membedakan "tidak diisi"
+  // (dibagi menurut bobot peran) dari "diisi nol" (ditolak).
+  const bersih = d.map(a => ({
+    kode: a.kode,
+    peran: a.peran || (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama || 'PENJUAL',
+    porsi: String(a.porsi).trim() === '' ? undefined : Number(a.porsi)
+  }));
+
+  if (nota) Keranjang.setPetugasNota(bersih);
+  else Keranjang.setTimBaris(APP_STATE.timBaris, bersih);
+
+  $('#tiraiTim').classList.remove('tampil');
+  APP_STATE.timBaris = null;
+  gambarPilihanPetugas();
+  gambarKeranjang();
+  if ($('#tiraiBayar').classList.contains('tampil')) gambarRingkasBayar();
 }
 
 /* ==================== PEMBAYARAN ==================== */
@@ -620,6 +865,7 @@ function bukaBayar() {
   $('#byrDiskonNota').value = Keranjang.diskonNota;
   $('#byrJatuhTempo').value = '';
   pesan('#pesanBayar', '');
+  pesan('#byrJagaKlaim', '');
   gambarBayar();
   $('#tiraiBayar').classList.add('tampil');
   setTimeout(() => $$('#byrDaftarMetode input[data-f=jumlah]')[0]?.select(), 60);
@@ -682,6 +928,7 @@ function gambarRingkasBayar() {
   $('#btnSelesaikan').disabled = !adaPiutang && selisih < 0;
 
   if (!gambarJagaDiskon()) $('#btnSelesaikan').disabled = true;
+  if (!gambarJagaKlaim())  $('#btnSelesaikan').disabled = true;
 
   if (adaPiutang && !Keranjang.pelanggan) {
     pesan('#pesanBayar', 'Penjualan piutang wajib memilih pelanggan terlebih dahulu.', 'galat');
@@ -823,6 +1070,7 @@ async function selesaikanTransaksi() {
     Keranjang.kosongkan();
     $('#selPelanggan').value = '';
     $('#selLevel').value = 'eceran';
+    gambarPilihanPetugas();
     gambarKeranjang();
     $('#inpCari').value = '';
     $('#inpCari').focus();
@@ -1131,6 +1379,54 @@ function pasangEvent() {
     gambarKeranjang(); gambarProduk($('#inpCari').value);
   });
 
+  /* --- klaim petugas --- */
+  $('#selPetugas').addEventListener('change', e => {
+    // '__tim__' hanyalah label ringkasan saat notanya dibagi ke beberapa orang;
+    // memilihnya berarti membuka kembali dialognya, bukan mengubah apa pun.
+    if (e.target.value === '__tim__') return bukaTim('#NOTA');
+    Keranjang.setPetugasNota(e.target.value ? [{ kode: e.target.value }] : []);
+    gambarPilihanPetugas();
+    if ($('#tiraiBayar').classList.contains('tampil')) gambarRingkasBayar();
+  });
+  $('#btnTimNota').addEventListener('click', () => bukaTim('#NOTA'));
+
+  $('#btnBatalTim').addEventListener('click', () => {
+    $('#tiraiTim').classList.remove('tampil');
+    APP_STATE.timBaris = null;
+  });
+  $('#btnSimpanTim').addEventListener('click', simpanTim);
+  $('#btnTambahAnggota').addEventListener('click', () => {
+    (APP_STATE._timDraft = APP_STATE._timDraft || []).push({ kode: '', peran: '', porsi: '' });
+    gambarAnggotaTim();
+  });
+  $('#timDaftar').addEventListener('click', e => {
+    const b = e.target.closest('button[data-f=hapus]');
+    if (!b) return;
+    APP_STATE._timDraft.splice(Number(b.dataset.i), 1);
+    gambarAnggotaTim();
+  });
+  /* 'input' untuk kolom porsi (tiap ketukan hanya memperbarui totalnya, daftarnya
+     tidak digambar ulang), 'change' untuk dropdown yang memang mengubah susunan. */
+  $('#timDaftar').addEventListener('input', e => {
+    const f = e.target.dataset.f;
+    if (f !== 'porsi') return;
+    APP_STATE._timDraft[Number(e.target.dataset.i)].porsi = e.target.value;
+    gambarTotalPorsi();
+  });
+  $('#timDaftar').addEventListener('change', e => {
+    const f = e.target.dataset.f, i = Number(e.target.dataset.i);
+    if (f !== 'kode' && f !== 'peran') return;
+    const a = APP_STATE._timDraft[i];
+    a[f] = e.target.value;
+    // Peran mengikuti peran utama petugas begitu namanya dipilih — kecuali kasir
+    // sudah mengubahnya sendiri.
+    if (f === 'kode' && !a._peranManual) {
+      a.peran = (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama || 'PENJUAL';
+      gambarAnggotaTim();
+    }
+    if (f === 'peran') a._peranManual = true;
+  });
+
   /* --- keranjang --- */
   $('#isiKeranjang').addEventListener('click', async e => {
     const btn = e.target.closest('button'); if (!btn) return;
@@ -1138,6 +1434,7 @@ function pasangEvent() {
     const b = Keranjang.baris.find(x => x.id === id);
     if (btn.dataset.aksi === 'tambah') Keranjang.ubahQty(id, b.qty + 1);
     if (btn.dataset.aksi === 'kurang') Keranjang.ubahQty(id, b.qty - 1);
+    if (btn.dataset.aksi === 'tim')    return bukaTim(id);
     if (btn.dataset.aksi === 'detail') return bukaDetailItem(b);
     gambarKeranjang();
   });
@@ -1149,7 +1446,8 @@ function pasangEvent() {
   });
   $('#btnKosongkan').addEventListener('click', () => {
     if (Keranjang.kosong || confirm('Kosongkan keranjang?')) {
-      Keranjang.kosongkan(); $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran'; gambarKeranjang();
+      Keranjang.kosongkan(); $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran';
+      gambarPilihanPetugas(); gambarKeranjang();
     }
   });
   $('#pegangan').addEventListener('click', () => $('#panelKeranjang').classList.toggle('buka'));
@@ -1316,6 +1614,15 @@ function pasangEvent() {
     catch (e) { alert('Gagal: ' + e.message); }
   });
   $('#btnKirimSekarang').addEventListener('click', async () => { await Sync.kirim(); await perbaruiInfoData(); });
+
+  /* Master baru turun — dari tombol "Tarik ulang", dari sinkron berkala, atau
+     setelah petugas disimpan di back office. Tanpa penyegaran ini, nama yang baru
+     ditambahkan tidak muncul di layar kasir sampai aplikasinya dimuat ulang. */
+  document.addEventListener('master:diperbarui', async () => {
+    try { APP_STATE.daftarPetugas = await DB.all('petugas'); }
+    catch (e) { return; }
+    gambarPilihanPetugas();
+  });
 
   $('#btnGantiPin').addEventListener('click', async () => {
     const baru = $('#pinBaru').value;

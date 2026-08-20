@@ -312,6 +312,7 @@ const Admin = (() => {
         <button data-tabm="satuan">Satuan bertingkat</button>
         <button data-tabm="tier">Tier harga</button>
         <button data-tabm="varian">Varian</button>
+        <button data-tabm="tim">Tim &amp; komisi</button>
       </div>
 
       <div data-panel="umum">
@@ -383,6 +384,35 @@ const Admin = (() => {
         <p class="petunjuk">Varian warna/model. Stok dihitung terpisah per varian. Selisih harga boleh negatif.</p>
         <div id="barisVarian"></div>
         <button class="tombol" id="btnTambahVarian">+ Tambah varian</button>
+      </div>
+
+      <div data-panel="tim" class="sembunyi">
+        <p class="petunjuk">Dibuat untuk pekerjaan yang memang dikerjakan lebih dari satu orang —
+          kasus utamanya <strong>pemasangan tempered glass</strong>: satu memasang, satu memegang
+          dan membersihkan. Baris nota yang berisi produk bertanda ini <strong>wajib</strong> punya
+          daftar petugasnya sendiri, dan karena itu keluar dari klaim nota. Tanpa pemisahan itu,
+          satu pemasangan akan membayar komisi dua kali.</p>
+
+        <label class="cek"><input type="checkbox" id="pButuhTim" ${p?.butuh_tim ? 'checked' : ''}>
+          Dikerjakan tim — kasir wajib memilih petugasnya per baris</label>
+
+        <div class="baris3" style="margin-top:12px">
+          <div class="grup"><label>Minimal petugas</label>
+            <input type="number" id="pMinPetugas" min="2" step="1" value="${p?.min_petugas || 2}"></div>
+          <div class="grup"><label>Tarif komisi produk</label><select id="pKomisiTipe">
+            <option value=""         ${!p?.komisi_tipe ? 'selected' : ''}>Ikut tarif umum</option>
+            <option value="persen"   ${p?.komisi_tipe === 'persen' ? 'selected' : ''}>Persen dari dasar komisi</option>
+            <option value="nominal"  ${p?.komisi_tipe === 'nominal' ? 'selected' : ''}>Rupiah per satuan dasar</option>
+            <option value="nonaktif" ${p?.komisi_tipe === 'nonaktif' ? 'selected' : ''}>Tanpa komisi</option>
+          </select></div>
+          <div class="grup"><label>Nilai tarif</label>
+            <input type="number" id="pKomisiNilai" min="0" step="0.01" value="${p?.komisi_nilai || 0}"></div>
+        </div>
+
+        <p class="petunjuk"><strong>Rupiah per satuan dasar</strong> dihitung dari qty dasar, bukan per baris:
+          satu lusin tempered glass adalah dua belas pemasangan, bukan satu.
+          Urutan yang berlaku bila lebih dari satu tarif terisi:
+          <strong>tarif petugas → tarif produk → tarif umum</strong>.</p>
       </div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        ${!baru && bolehIzin('produk', 'hapus') ? '<button class="tombol bahaya" id="btnNonaktifProduk">Nonaktifkan</button>' : ''}
@@ -455,6 +485,8 @@ const Admin = (() => {
       harga_eceran: angka('pEceran'), harga_grosir: angka('pGrosir'), harga_reseller: angka('pReseller'),
       aktif: centang('pAktif'),
       deskripsi: nilai('pDeskripsi'), kata_kunci: nilai('pKataKunci'),
+      butuh_tim: centang('pButuhTim'), min_petugas: angka('pMinPetugas'),
+      komisi_tipe: nilai('pKomisiTipe'), komisi_nilai: angka('pKomisiNilai'),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
       varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel')
     };
@@ -886,6 +918,167 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <label class="cek"><input type="checkbox" id="sAktif" ${s?.aktif !== false ? 'checked' : ''}> Aktif</label>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnSimpanSupplier">Simpan</button>`);
+  }
+
+  /* ==================== PETUGAS (FRONTLINER) ====================
+   * Daftar orang yang boleh mengklaim penjualan. Sengaja terpisah dari Pengguna:
+   * pramuniaga dan tim pemasang biasanya tidak pernah menyentuh mesin kasir, jadi
+   * memaksa mereka punya akun berarti membagikan kredensial tanpa alasan.
+   *
+   * Tidak ada tombol Hapus. Baris petugas adalah rujukan klaim-klaim lama; yang
+   * keluar dinonaktifkan, supaya laporan komisi bulan lalu tetap bisa dibaca.
+   */
+  const LABEL_PERAN_PETUGAS = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang', PEMBANTU: 'Pembantu' };
+
+  async function muatPetugas() {
+    memuat('#isiPetugas');
+    try {
+      const rows = await API.daftarPetugas();
+      $('#isiPetugas').innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3 style="margin:0">Petugas / pramuniaga</h3><div style="flex:1"></div>
+            ${bolehIzin('petugas', 'buat') ? '<button class="tombol utama" id="btnPetugasBaru">+ Petugas</button>' : ''}</div>
+          <p class="petunjuk">Nama di daftar inilah yang muncul di layar kasir saat menutup nota.
+             Petugas yang sudah keluar cukup dinonaktifkan — jangan dihapus, karena
+             klaim dan komisi lamanya masih menunjuk ke sini.</p>
+          ${tabel([
+            { judul: 'Kode', kunci: 'kode' },
+            { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
+            { judul: 'Peran utama', render: r => `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[r.peran_utama] || r.peran_utama)}</span>` },
+            { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua cabang' : esc(r.cabang) },
+            { judul: 'Telepon', kunci: 'telepon' },
+            { judul: 'Tarif komisi', angka: true,
+              render: r => r.komisi_persen > 0 ? r.komisi_persen + '%' : '<span style="color:var(--teks-redup)">ikut tarif umum</span>' },
+            { judul: '', render: r => bolehIzin('petugas', 'ubah')
+                ? `<button class="tombol kecil" data-edit-petugas="${esc(r.kode)}">Ubah</button>` : '' }
+          ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun' })}
+        </div>`;
+      $('#isiPetugas')._rows = rows;
+    } catch (e) { galat('#isiPetugas', e); }
+  }
+
+  function editorPetugas(kode) {
+    const p = kode ? ($('#isiPetugas')._rows || []).find(x => x.kode === kode) : null;
+    const lintas = !!APP_STATE.flag.akses_lintas_cabang;
+    bukaModal(p ? 'Ubah petugas' : 'Petugas baru', `
+      <div class="baris2">
+        <div class="grup"><label>Kode</label>
+          <input type="text" id="ptKode" value="${esc(p?.kode || '')}" ${p ? 'disabled' : ''} placeholder="otomatis"></div>
+        <div class="grup"><label>Nama *</label><input type="text" id="ptNama" value="${esc(p?.nama || '')}"></div>
+      </div>
+      <div class="baris2">
+        <div class="grup"><label>Peran utama</label><select id="ptPeran">
+          ${Object.keys(LABEL_PERAN_PETUGAS).map(k =>
+            `<option value="${k}" ${(p?.peran_utama || 'PENJUAL') === k ? 'selected' : ''}>${LABEL_PERAN_PETUGAS[k]}</option>`).join('')}
+        </select></div>
+        <div class="grup"><label>Telepon</label><input type="text" id="ptTelepon" value="${esc(p?.telepon || '')}"></div>
+      </div>
+      <div class="baris2">
+        <div class="grup"><label>Cabang</label><select id="ptCabang">
+          ${(APP_STATE.daftarCabang || []).map(c =>
+            `<option value="${esc(c)}" ${p?.cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+          ${lintas ? `<option value="*" ${p?.cabang === '*' ? 'selected' : ''}>Semua cabang</option>` : ''}
+        </select></div>
+        <div class="grup"><label>Tarif komisi khusus (%)</label>
+          <input type="number" id="ptKomisi" min="0" max="100" step="0.01" value="${p?.komisi_persen || 0}"></div>
+      </div>
+      <label class="cek"><input type="checkbox" id="ptAktif" ${p?.aktif !== false ? 'checked' : ''}> Aktif</label>
+      <p class="petunjuk"><strong>Peran utama</strong> dipakai sebagai bawaan saat namanya
+        dimasukkan ke sebuah tim, dan menentukan bobot pembagian bila kasir tidak
+        mengisi porsi sendiri.<br>
+        <strong>Tarif komisi khusus</strong> mengalahkan tarif produk maupun tarif umum.
+        Isi <strong>0</strong> bila orang ini mengikuti tarif yang berlaku umum.</p>`,
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol utama" id="btnSimpanPetugas">Simpan</button>`);
+  }
+
+  /* ==================== LAPORAN KOMISI ==================== */
+
+  async function muatKomisi() {
+    memuat('#isiKomisi');
+    try {
+      const rows = await API.daftarPetugas().catch(() => []);
+      const kini = new Date();
+      const awal = new Date(kini.getFullYear(), kini.getMonth(), 1);
+      $('#isiKomisi').innerHTML = `
+        <div class="kartu">
+          <h3>Komisi &amp; klaim per petugas</h3>
+          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+            <div style="max-width:170px"><label>Dari</label>
+              <input type="date" id="komDari" value="${awal.toISOString().substring(0, 10)}"></div>
+            <div style="max-width:170px"><label>Sampai</label>
+              <input type="date" id="komSampai" value="${tanggalLokal(kini)}"></div>
+            <div style="max-width:220px"><label>Petugas</label><select id="komPetugas">
+              <option value="">Semua petugas</option>
+              ${rows.map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
+            </select></div>
+            <button class="tombol utama" id="btnLaporanKomisi">Tampilkan</button>
+          </div>
+          <p class="petunjuk">Angka di sini dibekukan saat notanya masuk, bukan dihitung ulang
+             sekarang. Menaikkan tarif hari ini tidak akan mengubah komisi bulan lalu.
+             Nota yang dibatalkan otomatis keluar dari hitungan.</p>
+        </div>
+        <div id="hasilKomisi"></div>`;
+    } catch (e) { galat('#isiKomisi', e); }
+  }
+
+  async function gambarHasilKomisi() {
+    const wadah = $('#hasilKomisi');
+    wadah.innerHTML = '<div class="kartu">Menghitung…</div>';
+    try {
+      const d = await API.laporanKomisi({
+        dari: nilai('komDari'), sampai: nilai('komSampai'),
+        kode_petugas: nilai('komPetugas') || undefined
+      });
+      const r = d.ringkas;
+      const adaLaba = r.laba !== undefined;
+
+      const tarif = d.tarif.tipe === 'nonaktif'
+        ? 'Perhitungan komisi sedang <strong>dimatikan</strong> — yang tercatat hanya atribusi omzet. Nyalakan di menu Setting.'
+        : `Tarif umum: <strong>${d.tarif.tipe === 'persen'
+              ? d.tarif.nilai + '% dari ' + esc(d.tarif.dasar)
+              : rp(d.tarif.nilai) + ' per satuan'}</strong>. Tarif produk dan tarif petugas bisa menimpanya.`;
+
+      wadah.innerHTML = `
+        <div class="petak">
+          <div class="kartu statistik"><div class="label">Petugas</div><div class="nilai">${r.petugas}</div></div>
+          <div class="kartu statistik"><div class="label">Nota terklaim</div><div class="nilai">${r.nota}</div></div>
+          <div class="kartu statistik"><div class="label">Omzet terklaim</div><div class="nilai">${rp(r.omzet)}</div></div>
+          <div class="kartu statistik"><div class="label">Komisi</div><div class="nilai">${rp(r.komisi)}</div></div>
+        </div>
+
+        <div class="kartu">
+          <div class="bar-alat"><h3 style="margin:0">Rekap per petugas</h3><div style="flex:1"></div>
+            ${tombolEkspor('komisi', { dari: nilai('komDari'), sampai: nilai('komSampai') })}</div>
+          <p class="petunjuk">${tarif}</p>
+          ${tabel([
+            { judul: 'Petugas', kunci: 'nama' },
+            { judul: 'Nota', angka: true, kunci: 'nota' },
+            { judul: 'Klaim', angka: true, kunci: 'klaim' },
+            { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+            ...(adaLaba ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba) }] : []),
+            { judul: 'Komisi', angka: true, render: x => `<strong>${rp(x.komisi)}</strong>` },
+            { judul: 'Rincian peran', render: x => x.per_peran.map(p =>
+                `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[p.peran] || p.peran)} ${p.klaim}</span>`).join(' ') }
+          ], d.petugas, { kosong: 'Belum ada klaim pada rentang tanggal ini' })}
+        </div>
+
+        <div class="kartu">
+          <h3>Rincian klaim</h3>
+          ${d.dipotong ? '<p class="petunjuk">Hanya 500 klaim terbaru yang ditampilkan. Gunakan Ekspor untuk data penuh.</p>' : ''}
+          ${tabel([
+            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Petugas', kunci: 'nama' },
+            { judul: 'Peran', render: x => esc(LABEL_PERAN_PETUGAS[x.peran] || x.peran) },
+            { judul: 'Cakupan', render: x => x.jenis === 'NOTA'
+                ? '<span class="lencana">seluruh nota</span>'
+                : `<span class="lencana kuning">baris ${x.baris}</span>` },
+            { judul: 'Porsi', angka: true, render: x => x.porsi + '%' },
+            { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+            { judul: 'Komisi', angka: true, render: x => rp(x.komisi) }
+          ], d.rinci, { kosong: 'Belum ada klaim' })}
+        </div>`;
+    } catch (e) { galat('#hasilKomisi', e); }
   }
 
   /* ==================== PIUTANG ==================== */
@@ -2060,7 +2253,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muat(layar) {
     if (!API.online) {
       const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian',
-                      mitra: '#isiMitra', piutang: '#isiPiutang', pengguna: '#isiPengguna',
+                      mitra: '#isiMitra', petugas: '#isiPetugas', komisi: '#isiKomisi',
+                      piutang: '#isiPiutang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
                       diskon: '#isiDiskon',
@@ -2078,6 +2272,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'stok':      return muatStok();
       case 'pembelian': return muatPembelian();
       case 'mitra':     return muatMitra();
+      case 'petugas':   return muatPetugas();
+      case 'komisi':    return muatKomisi();
       case 'piutang':   return muatPiutang();
       case 'pengguna':  return muatPengguna();
       case 'cabang':    return muatCabang();
@@ -2162,6 +2358,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
+      /* --- petugas & komisi --- */
+      if (t.id === 'btnPetugasBaru')   return editorPetugas(null);
+      if (d.editPetugas)               return editorPetugas(d.editPetugas);
+      if (t.id === 'btnLaporanKomisi') return gambarHasilKomisi();
+      if (t.id === 'btnSimpanPetugas') {
+        try {
+          await API.simpanPetugas({
+            kode: nilai('ptKode') || undefined, nama: nilai('ptNama'),
+            peran_utama: nilai('ptPeran'), telepon: nilai('ptTelepon'),
+            cabang: nilai('ptCabang'), komisi_persen: angka('ptKomisi'),
+            aktif: centang('ptAktif')
+          });
+          // Daftar petugas ikut turun lewat tarik_master, jadi layar kasir di
+          // perangkat ini langsung mengenal nama baru itu tanpa perlu login ulang.
+          await Sync.tarikMaster(true);
+          await sukses('Petugas tersimpan.', 'petugas');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
       if (t.id === 'btnSimpanSupplier') {
         try {
           await API.simpanSupplier({

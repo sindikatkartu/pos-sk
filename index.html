@@ -118,6 +118,14 @@
             <option value="reseller">Harga Reseller</option>
           </select>
           <select id="selPelanggan" style="width:auto;max-width:220px"></select>
+          <!-- Siapa yang melayani. Berlaku untuk seluruh baris nota, KECUALI baris
+               yang punya timnya sendiri (lihat tombol "Tim" di keranjang). -->
+          <select id="selPetugas" style="width:auto;max-width:220px"
+                  title="Pramuniaga yang melayani nota ini"></select>
+          <!-- Untuk nota yang dilayani lebih dari satu pramuniaga — dropdown di atas
+               hanya muat satu nama. -->
+          <button class="tombol kecil" id="btnTimNota"
+                  title="Bagi nota ini ke beberapa pramuniaga">Tim</button>
           <span class="lencana" id="lncJumlahProduk"></span>
         </div>
         <div class="daftar-produk" id="daftarProduk"></div>
@@ -162,6 +170,8 @@
     <section class="layar" id="layarArsip"><div id="isiArsip"></div></section>
     <section class="layar" id="layarPembelian"><div id="isiPembelian"></div></section>
     <section class="layar" id="layarMitra"><div id="isiMitra"></div></section>
+    <section class="layar" id="layarPetugas"><div id="isiPetugas"></div></section>
+    <section class="layar" id="layarKomisi"><div id="isiKomisi"></div></section>
     <section class="layar" id="layarPiutang"><div id="isiPiutang"></div></section>
     <section class="layar" id="layarPengguna"><div id="isiPengguna"></div></section>
     <section class="layar" id="layarCabang"><div id="isiCabang"></div></section>
@@ -302,6 +312,9 @@
     <div class="total-baris besar" style="border:none;margin:0 0 14px"><span>TOTAL</span><span id="byrTotal">Rp 0</span></div>
     <div class="grup"><label>Diskon nota (Rp)</label><input type="number" id="byrDiskonNota" value="0"></div>
     <div id="byrJagaDiskon"></div>
+    <!-- Penjagaan klaim petugas: baris yang butuh tim tapi belum lengkap, atau
+         nota tanpa pramuniaga saat setelan mewajibkannya. -->
+    <div id="byrJagaKlaim"></div>
     <div id="byrDaftarMetode"></div>
     <button class="tombol" id="btnTambahMetode" style="width:100%;margin-bottom:12px">+ Metode bayar lain (split)</button>
     <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
@@ -334,6 +347,25 @@
     <div class="aksi-modal">
       <button class="tombol bahaya" id="btnHapusItem">Hapus</button>
       <button class="tombol utama" id="btnSimpanItem">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL TIM PEMASANG ====================
+     Dipakai untuk baris yang dikerjakan lebih dari satu orang — kasus utamanya
+     pemasangan tempered glass. Porsi boleh dikosongkan seluruhnya; server yang
+     membaginya menurut bobot peran. Yang tidak boleh: mengisi sebagian saja. -->
+<div class="tirai" id="tiraiTim">
+  <div class="modal">
+    <h3 id="timJudul">Tim yang mengerjakan</h3>
+    <div id="timRingkas"></div>
+    <div id="timDaftar"></div>
+    <button class="tombol" id="btnTambahAnggota" style="width:100%;margin-bottom:10px">+ Tambah petugas</button>
+    <div class="total-baris"><span>Total porsi</span><span id="timTotalPorsi">0%</span></div>
+    <div id="pesanTim"></div>
+    <div class="aksi-modal">
+      <button class="tombol" id="btnBatalTim">Batal</button>
+      <button class="tombol utama" id="btnSimpanTim">Simpan tim</button>
     </div>
   </div>
 </div>

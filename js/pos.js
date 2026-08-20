@@ -73,6 +73,19 @@ const Keranjang = (() => {
   let pelanggan = null;
   let diskonNota = 0;
   let catatan = '';
+  /**
+   * Klaim penjualan — siapa yang berhak atas penjualan ini.
+   *
+   * `petugasNota` berlaku untuk seluruh baris yang TIDAK punya timnya sendiri.
+   * Baris yang punya `tim` keluar dari cakupan itu; kalau tidak, pemasangan
+   * tempered glass akan terhitung dua kali — sekali untuk timnya, sekali lagi
+   * untuk pramuniaga yang memegang notanya.
+   *
+   * Bentuk anggota: { kode, peran, porsi }. `porsi` boleh dikosongkan SEMUA, dan
+   * server membaginya menurut bobot peran. Yang tidak boleh: mengisi sebagian
+   * saja — itu ditolak, bukan ditebak.
+   */
+  let petugasNota = [];
 
   const total = () => {
     const bruto = baris.reduce((a, b) => a + b.qty * b.harga_satuan, 0);
@@ -96,6 +109,7 @@ const Keranjang = (() => {
     get pelanggan() { return pelanggan; },
     get diskonNota(){ return diskonNota; },
     get kosong()    { return baris.length === 0; },
+    get petugasNota(){ return petugasNota; },
     total,
 
     setLevel(l) {
@@ -124,6 +138,40 @@ const Keranjang = (() => {
       return (t.diskon_item + t.diskon_nota) / t.bruto * 100;
     },
     setCatatan(t)    { catatan = t || ''; },
+
+    /* ---------- Klaim petugas ---------- */
+
+    /** Daftar petugas yang mengklaim seluruh nota (di luar baris yang punya tim). */
+    setPetugasNota(daftar) {
+      petugasNota = (daftar || []).filter(x => x && x.kode);
+    },
+
+    /** Tim yang mengerjakan satu baris. Daftar kosong = baris itu ikut klaim nota. */
+    setTimBaris(id, daftar) {
+      const b = baris.find(x => x.id === id);
+      if (!b) return;
+      const bersih = (daftar || []).filter(x => x && x.kode);
+      if (bersih.length) b.tim = bersih; else delete b.tim;
+    },
+
+    timBaris(id) {
+      const b = baris.find(x => x.id === id);
+      return (b && b.tim) ? b.tim : [];
+    },
+
+    /**
+     * Baris yang menuntut tim tapi belum punya anggota cukup.
+     * Dipakai layar bayar untuk menahan nota SEBELUM dikirim — server memeriksa
+     * hal yang sama, tapi kalau hanya server yang menjaga, kasir baru tahu
+     * notanya ditolak beberapa menit kemudian saat pelanggannya sudah pergi.
+     */
+    barisTimKurang() {
+      return baris.filter(b => {
+        if (!b.butuh_tim) return false;
+        const min = Math.max(2, Number(b.min_petugas) || 2);
+        return (b.tim || []).length < min;
+      });
+    },
 
     _hitungUlang(b) {
       const h = Harga.hitung(b._produk, {
@@ -157,6 +205,11 @@ const Keranjang = (() => {
         qty, satuan: st, faktor: h.faktor,
         harga_satuan: h.harga_satuan, diskon: 0,
         sumber_harga: h.sumber, hargaManual: false,
+        // Disalin ke baris, bukan dibaca ulang dari produk saat dibutuhkan: baris
+        // nota harus tetap tahu ia butuh tim walau master produk berubah di
+        // tengah transaksi (mis. tarik master kebetulan jalan saat itu juga).
+        butuh_tim: !!produk.butuh_tim,
+        min_petugas: Number(produk.min_petugas) || (produk.butuh_tim ? 2 : 0),
         _produk: produk, _varian: varian, _satuan: daftarSatuan, _tier: daftarTier
       };
       baris.push(b);
@@ -206,7 +259,13 @@ const Keranjang = (() => {
 
     hapus(id) { baris = baris.filter(b => b.id !== id); },
 
-    kosongkan() { baris = []; diskonNota = 0; catatan = ''; pelanggan = null; level = 'eceran'; },
+    kosongkan() {
+      baris = []; diskonNota = 0; catatan = ''; pelanggan = null; level = 'eceran';
+      // Petugas nota ikut dikosongkan. Membiarkannya menempel ke nota berikutnya
+      // terasa praktis, tapi berarti pramuniaga sebelumnya diam-diam mengklaim
+      // penjualan yang tidak ia layani.
+      petugasNota = [];
+    },
 
     /** Susun dokumen nota yang akan disimpan lokal & dikirim ke server. */
     dokumen({ uuid, no_nota, id_shift, bayar, jatuh_tempo, id_otorisasi }) {
@@ -222,8 +281,11 @@ const Keranjang = (() => {
         item: baris.map(b => ({
           sku: b.sku, kode_varian: b.kode_varian, nama: b.nama,
           qty: b.qty, satuan: b.satuan, faktor: b.faktor,
-          harga_satuan: b.harga_satuan, diskon: b.diskon
+          harga_satuan: b.harga_satuan, diskon: b.diskon,
+          // Tim baris ikut dikirim mentah; server yang memutuskan sah atau tidak.
+          klaim: (b.tim || []).map(t => ({ kode: t.kode, peran: t.peran, porsi: t.porsi }))
         })),
+        klaim: petugasNota.map(t => ({ kode: t.kode, peran: t.peran, porsi: t.porsi })),
         bayar,
         diskon_nota: t.diskon_nota,
         ppn: t.ppn,

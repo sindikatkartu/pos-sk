@@ -7,6 +7,7 @@
  *   kv            — pasangan kunci/nilai (sesi, versi master, setting, nomor urut nota)
  *   produk        — master produk (index: barcode, nama)
  *   pelanggan     — master pelanggan
+ *   petugas       — frontliner/pramuniaga yang boleh mengklaim penjualan
  *   stok          — stok terakhir yang diketahui (perkiraan saat offline)
  *   stok_cabang   — stok SELURUH cabang, untuk mengalihkan pelanggan ke cabang yang punya
  *   outbox        — dokumen menunggu kirim  (inti ketahanan offline)
@@ -19,6 +20,10 @@ const DB = (() => {
     kv:        { keyPath: 'k' },
     produk:    { keyPath: 'sku', index: [['barcode', 'barcode'], ['nama', 'nama']] },
     pelanggan: { keyPath: 'kode' },
+    // Daftar frontliner/pramuniaga. Disimpan lokal supaya kasir tetap bisa memilih
+    // siapa yang melayani walau internet mati — kalau tidak, fitur klaim mati
+    // justru pada hari yang paling ramai.
+    petugas:   { keyPath: 'kode' },
     stok:        { keyPath: 'key' },
     stok_cabang: { keyPath: 'key', index: [['sku', 'sku']] },
     outbox:    { keyPath: 'uuid', index: [['status', 'status'], ['dibuat', 'dibuat']] },

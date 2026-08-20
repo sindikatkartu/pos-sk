@@ -7,11 +7,14 @@ window.CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyRxkGDwxskyO9FOHP4H-XUj0yH3cWSeL8TmQSmxza81Bw8oq--SRYT-CnGD8m_g34/exec',
 
   APP_NAMA: 'POS Sindikat Kartu',
-  VERSI: '1.9.0',
+  VERSI: '1.10.0',
 
   // Nama & versi database lokal (IndexedDB)
   DB_NAMA: 'possk',
-  DB_VERSI: 2,          // v2: menambah store stok_cabang (intip stok antar cabang)
+  // Naikkan setiap kali STORES di db.js bertambah. Kalau lupa, onupgradeneeded
+  // tidak pernah jalan di perangkat yang sudah terpasang dan store barunya
+  // tidak akan pernah ada di sana — tanpa satu pun pesan galat.
+  DB_VERSI: 3,          // v2: store stok_cabang · v3: store petugas (klaim penjualan)
 
   // Sinkronisasi
   SYNC_INTERVAL_MS: 30000,     // coba kirim outbox tiap 30 detik
