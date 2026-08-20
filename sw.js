@@ -6,11 +6,7 @@
  *   - Berkas aplikasi (HTML/CSS/JS) : cache-first  -> aplikasi selalu membuka instan
  *   - Panggilan API                 : network-only -> tidak pernah di-cache, agar data tak basi
  */
-/* Nama cache dinaikkan ke -b setelah sebuah kesalahan urutan penerbitan:
-   sw.js sempat di-commit SEBELUM config.js, sehingga service worker baru
-   menyimpan config.js versi lama dan tidak pernah mengambilnya ulang.
-   ATURAN: config.js selalu di-commit LEBIH DULU, sw.js paling akhir. */
-const CACHE = 'possk-v1.9.0-b';
+const CACHE = 'possk-v1.9.0-c';
 const BERKAS = [
   './', './index.html',
   './css/app.css',
@@ -19,8 +15,26 @@ const BERKAS = [
   './manifest.webmanifest'
 ];
 
+/**
+ * Saat memasang, berkas diambil dengan `cache: 'reload'` — MELEWATI cache HTTP
+ * browser dan selalu menembak jaringan.
+ *
+ * Ini bukan kehati-hatian berlebih; tanpa itu penerbitan bisa gagal separuh dan
+ * sulit dilacak. `addAll()` biasa memakai cache HTTP, sedangkan GitHub Pages
+ * menyajikan berkas dengan masa simpan beberapa menit. Akibatnya nama cache
+ * sudah naik ke versi baru, tapi ISINYA masih berkas versi lama — aplikasi
+ * tampak sudah diperbarui padahal belum, dan tidak ada satu pun pesan galat.
+ * Persis itu yang terjadi saat menerbitkan v1.9.0.
+ */
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(BERKAS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(BERKAS.map(u =>
+        fetch(new Request(u, { cache: 'reload' }))
+          .then(r => { if (r && r.ok) return c.put(u, r); })
+      )))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
