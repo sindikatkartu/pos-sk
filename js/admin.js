@@ -1192,6 +1192,82 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#isiAudit', e); }
   }
 
+  /* ==================== LAPORAN DISKON ====================
+   * Diskon adalah satu-satunya cara kasir bisa mengurangi uang masuk tanpa
+   * menyentuh stok. Tanpa layar ini, satu-satunya cara menemukan pola yang
+   * ganjil adalah membuka nota satu per satu — yang berarti tidak akan pernah
+   * dilakukan. Urutannya sengaja dari rupiah terbesar, bukan terbaru.
+   */
+  async function muatDiskon() {
+    const hariIni = tanggalLokal();
+    const awalBulan = hariIni.substring(0, 8) + '01';
+    if (!$('#dskDari')) {
+      $('#isiDiskon').innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat">
+            <h3 style="margin:0">Diskon</h3>
+            <div style="flex:1"></div>
+            <input type="date" id="dskDari" value="${awalBulan}" style="width:auto">
+            <input type="date" id="dskSampai" value="${hariIni}" style="width:auto">
+            <button class="tombol utama" id="btnMuatDiskon">Tampilkan</button>
+          </div>
+          <p class="petunjuk">Persentase dihitung dari total diskon (baris + nota) terhadap nilai bruto.
+            Kolom <strong>Disetujui</strong> berisi nama atasan yang menyetujui diskon di atas batas peran kasirnya.</p>
+        </div>
+        <div id="hasilDiskon"></div>`;
+    }
+    gambarHasilDiskon();
+  }
+
+  async function gambarHasilDiskon() {
+    const w = $('#hasilDiskon');
+    if (!w) return;
+    w.innerHTML = '<div class="kartu">Memuat…</div>';
+    try {
+      const d = await API.laporanDiskon({ dari: $('#dskDari').value, sampai: $('#dskSampai').value });
+      const r = d.ringkas;
+      w.innerHTML = `
+        <div class="petak">
+          <div class="kartu statistik"><div class="label">Nota berdiskon</div>
+            <div class="nilai">${r.nota_berdiskon}</div>
+            <div class="meta-kecil">dari ${r.jumlah_nota} nota</div></div>
+          <div class="kartu statistik"><div class="label">Total diskon</div>
+            <div class="nilai">${rp(r.diskon)}</div>
+            <div class="meta-kecil">${r.persen_rata}% dari bruto</div></div>
+          <div class="kartu statistik"><div class="label">Perlu persetujuan</div>
+            <div class="nilai">${r.disetujui}</div>
+            <div class="meta-kecil">nota di atas batas peran</div></div>
+        </div>
+
+        <div class="kartu">
+          <div class="bar-alat"><h3 style="margin:0">Per kasir</h3>
+            <div style="flex:1"></div>${tombolEkspor('diskon_kasir', { dari: $('#dskDari').value, sampai: $('#dskSampai').value })}</div>
+          ${tabel([
+            { judul: 'Kasir', kunci: 'nama' },
+            { judul: 'Nota', render: x => `${x.nota_diskon} / ${x.nota}`, kanan: true },
+            { judul: 'Total diskon', render: x => rp(x.diskon), kanan: true },
+            { judul: 'Rata-rata', render: x => x.persen_rata + '%', kanan: true },
+            { judul: 'Tertinggi', render: x => `<span class="lencana ${x.persen_maks > 20 ? 'merah' : ''}">${x.persen_maks}%</span>`, kanan: true },
+            { judul: 'Disetujui atasan', render: x => x.disetujui || '—', kanan: true }
+          ], d.kasir, { kosong: 'Tidak ada diskon pada rentang ini' })}
+        </div>
+
+        <div class="kartu">
+          <h3>Nota berdiskon</h3>
+          ${d.dipotong ? '<p class="petunjuk">Hanya 300 nota terbesar yang ditampilkan.</p>' : ''}
+          ${tabel([
+            { judul: 'Tanggal', render: x => `${esc(x.tanggal)} ${esc(String(x.jam).substring(0, 5))}` },
+            { judul: 'Nota', kunci: 'no_nota' },
+            { judul: 'Kasir', kunci: 'kasir' },
+            { judul: 'Bruto', render: x => rp(x.subtotal), kanan: true },
+            { judul: 'Diskon', render: x => rp(x.diskon), kanan: true },
+            { judul: '%', render: x => `<span class="lencana ${x.persen > 20 ? 'merah' : (x.persen > 10 ? 'kuning' : '')}">${x.persen}%</span>`, kanan: true },
+            { judul: 'Disetujui', render: x => x.penyetuju ? esc(x.penyetuju) : '<span class="meta-kecil">—</span>' }
+          ], d.nota, { kosong: 'Tidak ada nota berdiskon pada rentang ini' })}
+        </div>`;
+    } catch (e) { galat('#hasilDiskon', e); }
+  }
+
   /* ==================== TRANSFER ANTAR CABANG ==================== */
 
   const LENCANA_TRANSFER = {
@@ -1583,7 +1659,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="grup">
         <label>Cari nota asal (nomor nota atau nama pelanggan)</label>
         <div style="display:flex;gap:8px">
-          <input type="text" id="returCari" placeholder="mis. SK-BR01-A3F/2608/00042">
+          <input type="text" id="returCari" placeholder="mis. SK01-A3F/2608/00042">
           <button class="tombol utama" id="btnCariNota" style="flex:0 0 auto">Cari</button>
         </div>
       </div>
@@ -1987,6 +2063,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       mitra: '#isiMitra', piutang: '#isiPiutang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
+                      diskon: '#isiDiskon',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
         $(wadah).innerHTML = `<div class="pesan info">Menu ini butuh koneksi internet.
@@ -2006,6 +2083,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'cabang':    return muatCabang();
       case 'sistem':    return muatSistem();
       case 'audit':     return muatAudit();
+      case 'diskon':    return muatDiskon();
       case 'transfer':  return muatTransfer();
       case 'opname':    return muatOpname();
       case 'returbeli': return muatReturbeli();
@@ -2270,6 +2348,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
+
+      /* --- laporan diskon --- */
+      if (t.id === 'btnMuatDiskon') return gambarHasilDiskon();
 
       /* --- ekspor --- */
       if (d.eksporBuka !== undefined) {

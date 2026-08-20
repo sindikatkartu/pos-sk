@@ -110,6 +110,19 @@ const Keranjang = (() => {
     },
 
     setDiskonNota(n) { diskonNota = Math.max(0, Math.round(Number(n) || 0)); },
+
+    /**
+     * Persentase SELURUH diskon (baris + nota) terhadap nilai bruto.
+     *
+     * Batas peran harus diukur dari angka gabungan ini, bukan dari salah satunya.
+     * Membatasi diskon baris saja meninggalkan kolom "Diskon nota" terbuka lebar —
+     * dan itulah celah yang membuat batas kasir 5% dulu tidak ada artinya.
+     */
+    persenDiskon() {
+      const t = total();
+      if (t.bruto <= 0) return 0;
+      return (t.diskon_item + t.diskon_nota) / t.bruto * 100;
+    },
     setCatatan(t)    { catatan = t || ''; },
 
     _hitungUlang(b) {
@@ -132,6 +145,9 @@ const Keranjang = (() => {
         baris[idx] = this._hitungUlang(baris[idx]);   // qty naik bisa memicu tier harga
         return baris[idx];
       }
+      // Baris ber-qty 0 pernah lolos ke nota lewat jalur "ganti satuan"
+      // (hapus lalu tambah ulang) saat kolom qty sedang kosong.
+      if (!(Number(qty) > 0)) throw new Error('Qty harus lebih dari 0.');
       const h = Harga.hitung(produk, { level, qty, satuan: st, varian,
                                         daftarSatuan, daftarTier });
       const b = {
@@ -147,11 +163,24 @@ const Keranjang = (() => {
       return b;
     },
 
+    /**
+     * Ubah qty sebuah baris.
+     *
+     * Nilainya diterima MENTAH, bukan sudah lewat Number(). Sebabnya: Number('')
+     * bernilai 0, sehingga "kolom sedang dikosongkan untuk diketik ulang" tidak
+     * bisa dibedakan dari "qty-nya nol" — dan barisnya terhapus tepat saat kasir
+     * hendak mengoreksinya. Penjagaannya ditaruh di sini, bukan di pemanggil,
+     * supaya berlaku juga untuk pemanggil berikutnya.
+     */
     ubahQty(id, qty) {
       const i = baris.findIndex(b => b.id === id);
       if (i < 0) return;
-      if (qty <= 0) { baris.splice(i, 1); return; }
-      baris[i].qty = qty;
+      // Termasuk yang hanya berisi spasi: Number('   ') juga bernilai 0.
+      if (qty === null || qty === undefined || String(qty).trim() === '') return;
+      const n = Number(qty);
+      if (!Number.isFinite(n)) return;
+      if (n <= 0) { baris.splice(i, 1); return; }
+      baris[i].qty = n;
       baris[i] = this._hitungUlang(baris[i]);
     },
 
@@ -180,7 +209,7 @@ const Keranjang = (() => {
     kosongkan() { baris = []; diskonNota = 0; catatan = ''; pelanggan = null; level = 'eceran'; },
 
     /** Susun dokumen nota yang akan disimpan lokal & dikirim ke server. */
-    dokumen({ uuid, no_nota, id_shift, bayar, jatuh_tempo }) {
+    dokumen({ uuid, no_nota, id_shift, bayar, jatuh_tempo, id_otorisasi }) {
       const t = total();
       const now = new Date();
       return {
@@ -201,6 +230,7 @@ const Keranjang = (() => {
         total: t.total,
         jatuh_tempo: jatuh_tempo || '',
         catatan,
+        id_otorisasi: id_otorisasi || '',
         dibuat_lokal: now.toISOString()
       };
     }
@@ -217,9 +247,9 @@ function tanggalLokal(d = new Date()) {
 async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
   const d = new Date();
   const ym = String(d.getFullYear()).slice(-2) + String(d.getMonth() + 1).padStart(2, '0');
-  const kunci = 'urut_' + ym;
-  const urut = (await DB.kvGet(kunci, 0)) + 1;
-  await DB.kvSet(kunci, urut);
+  // Dinaikkan dalam satu transaksi — lihat DB.naikkan(). Pola baca-lalu-tulis
+  // yang lama bisa menghasilkan dua nota bernomor sama dari dua tab sekaligus.
+  const urut = await DB.naikkan('urut_' + ym);
   return `${prefixCabang}-${kodePerangkat}/${ym}/${String(urut).padStart(5, '0')}`;
 }
 

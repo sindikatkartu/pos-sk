@@ -80,6 +80,31 @@ const DB = (() => {
     },
     async kvSet(k, v) { return this.put('kv', { k, v }); },
 
+    /**
+     * Naikkan satu pencacah DI DALAM SATU TRANSAKSI, lalu kembalikan nilai barunya.
+     *
+     * Dibuat karena pola `kvGet` lalu `kvSet` punya jeda `await` di tengahnya:
+     * dua tab PWA yang sama berbagi IndexedDB yang sama, keduanya membaca 41,
+     * keduanya menulis 42 — dan dua nota berbeda tercetak dengan nomor yang sama.
+     * IndexedDB menjamin satu transaksi readwrite berjalan sendirian, jadi
+     * membaca dan menulis di dalamnya menutup celah itu.
+     */
+    async naikkan(k, awal = 0) {
+      const db = await buka();
+      return new Promise((res, rej) => {
+        const t = db.transaction('kv', 'readwrite');
+        const st = t.objectStore('kv');
+        const g = st.get(k);
+        let nilai;
+        g.onsuccess = () => {
+          nilai = (g.result === undefined ? awal : Number(g.result.v) || 0) + 1;
+          st.put({ k, v: nilai });
+        };
+        t.oncomplete = () => res(nilai);
+        t.onerror = () => rej(t.error);
+      });
+    },
+
     /* --- outbox --- */
     async outboxAntri(status = 'PENDING') {
       const semua = await this.all('outbox');
@@ -87,6 +112,16 @@ const DB = (() => {
                   .sort((a, b) => (a.dibuat < b.dibuat ? -1 : 1));
     },
     async outboxJumlah() { return (await this.outboxAntri()).length; },
+
+    /**
+     * Berapa dokumen yang DITOLAK server dan berhenti dicoba.
+     *
+     * Dulu tidak ada yang menghitung ini. Nota yang ditolak tiga kali keluar dari
+     * hitungan PENDING, lencana kembali hijau "Tersinkron", dan uangnya hilang
+     * dari server tanpa satu pun tanda di layar. Diam adalah kegagalan terburuk
+     * di sistem kasir: yang salah masih bisa diperbaiki, yang tak terlihat tidak.
+     */
+    async outboxDitolak() { return this.outboxAntri('DITOLAK'); },
 
     /** Bersihkan dokumen yang sudah tersinkron lebih dari N hari. */
     async outboxBersihkan(hari = 7) {

@@ -11,7 +11,7 @@ const Sync = (() => {
   let jalan = false;
   let timerOutbox = null, timerMaster = null;
 
-  const status = { mengirim: false, tertahan: 0, terakhir: null, galat: null };
+  const status = { mengirim: false, tertahan: 0, ditolak: 0, terakhir: null, galat: null };
 
   function kabarkan() { document.dispatchEvent(new CustomEvent('sync:status', { detail: { ...status } })); }
 
@@ -22,6 +22,7 @@ const Sync = (() => {
       dibuat: new Date().toISOString(), percobaan: 0, dokumen: dok
     });
     status.tertahan = await DB.outboxJumlah();
+    status.ditolak = (await DB.outboxDitolak()).length;
     kabarkan();
     kirim();   // coba langsung; kalau offline akan gagal diam-diam dan dicoba lagi nanti
   }
@@ -76,6 +77,7 @@ const Sync = (() => {
     } finally {
       status.mengirim = false;
       status.tertahan = await DB.outboxJumlah();
+      status.ditolak = (await DB.outboxDitolak()).length;
       kabarkan();
     }
   }

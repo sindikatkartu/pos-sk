@@ -19,12 +19,22 @@ const API = (() => {
    * Content-Type sengaja text/plain agar browser TIDAK melakukan preflight OPTIONS
    * (Apps Script tidak menjawab OPTIONS, jadi preflight akan selalu gagal).
    */
+  /**
+   * Berapa permintaan yang sedang berjalan. Dihitung DI SINI, bukan di tiap
+   * pemanggil, karena ini satu-satunya pintu keluar aplikasi — dengan begitu
+   * setiap permintaan otomatis ikut terhitung, termasuk yang ditulis nanti.
+   */
+  let _sibuk = 0;
+  const _kabar = () => document.dispatchEvent(
+    new CustomEvent('api:sibuk', { detail: { jumlah: _sibuk } }));
+
   async function panggil(aksi, data = {}, opsi = {}) {
     if (!_online && !opsi.paksa) {
       throw Object.assign(new Error('Sedang offline'), { kode: 'OFFLINE' });
     }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), opsi.timeout || 30000);
+    _sibuk++; _kabar();
     try {
       const resp = await fetch(CONFIG.API_URL, {
         method: 'POST',
@@ -47,6 +57,7 @@ const API = (() => {
       throw e;
     } finally {
       clearTimeout(timer);
+      _sibuk--; _kabar();
     }
   }
 
@@ -66,6 +77,7 @@ const API = (() => {
 
   return {
     get online() { return _online; },
+    get sibuk()  { return _sibuk; },
     setToken(t) { _token = t; },
     getToken()  { return _token; },
 
@@ -92,6 +104,8 @@ const API = (() => {
     simpanKas:       (d) => panggil('simpan_kas', d),
 
     laporanPenjualan:(d) => panggil('laporan_penjualan', d, { timeout: 60000 }),
+    laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
+    otorisasiDiskon: (d) => panggil('otorisasi_diskon', d),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
     ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 90000 }),

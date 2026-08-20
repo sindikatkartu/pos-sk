@@ -120,6 +120,10 @@ const Struk = (() => {
     const lebar = Number(APP_STATE.setting.lebar_struk || 58);
     const isi = baris(nota).join('\n');
     const w = window.open('', '_blank', 'width=380,height=640');
+    // Peramban kiosk sering memblokir pop-up, dan izin klik pengguna sudah
+    // kedaluwarsa setelah beberapa await. Tanpa ini, `w.document` melempar
+    // TypeError yang tersamar jadi "gagal cetak" tanpa sebab yang bisa dibaca.
+    if (!w) throw new Error('Jendela cetak diblokir peramban — izinkan pop-up untuk situs ini.');
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${nota.no_nota}</title>
 <style>
   @page { size: ${lebar}mm auto; margin: 2mm; }

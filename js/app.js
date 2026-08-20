@@ -9,7 +9,10 @@ const APP_STATE = {
   izin: {}, flag: {}, perangkat: null,
   setting: {}, pkp: false, tarifPpn: 0, diskonMaks: 0,
   idShift: null, produkTampil: [], indeksSorot: 0, metodeBayar: [],
-  daftarCabangSemua: []
+  daftarCabangSemua: [],
+  // uuid nota disiapkan saat layar bayar dibuka, bukan saat disimpan: persetujuan
+  // diskon menempel pada uuid, jadi nomornya harus sudah ada sebelum diminta.
+  uuidNota: null, otorisasiDiskon: null
 };
 
 const $  = (s) => document.querySelector(s);
@@ -56,6 +59,7 @@ const MENU = [
   { id: 'dashboard',  label: 'Dashboard',  grup: 'Ringkasan',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'] },
   { id: 'riwayat',    label: 'Riwayat',    grup: 'Penjualan',  izin: ['penjualan', 'lihat'] },
+  { id: 'shift',      label: 'Shift',      grup: 'Penjualan',  izin: ['shift', 'lihat'] },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
   { id: 'retur',      label: 'Retur',      grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
@@ -68,11 +72,14 @@ const MENU = [
   { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
   { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
+  { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
   { id: 'sistem',     label: 'Setting',    grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
   { id: 'audit',      label: 'Audit',      grup: 'Sistem',     izin: ['audit', 'lihat'],             admin: true, backoffice: true },
   { id: 'arsip',      label: 'Arsip',      grup: 'Sistem',     izin: ['setting', 'hapus'],           admin: true, backoffice: true },
+  { id: 'akun',       label: 'Akun saya',  grup: 'Sistem',     izin: null },  // selalu tampil
+  { id: 'tentang',    label: 'Tentang',    grup: 'Sistem',     izin: null },  // selalu tampil
   { id: 'pengaturan', label: 'Perangkat',  grup: 'Sistem',     izin: null }   // selalu tampil
 ];
 
@@ -88,6 +95,103 @@ const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Laporan', 
  * Semua digambar pada kanvas 24×24 dengan tebal garis seragam (lihat .ikon-svg),
  * supaya tidak terlihat seperti kumpulan ikon dari beberapa sumber berbeda.
  */
+/**
+ * Tampilkan nota yang ditolak server beserta alasannya.
+ *
+ * Nota ini sudah dicetak dan uangnya sudah diterima, tapi tidak pernah masuk
+ * pembukuan. Yang bisa dilakukan aplikasi hanyalah memastikan seseorang TAHU —
+ * memperbaikinya butuh keputusan manusia (buka periode, buka shift, atau input
+ * ulang), jadi jangan pernah dicoba diam-diam.
+ */
+async function tampilkanDitolak() {
+  const rows = await DB.outboxDitolak();
+  if (!rows.length) return;
+  const isi = rows.map(o => `<div class="pesan galat" style="margin-bottom:8px">
+      <strong>${esc(o.dokumen?.no_nota || o.uuid)}</strong>
+      <div style="font-size:12.5px;margin-top:4px">${esc(o.pesan_galat || 'Tanpa keterangan')}</div>
+      <div class="meta-kecil">Dicoba ${o.percobaan || 0}x · ${esc(String(o.dibuat || '').replace('T', ' ').substring(0, 16))}</div>
+    </div>`).join('');
+  Admin.modal('Nota ditolak server', `
+    <p>Nota berikut sudah tercatat di perangkat ini tapi <strong>ditolak server</strong>,
+       jadi belum masuk pembukuan. Tunjukkan daftar ini ke pemilik — sebagian butuh
+       tindakan di sisi server dulu (mis. periode yang sudah ditutup).</p>
+    ${isi}`);
+}
+
+/* ==================== PENANDA SEDANG MEMUAT ====================
+ * Masalahnya sederhana dan mahal: setelah menekan tombol tidak ada tanda
+ * apa pun, jadi orang menekannya lagi — dan tindakan yang tidak idempoten
+ * (buka shift, simpan nota, bayar piutang) terkirim dua kali.
+ *
+ * Penjagaannya dipasang di SATU tempat, bukan ditempel satu per satu di tiap
+ * penangan tombol. Tombol yang ditulis besok ikut terjaga tanpa diingat.
+ *
+ * Cara kerjanya: saat sebuah tombol diklik, catat jumlah permintaan yang
+ * sedang berjalan. Bila sesaat kemudian jumlahnya bertambah, berarti klik
+ * itulah yang memulainya — kunci tombolnya sampai semuanya selesai.
+ * Tombol yang tidak memanggil server sama sekali tidak tersentuh.
+ */
+function pasangPenandaSibuk() {
+  const garis = $('#garisMuat');
+  const terkunci = new Set();
+
+  const lepas = () => {
+    terkunci.forEach(b => {
+      b.classList.remove('sibuk');
+      // Jangan hidupkan tombol yang memang dimatikan oleh penangannya sendiri
+      // (mis. Selesaikan saat uang kurang). Tandanya: dikunci oleh kita.
+      if (b.dataset.kunciOtomatis === '1') { b.disabled = false; delete b.dataset.kunciOtomatis; }
+    });
+    terkunci.clear();
+  };
+
+  document.addEventListener('api:sibuk', (e) => {
+    const ada = e.detail.jumlah > 0;
+    if (garis) garis.classList.toggle('jalan', ada);
+    if (!ada) lepas();
+  });
+
+  /* Dibaca sebagai angka dengan tegas. Kalau nilainya bukan angka — API
+     diganti, modul dimuat sebagian, atau versi lama tersisa di cache — maka
+     `undefined <= undefined` bernilai false dan SETIAP tombol akan terkunci
+     selamanya. Kegagalan penanda muat tidak boleh melumpuhkan aplikasinya. */
+  const jumlahSibuk = () => Number(API && API.sibuk) || 0;
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled || b.classList.contains('sibuk')) return;
+    const sebelum = jumlahSibuk();
+    // Diperiksa setelah penangannya sempat jalan; kalau tidak ada permintaan
+    // yang lahir dari klik ini, tombolnya dibiarkan apa adanya.
+    setTimeout(() => {
+      if (jumlahSibuk() <= sebelum || !b.isConnected) return;
+      b.classList.add('sibuk');
+      if (!b.disabled) { b.disabled = true; b.dataset.kunciOtomatis = '1'; }
+      terkunci.add(b);
+    }, 0);
+  }, true);
+}
+
+/** Isi layar Tentang. Versi adalah pertanyaan pertama saat ada laporan masalah:
+    tanpa angka yang bisa dibaca sendiri oleh pemakainya, jawabannya selalu tebakan. */
+function gambarTentang() {
+  const el = $('#isiTentang');
+  if (!el) return;
+  const baris = [
+    ['Versi aplikasi', 'v' + CONFIG.VERSI],
+    // namaCabang jatuh kembali ke kodenya sendiri bila daftar cabang belum tersinkron;
+    // tanpa penjagaan ini barisnya terbaca "SK01 · SK01".
+    ['Cabang aktif', (APP_STATE.cabang || '—') +
+      (APP_STATE.namaCabang && APP_STATE.namaCabang !== APP_STATE.cabang
+        ? ' · ' + APP_STATE.namaCabang : '')],
+    ['Masuk sebagai', (APP_STATE.user?.nama || '—') + ' (' + (APP_STATE.user?.peran || '—') + ')'],
+    ['Perangkat', APP_STATE.perangkat?.kode || '—'],
+    ['Versi data lokal', 'v' + CONFIG.DB_VERSI]
+  ];
+  el.innerHTML = baris.map(([k, v]) =>
+    `<div class="baris-tentang"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');
+}
+
 const IKON = {
   dashboard : '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
   kasir     : '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 11.2a1.8 1.8 0 0 0 1.8 1.4h9a1.8 1.8 0 0 0 1.76-1.4L21 7H5.2"/>',
@@ -105,6 +209,11 @@ const IKON = {
   piutang   : '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
   laporan   : '<path d="M3.5 3v17.5H21"/><path d="M7.5 16.5v-4"/><path d="M12 16.5v-8"/><path d="M16.5 16.5v-5.5"/>',
   keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
+  // Label diskon: tanda persen dalam kotak — dibedakan dari ikon laporan lain
+  shift     : '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M2.5 10.5h19"/><path d="M6.5 14.5h3"/>',
+  akun      : '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
+  tentang   : '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1.1"/>',
+  diskon    : '<path d="M4 13.4V6a2 2 0 0 1 2-2h7.4a2 2 0 0 1 1.42.59l6 6a2 2 0 0 1 0 2.83l-7.4 7.4a2 2 0 0 1-2.83 0l-6-6A2 2 0 0 1 4 13.4Z"/><circle cx="8.6" cy="8.6" r="1.3"/><path d="m10.6 16.4 5.8-5.8"/><circle cx="11" cy="11" r="1"/><circle cx="16" cy="16" r="1"/>',
   pengguna  : '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
   cabang    : '<path d="m2.5 7.5 1.6-4.2h15.8l1.6 4.2"/><path d="M2.5 7.5h19v1.6a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-5.3 0Z"/><path d="M4.6 12.6v8.4h14.8v-8.4"/><path d="M9.6 21v-5h4.8v5"/>',
   sistem    : '<circle cx="12" cy="12" r="3"/><path d="M19.1 14.4a1.5 1.5 0 0 0 .3 1.65l.05.06a1.85 1.85 0 1 1-2.6 2.6l-.06-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.37v.17a1.85 1.85 0 1 1-3.7 0v-.09a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.06.05a1.85 1.85 0 1 1-2.6-2.6l.05-.06a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.9H4a1.85 1.85 0 1 1 0-3.7h.09a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65l-.05-.06a1.85 1.85 0 1 1 2.6-2.6l.06.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.37V4a1.85 1.85 0 1 1 3.7 0v.09a1.5 1.5 0 0 0 .9 1.37 1.5 1.5 0 0 0 1.65-.3l.06-.05a1.85 1.85 0 1 1 2.6 2.6l-.05.06a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.37.9H20a1.85 1.85 0 1 1 0 3.7h-.09a1.5 1.5 0 0 0-1.37.9Z"/>',
@@ -157,6 +266,8 @@ function bukaLayar(id) {
   if (m && m.admin) return Admin.muat(id);
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
+  if (id === 'shift') return periksaShift();
+  if (id === 'tentang') return gambarTentang();
   if (id === 'kasir') $('#inpCari').focus();
 }
 
@@ -203,13 +314,22 @@ function gambarPin() {
     (_, i) => `<span class="${i < pinBuffer.length ? 'isi' : ''}"></span>`).join('');
 }
 
+/* Penjaga login ganda. Digit ke-6 memulai login, tapi pinBuffer tetap berisi
+   6 angka selama menunggu server — satu ketukan lagi memicu login KEDUA dengan
+   PIN yang sama: dua sesi, dua token, dua kali mulaiSesi() berjalan bersamaan,
+   dan token pertama menggantung. Penanda sibuk per-tombol tidak menolong di sini
+   karena tombol yang ditekan berikutnya adalah tombol yang berbeda. */
+let _sedangLogin = false;
+
 async function login(pakaiPassword = false) {
+  if (_sedangLogin) return;
   const username = $('#inpUsername').value.trim();
   if (!username) return pesan('#pesanLogin', 'Username wajib diisi.', 'galat');
   const kredensial = pakaiPassword ? { password: $('#inpPassword').value } : { pin: pinBuffer };
   if (!pakaiPassword && pinBuffer.length < 6) return pesan('#pesanLogin', 'PIN 6 digit.', 'galat');
 
   pesan('#pesanLogin', 'Menghubungi server…', 'info');
+  _sedangLogin = true;
   try {
     const d = await API.login({
       username, ...kredensial,
@@ -239,6 +359,8 @@ async function login(pakaiPassword = false) {
     } else {
       pesan('#pesanLogin', e.message, 'galat');
     }
+  } finally {
+    _sedangLogin = false;
   }
 }
 
@@ -281,7 +403,7 @@ async function mulaiSesi(d) {
   if (d.user.wajib_ganti_pin) {
     // Kasus yang sama seperti shift: jangan sebut nama menu, antar saja.
     if (confirm('PIN Anda masih PIN awal dan sebaiknya segera diganti.\n\nGanti PIN sekarang?')) {
-      menujuKartu('kartuAkun', '#pinLama');
+      menujuKartu('akun', 'kartuAkun', '#pinLama');
     }
   }
 }
@@ -487,7 +609,14 @@ function bukaBayar() {
     if (confirm('Shift belum dibuka, jadi transaksi belum bisa disimpan.\n\nBuka shift sekarang?')) menujuBukaShift();
     return;
   }
-  APP_STATE.metodeBayar = [{ metode: 'tunai', jumlah: Keranjang.total().total, referensi: '' }];
+  /* Mulai dari 0, BUKAN dari total nota. Kolom ini artinya "uang yang diterima",
+     jadi mengisinya lebih dulu sama saja menjawabkan pertanyaan yang seharusnya
+     dijawab kasir — dan kalau tidak diperhatikan, kembaliannya jadi salah.
+     Untuk pembayaran pas, tombol "Uang pas" hanya sekali tekan. */
+  APP_STATE.metodeBayar = [{ metode: 'tunai', jumlah: 0, referensi: '' }];
+  APP_STATE.uuidNota = crypto.randomUUID ? crypto.randomUUID()
+                     : 'X' + Date.now() + Math.random().toString(36).slice(2);
+  APP_STATE.otorisasiDiskon = null;
   $('#byrDiskonNota').value = Keranjang.diskonNota;
   $('#byrJatuhTempo').value = '';
   pesan('#pesanBayar', '');
@@ -499,7 +628,10 @@ function bukaBayar() {
 /* Pecahan rupiah yang beredar. Dipakai sebagai tombol tambah-cepat pada
    pembayaran tunai: kasir menekan pecahan yang diterima, bukan mengetik. */
 const PECAHAN = [500, 1000, 2000, 5000, 10000, 20000, 50000, 75000, 100000];
-const labelPecahan = (n) => n >= 1000 ? (n / 1000) + 'rb' : String(n);
+/* Ditulis penuh dengan pemisah ribuan — bukan "100rb". Angka yang tertulis
+   sama persis dengan yang tercetak di uangnya, jadi tidak perlu diterjemahkan
+   di kepala saat sedang buru-buru. */
+const labelPecahan = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(n);
 
 /* CATATAN PENTING — jangan gabungkan lagi dua fungsi di bawah ini.
    Sebelumnya seluruh daftar metode digambar ulang lewat innerHTML pada SETIAP
@@ -549,10 +681,100 @@ function gambarRingkasBayar() {
   $('#grupJatuhTempo').classList.toggle('sembunyi', !adaPiutang);
   $('#btnSelesaikan').disabled = !adaPiutang && selisih < 0;
 
+  if (!gambarJagaDiskon()) $('#btnSelesaikan').disabled = true;
+
   if (adaPiutang && !Keranjang.pelanggan) {
     pesan('#pesanBayar', 'Penjualan piutang wajib memilih pelanggan terlebih dahulu.', 'galat');
     $('#btnSelesaikan').disabled = true;
   }
+}
+
+/* ==================== PENJAGA DISKON ====================
+ * Batas `diskon_maks_persen` milik peran diukur dari TOTAL diskon (baris + nota)
+ * terhadap bruto. Di atas batas itu, nota hanya bisa lanjut setelah seorang
+ * atasan menyetujuinya lewat server.
+ *
+ * Penjagaan di sini semata demi kejelasan bagi kasir. Yang benar-benar menahan
+ * ada di server (_periksaDiskon): perangkat kasir tidak boleh jadi tempat
+ * keputusan izin, karena isi perangkat bisa diubah pemakainya.
+ *
+ * @return {boolean} boleh dilanjutkan
+ */
+function gambarJagaDiskon() {
+  const w = $('#byrJagaDiskon');
+  const persen = Keranjang.persenDiskon();
+  const maks = Number(APP_STATE.diskonMaks || 0);
+  const bulat = Math.round(persen * 100) / 100;
+
+  // Persetujuan hangus bila diskonnya dinaikkan setelah disetujui — kalau tidak,
+  // izin untuk 10% bisa dipakai untuk 60%. Server memeriksa hal yang sama.
+  const ot = APP_STATE.otorisasiDiskon;
+  if (ot && persen > ot.persen + 0.001) APP_STATE.otorisasiDiskon = null;
+
+  if (persen <= maks + 0.001) {
+    APP_STATE.otorisasiDiskon = null;         // tidak diperlukan lagi
+    w.innerHTML = '';
+    return true;
+  }
+
+  if (APP_STATE.otorisasiDiskon) {
+    w.innerHTML = `<div class="pesan sukses">Diskon ${bulat}% disetujui oleh
+      <strong>${esc(APP_STATE.otorisasiDiskon.penyetuju)}</strong>.</div>`;
+    return true;
+  }
+
+  if (!API.online) {
+    w.innerHTML = `<div class="pesan galat">Diskon ${bulat}% melebihi batas Anda (${maks}%),
+      dan persetujuan atasan tidak bisa diminta selagi jaringan mati.
+      Turunkan diskonnya, atau tunggu koneksi kembali.</div>`;
+    return false;
+  }
+
+  w.innerHTML = `<div class="pesan peringatan" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span style="flex:1;min-width:180px">Diskon ${bulat}% melebihi batas Anda (${maks}%).</span>
+      <button class="tombol kecil utama" id="btnMintaOtorisasi">Minta persetujuan</button>
+    </div>`;
+  return false;
+}
+
+function bukaOtorisasiDiskon() {
+  const t = Keranjang.total();
+  const persen = Math.round(Keranjang.persenDiskon() * 100) / 100;
+  $('#otRingkas').innerHTML = `<div class="pesan info">
+      Nota ${rp(t.bruto)} · diskon ${rp(t.diskon_item + t.diskon_nota)}
+      (<strong>${persen}%</strong>) · dibayar ${rp(t.total)}</div>`;
+  $('#otUser').value = '';
+  $('#otPin').value = '';
+  pesan('#pesanOtorisasi', '');
+  $('#tiraiOtorisasi').classList.add('tampil');
+  setTimeout(() => $('#otUser').focus(), 60);
+}
+
+async function kirimOtorisasiDiskon() {
+  const btn = $('#btnKirimOtorisasi');
+  const t = Keranjang.total();
+  const persen = Keranjang.persenDiskon();
+  btn.disabled = true;
+  pesan('#pesanOtorisasi', '');
+  try {
+    const d = await API.otorisasiDiskon({
+      username: $('#otUser').value.trim(),
+      pin: $('#otPin').value,
+      uuid: APP_STATE.uuidNota,
+      persen: persen,
+      nilai: t.diskon_item + t.diskon_nota,
+      alasan: $('#otAlasan').value.trim()
+    });
+    APP_STATE.otorisasiDiskon = { id: d.id_otorisasi, penyetuju: d.penyetuju, persen: persen };
+    $('#otPin').value = '';                    // jangan tinggalkan PIN di layar
+    $('#tiraiOtorisasi').classList.remove('tampil');
+    gambarRingkasBayar();
+  } catch (e) {
+    $('#otPin').value = '';
+    pesan('#pesanOtorisasi', e.message, 'galat');
+    $('#otPin').focus();
+  }
+  btn.disabled = false;
 }
 
 async function selesaikanTransaksi() {
@@ -560,10 +782,11 @@ async function selesaikanTransaksi() {
   btn.disabled = true;
   try {
     const t = Keranjang.total();
-    const uid = crypto.randomUUID ? crypto.randomUUID()
-              : 'X' + Date.now() + Math.random().toString(36).slice(2);
+    const uid = APP_STATE.uuidNota || (crypto.randomUUID ? crypto.randomUUID()
+              : 'X' + Date.now() + Math.random().toString(36).slice(2));
+    // Cadangan bila daftar cabang belum tersinkron: pakai kode cabang apa adanya.
     const prefix = (await DB.kvGet('cabang_list', [])).find(c => c.kode === APP_STATE.cabang)?.prefix
-                   || ('SK-' + APP_STATE.cabang);
+                   || APP_STATE.cabang;
     const noNota = await nomorNotaBerikutnya(prefix, APP_STATE.perangkat.kode);
 
     // Uang tunai yang melebihi total adalah kembalian — yang dicatat hanya sebesar nota.
@@ -586,7 +809,8 @@ async function selesaikanTransaksi() {
 
     const dok = Keranjang.dokumen({
       uuid: uid, no_nota: noNota, id_shift: APP_STATE.idShift,
-      bayar, jatuh_tempo: $('#byrJatuhTempo').value
+      bayar, jatuh_tempo: $('#byrJatuhTempo').value,
+      id_otorisasi: APP_STATE.otorisasiDiskon?.id || ''
     });
 
     // 1) Simpan lokal  2) antre kirim  3) cetak. Kasir tidak menunggu server.
@@ -602,12 +826,19 @@ async function selesaikanTransaksi() {
     gambarKeranjang();
     $('#inpCari').value = '';
     $('#inpCari').focus();
+
+    /* Urutannya penting: stok lokal dikurangi DULU, baru daftarnya digambar.
+       Kalau dibalik, kartu produk masih memperlihatkan stok sebelum penjualan —
+       barang terakhir tetap tertulis "stok 1" sampai ada yang memicu gambar ulang. */
+    try { await kurangiStokLokal(dok); }
+    catch (e) { console.warn('Stok lokal gagal dikurangi:', e.message); }
     await gambarProduk('');
 
     try { await Struk.cetak({ ...arsip, _offline: !API.online }); }
-    catch (e) { console.warn('Cetak gagal:', e.message); }
-
-    kurangiStokLokal(dok);
+    catch (e) {
+      // Dulu hanya console.warn: kasir mengira struk tercetak padahal tidak.
+      Admin.toast('Nota tersimpan, tapi gagal dicetak: ' + e.message, 'galat');
+    }
   } catch (e) {
     pesan('#pesanBayar', 'Gagal: ' + e.message, 'galat');
   } finally {
@@ -629,8 +860,8 @@ async function kurangiStokLokal(dok) {
 /* Antar pengguna ke satu kartu di layar Perangkat, lalu sorot sebentar supaya
    jelas yang mana. Lebih baik daripada menyebut nama menu di dalam pesan:
    namanya bisa berubah, dan sebagian peran tidak melihat menu yang disebut. */
-function menujuKartu(idKartu, selektorFokus) {
-  bukaLayar('pengaturan');
+function menujuKartu(idLayar, idKartu, selektorFokus) {
+  bukaLayar(idLayar);
   const kartu = document.getElementById(idKartu);
   if (!kartu) return;
   kartu.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -640,7 +871,7 @@ function menujuKartu(idKartu, selektorFokus) {
   if (selektorFokus) setTimeout(() => $(selektorFokus)?.focus(), 350);
 }
 
-function menujuBukaShift() { menujuKartu('kartuShift', '#inpKasAwal'); }
+function menujuBukaShift() { menujuKartu('shift', 'kartuShift', '#inpKasAwal'); }
 
 async function periksaShift() {
   try {
@@ -855,6 +1086,17 @@ function pasangEvent() {
   $('#inpCari').addEventListener('keydown', async e => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      /* Scanner barcode mengetik sangat cepat lalu langsung menekan Enter —
+         jauh di bawah jeda 120ms. Tanpa dua baris di bawah ini, Enter datang
+         SEBELUM daftar sempat disaring, sehingga `produkTampil` masih berisi
+         hasil pencarian sebelumnya dan yang masuk keranjang adalah produk yang
+         sama sekali lain. Jadi: batalkan jeda, saring dulu, baru ambil. */
+      clearTimeout(timerCari);
+      const kueri = e.target.value;
+      if (kueri.trim()) await gambarProduk(kueri);
+      // gambarProduk mengosongkan kolom sendiri bila barcode-nya cocok persis
+      // dan barangnya sudah masuk keranjang — tidak perlu ditambah dua kali.
+      if (!$('#inpCari').value.trim() && kueri.trim()) return;
       const p = APP_STATE.produkTampil[APP_STATE.indeksSorot];
       if (p) { await tambahKeKeranjang(p); $('#inpCari').value = ''; gambarProduk(''); }
     }
@@ -901,7 +1143,8 @@ function pasangEvent() {
   });
   $('#isiKeranjang').addEventListener('change', e => {
     if (e.target.dataset.aksi !== 'qty') return;
-    Keranjang.ubahQty(e.target.closest('.baris-item').dataset.id, Number(e.target.value));
+    // Nilai dikirim mentah — Keranjang.ubahQty yang membedakan "kosong" dari "nol".
+    Keranjang.ubahQty(e.target.closest('.baris-item').dataset.id, e.target.value);
     gambarKeranjang();
   });
   $('#btnKosongkan').addEventListener('click', () => {
@@ -996,12 +1239,24 @@ function pasangEvent() {
   });
   $('#byrDiskonNota').addEventListener('input', e => {
     Keranjang.setDiskonNota(e.target.value);
-    APP_STATE.metodeBayar[0].jumlah = Keranjang.total().total;
-    const inp = $('#byrDaftarMetode input[data-f=jumlah][data-i="0"]');
-    if (inp) inp.value = APP_STATE.metodeBayar[0].jumlah;
+    /* Jumlah uang yang diterima TIDAK ikut diubah di sini. Diskon mengubah yang
+       harus dibayar, bukan yang sudah dipegang kasir; menimpanya akan menghapus
+       angka yang barusan diketik. */
     gambarKeranjang(); gambarRingkasBayar();
   });
   $('#btnSelesaikan').addEventListener('click', selesaikanTransaksi);
+
+  /* --- persetujuan diskon --- */
+  $('#byrJagaDiskon').addEventListener('click', e => {
+    if (e.target.id === 'btnMintaOtorisasi') bukaOtorisasiDiskon();
+  });
+  $('#btnBatalOtorisasi').addEventListener('click', () => {
+    $('#otPin').value = '';
+    $('#tiraiOtorisasi').classList.remove('tampil');
+  });
+  $('#btnKirimOtorisasi').addEventListener('click', kirimOtorisasiDiskon);
+  $('#otPin').addEventListener('keydown', e => { if (e.key === 'Enter') kirimOtorisasiDiskon(); });
+  $('#otAlasan').addEventListener('keydown', e => { if (e.key === 'Enter') kirimOtorisasiDiskon(); });
 
   /* --- shift --- */
   $('#lncShift').addEventListener('click', () => { if (!APP_STATE.idShift) menujuBukaShift(); });
@@ -1107,6 +1362,21 @@ function pasangEvent() {
     if (s.tertahan >= CONFIG.PERINGATAN_OUTBOX) {
       el.textContent = '⚠ ' + s.tertahan + ' tertahan'; el.className = 'lencana merah';
     }
+    /* Nota yang DITOLAK server tidak lagi dihitung "menunggu", jadi tanpa baris
+       ini lencana kembali hijau seolah semuanya beres — padahal ada uang yang
+       tidak pernah sampai ke pembukuan. Ini harus menang atas status lain. */
+    if (s.ditolak > 0) {
+      el.textContent = '⚠ ' + s.ditolak + ' nota ditolak';
+      el.className = 'lencana merah bisa-klik';
+      el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+      el.title = 'Klik untuk melihat nota yang ditolak server';
+    } else {
+      el.removeAttribute('role'); el.removeAttribute('tabindex'); el.removeAttribute('title');
+    }
+  });
+  $('#lncSync').addEventListener('click', () => { if (Sync.status.ditolak > 0) tampilkanDitolak(); });
+  $('#lncSync').addEventListener('keydown', e => {
+    if (Sync.status.ditolak > 0 && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tampilkanDitolak(); }
   });
   document.addEventListener('koneksi:berubah', () => document.dispatchEvent(
     new CustomEvent('sync:status', { detail: Sync.status })));
@@ -1142,6 +1412,8 @@ function pasangEvent() {
   $('#lapDari').value = hariIni;
   $('#lapSampai').value = hariIni;
   $('#keuPeriode').value = hariIni.substring(0, 7);
+
+  pasangPenandaSibuk();
 
   // Coba lanjutkan sesi yang tersimpan (termasuk saat offline)
   const token = await DB.kvGet('token', null);
