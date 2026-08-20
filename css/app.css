@@ -234,7 +234,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    tinggi 34px agar nyaman ditekan di layar sentuh, dan membungkus rapi. */
 .pecahan { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
 .pecahan .cip {
-  min-width: 56px; height: 34px; padding: 0 10px;
+  min-width: 66px; height: 34px; padding: 0 11px;
   font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums;
   color: var(--teks); background: var(--panel-2);
   border: 1px solid var(--garis-tombol); border-radius: var(--radius);
@@ -422,6 +422,10 @@ label {
   display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
 }
 .tirai.tampil { display: flex; }
+/* Tirai yang muncul DI ATAS tirai lain. Persetujuan diskon dibuka dari dalam
+   layar Pembayaran yang juga sebuah tirai; tanpa ini keduanya ber-z-index sama
+   dan yang belakangan di DOM menang — dialognya tampil tapi tidak bisa diklik. */
+#tiraiOtorisasi { z-index: 120; }
 .modal {
   background: var(--panel); border-radius: var(--radius-lg); box-shadow: var(--bayang-4);
   padding: 22px; width: 100%; max-width: 480px; max-height: 90vh; overflow: auto;
@@ -496,6 +500,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .pesan.galat  { background: var(--bahaya-lembut);     color: var(--teks); border-color: rgba(207,34,46,.4); }
 .pesan.sukses { background: var(--sukses-lembut);     color: var(--teks); border-color: rgba(26,127,55,.4); }
 .pesan.info   { background: var(--utama-lembut);      color: var(--teks); border-color: rgba(9,105,218,.4); }
+.pesan.peringatan { background: var(--peringatan-lembut); color: var(--teks); border-color: rgba(154,103,0,.4); }
 
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
@@ -703,4 +708,59 @@ input.sudah-hitung {
 /* Di layar sempit menu bisa melewati tepi kanan bila tombolnya dekat pinggir */
 @media (max-width: 480px) {
   .ekspor-menu { right: auto; left: 0; }
+}
+
+/* Baris keterangan di layar Tentang. */
+.baris-tentang {
+  display: flex; justify-content: space-between; gap: 16px;
+  padding: 9px 0; border-bottom: 1px solid var(--garis-halus); font-size: 14px;
+}
+.baris-tentang:last-child { border-bottom: none; }
+.baris-tentang span { color: var(--teks-redup); }
+.baris-tentang strong { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+
+/* Layar berisi satu kartu saja (Shift, Akun saya). `.petak` akan meregangkan
+   kartu tunggal selebar layar — tombol "Buka shift" jadi mengambang sendirian
+   di ujung ruang kosong. Di sini lebarnya dibatasi supaya isinya tetap
+   berdekatan dan terbaca sebagai satu kelompok. */
+.petak-tunggal { display: grid; gap: 12px; max-width: 460px; }
+
+/* ==================== PENANDA SEDANG MEMUAT ====================
+   Keluhannya: setelah diklik tidak ada tanda apa-apa, jadi tombolnya
+   ditekan berkali-kali — dan sebagian tindakan terkirim dua kali.
+
+   Dua lapis penjagaan:
+   1. Garis tipis di puncak layar selama ADA permintaan ke server. Ia tidak
+      memblokir apa pun, hanya menjawab "sudah masuk, sedang diproses".
+   2. Tombol yang memulai permintaan dikunci sampai permintaannya selesai —
+      ini yang benar-benar mencegah klik ganda. */
+#garisMuat {
+  position: fixed; top: 0; left: 0; height: 2.5px; width: 100%;
+  z-index: 400; pointer-events: none; opacity: 0;
+  transition: opacity .18s ease;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--utama) 35%, var(--utama) 65%, transparent 100%);
+  background-size: 45% 100%; background-repeat: no-repeat;
+}
+#garisMuat.jalan { opacity: 1; animation: garisLari 1.05s ease-in-out infinite; }
+@keyframes garisLari {
+  0%   { background-position: -50% 0; }
+  100% { background-position: 150% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #garisMuat.jalan { animation: none; background: var(--utama); opacity: .85; }
+}
+
+/* Tombol yang sedang menunggu jawaban server. */
+button.sibuk { position: relative; color: transparent !important; pointer-events: none; }
+button.sibuk::after {
+  content: ''; position: absolute; inset: 0; margin: auto;
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  color: var(--teks-2); animation: putar .6s linear infinite;
+}
+button.utama.sibuk::after, button.sukses.sibuk::after, button.bahaya.sibuk::after { color: #fff; }
+@keyframes putar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  button.sibuk::after { animation-duration: 2.4s; }
 }
