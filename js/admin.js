@@ -16,7 +16,14 @@ const Admin = (() => {
 
   /* ==================== Helper tampilan ==================== */
 
+  /* Dibungkus `.gulir-x` — bukan mengandalkan `.kartu { overflow-x: auto }` yang
+     hanya hidup di bawah 760px. Sejak kolom angka dilarang patah baris, tabel
+     lebar menembus bingkai kartunya di rentang 761–±975px: garis kanan kartu
+     terlukis melintasi baris data dan kolom terakhir terpotong di luar kartu.
+     Pembungkusnya menyelesaikannya di semua lebar, tanpa memberi `.kartu`
+     konteks pemformatan baru yang bisa memotong elemen lain di dalamnya. */
   const tabel = (kolom, baris, opsi = {}) => `
+    <div class="gulir-x">
     <table>
       <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
@@ -24,7 +31,8 @@ const Admin = (() => {
       }</tr>`).join('')
         : `<tr><td colspan="${kolom.length}" style="text-align:center;color:var(--teks-redup);padding:28px">${esc(opsi.kosong || 'Belum ada data')}</td></tr>`}
       </tbody>
-    </table>`;
+    </table>
+    </div>`;
 
   const memuat = (el) => { $(el).innerHTML = '<div class="kartu">Memuat…</div>'; };
   const galat = (el, e) => { $(el).innerHTML = `<div class="pesan galat">${esc(e.message || e)}</div>`; };
@@ -444,21 +452,18 @@ const Admin = (() => {
         <label class="cek"><input type="checkbox" id="pButuhTim" ${p?.butuh_tim ? 'checked' : ''}>
           Dikerjakan tim — kasir wajib memilih petugasnya per baris</label>
 
-        <div class="baris2" style="margin-top:12px">
-          <div class="grup"><label>Minimal petugas</label>
-            <input type="number" id="pMinPetugas" min="2" step="1" value="${p?.min_petugas || 2}"></div>
-          <div class="grup"><label>Poin per satuan dasar</label>
-            <input type="number" id="pPoinSatuan" min="0" step="0.5" value="${p?.poin_satuan || 0}"></div>
+        <div class="grup" style="margin-top:12px;max-width:220px">
+          <label>Poin per satuan dasar</label>
+          <input type="number" id="pPoinSatuan" min="0" step="0.5" value="${p?.poin_satuan || 0}">
         </div>
 
-        <p class="petunjuk"><strong>Poin per satuan dasar</strong> — bukan per baris.
-          Satu lusin tempered glass adalah dua belas pemasangan, bukan satu.<br>
-          Angkanya sengaja tidak terikat harga: memasang tempered glass boleh bernilai
-          3 poin walau harganya seperempat casing yang tinggal diserahkan. Persen selalu
-          memihak barang mahal; poin bisa memihak pekerjaan berat.<br>
+        <p class="petunjuk"><strong>Poin per satuan dasar.</strong> Nilai yang diisi di
+          sini dikalikan qty dasar pada nota — 12 pcs dengan 3 poin menghasilkan 36 poin
+          untuk baris itu.<br>
           <strong>0 berarti penjualan produk ini tidak berpoin</strong> — omzetnya tetap
-          tercatat atas nama petugasnya, hanya poinnya nol. Nilai ini cuma usulan;
-          kasir boleh menaikkannya untuk pekerjaan yang luar biasa sulit.</p>
+          tercatat atas nama petugasnya, hanya poinnya nol.<br>
+          Poin dibagi ke petugas menurut bobot peran, yang diatur di menu
+          <strong>Petugas</strong>. Kasir tidak dapat mengubah angkanya.</p>
       </div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        ${!baru && bolehIzin('produk', 'hapus') ? '<button class="tombol bahaya" id="btnNonaktifProduk">Nonaktifkan</button>' : ''}
@@ -559,7 +564,7 @@ const Admin = (() => {
       harga_eceran: angka('pEceran'), harga_grosir: angka('pGrosir'),
       aktif: centang('pAktif'),
       deskripsi: nilai('pDeskripsi'), kata_kunci: nilai('pKataKunci'),
-      butuh_tim: centang('pButuhTim'), min_petugas: angka('pMinPetugas'),
+      butuh_tim: centang('pButuhTim'),
       poin_satuan: angka('pPoinSatuan'),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
       varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel')
@@ -1015,11 +1020,58 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   const LABEL_PERAN_PETUGAS = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang' };
 
+  /** Bobot peran yang sedang berlaku, dibaca dari setting master. */
+  function bobotSekarang() {
+    try {
+      const j = JSON.parse(APP_STATE.setting?.bobot_peran_klaim || '{}');
+      if (Number(j.PENJUAL) > 0 || Number(j.PEMASANG) > 0) {
+        return { PENJUAL: Number(j.PENJUAL) || 0, PEMASANG: Number(j.PEMASANG) || 0 };
+      }
+    } catch (e) { /* setting rusak — pakai bawaan */ }
+    return { PENJUAL: 60, PEMASANG: 40 };
+  }
+
+  /**
+   * Pratinjau pembagian. Dua angka bobot itu abstrak sampai orang melihat
+   * akibatnya pada satu pekerjaan nyata — dan bobot yang dipahami setengah-setengah
+   * adalah bobot yang akan diprotes belakangan.
+   */
+  function contohBobot(b) {
+    const t = Number(b.PENJUAL) + Number(b.PEMASANG);
+    if (!(t > 0)) return 'Isi salah satu bobot lebih dari 0.';
+    const p1 = Math.round(Number(b.PENJUAL) / t * 1000) / 10;
+    const poin1 = Math.round(10 * Number(b.PENJUAL) / t * 10) / 10;
+    return `Pekerjaan bernilai 10 poin dibagi berdua: penjual ${poin1} poin (${p1}%), ` +
+           `pemasang ${Math.round((10 - poin1) * 10) / 10} poin (${Math.round((100 - p1) * 10) / 10}%). ` +
+           `Omzet & laba dibagi dengan persentase yang sama.`;
+  }
+
   async function muatPetugas() {
     memuat('#isiPetugas');
     try {
       const rows = await API.daftarPetugas();
+      const b = bobotSekarang();
       $('#isiPetugas').innerHTML = `
+        <div class="kartu">
+          <h3>Bobot peran</h3>
+          <p class="petunjuk">Menentukan pembagian poin — dan pembagian omzet — antara
+             yang menjual dan yang memasang. Kasir tidak bisa mengubahnya; di layar
+             kasir ia hanya memilih orangnya, dan perannya mengikuti urutan
+             (yang pertama menjual, yang kedua memasang).</p>
+          <div class="baris2">
+            <div class="grup"><label>Penjual</label>
+              <input type="number" id="bobotPenjual" min="0" step="1" value="${b.PENJUAL}"
+                     ${bolehIzin('petugas', 'ubah') ? '' : 'disabled'}></div>
+            <div class="grup"><label>Pemasang</label>
+              <input type="number" id="bobotPemasang" min="0" step="1" value="${b.PEMASANG}"
+                     ${bolehIzin('petugas', 'ubah') ? '' : 'disabled'}></div>
+          </div>
+          <div class="pesan info" id="bobotContoh">${esc(contohBobot(b))}</div>
+          ${bolehIzin('petugas', 'ubah')
+            ? '<button class="tombol utama" id="btnSimpanBobot">Simpan bobot</button>' : ''}
+          <div id="pesanBobot"></div>
+        </div>
+
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Petugas / pramuniaga</h3><div style="flex:1"></div>
             ${bolehIzin('petugas', 'buat') ? '<button class="tombol utama" id="btnPetugasBaru">+ Petugas</button>' : ''}</div>
@@ -1406,6 +1458,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== SETTING SISTEM ==================== */
 
+  /**
+   * Setting yang sudah punya layar khususnya sendiri, jadi tidak ikut ditampilkan
+   * sebagai kolom mentah di layar Sistem.
+   */
+  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim'];
+
   const LABEL_SETTING = {
     nama_usaha: 'Nama usaha (tercetak di struk)',
     alamat_usaha: 'Alamat usaha', telepon_usaha: 'Telepon usaha',
@@ -1422,7 +1480,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatSistem() {
     memuat('#isiSistem');
     try {
-      const rows = await API.daftarSetting();
+      /* Bobot peran punya layarnya sendiri di menu Petugas — lengkap dengan
+         pratinjau pembagiannya. Membiarkannya juga muncul di sini sebagai JSON
+         mentah berarti dua tempat mengubah satu hal, dan yang terakhir menyimpan
+         menang tanpa ada yang tahu. */
+      const rows = (await API.daftarSetting())
+        .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci));
       $('#isiSistem').innerHTML = `
         <div class="kartu">
           <h3>Pengaturan sistem</h3>
@@ -1647,7 +1710,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">Dari <strong>${esc(t.cabang_asal)}</strong>, dikirim ${esc(String(t.tanggal_kirim).replace('T', ' '))}.
         Isi jumlah yang <em>benar-benar sampai</em>. Kekurangan akan dibukukan sebagai Barang Rusak/Hilang di cabang pengirim dan
         dokumen ditandai SELISIH untuk ditelusuri.</p>
-      <table>
+      <div class="gulir-x"><table>
         <thead><tr><th>Produk</th><th class="angka">Dikirim</th><th class="angka" style="width:120px">Diterima</th></tr></thead>
         <tbody>${t.item.map(i => `<tr>
           <td>${esc(i.nama_produk)}<div class="meta-kecil">${esc(i.sku)}${i.kode_varian ? ' · ' + esc(i.kode_varian) : ''}</div></td>
@@ -2456,6 +2519,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       /* --- petugas & poin --- */
+      if (t.id === 'btnSimpanBobot') {
+        const b = { PENJUAL: angka('bobotPenjual'), PEMASANG: angka('bobotPemasang') };
+        if (b.PENJUAL < 0 || b.PEMASANG < 0) {
+          return pesan('#pesanBobot', 'Bobot tidak boleh negatif.', 'galat');
+        }
+        if (b.PENJUAL + b.PEMASANG <= 0) {
+          // Kalau keduanya nol, tidak ada pembagian yang masuk akal — dan server
+          // akan diam-diam kembali ke bobot bawaan. Lebih jujur ditolak di sini.
+          return pesan('#pesanBobot', 'Salah satu bobot harus lebih dari 0.', 'galat');
+        }
+        try {
+          await API.tugas(async () => {
+            await API.simpanSetting({ setting: { bobot_peran_klaim: JSON.stringify(b) } });
+            // Bobot dipakai layar kasir untuk pratinjau, jadi perangkat ini perlu
+            // menariknya ulang supaya angkanya tidak tertinggal.
+            await Sync.tarikMaster(true);
+            await sukses('Bobot peran disimpan.', 'petugas');
+          });
+        } catch (e) { pesan('#pesanBobot', e.message, 'galat'); }
+        return;
+      }
       if (t.id === 'btnPetugasBaru')   return editorPetugas(null);
       if (d.editPetugas)               return editorPetugas(d.editPetugas);
       if (t.id === 'btnLaporanPoin')   return gambarHasilPoin();
@@ -2912,6 +2996,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          bukan ketikan beruntun. Pendengarnya WAJIB ada — tanpa ini dropdownnya
          cuma hiasan, dan saringannya baru berlaku kebetulan kalau pengguna
          sesudahnya mengetik di kolom cari. */
+      // Pratinjau bobot ikut hidup saat angkanya diketik — dua angka abstrak
+      // baru berarti setelah orang melihat akibatnya.
+      if (e.target.id === 'bobotPenjual' || e.target.id === 'bobotPemasang') {
+        const c = $('#bobotContoh');
+        if (c) c.textContent = contohBobot({ PENJUAL: angka('bobotPenjual'),
+                                             PEMASANG: angka('bobotPemasang') });
+        return;
+      }
       if (e.target.id === 'filterKategori') {
         clearTimeout(timer);
         /* Fokus dikembalikan setelah layar digambar ulang. Tanpa ini, pengguna

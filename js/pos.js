@@ -111,12 +111,12 @@ const Keranjang = (() => {
    * tempered glass akan terhitung dua kali — sekali untuk timnya, sekali lagi
    * untuk pramuniaga yang memegang notanya.
    *
-   * Bentuk anggota: { kode, peran, poin }. `poin` boleh dikosongkan SEMUA, dan
-   * server membagi poin bawaan produk menurut bobot peran. Yang tidak boleh:
-   * mengisi sebagian saja — itu ditolak, bukan ditebak.
+   * Bentuk anggota: { kode } saja — paling banyak dua orang.
    *
-   * Jumlah poin TIDAK harus 100. Porsi omzet & laba diturunkan server dari
-   * perbandingan poinnya, jadi satu angka mengerjakan dua hal sekaligus.
+   * Tidak ada peran maupun poin di sini, dan itu disengaja. Peran ditentukan
+   * urutan (yang pertama menjual, yang kedua memasang) dan poin berasal dari
+   * master produk; keduanya diputuskan server. Menyimpannya di perangkat hanya
+   * menciptakan angka kedua yang bisa berbeda dari yang tercatat.
    */
   let petugasNota = [];
 
@@ -216,7 +216,11 @@ const Keranjang = (() => {
     barisTimKurang() {
       return baris.filter(b => {
         if (!b.butuh_tim) return false;
-        const min = Math.max(2, Number(b.min_petugas) || 2);
+        /* Selalu 2 — `min_petugas` di master TIDAK lagi dibaca. Maksimumnya juga 2,
+           jadi produk lama bernilai 3 mustahil dipenuhi: kasir akan melihat "butuh 3
+           petugas" pada dialog yang cuma menyediakan dua slot, dan tombol Selesaikan
+           mati selamanya. Server sudah memaksa 2; layar harus sepakat. */
+        const min = 2;
         return (b.tim || []).length < min;
       });
     },
@@ -258,7 +262,6 @@ const Keranjang = (() => {
         // produk berubah di tengah transaksi (mis. tarik master kebetulan jalan
         // saat itu juga).
         butuh_tim: !!produk.butuh_tim,
-        min_petugas: Number(produk.min_petugas) || (produk.butuh_tim ? 2 : 0),
         poin_satuan: Number(produk.poin_satuan) || 0,
         _produk: produk, _varian: varian, _satuan: daftarSatuan, _tier: daftarTier
       };
@@ -333,9 +336,9 @@ const Keranjang = (() => {
           qty: b.qty, satuan: b.satuan, faktor: b.faktor,
           harga_satuan: b.harga_satuan, diskon: b.diskon,
           // Tim baris ikut dikirim mentah; server yang memutuskan sah atau tidak.
-          klaim: (b.tim || []).map(t => ({ kode: t.kode, peran: t.peran, poin: t.poin }))
+          klaim: (b.tim || []).map(t => ({ kode: t.kode }))
         })),
-        klaim: petugasNota.map(t => ({ kode: t.kode, peran: t.peran, poin: t.poin })),
+        klaim: petugasNota.map(t => ({ kode: t.kode })),
         bayar,
         diskon_nota: t.diskon_nota,
         ppn: t.ppn,

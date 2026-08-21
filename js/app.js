@@ -378,6 +378,7 @@ async function login(pakaiPassword = false) {
     await DB.kvSet('token', d.token);
     await DB.kvSet('sesi', d);
     await DB.kvSet('cabang_terakhir', d.cabang);
+    await laporkanKeluarPaksa();
     await mulaiSesi(d);
   } catch (e) {
     pinBuffer = ''; gambarPin();
@@ -445,14 +446,45 @@ async function mulaiSesi(d) {
   }
 }
 
+/**
+ * Turunkan seluruh nilai yang dipakai layar dari APP_STATE.setting.
+ *
+ * Dipisah supaya bisa dipanggil ULANG setiap kali master ditarik, bukan hanya
+ * saat login. Bobot peran dipakai dialog Tim untuk pratinjau pembagian; kalau ia
+ * tertinggal, layar memperlihatkan angka yang berbeda dari yang akan dicatat
+ * server — dan itu justru yang dijanjikan tidak mungkin terjadi.
+ */
+function bacaSettingKeState() {
+  const st = APP_STATE.setting || {};
+  APP_STATE.pkp = String(st.pkp) === 'true';
+  APP_STATE.tarifPpn = Number(st.tarif_ppn || 0);
+  const brs = $('#brsPpn');
+  if (brs) brs.style.display = APP_STATE.pkp ? 'flex' : 'none';
+
+  APP_STATE.klaimWajib = String(st.klaim_petugas_wajib) === 'true';
+
+  // Disaring sama ketatnya dengan server: nilai negatif atau tak berhingga
+  // membatalkan seluruh setting, bukan cuma dirinya.
+  let b = {};
+  try { b = JSON.parse(st.bobot_peran_klaim || '{}'); } catch (e) { b = {}; }
+  const bersih = {}; let jml = 0, sah = true;
+  PERAN_TIM.forEach(k => {
+    // Kunci hilang = tidak sah, sama seperti server. Dua semantik berbeda untuk
+    // satu setting berarti layar dan catatan bisa memberi angka yang berbeda.
+    if (!b || !Object.prototype.hasOwnProperty.call(b, k)) { sah = false; return; }
+    const v = Number(b[k]);
+    if (!isFinite(v) || v < 0) { sah = false; return; }
+    bersih[k] = v; jml += v;
+  });
+  APP_STATE.bobotPeran = (sah && jml > 0) ? bersih : { PENJUAL: 60, PEMASANG: 40 };
+}
+
 async function muatMaster() {
   try { await Sync.tarikMaster(); }
   catch (e) { console.warn('Master tidak dapat ditarik:', e.message); }
 
   APP_STATE.setting = await DB.kvGet('setting', {});
-  APP_STATE.pkp = String(APP_STATE.setting.pkp) === 'true';
-  APP_STATE.tarifPpn = Number(APP_STATE.setting.tarif_ppn || 0);
-  $('#brsPpn').style.display = APP_STATE.pkp ? 'flex' : 'none';
+  bacaSettingKeState();
 
   const daftarCabang = await DB.kvGet('cabang_list', []);
   const cab = daftarCabang.find(c => c.kode === APP_STATE.cabang);
@@ -460,16 +492,6 @@ async function muatMaster() {
   // Seluruh cabang aktif — dipakai layar "intip stok", termasuk cabang yang user ini
   // tidak berhak bertransaksi di sana. Yang ditampilkan hanya jumlah stok, bukan harga modal.
   APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode);
-
-  APP_STATE.klaimWajib = String(APP_STATE.setting.klaim_petugas_wajib) === 'true';
-  // Bobot peran dipakai layar kasir untuk MENGUSULKAN pembagian poin. Yang
-  // memutuskan tetap server; ini semata supaya angkanya sudah masuk akal saat
-  // dialognya terbuka, bukan nol yang harus diisi dari awal setiap kali.
-  try { APP_STATE.bobotPeran = JSON.parse(APP_STATE.setting.bobot_peran_klaim || '{}'); }
-  catch (e) { APP_STATE.bobotPeran = {}; }
-  if (!Object.keys(APP_STATE.bobotPeran).length) {
-    APP_STATE.bobotPeran = { PENJUAL: 60, PEMASANG: 40 };
-  }
 
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
@@ -598,7 +620,7 @@ async function lihatStokCabangLain(sku, paksaSegar = false) {
           : `<span class="lencana kuning">ringkasan</span> Diperbarui ${waktu ? new Date(waktu).toLocaleString(CONFIG.LOCALE) : '—'}.
              Tekan "Cek terkini" sebelum menjanjikan barang ke pelanggan.`}
       </p>
-      <table>
+      <div class="gulir-x"><table>
         <thead><tr><th>Cabang</th><th class="angka">Stok</th><th></th></tr></thead>
         <tbody>${daftar.map(c => {
           const q = peta[c] ?? 0;
@@ -609,7 +631,7 @@ async function lihatStokCabangLain(sku, paksaSegar = false) {
             <td>${q > 0 ? '<span class="lencana hijau">tersedia</span>' : '<span class="lencana">kosong</span>'}</td>
           </tr>`;
         }).join('')}</tbody>
-      </table>`,
+      </table></div>`,
       `<button class="tombol" data-tutup="1">Tutup</button>
        <button class="tombol utama" id="btnCekStokTerkini" data-sku="${esc(sku)}">Cek terkini</button>`);
   };
@@ -651,7 +673,7 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
 function gambarBarisTim(x) {
   const tim = x.tim || [];
   if (!x.butuh_tim && !tim.length) return '';
-  const min = Math.max(2, Number(x.min_petugas) || 2);
+  const min = MAKS_PETUGAS;   // butuh_tim selalu berarti berdua sejak v1.13
   if (x.butuh_tim && tim.length < min) {
     return `<br><span style="color:var(--bahaya)">butuh ${min} petugas — baru ${tim.length}</span>`;
   }
@@ -662,7 +684,7 @@ function gambarBarisTim(x) {
 function tombolTimBaris(x) {
   const tim = x.tim || [];
   if (!x.butuh_tim && !tim.length) return '';
-  const min = Math.max(2, Number(x.min_petugas) || 2);
+  const min = MAKS_PETUGAS;   // butuh_tim selalu berarti berdua sejak v1.13
   const kurang = x.butuh_tim && tim.length < min;
   return `<button data-aksi="tim" title="Petugas yang mengerjakan baris ini"${
     kurang ? ' style="color:var(--bahaya);font-weight:700"' : ''}>Tim</button>`;
@@ -716,6 +738,23 @@ function gambarKeranjang() {
  * pergi dan struknya sudah tercetak.
  */
 const PERAN_TIM = ['PENJUAL', 'PEMASANG'];
+const LABEL_PERAN = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang' };
+
+/** Paling banyak dua orang per penjualan. Cerminan MAKS_PETUGAS_KLAIM di server. */
+const MAKS_PETUGAS = 2;
+
+/**
+ * Peran ditentukan URUTAN, bukan dipilih.
+ *
+ * Cerminan `_peranUrut()` di server, dan server tetap yang memutuskan — ini hanya
+ * supaya label di layar menyebut peran yang sama dengan yang akan tercatat.
+ *
+ *   Klaim NOTA  — satu orang berarti dia yang MENJUAL.
+ *   Klaim BARIS — satu orang berarti dia yang MEMASANG.
+ *   Dua orang   — pertama PENJUAL, kedua PEMASANG.
+ */
+const peranUrut = (jumlah, jenis) =>
+  jumlah <= 1 ? [jenis === 'BARIS' ? 'PEMASANG' : 'PENJUAL'] : ['PENJUAL', 'PEMASANG'];
 
 /**
  * Petakan peran apa pun ke peran yang masih hidup.
@@ -775,7 +814,7 @@ function gambarJagaKlaim() {
     w.innerHTML = `<div class="pesan peringatan">
       Baris berikut dikerjakan tim dan belum lengkap petugasnya:
       <ul style="margin:6px 0 0 18px">${kurang.map(b => `<li>${esc(b.nama)} — butuh ${
-        Math.max(2, Number(b.min_petugas) || 2)} orang, terisi ${(b.tim || []).length}</li>`).join('')}</ul>
+        MAKS_PETUGAS} orang, terisi ${(b.tim || []).length}</li>`).join('')}</ul>
       <div style="margin-top:8px">Tutup layar ini, lalu tekan tombol <strong>Tim</strong> pada baris itu di keranjang.</div>
     </div>`;
     return false;
@@ -810,7 +849,7 @@ function bukaTim(idBaris) {
   }
 
   APP_STATE.timBaris = idBaris;
-  const min = nota ? 1 : (b.butuh_tim ? Math.max(2, Number(b.min_petugas) || 2) : 1);
+  const min = nota ? 1 : (b.butuh_tim ? MAKS_PETUGAS : 1);
   // Poin bawaan pekerjaan ini — dari `poin_satuan` produk dikali qty dasarnya.
   const poinDasar = nota ? Keranjang.poinSisaNota() : Keranjang.poinBaris(idBaris);
   APP_STATE._timPoinDasar = poinDasar;
@@ -818,19 +857,17 @@ function bukaTim(idBaris) {
   $('#timJudul').textContent = nota ? 'Pramuniaga nota ini' : 'Tim — ' + b.nama;
   $('#timRingkas').innerHTML = `<p class="petunjuk">${nota
     ? 'Berlaku untuk seluruh baris yang <strong>tidak</strong> punya timnya sendiri.'
-    : `Baris ini dikerjakan minimal <strong>${min}</strong> orang, dan karena itu keluar dari klaim nota.`}
-    Pekerjaan ini bernilai <strong>${poinDasar} poin</strong> menurut master produk.
-    Angka itu boleh diubah — jumlahnya tidak harus sama, dan tidak harus 100.
-    Pembagian omzet mengikuti perbandingan poinnya.</p>
+    : 'Baris ini dikerjakan berdua, dan karena itu keluar dari klaim nota.'}
+    Pekerjaan ini bernilai <strong>${poinDasar} poin</strong> menurut master produk,
+    dan dibagi menurut bobot peran. Keduanya diatur back office — di sini tinggal
+    memilih orangnya.</p>
     ${poinDasar > 0 ? '' : `<div class="pesan info">Produk ini belum diberi nilai poin,
-      jadi usulannya 0. Atur di menu Produk → tab <strong>Tim &amp; poin</strong>
-      kalau pekerjaan ini memang layak dihitung.</div>`}`;
+      jadi penjualannya tidak berpoin. Omzetnya tetap tercatat atas nama petugas.</div>`}`;
 
   const awal = nota ? Keranjang.petugasNota : Keranjang.timBaris(idBaris);
   APP_STATE._timDraft = awal.length
-    ? awal.map(x => ({ kode: x.kode, peran: x.peran || '', poin: x.poin ?? '' }))
-    : Array.from({ length: min }, () => ({ kode: '', peran: '', poin: '' }));
-  if (!awal.length) _usulkanPoin();
+    ? awal.slice(0, MAKS_PETUGAS).map(x => ({ kode: x.kode }))
+    : Array.from({ length: min }, () => ({ kode: '' }));
 
   pesan('#pesanTim', '');
   gambarAnggotaTim();
@@ -838,82 +875,119 @@ function bukaTim(idBaris) {
   setTimeout(() => $$('#timDaftar select[data-f=kode]')[0]?.focus(), 60);
 }
 
-/**
- * Usulkan pembagian poin menurut bobot peran, dibulatkan supaya jumlahnya persis
- * sama dengan nilai pekerjaannya. Hanya dipakai untuk MENGISI AWAL — begitu kasir
- * mengetik sendiri, angkanya tidak pernah ditimpa lagi.
- */
-function _usulkanPoin() {
-  const d = APP_STATE._timDraft || [];
-  const total = Number(APP_STATE._timPoinDasar) || 0;
-  const bobot = d.map(a => {
-    const p = APP_STATE.daftarPetugas.find(x => x.kode === a.kode);
-    const peran = normalPeran(a.peran || (p && p.peran_utama));
-    return Math.max(Number((APP_STATE.bobotPeran || {})[peran]) || 0, 0.0001);
-  });
-  const jml = bobot.reduce((x, y) => x + y, 0);
-  let sisa = total;
-  d.forEach((a, i) => {
-    if (i === d.length - 1) { a.poin = Math.round(sisa * 100) / 100; return; }
-    const v = Math.round(total * bobot[i] / jml * 100) / 100;
-    a.poin = v; sisa = Math.round((sisa - v) * 100) / 100;
-  });
-}
-
-/* Dipisah dari gambarTotalPoin dengan alasan yang sama seperti gambarMetode():
-   menggambar ulang seluruh daftar pada setiap ketukan akan menghancurkan elemen
-   input yang sedang diketik, dan ketikan terasa macet. */
 function gambarAnggotaTim() {
   const d = APP_STATE._timDraft || [];
+  const peran = peranSlot(d);
+
   $('#timDaftar').innerHTML = d.map((a, i) => `
-    <div class="baris-anak" style="display:grid;grid-template-columns:1fr auto 92px auto;gap:6px;align-items:end;margin-bottom:8px">
-      <div><label>Petugas ${i + 1}</label>
+    <div class="baris-anak" style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:8px">
+      <div><label>${esc(peran[i])}</label>
         <select data-i="${i}" data-f="kode">
           <option value="">— pilih —</option>
           ${APP_STATE.daftarPetugas.map(p =>
             `<option value="${esc(p.kode)}" ${p.kode === a.kode ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
         </select></div>
-      <div><label>Peran</label>
-        <select data-i="${i}" data-f="peran">
-          ${PERAN_TIM.map(x => `<option value="${x}" ${a.peran === x ? 'selected' : ''}>${
-            x.charAt(0) + x.slice(1).toLowerCase()}</option>`).join('')}
-        </select></div>
-      <div><label>Poin</label>
-        <input type="number" inputmode="decimal" min="0" step="0.5"
-               data-i="${i}" data-f="poin" value="${a.poin ?? ''}" placeholder="auto"></div>
       ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : '<span></span>'}
     </div>`).join('');
-  gambarTotalPoin();
+
+  // Tombol tambah hanya berarti selama masih ada tempat.
+  const btn = $('#btnTambahAnggota');
+  if (btn) {
+    btn.style.display = d.length >= MAKS_PETUGAS ? 'none' : '';
+    btn.textContent = '+ Tambah pemasang';
+  }
+  gambarBagianTim();
 }
 
-function gambarTotalPoin() {
-  const d = APP_STATE._timDraft || [];
-  const terisi = d.filter(a => String(a.poin).trim() !== '');
-  const elP = $('#timTotalPoin');
-  const elR = $('#timPorsi');
+/**
+ * Pratinjau pembagian — hanya untuk DIBACA.
+ *
+ * Kasir tidak mengetik satu angka pun di sini: poin berasal dari master produk,
+ * dan pembagiannya dari bobot peran yang diatur back office. Yang ditampilkan
+ * adalah hasil aturan itu, dihitung dengan cara yang sama seperti di server,
+ * supaya kasir bisa melihat akibat pilihannya sebelum menyimpan.
+ */
+/**
+ * Label peran tiap slot, menurut POSISI slotnya.
+ *
+ * '#NOTA' adalah string, dan string apa pun truthy — jadi pemeriksaannya harus
+ * `=== '#NOTA'`, bukan sekadar `? :`.
+ *
+ * Label ini boleh mengikuti posisi HANYA karena `rapikanDraft()` menjamin tidak
+ * pernah ada slot kosong di atas slot terisi. Tanpa jaminan itu, satu orang di
+ * slot kedua akan tampil "Pemasang" padahal server mencatatnya "Penjual" — yang
+ * dikirim sudah disaring `filter(a => a.kode)`, dan peran ditetapkan menurut
+ * urutan daftar tersaring itu.
+ */
+function peranSlot(d) {
+  const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
+  const peran = peranUrut(d.length, jenis);
+  return d.map((a, i) => LABEL_PERAN[peran[i]] || 'Petugas');
+}
 
-  if (!terisi.length) {
-    elP.textContent = 'otomatis';
-    elP.style.color = 'var(--teks-redup)';
-    elR.textContent = 'menurut bobot peran';
+/**
+ * Naikkan slot yang terisi ke atas, sisakan yang kosong di bawah.
+ *
+ * Kasir bisa saja memilih slot kedua lebih dulu. Kalau dibiarkan, posisi slot
+ * berhenti mencerminkan urutan yang dikirim ke server, dan label perannya jadi
+ * berbohong. Merapikannya seketika lebih baik daripada menolak saat menyimpan:
+ * kasir melihat sendiri namanya berpindah ke baris Penjual.
+ *
+ * @return true bila susunannya berubah (perlu digambar ulang).
+ */
+function rapikanDraft(d) {
+  const isi = d.filter(a => a.kode);
+  const kosong = d.filter(a => !a.kode);
+  const baru = isi.concat(kosong);
+  const berubah = baru.some((a, i) => a !== d[i]);
+  if (berubah) d.splice(0, d.length, ...baru);
+  return berubah;
+}
+
+function gambarBagianTim() {
+  const d = APP_STATE._timDraft || [];
+  const total = Number(APP_STATE._timPoinDasar) || 0;
+  const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
+
+  $('#timTotalPoin').textContent = total + ' poin';
+  $('#timTotalPoin').style.color = total > 0 ? 'var(--sukses)' : 'var(--teks-redup)';
+
+  const elR = $('#timPorsi');
+  const isi = d.filter(a => a.kode);
+  if (!isi.length || isi.length !== d.length) {
+    elR.textContent = 'pilih petugasnya dulu';
     return;
   }
 
-  const total = Math.round(terisi.reduce((a, x) => a + (Number(x.poin) || 0), 0) * 100) / 100;
-  const adaNegatif = terisi.some(x => Number(x.poin) < 0);
-  elP.textContent = total + ' poin';
-  elP.style.color = adaNegatif ? 'var(--bahaya)' : 'var(--sukses)';
+  /* Dihitung dari yang TERISI — persis daftar yang dikirim ke server. */
+  const porsi = porsiDariBobot(peranUrut(isi.length, jenis));
+  const bagi = bagiRata(total, porsi);
+  elR.textContent = isi.map((a, i) =>
+    `${namaPetugas(a.kode).split(' ')[0]} ${bagi[i]} poin (${porsi[i]}%)`).join(' · ');
+}
 
-  /* Pembagian omzet diperlihatkan hidup — inilah yang membuat "poin juga membagi
-     uang" terasa nyata, bukan cuma tertulis di petunjuk. */
-  if (terisi.length !== d.length) { elR.textContent = 'isi poin semuanya dulu'; return; }
-  if (total <= 0) { elR.textContent = 'menurut bobot peran'; return; }
-  // Sebelum namanya dipilih, angka pembagian tidak berarti apa-apa — menampilkan
-  // "? 50%" cuma memancing orang menafsirkannya sebagai nama yang gagal dimuat.
-  if (d.some(a => !a.kode)) { elR.textContent = 'pilih petugasnya dulu'; return; }
-  elR.textContent = d.map(a =>
-    namaPetugas(a.kode).split(' ')[0] + ' ' +
-    (Math.round(Number(a.poin) / total * 1000) / 10) + '%').join(' · ');
+/** Bobot peran -> porsi persen yang selalu berjumlah 100. Cerminan server. */
+function porsiDariBobot(peran) {
+  const w = peran.map(p => Math.max(Number((APP_STATE.bobotPeran || {})[p]) || 0, 0.0001));
+  const jml = w.reduce((a, b) => a + b, 0);
+  const out = []; let kumpul = 0;
+  for (let i = 0; i < peran.length; i++) {
+    if (i === peran.length - 1) { out.push(Math.round((100 - kumpul) * 100) / 100); break; }
+    const v = Math.round(w[i] / jml * 10000) / 100;
+    out.push(v); kumpul += v;
+  }
+  return out;
+}
+
+/** Bagi sebuah nilai menurut porsi; bagian terakhir mengambil sisanya. */
+function bagiRata(total, porsi) {
+  const out = []; let sisa = Math.round(total * 100) / 100;
+  for (let i = 0; i < porsi.length; i++) {
+    if (i === porsi.length - 1) { out.push(Math.round(sisa * 100) / 100); break; }
+    const v = Math.round(total * porsi[i]) / 100;
+    out.push(v); sisa = Math.round((sisa - v) * 100) / 100;
+  }
+  return out;
 }
 
 function simpanTim() {
@@ -928,29 +1002,18 @@ function simpanTim() {
     return pesan('#pesanTim', 'Ada petugas yang dipilih dua kali.', 'galat');
   }
 
-  const min = nota ? 0 : (b.butuh_tim ? Math.max(2, Number(b.min_petugas) || 2) : 0);
+  if (d.length > MAKS_PETUGAS) {
+    return pesan('#pesanTim', `Paling banyak ${MAKS_PETUGAS} petugas per penjualan.`, 'galat');
+  }
+  const min = nota ? 0 : (b.butuh_tim ? 2 : 0);
   if (d.length < min) {
-    return pesan('#pesanTim', `Baris ini butuh minimal ${min} petugas, baru terisi ${d.length}.`, 'galat');
+    return pesan('#pesanTim', `Baris ini dikerjakan berdua — pilih ${min} petugas.`, 'galat');
   }
 
-  const terisi = d.filter(a => String(a.poin).trim() !== '');
-  if (terisi.length && terisi.length !== d.length) {
-    return pesan('#pesanTim',
-      'Poin harus diisi untuk semua petugas, atau dikosongkan semuanya.', 'galat');
-  }
-  if (terisi.some(x => Number(x.poin) < 0)) {
-    return pesan('#pesanTim', 'Poin tidak boleh negatif.', 'galat');
-  }
-
-  /* Poin kosong dikirim sebagai undefined, BUKAN 0. Server membedakan keduanya:
-     "tidak diisi" berarti bagikan poin bawaan produk menurut bobot peran,
-     sedangkan "diisi nol" adalah keputusan sadar bahwa pekerjaan ini tidak
-     berpoin — dan keputusan itu harus bertahan. */
-  const bersih = d.map(a => ({
-    kode: a.kode,
-    peran: normalPeran(a.peran || (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama),
-    poin: String(a.poin).trim() === '' ? undefined : Number(a.poin)
-  }));
+  /* Yang dikirim hanya SIAPA. Peran ditentukan urutan, dan poin berasal dari
+     master produk — keduanya diputuskan server. Mengirimkannya dari sini hanya
+     menciptakan angka kedua yang bisa berbeda dari yang tercatat. */
+  const bersih = d.map(a => ({ kode: a.kode }));
 
   if (nota) Keranjang.setPetugasNota(bersih);
   else Keranjang.setTimBaris(APP_STATE.timBaris, bersih);
@@ -1248,6 +1311,12 @@ async function periksaShift() {
   } catch (e) {
     APP_STATE.idShift = await DB.kvGet('id_shift', null);   // offline: pakai shift terakhir
   }
+  /* Ringkasan shift yang sudah ditutup dibuang begitu ada shift AKTIF lagi.
+     Kalau tidak, shift yang ditutup dari perangkat lain akan membuat layar ini
+     menayangkan kembali selisih kas KEMARIN dengan judul "Shift terakhir
+     ditutup" — angka yang justru dipakai saat serah terima laci. */
+  if (APP_STATE.idShift) APP_STATE.hasilTutupShift = null;
+
   const lnc = $('#lncShift');
   const perluBuka = !APP_STATE.idShift;
   lnc.textContent = perluBuka ? 'Shift belum dibuka' : 'Shift aktif';
@@ -1260,9 +1329,69 @@ async function periksaShift() {
   } else {
     lnc.removeAttribute('role'); lnc.removeAttribute('tabindex'); lnc.removeAttribute('title');
   }
-  $('#infoShift').innerHTML = APP_STATE.idShift
+  const h = APP_STATE.hasilTutupShift;
+  $('#infoShift').innerHTML = (APP_STATE.idShift
     ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`
-    : '<span class="lencana kuning">Belum dibuka</span>';
+    : '<span class="lencana kuning">Belum dibuka</span>')
+    /* Ringkasan shift yang baru ditutup bertahan di layar sampai shift berikutnya
+       dibuka — ini angka yang dipakai saat serah terima laci, dan ia tidak boleh
+       hilang hanya karena notifikasinya sudah lewat. */
+    + (!APP_STATE.idShift && h ? `
+      <div class="pesan ${Math.abs(h.selisih) < 1 ? 'sukses' : 'galat'}" style="margin-top:12px">
+        <strong>Shift terakhir ditutup</strong><br>
+        Kas sistem ${rp(h.kas_sistem)} · fisik ${rp(h.kas_fisik)}<br>
+        <strong>Selisih ${rp(h.selisih)}</strong><br>
+        ${h.jumlah_nota} nota · omzet ${rp(h.total_penjualan)}
+      </div>` : '');
+}
+
+/**
+ * Antrikan satu kejadian keluar-tanpa-tutup-shift.
+ *
+ * ANTREAN, bukan satu slot. Perangkat bisa offline berhari-hari, dan dua
+ * kejadian sebelum sempat dilaporkan berarti yang pertama lenyap tanpa jejak —
+ * padahal justru jejak itulah gunanya.
+ *
+ * `kunci` dibuat di sini dan ikut terkirim: kalau jawaban server hilang di
+ * tengah jalan, catatannya tertahan dan dikirim lagi di login berikutnya. Tanpa
+ * kunci, satu kejadian bisa tercatat dua kali di log_audit — sheet yang justru
+ * tidak boleh dipalsukan.
+ */
+async function antrikanKeluarPaksa(extra) {
+  const antre = await DB.kvGet('keluar_paksa', []);
+  const daftar = Array.isArray(antre) ? antre : (antre && antre.id_shift ? [antre] : []);
+  daftar.push(Object.assign({
+    kunci: 'KP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+    id_shift: APP_STATE.idShift,
+    /* APP_STATE.user, BUKAN APP_STATE.sesi — yang kedua tidak pernah ada, jadi
+       pelakunya selalu tercatat kosong dan kolom id_user audit terisi oleh orang
+       yang login BERIKUTNYA. Catatannya justru menuduh orang lain. */
+    id_user: APP_STATE.user?.id || '',
+    cabang: APP_STATE.cabang || '',
+    waktu: new Date().toISOString()
+  }, extra || {}));
+  await DB.kvSet('keluar_paksa', daftar.slice(-20));
+}
+
+/**
+ * Laporkan keluar-paksa yang tertunda, lalu hapus yang berhasil.
+ *
+ * Dipanggil setelah login BERHASIL — kesempatan pertama perangkat ini punya sesi
+ * yang sah lagi. Kegagalan diabaikan dengan sengaja: yang gagal tetap mengantre
+ * untuk login berikutnya, dan yang jelas tidak boleh terjadi adalah kasir gagal
+ * masuk gara-gara laporan ini.
+ */
+async function laporkanKeluarPaksa() {
+  const antre = await DB.kvGet('keluar_paksa', []);
+  const daftar = Array.isArray(antre) ? antre : (antre && antre.id_shift ? [antre] : []);
+  if (!daftar.length) return;
+  const sisa = [];
+  for (const c of daftar) {
+    if (!c || !c.id_shift) continue;
+    try { await API.catatKeluarPaksa(c); }
+    catch (e) { sisa.push(c); console.warn('Laporan keluar paksa ditunda:', e.message); }
+  }
+  await DB.kvSet('keluar_paksa', sisa);
 }
 
 /* ==================== LAPORAN ==================== */
@@ -1285,14 +1414,14 @@ async function tampilkanLaporan() {
         <div class="kartu statistik"><div class="label">Diskon</div><div class="nilai">${rp(r.diskon)}</div></div>
       </div>
       <div class="kartu"><h3>Per metode bayar</h3>
-        <table><tr><th>Metode</th><th class="angka">Jumlah</th><th class="angka">Biaya MDR</th></tr>
-        ${d.per_metode.map(m => `<tr><td>${esc(m.metode.toUpperCase())}</td><td class="angka">${rp(m.jumlah)}</td><td class="angka">${rp(m.mdr)}</td></tr>`).join('')}</table></div>
+        <div class="gulir-x"><table><tr><th>Metode</th><th class="angka">Jumlah</th><th class="angka">Biaya MDR</th></tr>
+        ${d.per_metode.map(m => `<tr><td>${esc(m.metode.toUpperCase())}</td><td class="angka">${rp(m.jumlah)}</td><td class="angka">${rp(m.mdr)}</td></tr>`).join('')}</table></div></div>
       <div class="kartu"><h3>Per cabang</h3>
-        <table><tr><th>Cabang</th><th class="angka">Nota</th><th class="angka">Total</th>${d.per_cabang[0]?.laba_kotor !== undefined ? '<th class="angka">Laba kotor</th>' : ''}</tr>
-        ${d.per_cabang.map(c => `<tr><td>${esc(c.cabang)}</td><td class="angka">${c.nota}</td><td class="angka">${rp(c.total)}</td>${c.laba_kotor !== undefined ? `<td class="angka">${rp(c.laba_kotor)}</td>` : ''}</tr>`).join('')}</table></div>
+        <div class="gulir-x"><table><tr><th>Cabang</th><th class="angka">Nota</th><th class="angka">Total</th>${d.per_cabang[0]?.laba_kotor !== undefined ? '<th class="angka">Laba kotor</th>' : ''}</tr>
+        ${d.per_cabang.map(c => `<tr><td>${esc(c.cabang)}</td><td class="angka">${c.nota}</td><td class="angka">${rp(c.total)}</td>${c.laba_kotor !== undefined ? `<td class="angka">${rp(c.laba_kotor)}</td>` : ''}</tr>`).join('')}</table></div></div>
       <div class="kartu"><h3>Produk terlaris</h3>
-        <table><tr><th>SKU</th><th>Nama</th><th class="angka">Qty</th><th class="angka">Omzet</th>${d.produk_teratas[0]?.margin_persen !== undefined ? '<th class="angka">Margin</th>' : ''}</tr>
-        ${d.produk_teratas.slice(0, 25).map(p => `<tr><td>${esc(p.sku)}</td><td>${esc(p.nama)}</td><td class="angka">${p.qty}</td><td class="angka">${rp(p.omzet)}</td>${p.margin_persen !== undefined ? `<td class="angka">${p.margin_persen}%</td>` : ''}</tr>`).join('')}</table></div>`;
+        <div class="gulir-x"><table><tr><th>SKU</th><th>Nama</th><th class="angka">Qty</th><th class="angka">Omzet</th>${d.produk_teratas[0]?.margin_persen !== undefined ? '<th class="angka">Margin</th>' : ''}</tr>
+        ${d.produk_teratas.slice(0, 25).map(p => `<tr><td>${esc(p.sku)}</td><td>${esc(p.nama)}</td><td class="angka">${p.qty}</td><td class="angka">${rp(p.omzet)}</td>${p.margin_persen !== undefined ? `<td class="angka">${p.margin_persen}%</td>` : ''}</tr>`).join('')}</table></div></div>`;
   } catch (e) {
     w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
   }
@@ -1316,7 +1445,7 @@ async function tampilkanLabaRugi() {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const d = await API.labaRugi(par);
     const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
-    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><table>
+    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
       ${brs('(−) Retur Penjualan', -d.retur_penjualan)}
@@ -1330,7 +1459,7 @@ async function tampilkanLabaRugi() {
       ${brs('(+) Pendapatan Lain', d.pendapatan_lain)}
       ${brs('(−) Beban Lain', -d.beban_lain)}
       ${brs('LABA BERSIH (' + d.margin_bersih_persen + '%)', d.laba_bersih, 'tebal pisah')}
-      </table></div>`;
+      </table></div></div>`;
   } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
@@ -1340,9 +1469,9 @@ async function tampilkanNeraca() {
   try {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const d = await API.neraca(par);
-    const tabel = (judul, arr, total) => `<div class="kartu"><h3>${judul}</h3><table>
+    const tabel = (judul, arr, total) => `<div class="kartu"><h3>${judul}</h3><div class="gulir-x"><table>
       ${arr.map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
-      <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div>`;
+      <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div></div>`;
     w.innerHTML = tombolUnduh('neraca', par) + `
       <div class="pesan ${d.seimbang ? 'sukses' : 'galat'}">
         ${d.seimbang ? '✓ Neraca seimbang' : '✗ Neraca TIDAK seimbang — selisih ' + rp(d.selisih)}
@@ -1358,10 +1487,10 @@ async function tampilkanUji() {
   try {
     const d = await API.ujiKebenaran({ periode: $('#keuPeriode').value });
     w.innerHTML = `<div class="kartu"><h3>Uji kebenaran pembukuan — ${esc(d.periode)}</h3>
-      <table><tr><th>Pemeriksaan</th><th>Nilai</th><th>Hasil</th></tr>
+      <div class="gulir-x"><table><tr><th>Pemeriksaan</th><th>Nilai</th><th>Hasil</th></tr>
       ${d.hasil.map(h => `<tr><td>${esc(h.uji)}</td><td>${esc(h.nilai)}</td>
         <td class="${h.lulus ? 'uji-lulus' : 'uji-gagal'}">${h.lulus ? 'LULUS' : 'GAGAL'}</td></tr>`).join('')}
-      </table></div>`;
+      </table></div></div>`;
   } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
@@ -1369,13 +1498,13 @@ async function gambarRiwayat() {
   const semua = await DB.all('penjualan');
   const hariIni = tanggalLokal();
   const rows = semua.filter(n => n.tanggal === hariIni).sort((a, b) => b.jam.localeCompare(a.jam));
-  $('#isiRiwayat').innerHTML = rows.length ? `<table>
+  $('#isiRiwayat').innerHTML = rows.length ? `<div class="gulir-x"><table>
     <tr><th>No Nota</th><th>Jam</th><th class="angka">Total</th><th>Sinkron</th><th></th></tr>
     ${rows.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
       <td class="angka">${rp(n.total)}</td>
       <td><span class="lencana ${n.status_sync === 'SYNCED' ? 'hijau' : 'kuning'}">${n.status_sync === 'SYNCED' ? 'terkirim' : 'menunggu'}</span></td>
       <td><button class="tombol" data-cetak="${esc(n.uuid)}" style="padding:5px 10px;font-size:13px">Cetak ulang</button></td>
-    </tr>`).join('')}</table>` : '<p style="color:var(--teks-redup)">Belum ada nota hari ini.</p>';
+    </tr>`).join('')}</table></div>` : '<p style="color:var(--teks-redup)">Belum ada nota hari ini.</p>';
 }
 
 async function perbaruiInfoData() {
@@ -1436,7 +1565,40 @@ function pasangEvent() {
     }
   });
 
+  /**
+   * Keluar tidak boleh meninggalkan shift yang masih terbuka.
+   *
+   * Shift adalah pertanggungjawaban uang laci: kas awal, penerimaan tunai, dan
+   * hitungan fisik saat serah terima. Kasir yang keluar tanpa menutupnya
+   * meninggalkan laci yang tidak pernah dicocokkan, dan shift itu akan
+   * menggantung di laporan tanpa ada yang merasa bertanggung jawab.
+   *
+   * Tapi menutup shift butuh server. Blokir mutlak berarti kasir yang internetnya
+   * mati tidak bisa pulang tanpa menghapus data browser — dan itu ikut membuang
+   * nota yang belum terkirim. Jadi: online ditolak tanpa pengecualian, offline
+   * diberi jalan keluar yang TERCATAT.
+   */
   $('#btnKeluar').addEventListener('click', async () => {
+    if (APP_STATE.idShift) {
+      if (API.online) {
+        bukaLayar('shift');
+        // Admin.toast, bukan toast: `toast` hanya hidup di dalam IIFE admin.js.
+        // Memanggilnya telanjang di sini melempar ReferenceError, dan penolakannya
+        // jadi tidak pernah terlihat — kasir cuma melihat layar melompat.
+        Admin.toast('Tutup shift dulu sebelum keluar — laci ini belum dicocokkan.', 'galat');
+        return;
+      }
+      const ya = confirm(
+        'Sedang offline, jadi shift tidak bisa ditutup sekarang.\n\n' +
+        'Kalau Anda tetap keluar, shift ini menggantung tanpa hitungan kas — dan ' +
+        'kejadiannya akan tercatat atas nama Anda begitu perangkat tersambung lagi.\n\n' +
+        'Tetap keluar?');
+      if (!ya) return;
+      // Disimpan sekarang, dilaporkan saat login berikutnya — sesi yang sedang
+      // berjalan sudah tidak punya jalan ke server.
+      await antrikanKeluarPaksa({ sebab: 'OFFLINE' });
+    }
+
     const tertahan = await DB.outboxJumlah();
     if (tertahan > 0 && !confirm(`Masih ada ${tertahan} nota belum terkirim. Nota tetap tersimpan di perangkat ini. Tetap keluar?`)) return;
     try { await API.logout(); } catch (e) {}
@@ -1521,7 +1683,9 @@ function pasangEvent() {
   });
   $('#btnSimpanTim').addEventListener('click', simpanTim);
   $('#btnTambahAnggota').addEventListener('click', () => {
-    (APP_STATE._timDraft = APP_STATE._timDraft || []).push({ kode: '', peran: '', poin: '' });
+    const d = (APP_STATE._timDraft = APP_STATE._timDraft || []);
+    if (d.length >= MAKS_PETUGAS) return;
+    d.push({ kode: '' });
     gambarAnggotaTim();
   });
   $('#timDaftar').addEventListener('click', e => {
@@ -1530,31 +1694,16 @@ function pasangEvent() {
     APP_STATE._timDraft.splice(Number(b.dataset.i), 1);
     gambarAnggotaTim();
   });
-  /* 'input' untuk kolom poin (tiap ketukan hanya memperbarui ringkasannya, daftarnya
-     tidak digambar ulang), 'change' untuk dropdown yang memang mengubah susunan. */
-  $('#timDaftar').addEventListener('input', e => {
-    const f = e.target.dataset.f;
-    if (f !== 'poin') return;
-    const a = APP_STATE._timDraft[Number(e.target.dataset.i)];
-    a.poin = e.target.value;
-    a._manual = true;              // sekali diketik, usulan tidak pernah menimpanya
-    gambarTotalPoin();
-  });
+  /* Tidak ada lagi kolom yang bisa diketik di sini — hanya siapa orangnya.
+     Poin datang dari master produk, pembagiannya dari bobot peran, dan keduanya
+     milik back office. Yang tersisa untuk kasir adalah keputusan yang memang
+     hanya dia yang tahu: siapa yang mengerjakan. */
   $('#timDaftar').addEventListener('change', e => {
-    const f = e.target.dataset.f, i = Number(e.target.dataset.i);
-    if (f !== 'kode' && f !== 'peran') return;
-    const a = APP_STATE._timDraft[i];
-    a[f] = e.target.value;
-    // Peran mengikuti peran utama petugas begitu namanya dipilih — kecuali kasir
-    // sudah mengubahnya sendiri.
-    if (f === 'kode' && !a._peranManual) {
-      a.peran = normalPeran((APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama);
-    }
-    if (f === 'peran') a._peranManual = true;
-    // Perannya menentukan bobot, jadi usulan poin ikut dihitung ulang — kecuali
-    // untuk baris yang poinnya sudah diketik sendiri.
-    if (!APP_STATE._timDraft.some(x => x._manual)) _usulkanPoin();
-    gambarAnggotaTim();
+    if (e.target.dataset.f !== 'kode') return;
+    const d = APP_STATE._timDraft;
+    d[Number(e.target.dataset.i)].kode = e.target.value;
+    if (rapikanDraft(d)) gambarAnggotaTim();
+    else gambarBagianTim();
   });
 
   /* --- keranjang --- */
@@ -1714,13 +1863,22 @@ function pasangEvent() {
     try {
       const d = await API.tutupShift({ id_shift: APP_STATE.idShift,
         kas_fisik: Number($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
-      $('#tsHasil').innerHTML = `<div class="pesan ${Math.abs(d.selisih) < 1 ? 'sukses' : 'galat'}">
-        Kas sistem ${rp(d.kas_sistem)} · fisik ${rp(d.kas_fisik)}<br>
-        <strong>Selisih ${rp(d.selisih)}</strong><br>
-        ${d.jumlah_nota} nota · omzet ${rp(d.total_penjualan)}</div>`;
       APP_STATE.idShift = null;
       await DB.kvSet('id_shift', null);
+      /* Hasilnya dipindah ke layar Shift, lalu modalnya ditutup.
+         Membiarkan modal terbuka setelah berhasil membuat orang mengira prosesnya
+         belum selesai — dan menutupnya begitu saja akan membuang angka selisih,
+         justru angka yang paling perlu dibaca saat serah terima laci. */
+      APP_STATE.hasilTutupShift = d;
+      $('#tsHasil').innerHTML = '';
+      $('#tsKasFisik').value = 0;
+      $('#tsCatatan').value = '';
+      $('#tiraiTutupShift').classList.remove('tampil');
       await periksaShift();
+      Admin.toast(Math.abs(d.selisih) < 1
+        ? 'Shift ditutup, kas cocok.'
+        : `Shift ditutup — selisih ${rp(d.selisih)}.`,
+        Math.abs(d.selisih) < 1 ? 'sukses' : 'galat');
     } catch (e) { $('#tsHasil').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
   });
 
@@ -1749,8 +1907,17 @@ function pasangEvent() {
      setelah petugas disimpan di back office. Tanpa penyegaran ini, nama yang baru
      ditambahkan tidak muncul di layar kasir sampai aplikasinya dimuat ulang. */
   document.addEventListener('master:diperbarui', async () => {
-    try { APP_STATE.daftarPetugas = await DB.all('petugas'); }
-    catch (e) { return; }
+    /* Setting ikut disegarkan, bukan cuma daftar petugas.
+       Sebelumnya APP_STATE.setting hanya ditulis saat login, jadi bobot peran
+       yang baru disimpan MEMANTUL kembali ke angka lama di layar admin — dan yang
+       lebih berbahaya, pratinjau poin di dialog Tim memakai bobot lama sepanjang
+       sesi sementara server mencatat bobot baru. Dua angka yang bertentangan,
+       persis yang dijanjikan tidak mungkin terjadi. */
+    try {
+      APP_STATE.setting = await DB.kvGet('setting', {});
+      bacaSettingKeState();
+      APP_STATE.daftarPetugas = await DB.all('petugas');
+    } catch (e) { return; }
     gambarPilihanPetugas();
   });
 
@@ -1817,7 +1984,18 @@ function pasangEvent() {
   });
   document.addEventListener('koneksi:berubah', () => document.dispatchEvent(
     new CustomEvent('sync:status', { detail: Sync.status })));
-  document.addEventListener('sesi:berakhir', () => {
+  document.addEventListener('sesi:berakhir', async () => {
+    /* Tokennya HARUS dihapus sebelum reload. Tanpa itu `mulai()` memulihkan token
+       yang sudah mati, aplikasi terbuka kembali dengan sesi hantu — dan sejak
+       tombol Keluar dijaga shift, kasir terkurung: tidak bisa keluar, dan tidak
+       bisa menutup shift karena setiap panggilan server ditolak.
+
+       Shift yang menggantung tetap dicatat, dengan alasan yang sama seperti
+       keluar-paksa saat offline: pertanggungjawaban lacinya tidak boleh lenyap
+       hanya karena sesinya kedaluwarsa. */
+    try { if (APP_STATE.idShift) await antrikanKeluarPaksa({ sebab: 'SESI_BERAKHIR' }); }
+    catch (e) { console.warn('Catatan shift menggantung gagal disimpan:', e.message); }
+    try { await DB.kvSet('token', null); } catch (e) {}
     alert('Sesi berakhir. Silakan login ulang. Nota yang belum terkirim tetap aman di perangkat ini.');
     location.reload();
   });

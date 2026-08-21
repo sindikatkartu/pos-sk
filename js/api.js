@@ -106,6 +106,7 @@ const API = (() => {
     ping:            ()  => panggil('ping'),
     login:           (d) => panggil('login', d),
     logout:          ()  => panggil('logout'),
+    catatKeluarPaksa:(d) => panggil('catat_keluar_paksa', d),
     gantiPin:        (d) => panggil('ganti_pin', d),
 
     tarikMaster:     (d) => panggil('tarik_master', d, { timeout: 60000 }),
