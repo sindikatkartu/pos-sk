@@ -112,10 +112,14 @@
           <input type="text" id="inpCari" placeholder="Scan barcode / ketik nama, SKU, tipe HP…  (F2)" autocomplete="off">
         </div>
         <div class="baris-alat-kasir">
+          <!-- Saringan kategori. Nilainya kosong = semua, jadi kasir selalu punya
+               jalan kembali tanpa memuat ulang. Diisi dari IndexedDB, bukan server,
+               supaya tetap hidup saat internet mati. -->
+          <select id="kasirKategori" style="width:auto;max-width:180px"
+                  title="Saring menurut kategori"><option value="">Semua kategori</option></select>
           <select id="selLevel" style="width:auto">
             <option value="eceran">Harga Eceran</option>
             <option value="grosir">Harga Grosir</option>
-            <option value="reseller">Harga Reseller</option>
           </select>
           <select id="selPelanggan" style="width:auto;max-width:220px"></select>
           <!-- Siapa yang melayani. Berlaku untuk seluruh baris nota, KECUALI baris

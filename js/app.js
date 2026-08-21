@@ -13,7 +13,7 @@ const APP_STATE = {
   // Daftar frontliner yang boleh mengklaim penjualan di cabang ini. Diisi dari
   // IndexedDB saat master dimuat, jadi tetap ada walau internet mati.
   daftarPetugas: [], klaimWajib: false, timBaris: null,
-  bobotPeran: { PENJUAL: 60, PEMASANG: 30, PEMBANTU: 10 },
+  bobotPeran: { PENJUAL: 60, PEMASANG: 40 },
   // uuid nota disiapkan saat layar bayar dibuka, bukan saat disimpan: persetujuan
   // diskon menempel pada uuid, jadi nomornya harus sudah ada sebelum diminta.
   uuidNota: null, otorisasiDiskon: null
@@ -154,10 +154,30 @@ function pasangPenandaSibuk() {
     terkunci.clear();
   };
 
+  /* Penandanya tidak dipadamkan seketika saat penghitung menyentuh nol.
+     Satu tindakan sering berupa RANTAI beberapa permintaan — simpan, lalu tarik
+     master, lalu muat ulang layar. Di antara dua permintaan penghitungnya sempat
+     nol sesaat, dan tanpa jeda ini penandanya berkedip lalu tombolnya terbuka
+     kembali di tengah operasi yang belum selesai. Kedipan itu yang terbaca
+     sebagai "loading-nya berhenti, seperti tidak ada kejadian".
+
+     Jedanya pendek — cukup menutup celah antar permintaan, tidak sampai membuat
+     penandanya terasa menggantung setelah pekerjaannya benar-benar selesai. */
+  const JEDA_PADAM = 220;
+  let padamNanti = null;
+
   document.addEventListener('api:sibuk', (e) => {
-    const ada = e.detail.jumlah > 0;
-    if (garis) garis.classList.toggle('jalan', ada);
-    if (!ada) lepas();
+    if (e.detail.jumlah > 0) {
+      clearTimeout(padamNanti); padamNanti = null;
+      if (garis) garis.classList.add('jalan');
+      return;
+    }
+    clearTimeout(padamNanti);
+    padamNanti = setTimeout(() => {
+      padamNanti = null;
+      if (garis) garis.classList.remove('jalan');
+      lepas();
+    }, JEDA_PADAM);
   });
 
   /* Dibaca sebagai angka dengan tegas. Kalau nilainya bukan angka — API
@@ -448,12 +468,15 @@ async function muatMaster() {
   try { APP_STATE.bobotPeran = JSON.parse(APP_STATE.setting.bobot_peran_klaim || '{}'); }
   catch (e) { APP_STATE.bobotPeran = {}; }
   if (!Object.keys(APP_STATE.bobotPeran).length) {
-    APP_STATE.bobotPeran = { PENJUAL: 60, PEMASANG: 30, PEMBANTU: 10 };
+    APP_STATE.bobotPeran = { PENJUAL: 60, PEMASANG: 40 };
   }
 
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
-    pel.map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.level_harga)})</option>`).join('');
+    // Labelnya ikut dinormalkan supaya tidak bertentangan dengan kolom level di
+    // sebelahnya: memilih pelanggan lama membuat #selLevel berbunyi "Grosir",
+    // dan label yang tetap berbunyi "(reseller)" hanya membingungkan kasir.
+    pel.map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(Harga.normalLevel(p.level_harga))})</option>`).join('');
 
   /* Daftar petugas. Store `petugas` baru ada sejak DB_VERSI 3; perangkat yang
      belum sempat memutakhirkan skema lokalnya tidak boleh gagal memuat kasir
@@ -470,18 +493,44 @@ async function muatMaster() {
 }
 
 /* ==================== PRODUK ==================== */
+/**
+ * Isi dropdown kategori di layar kasir dari katalog lokal.
+ *
+ * Digambar ulang hanya bila daftarnya benar-benar berubah — kalau tidak, pilihan
+ * yang sedang aktif akan tereset setiap kali kasir mengetik satu huruf.
+ */
+function isiKategoriKasir(produk) {
+  const el = $('#kasirKategori');
+  if (!el) return;
+  const daftar = [...new Set(produk.map(p => (p.kategori || '').trim()).filter(Boolean))].sort();
+  const sidik = daftar.join('|');
+  if (el.dataset.sidik === sidik) return;
+  el.dataset.sidik = sidik;
+  const dipilih = el.value;
+  el.innerHTML = '<option value="">Semua kategori</option>' +
+    daftar.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+  if (daftar.includes(dipilih)) el.value = dipilih;
+}
+
 async function gambarProduk(kueri) {
-  const semua = await DB.all('produk');
+  const semuaProduk = await DB.all('produk');
   const stok = await DB.all('stok');
   const petaStok = Object.fromEntries(stok.map(s => [s.key, s.qty]));
   const q = (kueri || '').toLowerCase().trim();
+
+  isiKategoriKasir(semuaProduk);
+  const kat = $('#kasirKategori')?.value || '';
+  const semua = kat ? semuaProduk.filter(p => (p.kategori || '') === kat) : semuaProduk;
 
   let hasil;
   if (!q) {
     hasil = semua.slice(0, 60);
   } else {
-    // Barcode persis selalu menang — inilah yang membuat scanner terasa instan.
-    const persis = semua.filter(p => String(p.barcode) === q);
+    /* Barcode persis selalu menang — inilah yang membuat scanner terasa instan.
+       Sengaja dicari di SELURUH katalog, bukan cuma kategori yang sedang dipilih:
+       saringan kategori adalah alat bantu melihat, dan tidak boleh membuat barang
+       yang barcode-nya sudah discan jadi tidak ketemu. */
+    const persis = semuaProduk.filter(p => String(p.barcode) === q);
     if (persis.length === 1) { tambahKeKeranjang(persis[0]); $('#inpCari').value = ''; return gambarProduk(''); }
     hasil = semua.filter(p => p._cari.includes(q) || String(p.barcode).includes(q)).slice(0, 60);
   }
@@ -666,7 +715,23 @@ function gambarKeranjang() {
  * kasir baru tahu notanya ditolak beberapa menit kemudian — saat pelanggannya sudah
  * pergi dan struknya sudah tercetak.
  */
-const PERAN_TIM = ['PENJUAL', 'PEMASANG', 'PEMBANTU'];
+const PERAN_TIM = ['PENJUAL', 'PEMASANG'];
+
+/**
+ * Petakan peran apa pun ke peran yang masih hidup.
+ *
+ * Master petugas bisa saja masih berisi PEMBANTU — selama belum dimigrasi, atau
+ * selama perangkat ini belum menarik master baru. Tanpa pemetaan ini bobotnya
+ * `undefined`, usulan poinnya jatuh ke 0, dan karena 0 terkirim sebagai angka
+ * yang EKSPLISIT server menghormatinya: porsi omzet orang itu jadi 0%.
+ *
+ * PEMBANTU dilebur ke PEMASANG, sama seperti migrasinya di server — bukan ke
+ * PENJUAL, supaya keduanya tidak saling bertentangan.
+ */
+const normalPeran = (p) => {
+  const v = String(p || '').toUpperCase();
+  return (v === 'PEMASANG' || v === 'PEMBANTU') ? 'PEMASANG' : 'PENJUAL';
+};
 
 const namaPetugas = (kode) =>
   (APP_STATE.daftarPetugas.find(p => p.kode === kode) || {}).nama || kode;
@@ -783,7 +848,7 @@ function _usulkanPoin() {
   const total = Number(APP_STATE._timPoinDasar) || 0;
   const bobot = d.map(a => {
     const p = APP_STATE.daftarPetugas.find(x => x.kode === a.kode);
-    const peran = a.peran || (p && p.peran_utama) || 'PENJUAL';
+    const peran = normalPeran(a.peran || (p && p.peran_utama));
     return Math.max(Number((APP_STATE.bobotPeran || {})[peran]) || 0, 0.0001);
   });
   const jml = bobot.reduce((x, y) => x + y, 0);
@@ -883,7 +948,7 @@ function simpanTim() {
      berpoin — dan keputusan itu harus bertahan. */
   const bersih = d.map(a => ({
     kode: a.kode,
-    peran: a.peran || (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama || 'PENJUAL',
+    peran: normalPeran(a.peran || (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama),
     poin: String(a.poin).trim() === '' ? undefined : Number(a.poin)
   }));
 
@@ -1385,6 +1450,9 @@ function pasangEvent() {
     clearTimeout(timerCari);
     timerCari = setTimeout(() => gambarProduk(e.target.value), 120);
   });
+  // Kategori digambar seketika, tanpa jeda: ini pilihan yang ditekan sekali,
+  // bukan ketikan yang datang beruntun.
+  $('#kasirKategori').addEventListener('change', () => gambarProduk($('#inpCari').value));
   $('#inpCari').addEventListener('keydown', async e => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1429,6 +1497,9 @@ function pasangEvent() {
   $('#selPelanggan').addEventListener('change', async e => {
     const p = e.target.value ? await DB.get('pelanggan', e.target.value) : null;
     Keranjang.setPelanggan(p);
+    // Keranjang.level sudah dinormalkan; menyetel <select> dengan nilai mentah
+    // ('reseller' dari pelanggan lama) menghasilkan selectedIndex -1 — kotaknya
+    // tampak KOSONG dan kasir tidak tahu harga mana yang sedang dipakai.
     if (p) $('#selLevel').value = Keranjang.level;
     gambarKeranjang(); gambarProduk($('#inpCari').value);
   });
@@ -1477,7 +1548,7 @@ function pasangEvent() {
     // Peran mengikuti peran utama petugas begitu namanya dipilih — kecuali kasir
     // sudah mengubahnya sendiri.
     if (f === 'kode' && !a._peranManual) {
-      a.peran = (APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama || 'PENJUAL';
+      a.peran = normalPeran((APP_STATE.daftarPetugas.find(p => p.kode === a.kode) || {}).peran_utama);
     }
     if (f === 'peran') a._peranManual = true;
     // Perannya menentukan bobot, jadi usulan poin ikut dihitung ulang — kecuali

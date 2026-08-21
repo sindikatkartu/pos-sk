@@ -61,6 +61,27 @@ const API = (() => {
     }
   }
 
+  /**
+   * Hitung SELURUH operasi sebagai sibuk, bukan cuma lama permintaannya.
+   *
+   * `panggil()` berhenti menghitung begitu jawaban server tiba. Padahal sebagian
+   * pekerjaan yang paling lama justru terjadi SESUDAH itu — menulis seluruh
+   * katalog ke IndexedDB, atau menyusun ulang tabel ribuan baris. Selama fase itu
+   * layar tampak diam tanpa sebab, dan orang menekan tombolnya lagi.
+   *
+   * Sama pentingnya untuk rantai beberapa permintaan berurutan: tanpa pembungkus
+   * ini penghitungnya sempat menyentuh nol di antara dua permintaan, penandanya
+   * padam, dan tombolnya terbuka kembali di tengah operasi yang belum selesai.
+   *
+   * Penurunannya di `finally` — kalau tidak, satu galat membuat aplikasi terkunci
+   * "sibuk" selamanya, dan itu jauh lebih buruk daripada masalah yang diobati.
+   */
+  async function tugas(fn) {
+    _sibuk++; _kabar();
+    try { return await fn(); }
+    finally { _sibuk--; _kabar(); }
+  }
+
   /** Coba ulang dengan jeda menaik — dipakai sinkronisasi latar belakang. */
   async function ulang(fn, kali = 3) {
     let terakhir;
@@ -80,6 +101,7 @@ const API = (() => {
     get sibuk()  { return _sibuk; },
     setToken(t) { _token = t; },
     getToken()  { return _token; },
+    tugas,
 
     ping:            ()  => panggil('ping'),
     login:           (d) => panggil('login', d),

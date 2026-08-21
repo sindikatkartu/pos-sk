@@ -41,10 +41,22 @@ const Admin = (() => {
   const centang = (id) => !!$('#' + id)?.checked;
 
   /** Bilang "berhasil" lalu muat ulang layar yang sedang aktif. */
+  /**
+   * Konfirmasi DULU, baru muat ulang layarnya.
+   *
+   * Urutan sebaliknya pernah dipakai, dan hasilnya menyesatkan: dokumennya sudah
+   * tersimpan begitu server menjawab, tapi notifikasinya tertahan sampai seluruh
+   * layar selesai dimuat ulang — beberapa detik pada katalog besar. Selama itu
+   * orang mengira simpanannya gagal, lalu menekan tombolnya sekali lagi.
+   *
+   * Muat ulangnya tetap ditunggu (pemanggilnya berhak tahu kapan selesai), dan
+   * tetap terhitung sibuk, jadi penandanya berjalan sampai layarnya benar-benar
+   * segar.
+   */
   async function sukses(pesanTeks, layar) {
     tutupModal();
-    if (layar) await muat(layar);
     if (pesanTeks) toast(pesanTeks);
+    if (layar) await muat(layar);
   }
 
   function toast(teks, jenis = 'sukses') {
@@ -258,12 +270,48 @@ const Admin = (() => {
     }
   }
 
+  /**
+   * Level harga yang masih hidup — satu sumber untuk SELURUH layar back office.
+   *
+   * Sebelumnya daftar ini ditulis ulang di tiga tempat, dan saat `reseller`
+   * dihapus dua di antaranya tertinggal: dropdown tier harga dan form pelanggan
+   * masih menawarkannya. Tidak ada galat — hanya level yang sudah tidak dikenal
+   * mesin harga, lalu diam-diam jatuh ke grosir.
+   */
+  const LEVEL_HARGA = ['eceran', 'grosir'];
+
+  /**
+   * Petakan nilai lama ke pilihan yang masih ada SEBELUM <select> digambar.
+   *
+   * Tanpa ini, baris yang nilainya sudah dihapus membuat browser memilih opsi
+   * PERTAMA tanpa suara — dan begitu formnya disimpan, nilai lamanya tertimpa
+   * nilai yang tidak pernah dipilih siapa pun. Untuk level harga arahnya selalu
+   * merugikan: reseller (termurah) jadi eceran (termahal).
+   */
+  const normalLevelWeb = (l) => {
+    const v = String(l || '').toLowerCase();
+    return (v === 'grosir' || v === 'reseller') ? 'grosir' : 'eceran';
+  };
+
+  /** Pasangannya untuk peran petugas. PEMBANTU dilebur ke PEMASANG, seperti migrasinya. */
+  const normalPeranWeb = (p) => {
+    const v = String(p || '').toUpperCase();
+    if (v === 'PEMASANG' || v === 'PEMBANTU') return 'PEMASANG';
+    return 'PENJUAL';
+  };
+
   /* ==================== PRODUK ==================== */
 
-  async function muatProduk(kueri = '') {
+  /** Isi dropdown kategori. Nilai kosong = semua, supaya selalu ada jalan kembali. */
+  const opsiKategori = (daftar, terpilih) =>
+    `<option value="">Semua kategori</option>` +
+    (daftar || []).map(k =>
+      `<option value="${esc(k)}" ${k === terpilih ? 'selected' : ''}>${esc(k)}</option>`).join('');
+
+  async function muatProduk(kueri = '', kategori = '') {
     memuat('#isiProduk');
     try {
-      const d = await API.daftarProduk({ cari: kueri, termasuk_nonaktif: true });
+      const d = await API.daftarProduk({ cari: kueri, kategori, termasuk_nonaktif: true });
       cacheProduk = d.produk;
       const modal = d.boleh_harga_modal;
 
@@ -271,6 +319,7 @@ const Admin = (() => {
         <div class="kartu">
           <div class="bar-alat">
             <input type="text" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueri)}" style="max-width:340px">
+            <select id="filterKategori" style="max-width:200px">${opsiKategori(d.kategori_ada, kategori)}</select>
             <span class="lencana">${d.jumlah} produk</span>
             <div style="flex:1"></div>
             ${tombolEkspor('produk')}
@@ -337,7 +386,6 @@ const Admin = (() => {
         <div class="baris3">
           <div class="grup"><label>Harga eceran *</label><input type="number" id="pEceran" value="${p?.harga_eceran || 0}"></div>
           <div class="grup"><label>Harga grosir</label><input type="number" id="pGrosir" value="${p?.harga_grosir || 0}"></div>
-          <div class="grup"><label>Harga reseller</label><input type="number" id="pReseller" value="${p?.harga_reseller || 0}"></div>
         </div>
         <label class="cek"><input type="checkbox" id="pAktif" ${p?.aktif !== false ? 'checked' : ''}> Produk aktif</label>
         ${baru ? '' : '<p class="petunjuk">Harga beli tidak bisa diubah dari sini — ia dihitung ulang otomatis setiap ada pembelian, supaya HPP dan laba tetap sahih.</p>'}
@@ -441,19 +489,25 @@ const Admin = (() => {
         <input type="number" data-f="isi" placeholder="isi" value="${s.isi || ''}">
         <input type="number" data-f="harga_eceran" placeholder="eceran" value="${s.harga_eceran || ''}">
         <input type="number" data-f="harga_grosir" placeholder="grosir" value="${s.harga_grosir || ''}">
-        <input type="number" data-f="harga_reseller" placeholder="reseller" value="${s.harga_reseller || ''}">
         ${barisHapus}
       </div>`);
   }
   function tambahBarisTier(t = {}) {
     $('#barisTier').insertAdjacentHTML('beforeend', `
       <div class="baris-anak" data-anak="tier">
+        <!-- Dibawa diam-diam melewati editor. Tanpa ini, tier yang sengaja
+             dinonaktifkan migrasi (karena bentrok, dan menunggu diputuskan
+             manusia) akan hidup kembali hanya karena seseorang membetulkan nama
+             produknya — lalu ada DUA tier grosir aktif pada qty yang sama, dan
+             harga yang berlaku ditentukan urutan baris di sheet. -->
+        <input type="hidden" data-f="aktif" value="${t.aktif === false ? 'false' : 'true'}">
         <select data-f="level_harga">
-          ${['eceran', 'grosir', 'reseller'].map(l =>
-            `<option value="${l}" ${t.level_harga === l ? 'selected' : ''}>${l}</option>`).join('')}
+          ${LEVEL_HARGA.map(l =>
+            `<option value="${l}" ${normalLevelWeb(t.level_harga) === l ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
         <input type="number" data-f="qty_min" placeholder="qty min" value="${t.qty_min || ''}">
         <input type="number" data-f="harga" placeholder="harga" value="${t.harga || ''}">
+        ${t.aktif === false ? '<span class="lencana merah" title="Dinonaktifkan migrasi karena bentrok — hapus salah satu">nonaktif</span>' : ''}
         ${barisHapus}
       </div>`);
   }
@@ -463,7 +517,7 @@ const Admin = (() => {
         <input type="text" data-f="kode_varian" placeholder="kode" value="${esc(v.kode_varian || '')}">
         <input type="text" data-f="nama_varian" placeholder="nama (Merah)" value="${esc(v.nama_varian || '')}">
         <input type="text" data-f="barcode" placeholder="barcode" value="${esc(v.barcode || '')}">
-        <input type="number" data-f="selisih_harga" placeholder="selisih" value="${v.selisih_harga || 0}">
+        <input type="number" data-f="selisih_harga" placeholder="selisih" value="${v.selisih_harga || ''}">
         ${barisHapus}
       </div>`);
   }
@@ -472,7 +526,29 @@ const Admin = (() => {
     const o = {};
     el.querySelectorAll('[data-f]').forEach(i => o[i.dataset.f] = i.value);
     return o;
-  }).filter(o => Object.values(o).some(v => String(v).trim() !== ''));
+  }).filter(o => Object.keys(o).some(
+    k => !KOLOM_OTOMATIS.includes(k) && String(o[k] ?? '').trim() !== ''));
+
+  /**
+   * Kolom yang terisi SENDIRI, jadi tidak boleh dipakai menilai apakah sebuah
+   * baris sungguhan: `level_harga` adalah <select> yang selalu punya nilai, dan
+   * `aktif` selalu 'true'/'false'. Tanpa daftar ini, baris tier yang ditambahkan
+   * lalu ditinggalkan kosong ikut tersimpan — dan `qty_min` 0 berharga 0 cocok
+   * untuk SETIAP qty, sehingga produknya tidak bisa dijual sama sekali di level
+   * itu.
+   *
+   * Yang dibuang di sini HANYA baris yang benar-benar hampa. Baris yang terisi
+   * SEBAGIAN sengaja tetap dikirim, biar server yang menolaknya dengan menyebut
+   * nomor barisnya.
+   *
+   * Bedanya bukan soal selera. Baris turunan ditulis ulang seluruhnya per SKU,
+   * jadi baris yang disaring di sini bukan cuma "tidak jadi ditambahkan" — ia
+   * TERHAPUS dari master. Menyaring baris yang belum lengkap berarti satuan
+   * "box" beserta harganya bisa lenyap dari seluruh perangkat hanya karena
+   * seseorang membetulkan nama produknya, dengan notifikasi berbunyi
+   * "Produk tersimpan."
+   */
+  const KOLOM_OTOMATIS = ['aktif', 'level_harga'];
 
   async function simpanProduk() {
     const body = {
@@ -480,7 +556,7 @@ const Admin = (() => {
       kategori: nilai('pKategori'), merek: nilai('pMerek'), tipe_hp: nilai('pTipe'),
       satuan_dasar: nilai('pSatuanDasar') || 'pcs', stok_min: angka('pStokMin'),
       harga_beli_terakhir: $('#pHargaBeli') ? angka('pHargaBeli') : 0,
-      harga_eceran: angka('pEceran'), harga_grosir: angka('pGrosir'), harga_reseller: angka('pReseller'),
+      harga_eceran: angka('pEceran'), harga_grosir: angka('pGrosir'),
       aktif: centang('pAktif'),
       deskripsi: nilai('pDeskripsi'), kata_kunci: nilai('pKataKunci'),
       butuh_tim: centang('pButuhTim'), min_petugas: angka('pMinPetugas'),
@@ -490,9 +566,14 @@ const Admin = (() => {
     };
     if (!body.sku || !body.nama) return toast('SKU dan nama wajib diisi.', 'galat');
     try {
-      await API.simpanProdukLengkap(body);
-      await Sync.tarikMaster(true);
-      await sukses('Produk tersimpan.', 'produk');
+      /* Tiga langkah, satu tugas. Tanpa pembungkus ini penghitung sibuk turun ke
+         nol dua kali di tengah jalan, dan tombol Simpan sempat terbuka kembali
+         sebelum katalognya selesai ditarik ulang. */
+      await API.tugas(async () => {
+        await API.simpanProdukLengkap(body);
+        await Sync.tarikMaster(true);
+        await sukses('Produk tersimpan.', 'produk');
+      });
     } catch (e) { toast(e.message, 'galat'); }
   }
 
@@ -500,7 +581,7 @@ const Admin = (() => {
 
   const KOLOM_IMPOR = {
     produk: 'sku, barcode, nama, kategori, merek, tipe_hp, satuan_dasar, harga_beli_terakhir, ' +
-            'harga_eceran, harga_grosir, harga_reseller, stok_min — wajib: sku, nama, harga_eceran',
+            'harga_eceran, harga_grosir, stok_min — wajib: sku, nama, harga_eceran',
     pelanggan: 'nama, telepon, alamat, level_harga, limit_kredit, termin_hari — wajib: nama',
     supplier: 'nama, kontak, telepon, alamat, termin_hari — wajib: nama',
     stok_awal: 'sku, qty, hpp — semuanya wajib'
@@ -566,7 +647,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       return;
     }
 
-    const angkaKol = ['harga_beli_terakhir', 'harga_eceran', 'harga_grosir', 'harga_reseller',
+    const angkaKol = ['harga_beli_terakhir', 'harga_eceran', 'harga_grosir',
                       'stok_min', 'limit_kredit', 'termin_hari', 'qty', 'hpp'];
     barisImpor = baris.slice(1).map(sel => {
       const o = {};
@@ -631,7 +712,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== STOK ==================== */
 
-  async function muatStok() {
+  async function muatStok(katStok = '') {
     memuat('#isiStok');
     try {
       const [stok, prod] = await Promise.all([
@@ -640,11 +721,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ]);
       const nama = Object.fromEntries(prod.produk.map(p => [p.sku, p]));
       const rows = stok.stok.map(s => ({
-        ...s, nama: nama[s.sku]?.nama || s.sku, stok_min: nama[s.sku]?.stok_min || 0
+        ...s, nama: nama[s.sku]?.nama || s.sku, stok_min: nama[s.sku]?.stok_min || 0,
+        kategori: nama[s.sku]?.kategori || ''
       })).sort((a, b) => a.qty - b.qty);
 
       const totalNilai = rows.reduce((a, r) => a + (r.nilai || 0), 0);
       const punyaNilai = rows[0]?.nilai !== undefined;
+      /* Tabelnya HARUS ikut disaring. Dropdown yang menampilkan "Casing" di atas
+         tabel berisi seluruh kategori lebih buruk daripada saringan yang tereset:
+         yang satu jujur mengaku lupa, yang satu berbohong. */
+      const tampil = katStok ? rows.filter(r => r.kategori === katStok) : rows;
 
       $('#isiStok').innerHTML = `
         <div class="petak">
@@ -656,12 +742,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <div class="bar-alat">
             <input type="text" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
+            <select id="stokKategori" style="max-width:200px">${opsiKategori(prod.kategori_ada, katStok)}</select>
             <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
             <span class="lencana hijau">HPP: FIFO</span>
             <div style="flex:1"></div>
             ${tombolEkspor('stok', { cabang: APP_STATE.cabang })}
           </div>
-          <div id="tabelStok">${tabelStok(rows, punyaNilai)}</div>
+          <div id="tabelStok">${tabelStok(tampil, punyaNilai)}</div>
         </div>`;
       $('#isiStok')._rows = rows;
       $('#isiStok')._punyaNilai = punyaNilai;
@@ -847,7 +934,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Kode', kunci: 'kode' },
             { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
             { judul: 'Telepon', kunci: 'telepon' },
-            { judul: 'Level harga', render: r => `<span class="lencana">${esc(r.level_harga)}</span>` },
+            { judul: 'Level harga', render: r => `<span class="lencana">${esc(normalLevelWeb(r.level_harga))}</span>` },
             { judul: 'Limit kredit', angka: true, render: r => rp(r.limit_kredit) },
             { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
             { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
@@ -883,8 +970,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris2">
         <div class="grup"><label>Telepon</label><input type="text" id="cTelepon" value="${esc(p?.telepon || '')}"></div>
         <div class="grup"><label>Level harga</label><select id="cLevel">
-          ${['eceran', 'grosir', 'reseller'].map(l =>
-            `<option value="${l}" ${p?.level_harga === l ? 'selected' : ''}>${l}</option>`).join('')}
+          ${LEVEL_HARGA.map(l =>
+            `<option value="${l}" ${normalLevelWeb(p?.level_harga) === l ? 'selected' : ''}>${l}</option>`).join('')}
         </select></div>
       </div>
       <div class="grup"><label>Alamat</label><input type="text" id="cAlamat" value="${esc(p?.alamat || '')}"></div>
@@ -926,7 +1013,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * Tidak ada tombol Hapus. Baris petugas adalah rujukan klaim-klaim lama; yang
    * keluar dinonaktifkan, supaya laporan poin bulan lalu tetap bisa dibaca.
    */
-  const LABEL_PERAN_PETUGAS = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang', PEMBANTU: 'Pembantu' };
+  const LABEL_PERAN_PETUGAS = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang' };
 
   async function muatPetugas() {
     memuat('#isiPetugas');
@@ -965,7 +1052,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris2">
         <div class="grup"><label>Peran utama</label><select id="ptPeran">
           ${Object.keys(LABEL_PERAN_PETUGAS).map(k =>
-            `<option value="${k}" ${(p?.peran_utama || 'PENJUAL') === k ? 'selected' : ''}>${LABEL_PERAN_PETUGAS[k]}</option>`).join('')}
+            `<option value="${k}" ${normalPeranWeb(p?.peran_utama) === k ? 'selected' : ''}>${LABEL_PERAN_PETUGAS[k]}</option>`).join('')}
         </select></div>
         <div class="grup"><label>Telepon</label><input type="text" id="ptTelepon" value="${esc(p?.telepon || '')}"></div>
       </div>
@@ -2246,7 +2333,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== ROUTER LAYAR ==================== */
 
+  /**
+   * Pintu masuk tunggal ke setiap layar back office.
+   *
+   * Seluruh isinya dibungkus API.tugas supaya penanda proses juga mencakup
+   * PENYUSUNAN TABELNYA, bukan cuma lama permintaan ke server. Pada katalog
+   * besar, menyusun ribuan baris memakan waktu yang jelas terasa — dan selama
+   * itu `panggil()` sudah selesai menghitung, jadi layar tampak membeku tanpa
+   * penjelasan. Karena semua layar lewat sini, satu pembungkus di tempat ini
+   * menutup seluruh rantai simpan → tarik master → muat ulang sekaligus.
+   */
   async function muat(layar) {
+    return API.tugas(() => _muat(layar));
+  }
+
+  async function _muat(layar) {
     if (!API.online) {
       const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian',
                       mitra: '#isiMitra', petugas: '#isiPetugas', poin: '#isiPoin',
@@ -2264,8 +2365,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     switch (layar) {
       case 'dashboard': return muatDashboard();
-      case 'produk':    return muatProduk($('#cariProduk')?.value || '');
-      case 'stok':      return muatStok();
+      case 'produk':    return muatProduk($('#cariProduk')?.value || '', $('#filterKategori')?.value || '');
+      case 'stok':      return muatStok($('#stokKategori')?.value || '');
       case 'pembelian': return muatPembelian();
       case 'mitra':     return muatMitra();
       case 'petugas':   return muatPetugas();
@@ -2805,12 +2906,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     document.addEventListener('input', (e) => {
       if (e.target.id === 'cariProduk') {
         clearTimeout(timer);
-        timer = setTimeout(() => muatProduk(e.target.value), 300);
+        timer = setTimeout(() => muatProduk(e.target.value, $('#filterKategori')?.value || ''), 300);
       }
-      if (e.target.id === 'cariStok') {
-        const q = e.target.value.toLowerCase();
+      /* Kategori dimuat seketika, tanpa jeda: ini pilihan yang ditekan sekali,
+         bukan ketikan beruntun. Pendengarnya WAJIB ada — tanpa ini dropdownnya
+         cuma hiasan, dan saringannya baru berlaku kebetulan kalau pengguna
+         sesudahnya mengetik di kolom cari. */
+      if (e.target.id === 'filterKategori') {
+        clearTimeout(timer);
+        /* Fokus dikembalikan setelah layar digambar ulang. Tanpa ini, pengguna
+           papan ketik terkunci di kategori pertama: satu ArrowDown memicu muat
+           ulang, elemen select-nya diganti yang baru, dan panah berikutnya jatuh
+           ke elemen yang sudah tidak ada. */
+        return muatProduk($('#cariProduk')?.value || '', e.target.value)
+          .then(() => $('#filterKategori')?.focus());
+      }
+      if (e.target.id === 'cariStok' || e.target.id === 'stokKategori') {
+        const q = ($('#cariStok')?.value || '').toLowerCase();
+        const kat = $('#stokKategori')?.value || '';
         const wadah = $('#isiStok');
         const rows = (wadah._rows || []).filter(r =>
+          (!kat || r.kategori === kat) &&
           (r.sku + ' ' + r.nama).toLowerCase().includes(q));
         $('#tabelStok').innerHTML = tabelStok(rows, wadah._punyaNilai);
       }

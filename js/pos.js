@@ -6,18 +6,23 @@
  * Urutan penentuan harga (yang lebih spesifik menang):
  *   1. Satuan bertingkat  (lusin/box)  -> harga satuan tersebut menurut level pelanggan
  *   2. Tier qty           (>= qty_min) -> hanya berlaku untuk satuan dasar
- *   3. Harga level dasar  (eceran / grosir / reseller)
+ *   3. Harga level dasar  (eceran / grosir)
  *   4. + selisih harga varian
  */
 const Harga = (() => {
 
   /**
-   * @param {Object} p     produk { sku, satuan, harga:{eceran,grosir,reseller} }
+   * @param {Object} p     produk { sku, satuan, harga:{eceran,grosir} }
    * @param {Object} opsi  { level, qty, satuan, varian, daftarSatuan, daftarTier }
    * @return {Object} { harga_satuan, faktor, satuan, sumber }
    */
   function hitung(p, opsi = {}) {
-    const level = opsi.level || 'eceran';
+    /* Dinormalkan SEKALI di sini, lalu dipakai jalur tier maupun jalur level
+       dasar. Sebelumnya hanya pilihLevel() yang memetakan reseller, sedangkan
+       pencarian tier tetap memakai nilai mentah — jadi pelanggan reseller lama
+       mendapat harga grosir dasar tapi kehilangan seluruh diskon qty-nya.
+       Diam, tanpa galat, dan arahnya selalu merugikan pelanggan. */
+    const level = normalLevel(opsi.level);
     const qty = Number(opsi.qty) || 1;
     const satuan = opsi.satuan || p.satuan || 'pcs';
     const daftarSatuan = opsi.daftarSatuan || [];
@@ -50,17 +55,42 @@ const Harga = (() => {
     return { harga_satuan: bulat(harga), faktor, satuan, sumber };
   }
 
-  /** Turun bertingkat bila level tertentu belum diisi: reseller -> grosir -> eceran. */
+  /**
+   * Petakan level apa pun ke level yang masih hidup.
+   *
+   * `reseller` dihapus v1.12 tapi masih ADA di data: baris `pelanggan` lama dan
+   * seluruh riwayat `penjualan.level_harga`. Ia dipetakan ke grosir — tingkat
+   * terdekat di bawahnya — bukan dibiarkan jatuh ke eceran.
+   *
+   * Bedanya besar dan senyap: dibiarkan tak dikenal, pelanggan grosir lama
+   * mendadak ditagih harga ECERAN, dan tidak ada satu pun galat yang memberi
+   * tahu. Notanya tetap tercetak dan tetap seimbang.
+   */
+  function normalLevel(l) {
+    const v = String(l || '').toLowerCase();
+    return (v === 'grosir' || v === 'reseller') ? 'grosir' : 'eceran';
+  }
+
+  /**
+   * Harga menurut level, turun bertingkat bila level itu belum diisi.
+   *
+   * `reseller` dihapus v1.12, tapi masih ADA di data: baris `pelanggan` lama dan
+   * seluruh riwayat `penjualan.level_harga` menyimpannya. Ia sengaja dipetakan ke
+   * grosir — tingkat terdekat di bawahnya — bukan dibiarkan jatuh ke eceran.
+   *
+   * Bedanya besar dan senyap: dibiarkan tak dikenal, pelanggan grosir lama
+   * mendadak ditagih harga ECERAN, dan tidak ada satu pun galat yang memberi tahu.
+   * Nota tetap tercetak, angkanya saja yang salah.
+   */
   function pilihLevel(h, level) {
     if (!h) return 0;
-    if (level === 'reseller') return Number(h.reseller || h.grosir || h.eceran || 0);
-    if (level === 'grosir')   return Number(h.grosir || h.eceran || 0);
+    if (normalLevel(level) === 'grosir') return Number(h.grosir || h.eceran || 0);
     return Number(h.eceran || 0);
   }
 
   const bulat = (n) => Math.round(Number(n) || 0);
 
-  return { hitung, pilihLevel, bulat };
+  return { hitung, pilihLevel, normalLevel, bulat };
 })();
 
 
@@ -116,7 +146,9 @@ const Keranjang = (() => {
     total,
 
     setLevel(l) {
-      level = l;
+      // Dinormalkan di pintu masuk, supaya nilai yang sudah dihapus tidak pernah
+      // sampai ke <select> di layar — di sana ia menghasilkan kotak KOSONG.
+      level = Harga.normalLevel(l);
       // Harga seluruh baris dihitung ulang mengikuti level baru
       baris = baris.map(b => this._hitungUlang(b));
     },

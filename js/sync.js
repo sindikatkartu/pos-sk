@@ -85,52 +85,60 @@ const Sync = (() => {
   /** Tarik master data bila versinya berubah di server. */
   async function tarikMaster(paksa = false) {
     if (!API.online) return { perubahan: false, offline: true };
-    const versi = await DB.kvGet('versi_master', '0');
-    const d = await API.tarikMaster({ versi, paksa });
-    if (!d.perubahan) {
+
+    /* Dibungkus API.tugas, bukan dibiarkan pada penghitung `panggil()` saja.
+       Permintaannya sendiri cepat; yang lama adalah kosongkan() + putBanyak()
+       seluruh katalog sesudahnya. Tanpa pembungkus ini penandanya padam persis
+       saat pekerjaan terberatnya baru mulai — itulah "loading berhenti, lalu
+       beberapa detik kemudian baru muncul notifikasi". */
+    return API.tugas(async () => {
+      const versi = await DB.kvGet('versi_master', '0');
+      const d = await API.tarikMaster({ versi, paksa });
+      if (!d.perubahan) {
+        await DB.kvSet('master_diperbarui', new Date().toISOString());
+        return d;
+      }
+
+      await DB.kosongkan('produk');
+      await DB.putBanyak('produk', d.produk.map(p => ({
+        ...p,
+        satuan_lain: d.satuan[p.sku] || [],
+        tier: d.tier[p.sku] || [],
+        varian: d.varian[p.sku] || [],
+        /**
+         * Indeks pencarian kasir. Sengaja menggabungkan SEMUA yang mungkin diketik orang:
+         * nama, SKU, merek, kategori, kolom tipe HP, deskripsi bebas, kata kunci alias,
+         * dan daftar kompatibilitas terstruktur.
+         *
+         * Inilah yang menyelesaikan kasus tempered glass: satu SKU yang cocok untuk puluhan
+         * tipe HP tetap ketemu apa pun tipe yang disebut pelanggan.
+         */
+        _cari: [
+          p.nama, p.sku, p.merek, p.tipe_hp, p.kategori, p.deskripsi, p.kata_kunci,
+          (p.kompatibel || []).map(k => k.merek + ' ' + k.tipe).join(' ')
+        ].filter(Boolean).join(' ').toLowerCase()
+      })));
+
+      await DB.kosongkan('pelanggan');
+      await DB.putBanyak('pelanggan', d.pelanggan);
+
+      // Server lama (belum dimigrasi) tidak mengirim `petugas` sama sekali. Menimpa
+      // daftar lokal dengan array kosong dalam keadaan itu akan menghapus pilihan
+      // petugas dari layar kasir tanpa sebab, jadi yang tidak dikirim dibiarkan.
+      if (Array.isArray(d.petugas)) {
+        await DB.kosongkan('petugas');
+        await DB.putBanyak('petugas', d.petugas);
+      }
+
+      await DB.kvSet('versi_master', d.versi);
+      await DB.kvSet('setting', d.setting);
+      await DB.kvSet('cabang_list', d.cabang);
+      await DB.kvSet('coa', d.coa);
       await DB.kvSet('master_diperbarui', new Date().toISOString());
+
+      document.dispatchEvent(new Event('master:diperbarui'));
       return d;
-    }
-
-    await DB.kosongkan('produk');
-    await DB.putBanyak('produk', d.produk.map(p => ({
-      ...p,
-      satuan_lain: d.satuan[p.sku] || [],
-      tier: d.tier[p.sku] || [],
-      varian: d.varian[p.sku] || [],
-      /**
-       * Indeks pencarian kasir. Sengaja menggabungkan SEMUA yang mungkin diketik orang:
-       * nama, SKU, merek, kategori, kolom tipe HP, deskripsi bebas, kata kunci alias,
-       * dan daftar kompatibilitas terstruktur.
-       *
-       * Inilah yang menyelesaikan kasus tempered glass: satu SKU yang cocok untuk puluhan
-       * tipe HP tetap ketemu apa pun tipe yang disebut pelanggan.
-       */
-      _cari: [
-        p.nama, p.sku, p.merek, p.tipe_hp, p.kategori, p.deskripsi, p.kata_kunci,
-        (p.kompatibel || []).map(k => k.merek + ' ' + k.tipe).join(' ')
-      ].filter(Boolean).join(' ').toLowerCase()
-    })));
-
-    await DB.kosongkan('pelanggan');
-    await DB.putBanyak('pelanggan', d.pelanggan);
-
-    // Server lama (belum dimigrasi) tidak mengirim `petugas` sama sekali. Menimpa
-    // daftar lokal dengan array kosong dalam keadaan itu akan menghapus pilihan
-    // petugas dari layar kasir tanpa sebab, jadi yang tidak dikirim dibiarkan.
-    if (Array.isArray(d.petugas)) {
-      await DB.kosongkan('petugas');
-      await DB.putBanyak('petugas', d.petugas);
-    }
-
-    await DB.kvSet('versi_master', d.versi);
-    await DB.kvSet('setting', d.setting);
-    await DB.kvSet('cabang_list', d.cabang);
-    await DB.kvSet('coa', d.coa);
-    await DB.kvSet('master_diperbarui', new Date().toISOString());
-
-    document.dispatchEvent(new Event('master:diperbarui'));
-    return d;
+    });
   }
 
   /** Tarik stok terkini (perkiraan yang dipakai saat offline). */
