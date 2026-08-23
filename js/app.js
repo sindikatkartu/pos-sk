@@ -1338,6 +1338,12 @@ async function periksaShift() {
   } else {
     lnc.removeAttribute('role'); lnc.removeAttribute('tabindex'); lnc.removeAttribute('title');
   }
+  /* Tombol yang tidak relevan pada state saat ini disembunyikan, bukan cuma
+     diblokir saat diklik — supaya kasir tidak perlu menebak tombol mana yang
+     "beneran aktif" saat keduanya sama-sama terlihat bisa dipencet. */
+  $('#grupKasAwal').classList.toggle('sembunyi', !perluBuka);
+  $('#btnBukaShift').classList.toggle('sembunyi', !perluBuka);
+  $('#btnTutupShift').classList.toggle('sembunyi', perluBuka);
   const h = APP_STATE.hasilTutupShift;
   $('#infoShift').innerHTML = (APP_STATE.idShift
     ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`

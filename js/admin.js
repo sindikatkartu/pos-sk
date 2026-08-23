@@ -1968,6 +1968,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat">
             <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
             <div style="flex:1"></div>
+            ${bolehIzin('penjualan', 'ubah') && APP_STATE.flag.void_transaksi
+              ? '<button class="tombol bahaya" id="btnVoidNota">Void nota</button>' : ''}
             <button class="tombol utama" id="btnReturBaru">+ Retur baru</button>
           </div>
           <p class="petunjuk"><strong>Retur berbeda dengan Void.</strong> Void dipakai bila transaksinya memang salah — seluruh nota
@@ -1990,6 +1992,28 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], rows, { kosong: 'Belum ada retur' })}
         </div>`;
     } catch (e) { galat('#isiRetur', e); }
+  }
+
+  /**
+   * Void memakai pencarian nota yang sama persis dengan Retur (API.cariNota) —
+   * server sudah hanya mengembalikan nota berstatus AKTIF, jadi hasil pencarian
+   * di sini tidak akan pernah menawarkan nota yang sudah dibatalkan sebelumnya.
+   */
+  function formVoid() {
+    bukaModal('Void nota', `
+      <p class="petunjuk">Void membalik <strong>seluruh</strong> nota seolah tidak pernah terjadi — stok kembali ke
+        lapisan asal, jurnal dibalik penuh, dan piutang terkait ikut dibatalkan. Klaim petugas pada nota ini juga
+        ditandai dibatalkan. Tindakan ini tidak bisa diurungkan; pakai hanya bila transaksinya memang salah, bukan
+        untuk barang yang dikembalikan pelanggan (pakai Retur untuk itu).</p>
+      <div class="grup">
+        <label>Cari nota (nomor nota atau nama pelanggan)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="voidCari" placeholder="mis. SK01-A3F/2608/00042">
+          <button class="tombol utama" id="btnCariNotaVoid" style="flex:0 0 auto">Cari</button>
+        </div>
+      </div>
+      <div id="hasilCariNotaVoid"></div>`,
+      '<button class="tombol" data-tutup="1">Tutup</button>');
   }
 
   function formRetur() {
@@ -2966,6 +2990,46 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.pilihNota) {
         const nota = ($('#hasilCariNota')._rows || []).find(x => x.uuid === d.pilihNota);
         if (nota) gambarFormRetur(nota);
+        return;
+      }
+
+      /* --- void --- */
+      if (t.id === 'btnVoidNota') return formVoid();
+      if (t.id === 'btnCariNotaVoid') {
+        const q = nilai('voidCari');
+        if (!q) return;
+        $('#hasilCariNotaVoid').innerHTML = '<div class="pesan info">Mencari…</div>';
+        try {
+          const rows = await API.cariNota({ cari: q, cabang: APP_STATE.cabang });
+          if (!rows.length) {
+            $('#hasilCariNotaVoid').innerHTML = '<div class="pesan galat">Nota tidak ditemukan di cabang ini.</div>';
+            return;
+          }
+          $('#hasilCariNotaVoid').innerHTML = `<div style="max-height:200px;overflow:auto">${tabel([
+            { judul: 'No nota', kunci: 'no_nota' },
+            { judul: 'Tanggal', render: r => `${esc(r.tanggal)} ${esc(r.jam)}` },
+            { judul: 'Total', angka: true, render: r => rp(r.total) },
+            { judul: '', render: r => `<button class="tombol kecil bahaya" data-void-nota="${esc(r.uuid)}">Void</button>` }
+          ], rows)}</div>`;
+          $('#hasilCariNotaVoid')._rows = rows;
+        } catch (x) {
+          $('#hasilCariNotaVoid').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
+        }
+        return;
+      }
+      if (d.voidNota) {
+        const nota = ($('#hasilCariNotaVoid')._rows || []).find(x => x.uuid === d.voidNota);
+        if (!nota) return;
+        if (!confirm(`Void nota ${nota.no_nota} senilai ${rp(nota.total)}?\n\nSeluruh nota akan dibalik — stok, jurnal, dan piutang terkait. Tindakan ini tidak bisa diurungkan.`)) return;
+        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
+        if (!alasan || alasan.trim().length < 5) return;
+        try {
+          await API.voidPenjualan({ uuid: nota.uuid, alasan, cabang: APP_STATE.cabang });
+          await Sync.tarikStok();
+          await sukses('Nota ' + nota.no_nota + ' dibatalkan (void).', 'retur');
+        } catch (x) {
+          toast(x.message, 'galat');
+        }
         return;
       }
 
