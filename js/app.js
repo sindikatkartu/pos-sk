@@ -64,6 +64,11 @@ const MENU = [
   { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'] },
   { id: 'riwayat',    label: 'Riwayat',    grup: 'Penjualan',  izin: ['penjualan', 'lihat'] },
   { id: 'shift',      label: 'Shift',      grup: 'Penjualan',  izin: ['shift', 'lihat'] },
+  // Kas: digantung pada `kas.buat`, bukan `.lihat`. Layar ini gunanya MENCATAT uang
+  // laci yang keluar/masuk di luar penjualan — ongkos kirim, beli galon, setoran ke
+  // bank. Tanpa layar ini `kas_sistem` di tutup shift tidak pernah cocok dengan uang
+  // fisik, dan selisihnya dibukukan sebagai beban/pendapatan yang tidak pernah ada.
+  { id: 'kas',        label: 'Kas',        grup: 'Penjualan',  izin: ['kas', 'buat'] },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
   { id: 'retur',      label: 'Retur',      grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
@@ -252,6 +257,11 @@ const IKON = {
   keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
   // Label diskon: tanda persen dalam kotak — dibedakan dari ikon laporan lain
   shift     : '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M2.5 10.5h19"/><path d="M6.5 14.5h3"/>',
+  // Kas: lembar uang dengan panah keluar-masuk. Sengaja BUKAN dompet (itu milik
+  // Keuangan) dan BUKAN mesin kasir (itu milik Kasir) — di ukuran 18px ketiganya
+  // gampang tertukar, padahal artinya beda: ini uang laci yang bergerak di luar
+  // penjualan, bukan laporan dan bukan transaksi jual.
+  kas       : '<rect x="2.5" y="6.5" width="19" height="11" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 9.5v5"/><path d="M18 9.5v5"/>',
   akun      : '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
   tentang   : '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1.1"/>',
   diskon    : '<path d="M4 13.4V6a2 2 0 0 1 2-2h7.4a2 2 0 0 1 1.42.59l6 6a2 2 0 0 1 0 2.83l-7.4 7.4a2 2 0 0 1-2.83 0l-6-6A2 2 0 0 1 4 13.4Z"/><circle cx="8.6" cy="8.6" r="1.3"/><path d="m10.6 16.4 5.8-5.8"/><circle cx="11" cy="11" r="1"/><circle cx="16" cy="16" r="1"/>',
@@ -311,6 +321,7 @@ function bukaLayar(id) {
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
   if (id === 'shift') return periksaShift();
+  if (id === 'kas') return muatKas();
   if (id === 'tentang') return gambarTentang();
   if (id === 'kasir') $('#inpCari').focus();
 }
@@ -1372,6 +1383,113 @@ function gambarKeadaanShift() {
       </div>` : '');
 }
 
+/* ==================== Kas masuk / keluar ====================
+ *
+ * Uang laci yang bergerak DI LUAR penjualan: bayar ongkos kirim, beli galon,
+ * setor ke bank. `apiSimpanKas` sudah ada di server sejak lama tapi tidak punya
+ * satu pun pemanggil — jadi selama ini `kas_sistem` di tutup shift hanya
+ * menghitung kas awal + penjualan tunai. Setiap pengeluaran nyata muncul sebagai
+ * "selisih kas", lalu dibukukan otomatis jadi Beban/Pendapatan Lain-lain yang
+ * tidak pernah terjadi. Layar ini yang menutup lubang itu.
+ *
+ * TIDAK lewat outbox — sama seperti buka/tutup shift, dan atas alasan yang sama:
+ * catatan kas ikut memposting jurnal, dan jurnal tidak boleh disusun dari
+ * keadaan perangkat yang belum tentu benar. Kalau internet mati, kasir mencatat
+ * di kertas dan memasukkannya begitu tersambung — masih di shift yang sama.
+ */
+
+/** Akun mana yang masuk akal jadi lawan kas. Kas & bank dikeluarkan: itu SISI kasnya. */
+const _AKUN_KAS_SENDIRI = ['1-1100', '1-1200', '1-1210'];
+
+async function muatKas() {
+  const adaShift = !!APP_STATE.idShift;
+  $('#infoKasShift').innerHTML = adaShift
+    ? `Dicatat ke shift <code>${esc(APP_STATE.idShift)}</code>.`
+    : '<span class="lencana kuning">Shift belum dibuka</span> — buka shift dulu di menu Shift. ' +
+      'Kas tanpa shift tidak akan ikut terhitung saat tutup laci.';
+  $('#btnSimpanKas').disabled = !adaShift;
+
+  /* Daftar akun diambil dari COA yang SUDAH tersinkron ke perangkat, bukan
+     daftar mati di kode: begitu pemilik menambah akun beban baru, akun itu
+     langsung muncul di sini — dan daftarnya tetap ada saat internet mati. */
+  const coa = await DB.kvGet('coa', []);
+  const pilihan = (coa || [])
+    .filter(c => _AKUN_KAS_SENDIRI.indexOf(String(c.kode_akun)) === -1)
+    .filter(c => ['Beban', 'HPP', 'Aset', 'Kewajiban', 'Pendapatan Lain', 'Pendapatan'].indexOf(String(c.tipe)) > -1)
+    .map(c => `<option value="${esc(c.kode_akun)}">${esc(c.kode_akun)} — ${esc(c.nama_akun)}</option>`);
+  $('#kasAkun').innerHTML = pilihan.length
+    ? pilihan.join('')
+    : '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
+
+  await gambarDaftarKas();
+}
+
+async function gambarDaftarKas() {
+  if (!APP_STATE.idShift) {
+    $('#ringkasKas').textContent = '';
+    $('#daftarKas').innerHTML = '<p class="petunjuk">Belum ada shift aktif.</p>';
+    return;
+  }
+  try {
+    const d = await API.daftarKas({ cabang: APP_STATE.cabang, id_shift: APP_STATE.idShift });
+    $('#ringkasKas').innerHTML =
+      `Masuk ${rp(d.masuk)} · Keluar ${rp(d.keluar)} · <strong>Bersih ${rp(d.bersih)}</strong>`;
+    $('#daftarKas').innerHTML = d.kas.length
+      ? '<div class="gulir-x"><table><thead><tr><th>Jam</th><th>Jenis</th><th>Akun</th>' +
+        '<th class="angka">Jumlah</th><th>Keterangan</th></tr></thead><tbody>' +
+        d.kas.map(k => `<tr>
+          <td>${esc(k.waktu)}</td>
+          <td><span class="lencana ${k.tipe === 'KELUAR' ? 'merah' : 'hijau'}">${esc(k.tipe)}</span></td>
+          <td>${esc(k.nama_akun)}</td>
+          <td class="angka">${rp(k.jumlah)}</td>
+          <td>${esc(k.keterangan)}</td></tr>`).join('') +
+        '</tbody></table></div>'
+      : '<p class="petunjuk">Belum ada catatan kas di shift ini.</p>';
+  } catch (e) {
+    // Offline bukan kegagalan yang perlu diteriakkan — form-nya tetap bisa dipakai
+    // begitu tersambung, dan daftar ini cuma cermin.
+    $('#ringkasKas').textContent = '';
+    $('#daftarKas').innerHTML = `<p class="petunjuk">Daftar tidak bisa dimuat: ${esc(e.message)}</p>`;
+  }
+}
+
+async function simpanKasBaru() {
+  if (!APP_STATE.idShift) return Admin.toast('Buka shift dulu sebelum mencatat kas.', 'galat');
+  const akun = $('#kasAkun').value;
+  const jumlah = Number($('#kasJumlah').value);
+  const ket = $('#kasKeterangan').value.trim();
+  if (!akun) return Admin.toast('Pilih akun lawannya dulu.', 'galat');
+  if (!(jumlah > 0)) return Admin.toast('Jumlah harus lebih dari nol.', 'galat');
+  if (!ket) return Admin.toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang keluar.', 'galat');
+
+  const b = $('#btnSimpanKas');
+  b.classList.add('sibuk');
+  b.disabled = true;
+  try {
+    await API.simpanKas({
+      cabang: APP_STATE.cabang,
+      // uuid dibuat di sini: kalau jawaban server hilang di tengah jalan dan kasir
+      // menekan Simpan lagi, server mengenalinya sebagai duplikat — bukan mencatat
+      // pengeluaran yang sama dua kali.
+      uuid: 'KAS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      id_shift: APP_STATE.idShift,
+      tipe: $('#kasTipe').value,
+      kode_akun: akun,
+      jumlah: jumlah,
+      keterangan: ket
+    });
+    $('#kasJumlah').value = '';
+    $('#kasKeterangan').value = '';
+    Admin.toast('Catatan kas tersimpan.');
+    await gambarDaftarKas();
+  } catch (e) {
+    Admin.toast('Gagal menyimpan kas: ' + e.message, 'galat');
+  } finally {
+    b.classList.remove('sibuk');
+    b.disabled = false;
+  }
+}
+
 /**
  * Antrikan satu kejadian keluar-tanpa-tutup-shift.
  *
@@ -1926,6 +2044,11 @@ function pasangEvent() {
     $('#tiraiTutupShift').classList.add('tampil');
   });
   $('#btnBatalTutup').addEventListener('click', () => $('#tiraiTutupShift').classList.remove('tampil'));
+
+  /* --- kas masuk/keluar --- */
+  $('#btnSimpanKas').addEventListener('click', simpanKasBaru);
+  $('#kasJumlah').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kasKeterangan').focus(); });
+  $('#kasKeterangan').addEventListener('keydown', e => { if (e.key === 'Enter') simpanKasBaru(); });
   $('#btnKonfirmasiTutup').addEventListener('click', async () => {
     try {
       const d = await API.tutupShift({ id_shift: APP_STATE.idShift,

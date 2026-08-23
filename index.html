@@ -232,6 +232,49 @@
       </div>
     </section>
 
+    <!-- ---------- KAS MASUK / KELUAR ----------
+         Uang laci yang bergerak DI LUAR penjualan: bayar ongkos kirim, beli galon,
+         setor ke bank. Selama layar ini tidak ada, `kas_sistem` di tutup shift hanya
+         menghitung kas awal + penjualan tunai — jadi setiap pengeluaran nyata muncul
+         sebagai "selisih kas" dan dibukukan jadi Beban/Pendapatan Lain-lain yang
+         tidak pernah terjadi. Layarnya dikunci pada shift yang sedang terbuka: kas
+         tanpa id_shift tidak akan pernah ikut terhitung di tutup shift. -->
+    <section class="layar" id="layarKas">
+      <div class="petak-tunggal">
+        <div class="kartu" id="kartuKas">
+          <h3>Catat kas masuk / keluar</h3>
+          <div id="infoKasShift" class="petunjuk"></div>
+          <div class="grup">
+            <label>Jenis</label>
+            <select id="kasTipe">
+              <option value="KELUAR">Kas keluar (uang meninggalkan laci)</option>
+              <option value="MASUK">Kas masuk (uang tambahan ke laci)</option>
+            </select>
+          </div>
+          <div class="grup">
+            <label>Akun lawan</label>
+            <select id="kasAkun"></select>
+          </div>
+          <div class="grup">
+            <label>Jumlah (Rp)</label>
+            <input type="number" id="kasJumlah" inputmode="numeric" min="1" placeholder="0">
+          </div>
+          <div class="grup">
+            <label>Keterangan</label>
+            <input type="text" id="kasKeterangan" maxlength="120" placeholder="mis. ongkos kirim ke pelanggan">
+          </div>
+          <button class="tombol utama" id="btnSimpanKas">Simpan catatan kas</button>
+          <div id="pesanKas"></div>
+        </div>
+
+        <div class="kartu">
+          <h3>Tercatat di shift ini</h3>
+          <div id="ringkasKas" class="petunjuk"></div>
+          <div id="daftarKas"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- ---------- AKUN SAYA ---------- -->
     <section class="layar" id="layarAkun">
       <div class="petak-tunggal">

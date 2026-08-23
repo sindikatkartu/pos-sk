@@ -125,6 +125,7 @@ const API = (() => {
     kartuStok:       (d) => panggil('kartu_stok', d),
     simpanPembelian: (d) => panggil('simpan_pembelian', d),
     simpanKas:       (d) => panggil('simpan_kas', d),
+    daftarKas:       (d) => panggil('daftar_kas', d),
 
     laporanPenjualan:(d) => panggil('laporan_penjualan', d, { timeout: 60000 }),
     laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
