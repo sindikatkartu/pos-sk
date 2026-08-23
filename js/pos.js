@@ -321,12 +321,17 @@ const Keranjang = (() => {
     },
 
     /** Susun dokumen nota yang akan disimpan lokal & dikirim ke server. */
-    dokumen({ uuid, no_nota, id_shift, bayar, jatuh_tempo, id_otorisasi }) {
+    dokumen({ uuid, no_nota, id_shift, bayar, jatuh_tempo, id_otorisasi, garansi_hari }) {
       const t = total();
       const now = new Date();
+      const tgl = tanggalLokal(now);
+      // Dibulatkan & tidak boleh negatif — kolom preset di layar Bayar sudah
+      // menjamin ini, tapi dokumen() tidak boleh percaya begitu saja pada
+      // pemanggilnya sendiri.
+      const garansiHari = Math.max(0, Math.round(Number(garansi_hari) || 0));
       return {
         uuid, no_nota,
-        tanggal: tanggalLokal(now),
+        tanggal: tgl,
         jam: now.toTimeString().substring(0, 8),
         id_shift,
         kode_pelanggan: pelanggan ? pelanggan.kode : '',
@@ -344,6 +349,12 @@ const Keranjang = (() => {
         ppn: t.ppn,
         total: t.total,
         jatuh_tempo: jatuh_tempo || '',
+        // 0 berarti "tidak ada garansi" — garansi_sampai sengaja dikosongkan,
+        // bukan ditulis sama dengan tanggal nota, supaya struk & layar Riwayat
+        // tidak perlu menerka apakah "0 hari" berarti tidak bergaransi atau
+        // bergaransi tapi kedaluwarsa hari itu juga.
+        garansi_hari: garansiHari,
+        garansi_sampai: garansiHari > 0 ? tanggalTambahHari(tgl, garansiHari) : '',
         catatan,
         id_otorisasi: id_otorisasi || '',
         dibuat_lokal: now.toISOString()
@@ -358,6 +369,19 @@ function tanggalLokal(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/**
+ * Tambahkan N hari ke tanggal 'yyyy-MM-dd', kembalikan format yang sama.
+ *
+ * Dipakai untuk menghitung tanggal jatuh tempo garansi. Lewat komponen
+ * tahun/bulan/tanggal murni, BUKAN toISOString(), dengan alasan yang sama persis
+ * dengan tanggalLokal(): itu UTC dan bisa mundur/maju sehari tergantung jam saat
+ * nota dibuat.
+ */
+function tanggalTambahHari(tglYmd, hari) {
+  const b = String(tglYmd).split('-').map(Number);
+  return tanggalLokal(new Date(b[0], b[1] - 1, b[2] + (Math.round(Number(hari)) || 0)));
+}
+
 /** Penomoran nota yang aman offline: prefix cabang + kode perangkat + urutan lokal. */
 async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
   const d = new Date();
@@ -370,5 +394,5 @@ async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
 
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { Harga, tanggalLokal };
+  module.exports = { Harga, tanggalLokal, tanggalTambahHari };
 }

@@ -89,6 +89,10 @@ const MENU = [
   { id: 'arsip',      label: 'Arsip',      grup: 'Sistem',     izin: ['setting', 'hapus'],           admin: true, backoffice: true },
   { id: 'akun',       label: 'Akun saya',  grup: 'Sistem',     izin: null },  // selalu tampil
   { id: 'tentang',    label: 'Tentang',    grup: 'Sistem',     izin: null },  // selalu tampil
+  // Manual book & SOP — statis dalam aplikasi, jadi tetap terbaca saat internet
+  // mati. Selalu tampil karena kasir baru justru paling butuh ini di hari pertama,
+  // saat perannya belum tentu dibekali akses ke menu lain.
+  { id: 'bantuan',    label: 'Bantuan',    grup: 'Sistem',     izin: null },  // selalu tampil
   { id: 'pengaturan', label: 'Perangkat',  grup: 'Sistem',     izin: null }   // selalu tampil
 ];
 
@@ -256,6 +260,9 @@ const IKON = {
   sistem    : '<circle cx="12" cy="12" r="3"/><path d="M19.1 14.4a1.5 1.5 0 0 0 .3 1.65l.05.06a1.85 1.85 0 1 1-2.6 2.6l-.06-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.37v.17a1.85 1.85 0 1 1-3.7 0v-.09a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.06.05a1.85 1.85 0 1 1-2.6-2.6l.05-.06a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.9H4a1.85 1.85 0 1 1 0-3.7h.09a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65l-.05-.06a1.85 1.85 0 1 1 2.6-2.6l.06.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.37V4a1.85 1.85 0 1 1 3.7 0v.09a1.5 1.5 0 0 0 .9 1.37 1.5 1.5 0 0 0 1.65-.3l.06-.05a1.85 1.85 0 1 1 2.6 2.6l-.05.06a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.37.9H20a1.85 1.85 0 1 1 0 3.7h-.09a1.5 1.5 0 0 0-1.37.9Z"/>',
   audit     : '<path d="M12 21.5s7.5-3.8 7.5-9.5V5.2L12 2.5 4.5 5.2V12c0 5.7 7.5 9.5 7.5 9.5Z"/><path d="m9.2 11.8 2 2 3.6-3.6"/>',
   arsip     : '<rect x="2.5" y="3.5" width="19" height="4.6" rx="1.4"/><path d="M4.4 8.1v10.4a2 2 0 0 0 2 2h11.2a2 2 0 0 0 2-2V8.1"/><path d="M10 12.2h4"/>',
+  // Bantuan: tanda tanya dalam lingkaran — dibedakan dari Tentang (huruf "i")
+  // supaya dua menu yang berdekatan di sidebar tidak terlihat sama sekilas.
+  bantuan   : '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.4a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 1.9-2.7 3.7"/><circle cx="12" cy="17" r="1"/>',
   pengaturan: '<rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M12 18.2h.01"/>'
 };
 const svgIkon = (id) =>
@@ -1046,6 +1053,7 @@ function bukaBayar() {
   APP_STATE.otorisasiDiskon = null;
   $('#byrDiskonNota').value = Keranjang.diskonNota;
   $('#byrJatuhTempo').value = '';
+  $('#byrGaransi').value = '0';
   pesan('#pesanBayar', '');
   pesan('#byrJagaKlaim', '');
   gambarBayar();
@@ -1239,6 +1247,7 @@ async function selesaikanTransaksi() {
     const dok = Keranjang.dokumen({
       uuid: uid, no_nota: noNota, id_shift: APP_STATE.idShift,
       bayar, jatuh_tempo: $('#byrJatuhTempo').value,
+      garansi_hari: Number($('#byrGaransi').value) || 0,
       id_otorisasi: APP_STATE.otorisasiDiskon?.id || ''
     });
 
@@ -1519,6 +1528,29 @@ async function perbaruiInfoData() {
     `Kode: <strong>${esc(APP_STATE.perangkat?.kode || '—')}</strong><br>${esc(APP_STATE.perangkat?.nama || '')}`;
   const pr = await DB.kvGet('printer_nama', null);
   $('#infoPrinter').textContent = pr ? 'Tersimpan: ' + pr : 'Belum terhubung';
+  gambarPreviewStruk();
+}
+
+/**
+ * Pratinjau BACA-SAJA kop & footer struk, dari setting global yang sama persis
+ * dipakai print.js — bukan disalin ulang, supaya pratinjaunya tidak pernah
+ * berbeda dari yang benar-benar tercetak.
+ *
+ * Tombol "Ubah di menu Setting" hanya tampil bila peran ini memang berizin
+ * membuka Setting; kasir biasa melihat pratinjaunya tanpa tombol yang mengarah
+ * ke layar yang toh akan ditolak.
+ */
+function gambarPreviewStruk() {
+  const el = $('#previewStruk');
+  if (!el) return;
+  const s = APP_STATE.setting || {};
+  const baris = [(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase()];
+  if (s.alamat_usaha) baris.push(s.alamat_usaha);
+  if (s.telepon_usaha) baris.push(s.telepon_usaha);
+  baris.push('...');
+  baris.push(s.footer_struk || 'Terima kasih');
+  el.textContent = baris.join('\n');
+  $('#btnKeSettingStruk')?.classList.toggle('sembunyi', !bolehIzin('setting', 'lihat'));
 }
 
 /* ==================== EVENT ==================== */
@@ -1902,6 +1934,7 @@ function pasangEvent() {
     catch (e) { alert('Gagal: ' + e.message); }
   });
   $('#btnKirimSekarang').addEventListener('click', async () => { await Sync.kirim(); await perbaruiInfoData(); });
+  $('#btnKeSettingStruk').addEventListener('click', () => bukaLayar('sistem'));
 
   /* Master baru turun — dari tombol "Tarik ulang", dari sinkron berkala, atau
      setelah petugas disimpan di back office. Tanpa penyegaran ini, nama yang baru

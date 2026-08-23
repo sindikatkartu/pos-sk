@@ -258,6 +258,74 @@
       </div>
     </section>
 
+    <!-- ---------- BANTUAN ----------
+         Manual book & SOP dasar, ditulis langsung di halaman supaya tetap terbaca
+         SAAT INTERNET MATI — sama seperti alasan ikon di app.js digambar sebagai
+         SVG sebaris, bukan diambil dari CDN. Isinya draf awal; sunting bebas
+         lewat editor GitHub atau clone lokal, lalu terbitkan seperti biasa
+         (lihat KONTEKS.md § Cara terbit) — tidak perlu sentuh Apps Script. -->
+    <section class="layar" id="layarBantuan">
+      <div class="petak-tunggal">
+        <div class="kartu">
+          <h3>Alur kasir harian</h3>
+          <ol style="margin:0 0 0 18px;padding:0">
+            <li><strong>Buka shift</strong> di menu Shift, isi kas awal laci sebelum melayani pembeli pertama.</li>
+            <li><strong>Jual</strong> — cari produk di kolom pencarian (nama, SKU, atau tipe HP), atur qty/satuan, lalu Bayar.</li>
+            <li><strong>Bayar</strong> — isi jumlah yang diterima per metode. Kolom Jumlah tidak pernah terisi otomatis; itu memang uang yang benar-benar diterima, dipakai untuk menghitung kembalian.</li>
+            <li><strong>Tutup shift</strong> di akhir hari/giliran, isi uang fisik di laci apa adanya — selisih (kalau ada) tercatat, bukan disembunyikan.</li>
+          </ol>
+          <p class="petunjuk">Nota tersimpan &amp; tercetak seketika walau internet mati. Sinkronisasi ke server terjadi di belakang layar, kasir tidak pernah menunggunya.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>Penjual &amp; Pemasang (klaim petugas)</h3>
+          <p>Kolom pramuniaga di layar kasir mencatat siapa yang <strong>menjual</strong> — belum tentu sama dengan kasir yang mengetik nota. Untuk barang yang butuh pemasangan (mis. tempered glass), tombol <strong>Tim</strong> pada baris itu mencatat siapa yang <strong>memasang</strong>, terpisah dari penjual nota.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Satu orang dipilih → dicatat sebagai <strong>Penjual</strong>.</li>
+            <li>Dua orang dipilih → yang pertama <strong>Penjual</strong>, yang kedua <strong>Pemasang</strong>.</li>
+            <li>Poin &amp; pembagian omzet dihitung otomatis dari bobot peran di menu Petugas — kasir hanya memilih orangnya, tidak mengetik angka apa pun.</li>
+          </ul>
+          <p class="petunjuk">Nama Penjual &amp; Pemasang (bila ada) ikut tercetak di struk.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>Garansi</h3>
+          <p>Di layar Bayar ada kolom <strong>Garansi (opsional)</strong> — pilih durasinya (7 hari, 30 hari, 90 hari, atau 1 tahun) bila barang/jasa ini bergaransi. Kosongkan (Tidak ada garansi) bila tidak.</p>
+          <p class="petunjuk">Tanggal jatuh temponya dihitung otomatis dari tanggal nota + durasi yang dipilih, lalu tercetak di struk sebagai bukti garansi pelanggan.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>Diskon</h3>
+          <p>Setiap peran punya batas diskon maksimal (baris + nota digabung, dihitung dari nilai bruto). Melebihi batas itu, layar Bayar akan meminta <strong>persetujuan atasan</strong> — atasan memasukkan username &amp; PIN-nya sendiri di perangkat yang sama, PIN tidak tersimpan di mana pun.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>Printer struk</h3>
+          <p>Sambungkan printer thermal Bluetooth sekali di menu <strong>Perangkat</strong> — tombol "Hubungkan printer Bluetooth", lalu "Uji cetak" untuk memastikan. Kalau Bluetooth gagal atau belum disambungkan, aplikasi otomatis mencetak lewat jendela print biasa (perlu izin pop-up peramban).</p>
+          <p class="petunjuk">Susunan &amp; isi struk (nama usaha, alamat, footer, lebar kertas) diatur pemilik di menu Setting — bukan di sini, karena berlaku untuk semua cabang sekaligus.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>Kalau internet mati</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Kasir tetap bisa berjualan seperti biasa — nota tersimpan di perangkat &amp; ikut tercetak "* belum tersinkron *".</li>
+            <li>Begitu internet kembali, nota terkirim otomatis dalam beberapa detik.</li>
+            <li>Keluar (logout) ditolak selama shift masih terbuka saat online — offline, keluar tetap boleh setelah konfirmasi, dan tercatat untuk dilaporkan saat kembali online.</li>
+          </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>Kalau ada yang tidak beres</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Struk tidak keluar</strong> — cek menu Perangkat &gt; Printer, coba "Uji cetak". Nota tetap tersimpan walau cetaknya gagal.</li>
+            <li><strong>Nota nyangkut di antrean</strong> — lihat kotak peringatan "Nota ditolak server" bila muncul; tunjukkan ke pemilik, biasanya butuh tindakan di sisi server (mis. periode yang sudah dikunci).</li>
+            <li><strong>Menu yang biasanya ada hilang</strong> — kemungkinan hak akses peran berubah; keluar lalu masuk lagi supaya izin terbaru terbaca.</li>
+            <li>Untuk hal lain di luar daftar ini, hubungi pemilik/pengelola toko.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
     <section class="layar" id="layarPengaturan">
       <div class="petak">
         <div class="kartu">
@@ -265,6 +333,20 @@
           <p style="color:var(--teks-redup);font-size:13px" id="infoPrinter">Belum terhubung</p>
           <button class="tombol" id="btnHubungkanPrinter">Hubungkan printer Bluetooth</button>
           <button class="tombol" id="btnUjiCetak" style="margin-top:8px">Uji cetak</button>
+          <!-- Pratinjau BACA-SAJA dari kop & footer struk yang berlaku sekarang (setting
+               global — nama usaha, alamat, footer, lebar kertas). Diubahnya tetap lewat
+               menu Setting, bukan di sini: setting itu berlaku untuk SEMUA cabang &
+               perangkat, sedangkan halaman Perangkat ini selalu tampil bagi siapa pun
+               yang login di perangkat ini, termasuk kasir. Lihat KONTEKS.md § 4 (rekap
+               keputusan) — dua tempat mengubah satu hal berarti yang terakhir menyimpan
+               menang tanpa ada yang tahu. -->
+          <div style="margin-top:14px">
+            <label style="font-size:13px;color:var(--teks-redup)">Pratinjau struk saat ini</label>
+            <div id="previewStruk" style="font-family:'Courier New',monospace;font-size:12.5px;
+                 white-space:pre-line;background:var(--panel-2);border:1px solid var(--garis-halus);
+                 border-radius:var(--radius);padding:10px;margin-top:6px"></div>
+            <button class="tombol" id="btnKeSettingStruk" style="margin-top:8px">Ubah di menu Setting</button>
+          </div>
         </div>
 
         <div class="kartu">
@@ -316,6 +398,18 @@
     <div class="total-baris besar" style="border:none;margin:0 0 14px"><span>TOTAL</span><span id="byrTotal">Rp 0</span></div>
     <div class="grup"><label>Diskon nota (Rp)</label><input type="number" id="byrDiskonNota" value="0"></div>
     <div id="byrJagaDiskon"></div>
+    <!-- Opsional — kosongkan bila barangnya tidak bergaransi. Tanggal jatuh
+         temponya dihitung server dari tanggal nota + jumlah hari ini, bukan
+         diketik kasir, supaya tidak pernah meleset dari yang tercetak. -->
+    <div class="grup"><label>Garansi (opsional)</label>
+      <select id="byrGaransi">
+        <option value="0">Tidak ada garansi</option>
+        <option value="7">7 hari</option>
+        <option value="30">30 hari</option>
+        <option value="90">90 hari</option>
+        <option value="365">1 tahun</option>
+      </select>
+    </div>
     <!-- Penjagaan klaim petugas: baris yang butuh tim tapi belum lengkap, atau
          nota tanpa pramuniaga saat setelan mewajibkannya. -->
     <div id="byrJagaKlaim"></div>

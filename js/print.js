@@ -6,6 +6,42 @@
  *
  * Catatan: Web Bluetooth hanya tersedia di Chrome/Edge Android & desktop, dan wajib HTTPS.
  */
+
+/**
+ * Tentukan siapa Penjual & Pemasang dari klaim TINGKAT NOTA (`nota.klaim`), untuk
+ * dicetak di struk. Fungsi murni — tidak menyentuh APP_STATE/CONFIG/DOM — supaya
+ * bisa diuji langsung di Node (lihat uji/uji.js) tanpa perlu browser.
+ *
+ * Aturan peran SAMA PERSIS dengan `_peranUrut(jumlah, 'NOTA')` di 21_Klaim.gs:
+ * satu orang = Penjual; dua orang = Penjual lalu Pemasang, urutan sesuai urutan
+ * pemilihan di layar kasir. Kalau sampai berbeda, struk bisa menyebut nama yang
+ * salah sementara sistem membagi poin & omzet ke orang lain — persis kelas bug
+ * yang berulang kali muncul di proyek ini (lihat KONTEKS.md §12).
+ *
+ * Hanya klaim tingkat NOTA yang dicetak. Klaim per BARIS (tim pemasangan tempered
+ * glass, dsb.) sengaja tidak dirinci satu-satu di struk — bisa ada beberapa baris
+ * dengan tim yang berbeda-beda, dan mencantumkan semuanya membuat struk kasir
+ * terlalu panjang untuk kertas 58mm.
+ *
+ * kode yang tidak ditemukan di `daftarPetugas` (mis. petugasnya sudah dinonaktifkan
+ * sejak nota lama ini dibuat) dicetak APA ADANYA sebagai kode, bukan disembunyikan —
+ * nota yang bisu lebih berbahaya daripada nota yang menyebut kode mentah.
+ *
+ * @param {{klaim?: Array<{kode:string}>}} nota
+ * @param {Array<{kode:string,nama:string}>} daftarPetugas
+ * @return {{penjual: ?string, pemasang: ?string}}
+ */
+function resolvePenjualPemasang(nota, daftarPetugas) {
+  const klaim = (nota && Array.isArray(nota.klaim)) ? nota.klaim : [];
+  if (!klaim.length) return { penjual: null, pemasang: null };
+  const nama = (kode) => {
+    const p = (daftarPetugas || []).find(x => String(x.kode) === String(kode));
+    return p ? p.nama : kode;
+  };
+  if (klaim.length === 1) return { penjual: nama(klaim[0].kode), pemasang: null };
+  return { penjual: nama(klaim[0].kode), pemasang: nama(klaim[1].kode) };
+}
+
 const Struk = (() => {
   let perangkatBt = null, karakteristik = null;
 
@@ -38,6 +74,9 @@ const Struk = (() => {
     out.push(duaKolom('No', nota.no_nota));
     out.push(duaKolom(nota.tanggal, nota.jam));
     out.push(duaKolom('Kasir', APP_STATE.user.nama));
+    const pp = resolvePenjualPemasang(nota, APP_STATE.daftarPetugas);
+    if (pp.penjual) out.push(duaKolom('Penjual', pp.penjual));
+    if (pp.pemasang) out.push(duaKolom('Pemasang', pp.pemasang));
     if (nota.kode_pelanggan && nota.kode_pelanggan !== 'C001') {
       out.push(duaKolom('Plgn', nota._nama_pelanggan || nota.kode_pelanggan));
     }
@@ -65,6 +104,9 @@ const Struk = (() => {
     });
     if (nota._kembali > 0) out.push(duaKolom('KEMBALI', rupiah(nota._kembali)));
     if (nota.jatuh_tempo) out.push(duaKolom('Jatuh tempo', nota.jatuh_tempo));
+    if (nota.garansi_hari > 0) {
+      out.push(`Garansi ${nota.garansi_hari} hari (s.d. ${nota.garansi_sampai})`);
+    }
 
     out.push('');
     out.push(tengah(s.footer_struk || 'Terima kasih'));
@@ -151,3 +193,10 @@ const Struk = (() => {
 
   return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, baris, rupiah };
 })();
+
+// Ekspor untuk pengujian di Node (lihat uji/uji.js). Hanya fungsi murni yang
+// diekspor — Struk sendiri bergantung pada DOM/Web Bluetooth dan tidak masuk akal
+// dipanggil di luar browser.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { resolvePenjualPemasang };
+}
