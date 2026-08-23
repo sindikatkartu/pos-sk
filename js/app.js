@@ -1325,7 +1325,19 @@ async function periksaShift() {
      menayangkan kembali selisih kas KEMARIN dengan judul "Shift terakhir
      ditutup" — angka yang justru dipakai saat serah terima laci. */
   if (APP_STATE.idShift) APP_STATE.hasilTutupShift = null;
+  gambarKeadaanShift();
+}
 
+/**
+ * Gambar ulang layar Shift dari APP_STATE — TANPA bertanya ke server.
+ *
+ * Dipisah dari periksaShift() supaya bisa dipanggil pada saat keadaannya sudah
+ * kita ketahui pasti, bukan hanya sesudah jawaban server tiba. Sebelum dipisah
+ * ada jendela selebar satu permintaan penuh sesudah shift ditutup: modalnya
+ * sudah tertutup, tapi layar di belakangnya masih menawarkan tombol "Tutup
+ * shift" untuk shift yang barusan ditutup — dan tombol itu masih bisa dipencet.
+ */
+function gambarKeadaanShift() {
   const lnc = $('#lncShift');
   const perluBuka = !APP_STATE.idShift;
   lnc.textContent = perluBuka ? 'Shift belum dibuka' : 'Shift aktif';
@@ -1883,13 +1895,30 @@ function pasangEvent() {
       const d = await API.bukaShift({ kas_awal: Number($('#inpKasAwal').value) });
       APP_STATE.idShift = d.id_shift;
       await DB.kvSet('id_shift', d.id_shift);
+      gambarKeadaanShift();          // seketika, tanpa menunggu periksaShift()
       await periksaShift();
       alert('Shift dibuka: ' + d.id_shift);
     } catch (e) { alert('Gagal membuka shift: ' + e.message); }
   });
   $('#btnTutupShift').addEventListener('click', async () => {
     if (!APP_STATE.idShift) return alert('Tidak ada shift aktif.');
-    const tertahan = await DB.outboxJumlah();
+    /* Penanda menunggu dipasang tangan di sini.
+     *
+     * pasangPenandaSibuk() hanya menyalakan tombol yang memicu permintaan ke
+     * SERVER, dan tombol ini tidak: pekerjaannya membaca antrean outbox dari
+     * IndexedDB. Pada laci yang menumpuk banyak nota belum terkirim, bacaan itu
+     * cukup lama untuk terasa seperti klik yang tidak masuk — persis keluhan
+     * yang melahirkan penanda sibuk itu sendiri (§11). Kelasnya sengaja SAMA
+     * (`sibuk`), bukan gaya baru, supaya rupanya tidak berbeda sedikit pun dari
+     * tombol lain yang sedang menunggu.
+     */
+    const b = $('#btnTutupShift');
+    b.classList.add('sibuk');
+    let tertahan;
+    try { tertahan = await DB.outboxJumlah(); }
+    finally { b.classList.remove('sibuk'); }
+    // confirm() memblokir; penandanya dilepas DULU supaya tidak ada tombol yang
+    // berputar-putar di belakang dialog yang justru sedang menunggu manusia.
     if (tertahan > 0) {
       if (!confirm(`Masih ada ${tertahan} nota belum terkirim. Angka kas sistem bisa belum lengkap. Lanjutkan?`)) return;
     }
@@ -1912,6 +1941,13 @@ function pasangEvent() {
       $('#tsKasFisik').value = 0;
       $('#tsCatatan').value = '';
       $('#tiraiTutupShift').classList.remove('tampil');
+      /* Layar di belakang modal disegarkan SEKARANG, dari keadaan yang sudah
+         pasti (notanya diterima server, shiftnya tertutup) — bukan menunggu
+         periksaShift() yang masih harus bertanya lagi ke server. Tanpa ini ada
+         jeda selebar satu permintaan penuh di mana modalnya sudah hilang tapi
+         layarnya masih menawarkan "Tutup shift" untuk shift yang barusan
+         ditutup, lengkap dengan tombol yang masih bisa dipencet. */
+      gambarKeadaanShift();
       await periksaShift();
       Admin.toast(Math.abs(d.selisih) < 1
         ? 'Shift ditutup, kas cocok.'

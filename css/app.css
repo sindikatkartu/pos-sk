@@ -793,7 +793,16 @@ button.sibuk::after {
   border: 2px solid currentColor; border-top-color: transparent;
   color: var(--teks-2); animation: putar .6s linear infinite;
 }
-button.utama.sibuk::after, button.sukses.sibuk::after, button.bahaya.sibuk::after { color: #fff; }
+/* Pemintalnya putih HANYA di tombol yang latarnya memang padat berwarna. */
+button.utama.sibuk::after, button.sukses.sibuk::after { color: #fff; }
+/* `.bahaya` bukan tombol padat: latarnya --panel-2 (nyaris putih) dengan tulisan
+   merah, dan baru menjadi merah padat saat :hover — yang tidak pernah terjadi
+   selagi berputar, sebab .sibuk mematikan pointer-events. Dulu ia ikut diberi
+   pemintal putih bersama .utama/.sukses, jadi putih-di-atas-putih: tombolnya
+   SUDAH berputar, hanya tidak terlihat sama sekali. Itulah yang terbaca sebagai
+   "Tutup shift tidak punya efek menunggu seperti tombol lain" — padahal
+   penandanya jalan, cuma tak kasatmata. Pakai warna tulisannya sendiri. */
+button.bahaya.sibuk::after { color: var(--bahaya); }
 @keyframes putar { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   button.sibuk::after { animation-duration: 2.4s; }
