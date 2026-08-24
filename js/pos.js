@@ -365,6 +365,40 @@ function tanggalTambahHari(tglYmd, hari) {
   return tanggalLokal(new Date(b[0], b[1] - 1, b[2] + (Math.round(Number(hari)) || 0)));
 }
 
+/* ==================== TAMPILAN TANGGAL ====================
+ * Tanggal DISIMPAN sebagai teks `yyyy-MM-dd` dan dibandingkan sebagai teks di
+ * seluruh backend (`String(x.tanggal) >= dari`). Format itu TIDAK boleh diubah —
+ * yang diubah hanya rupanya di layar.
+ *
+ * SATU pemformat untuk seluruh aplikasi. Sebelum ini ada tiga yang berbeda-beda
+ * (tglPendek di grafik.js, toLocaleString di app.js, Utilities.formatDate di
+ * 17_Ekspor.gs) dan tidak satu pun jadi acuan — tiga rupa tanggal di satu
+ * aplikasi membuat orang mengira dua layar menampilkan hal yang berbeda.
+ */
+
+/**
+ * `yyyy-MM-dd` (atau ISO lengkap) -> `dd/mm/yy`. Untuk DILIHAT, bukan disimpan.
+ *
+ * Nilai yang tidak berbentuk tanggal harian dikembalikan APA ADANYA, tidak
+ * dipaksa: `yyyy-MM` (periode bulanan) tetap utuh, dan data rusak tampil rusak
+ * alih-alih menjelma jadi tanggal yang tampak masuk akal.
+ */
+function tglTampil(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(-2)}` : s;
+}
+
+/** `yyyy-MM-ddTHH:mm:ss` (atau berspasi) -> `dd/mm/yy HH:mm:ss`. */
+function waktuTampil(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '—';
+  const jam = s.length > 10 ? ' ' + s.substring(11) : '';
+  const tgl = tglTampil(s);
+  return tgl === s ? s : tgl + jam;
+}
+
 /** Penomoran nota yang aman offline: prefix cabang + kode perangkat + urutan lokal. */
 async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
   const d = new Date();
@@ -377,5 +411,5 @@ async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
 
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { Harga, tanggalLokal, tanggalTambahHari };
+  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil };
 }

@@ -64,6 +64,10 @@ const Grafik = (() => {
     return String(Math.round(n));
   };
   const rupiah = (n) => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(Number(n) || 0));
+  /* Label sumbu-X sengaja TETAP dd/MM tanpa tahun: satu grafik hanya memuat
+     satu rentang, tahunnya sudah jelas dari judulnya, dan menambah "/26" pada
+     90 label membuat sumbunya berdesakan. Nilai `yyyy-MM` (tren bulanan)
+     dibiarkan utuh — cabang itu yang membuat label bulanan tidak kacau. */
   const tglPendek = (t) => {
     const b = String(t).split('-');
     return b.length === 3 ? b[2] + '/' + b[1] : String(t);
@@ -187,7 +191,7 @@ const Grafik = (() => {
       sorot.setAttribute('x1', x(i)); sorot.setAttribute('x2', x(i));
       sorot.setAttribute('opacity', 1);
       tampilTip(ev.clientX, ev.clientY,
-        `<strong>${esc(tanggal[i])}</strong>` +
+        `<strong>${esc(tglTampil(tanggal[i]))}</strong>` +
         seri.map((s, si) => `<div class="tip-baris">
             <span class="tip-titik" style="background:${SERI[si % SERI.length]}"></span>
             ${esc(s.nama)}<b>${fmt(s.data[i])}</b></div>`).join(''));
@@ -295,7 +299,7 @@ const Grafik = (() => {
 
   const tabelDeret = (tanggal, seri, fmt) => `<table><thead><tr><th>Tanggal</th>${
     seri.map(s => `<th class="angka">${esc(s.nama)}</th>`).join('')}</tr></thead><tbody>${
-    tanggal.map((t, i) => `<tr><td>${esc(t)}</td>${
+    tanggal.map((t, i) => `<tr><td>${esc(tglTampil(t))}</td>${
       seri.map(s => `<td class="angka">${fmt(s.data[i])}</td>`).join('')}</tr>`).join('')
     }</tbody></table>`;
 

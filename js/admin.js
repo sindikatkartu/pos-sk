@@ -27,7 +27,8 @@ const Admin = (() => {
     <table>
       <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
-        kolom.map(k => `<td class="${k.angka ? 'angka' : ''}">${k.render ? k.render(r) : esc(r[k.kunci] ?? '')}</td>`).join('')
+        kolom.map(k => `<td class="${k.angka ? 'angka' : ''}">${
+          k.render ? k.render(r) : k.tgl ? esc(tglTampil(r[k.kunci])) : esc(r[k.kunci] ?? '')}</td>`).join('')
       }</tr>`).join('')
         : `<tr><td colspan="${kolom.length}" style="text-align:center;color:var(--teks-redup);padding:28px">${esc(opsi.kosong || 'Belum ada data')}</td></tr>`}
       </tbody>
@@ -881,7 +882,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             Lapisan paling atas yang akan terjual lebih dulu.</p>
           ${tabel([
             { judul: '#', render: (l, i) => '' },
-            { judul: 'Masuk', render: l => esc(l.tanggal || '—') },
+            { judul: 'Masuk', render: l => esc(tglTampil(l.tanggal)) },
             { judul: 'Sisa qty', angka: true, render: l => l.minus
                 ? `<span class="stok-kritis">${l.qty}</span>` : l.qty },
             { judul: 'Harga modal', angka: true, render: l => rp(l.hpp) },
@@ -894,7 +895,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
         <div style="max-height:360px;overflow:auto">
         ${tabel([
-          { judul: 'Tanggal', render: r => `${esc(r.tanggal)}<div class="meta-kecil">${esc(String(r.waktu).substring(0, 8))}</div>` },
+          { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))}<div class="meta-kecil">${esc(String(r.waktu).substring(0, 8))}</div>` },
           { judul: 'Tipe', render: r => `<span class="lencana ${r.qty > 0 ? 'hijau' : 'kuning'}">${esc(r.tipe)}</span>` },
           { judul: 'Qty', kunci: 'qty', angka: true },
           { judul: 'Saldo', kunci: 'saldo', angka: true },
@@ -929,7 +930,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                lalu dipercaya saat menyelisihkan HPP. -->
           <p class="petunjuk">Setiap pembelian menaikkan stok dan membentuk lapisan FIFO baru pada harga belinya (diskon dokumen ikut memotong nilai lapisan), lalu membukukan jurnal Persediaan / Utang secara otomatis.</p>
           ${tabel([
-            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Supplier', kunci: 'nama_supplier' },
             { judul: 'Bayar', render: r => `<span class="lencana">${esc(r.tipe_bayar)}</span>` },
@@ -1380,7 +1381,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <h3>Rincian klaim</h3>
           ${d.dipotong ? '<p class="petunjuk">Hanya 500 klaim terbaru yang ditampilkan. Gunakan Ekspor untuk data penuh.</p>' : ''}
           ${tabel([
-            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'Petugas', kunci: 'nama' },
             { judul: 'Peran', render: x => esc(LABEL_PERAN_PETUGAS[x.peran] || x.peran) },
             { judul: 'Cakupan', render: x => x.jenis === 'NOTA'
@@ -1415,8 +1416,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Pelanggan', kunci: 'nama_pelanggan' },
-            { judul: 'Tanggal', kunci: 'tanggal' },
-            { judul: 'Jatuh tempo', render: r => esc(r.jatuh_tempo || '—') },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+            { judul: 'Jatuh tempo', render: r => esc(tglTampil(r.jatuh_tempo)) },
             { judul: 'Telat', render: r => r.hari_telat > 0
                 ? `<span class="lencana ${r.hari_telat > 60 ? 'merah' : 'kuning'}">${r.hari_telat} hari</span>`
                 : '<span class="lencana hijau">lancar</span>' },
@@ -1696,6 +1697,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>${tombolEkspor('audit')}</div>
           <p class="petunjuk">Catatan setiap perubahan penting. Tidak bisa dihapus dari dalam aplikasi.</p>
           ${tabel([
+            /* SATU-SATUNYA layar yang SENGAJA tetap yyyy-MM-dd, bukan dd/mm/yy.
+               Ini catatan forensik: nilainya harus bisa dicocokkan huruf per
+               huruf dengan isi sheet mentah saat menelusuri kejadian, dan tahun
+               dua digit menghilangkan abad pada arsip lama. */
             { judul: 'Waktu', render: r => esc(String(r.waktu).replace('T', ' ')) },
             { judul: 'User', kunci: 'id_user' },
             { judul: 'Cabang', kunci: 'cabang' },
@@ -1772,7 +1777,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <h3>Nota berdiskon</h3>
           ${d.dipotong ? '<p class="petunjuk">Hanya 300 nota terbesar yang ditampilkan.</p>' : ''}
           ${tabel([
-            { judul: 'Tanggal', render: x => `${esc(x.tanggal)} ${esc(String(x.jam).substring(0, 5))}` },
+            { judul: 'Tanggal', render: x => `${esc(tglTampil(x.tanggal))} ${esc(String(x.jam).substring(0, 5))}` },
             { judul: 'Nota', kunci: 'no_nota' },
             { judul: 'Kasir', kunci: 'kasir' },
             { judul: 'Bruto', render: x => rp(x.subtotal), kanan: true },
@@ -1815,7 +1820,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${tabel([
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Dari', kunci: 'cabang_asal' },
-            { judul: 'Dikirim', render: r => esc(String(r.tanggal_kirim).replace('T', ' ')) },
+            { judul: 'Dikirim', render: r => esc(waktuTampil(r.tanggal_kirim)) },
             { judul: 'Item', render: r => r.item.length + ' baris · ' +
                 r.item.reduce((a, i) => a + i.qty_kirim, 0) + ' pcs' },
             { judul: '', render: r => `<button class="tombol kecil sukses" data-terima-transfer="${esc(r.uuid)}">Terima barang</button>` }
@@ -1825,7 +1830,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Riwayat transfer</h3>
           ${tabel([
-            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Rute', render: r => `${esc(r.cabang_asal)} → ${esc(r.cabang_tujuan)}` },
             { judul: 'Item', render: r => String(r.item.length) },
@@ -1884,7 +1889,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const t = ($('#isiTransfer')._rows || []).find(x => x.uuid === uuid);
     if (!t) return;
     bukaModal(`Terima barang — ${t.no_dokumen}`, `
-      <p class="petunjuk">Dari <strong>${esc(t.cabang_asal)}</strong>, dikirim ${esc(String(t.tanggal_kirim).replace('T', ' '))}.
+      <p class="petunjuk">Dari <strong>${esc(t.cabang_asal)}</strong>, dikirim ${esc(waktuTampil(t.tanggal_kirim))}.
         Isi jumlah yang <em>benar-benar sampai</em>. Kekurangan akan dibukukan sebagai Barang Rusak/Hilang di cabang pengirim dan
         dokumen ditandai SELISIH untuk ditelusuri.</p>
       <div class="gulir-x"><table>
@@ -1907,7 +1912,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal(`Transfer ${t.no_dokumen}`, `
       <p class="petunjuk">${esc(t.cabang_asal)} → ${esc(t.cabang_tujuan)} ·
         <span class="lencana ${LENCANA_TRANSFER[t.status] || ''}">${esc(t.status)}</span><br>
-        Dikirim ${esc(String(t.tanggal_kirim).replace('T', ' '))} oleh ${esc(t.user_kirim)}
+        Dikirim ${esc(waktuTampil(t.tanggal_kirim))} oleh ${esc(t.user_kirim)}
         ${t.tanggal_terima ? `<br>Diterima ${esc(String(t.tanggal_terima).replace('T', ' '))} oleh ${esc(t.user_terima)}` : ''}
         ${t.catatan ? `<br>Catatan: ${esc(t.catatan)}` : ''}
         ${t.catatan_terima ? `<br>Catatan terima: ${esc(t.catatan_terima)}` : ''}</p>
@@ -1951,7 +1956,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Riwayat opname</h3>
           ${tabel([
-            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Cakupan', render: r => `<span class="lencana">${esc(r.cakupan)}</span>${
                 r.buta ? ' <span class="lencana kuning">buta</span>' : ''}` },
@@ -2157,7 +2162,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Riwayat retur</h3>
           ${tabel([
-            { judul: 'Tanggal', render: r => `${esc(r.tanggal)}<div class="meta-kecil">${esc(r.jam)}</div>` },
+            { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))}<div class="meta-kecil">${esc(r.jam)}</div>` },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Nota asal', render: r => esc(r.no_nota_asal || 'tanpa nota') },
             { judul: 'Jenis', render: r => `<span class="lencana ${r.jenis === 'TUKAR' ? 'kuning' : ''}">${esc(r.jenis)}</span>` },
@@ -2388,7 +2393,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Riwayat retur pembelian</h3>
           ${tabel([
-            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Supplier', kunci: 'nama_supplier' },
             { judul: 'Faktur asal', render: r => esc(r.no_dok_pembelian || '—') },
@@ -2975,7 +2980,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           }
           $('#hasilCariBeli').innerHTML = `<div style="max-height:200px;overflow:auto">${tabel([
             { judul: 'No dokumen', kunci: 'no_dokumen' },
-            { judul: 'Tanggal', kunci: 'tanggal' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'Total', angka: true, render: r => rp(r.total) },
             { judul: '', render: r => `<button class="tombol kecil utama" data-pilih-beli="${esc(r.uuid)}">Pilih</button>` }
           ], rows)}</div>`;
@@ -3154,7 +3159,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           }
           $('#hasilCariNota').innerHTML = `<div style="max-height:200px;overflow:auto">${tabel([
             { judul: 'No nota', kunci: 'no_nota' },
-            { judul: 'Tanggal', render: r => `${esc(r.tanggal)} ${esc(r.jam)}` },
+            { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))} ${esc(r.jam)}` },
             { judul: 'Total', angka: true, render: r => rp(r.total) },
             { judul: '', render: r => `<button class="tombol kecil utama" data-pilih-nota="${esc(r.uuid)}">Pilih</button>` }
           ], rows)}</div>`;
@@ -3184,7 +3189,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           }
           $('#hasilCariNotaVoid').innerHTML = `<div style="max-height:200px;overflow:auto">${tabel([
             { judul: 'No nota', kunci: 'no_nota' },
-            { judul: 'Tanggal', render: r => `${esc(r.tanggal)} ${esc(r.jam)}` },
+            { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))} ${esc(r.jam)}` },
             { judul: 'Total', angka: true, render: r => rp(r.total) },
             { judul: '', render: r => `<button class="tombol kecil bahaya" data-void-nota="${esc(r.uuid)}">Void</button>` }
           ], rows)}</div>`;

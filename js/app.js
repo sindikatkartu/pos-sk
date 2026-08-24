@@ -639,7 +639,7 @@ async function lihatStokCabangLain(sku, paksaSegar = false) {
       <p class="petunjuk">
         ${realtime
           ? '<span class="lencana hijau">baru dihitung</span> Angka ini dihitung ulang langsung dari mutasi stok tiap cabang.'
-          : `<span class="lencana kuning">ringkasan</span> Diperbarui ${waktu ? new Date(waktu).toLocaleString(CONFIG.LOCALE) : '—'}.
+          : `<span class="lencana kuning">ringkasan</span> Diperbarui ${esc(waktuTampil(waktu))}.
              Tekan "Cek terkini" sebelum menjanjikan barang ke pelanggan.`}
       </p>
       <div class="gulir-x"><table>
@@ -1727,7 +1727,7 @@ async function perbaruiInfoData() {
   const stokWaktu = await DB.kvGet('stok_diperbarui', null);
   $('#infoData').innerHTML =
     `Data master: ${umur === Infinity ? 'belum pernah' : umur.toFixed(1) + ' jam lalu'}<br>
-     Stok: ${stokWaktu ? new Date(stokWaktu).toLocaleString(CONFIG.LOCALE) : '—'}<br>
+     Stok: ${esc(waktuTampil(stokWaktu))}<br>
      Antrian kirim: <strong>${tertahan}</strong> dokumen`;
   $('#infoPerangkat').innerHTML =
     `Kode: <strong>${esc(APP_STATE.perangkat?.kode || '—')}</strong><br>${esc(APP_STATE.perangkat?.nama || '')}`;
