@@ -84,7 +84,11 @@ const MENU = [
   { id: 'petugas',    label: 'Petugas',    grup: 'Relasi',     izin: ['petugas', 'buat'],            admin: true, backoffice: true },
   { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
-  { id: 'poin',       label: 'Poin',       grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
+  // Label 'Performa', id tetap 'poin'. Isinya bukan poin saja lagi — ada omzet,
+  // nota, dan peringkat cabang. Id, kunci izin `laporan_poin`, wadah #isiPoin
+  // dan jenis ekspor 'poin' SENGAJA tidak ikut berganti: mengganti id memutus
+  // rute layar, dan mengganti kunci izin mencabut akses semua peran yang punya.
+  { id: 'poin',       label: 'Performa',   grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },

@@ -316,45 +316,119 @@ const Admin = (() => {
     (daftar || []).map(k =>
       `<option value="${esc(k)}" ${k === terpilih ? 'selected' : ''}>${esc(k)}</option>`).join('');
 
+  /**
+   * Kolom tambahan pada daftar produk — SATU yang tampil, dipilih dari dropdown.
+   *
+   * Sebelumnya Margin dan Turunan jadi kolom tetap. Dengan Modal, Eceran, Grosir
+   * dan Stok yang juga tetap, tabelnya sudah sembilan lajur sebelum kolom apa pun
+   * ditambahkan — di layar kasir yang lebar 1366 itu berarti menggulir ke samping
+   * untuk membaca satu angka. Menambah Poin sebagai kolom tetap kesepuluh hanya
+   * memperburuknya.
+   *
+   * Jadi keduanya turun ke sini bersama Poin: dipilih, bukan dicentang. Satu
+   * dropdown, satu kolom, tanpa kotak centang yang harus dibuka-tutup.
+   */
+  const KOLOM_PRODUK = [
+    { id: 'poin', judul: 'Poin', angka: true,
+      // Angka telanjang, bukan "2 poin": kolomnya sudah bernama Poin, dan
+      // satuan yang diulang di tiap baris justru memperlambat membaca.
+      render: r => Number(r.poin_satuan) > 0 ? String(r.poin_satuan) : '—' },
+    { id: 'margin', judul: 'Margin', angka: true, butuhModal: true,
+      render: r => (r.margin_eceran || 0).toFixed(1) + '%' },
+    { id: 'turunan', judul: 'Turunan', render: r => [
+        r.satuan.length ? `<span class="lencana">${r.satuan.length} satuan</span>` : '',
+        r.tier.length ? `<span class="lencana">${r.tier.length} tier</span>` : '',
+        r.varian.length ? `<span class="lencana">${r.varian.length} varian</span>` : ''
+      ].filter(Boolean).join(' ') || '—' },
+    { id: 'stok_min', judul: 'Stok min', angka: true, render: r => String(r.stok_min ?? 0) },
+    { id: 'barcode', judul: 'Barcode', render: r => esc(r.barcode || '') || '—' },
+    { id: 'satuan_dasar', judul: 'Satuan', render: r => esc(r.satuan_dasar || 'pcs') }
+  ];
+
+  /** Penyaring baris. Kosong = semua, supaya selalu ada jalan kembali. */
+  const SARING_PRODUK = [
+    { id: '', label: 'Semua produk', lolos: () => true },
+    { id: 'berpoin', label: 'Berpoin', lolos: r => Number(r.poin_satuan) > 0 },
+    { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) },
+    { id: 'nonaktif', label: 'Nonaktif', lolos: r => !r.aktif }
+  ];
+
+  /* Pilihan layar, bukan pengaturan akun: hidup selama sesi ini saja dan tidak
+     ikut tersimpan. Membuka aplikasi besok kembali ke Poin. */
+  let kolomProduk = 'poin', saringProduk = '';
+  let dataProduk = null, kueriProduk = '', kategoriProduk = '';
+
   async function muatProduk(kueri = '', kategori = '') {
     memuat('#isiProduk');
     try {
       const d = await API.daftarProduk({ cari: kueri, kategori, termasuk_nonaktif: true });
       cacheProduk = d.produk;
-      const modal = d.boleh_harga_modal;
-
-      $('#isiProduk').innerHTML = `
-        <div class="kartu">
-          <div class="bar-alat">
-            <input type="text" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueri)}" style="max-width:340px">
-            <select id="filterKategori" style="max-width:200px">${opsiKategori(d.kategori_ada, kategori)}</select>
-            <span class="lencana">${d.jumlah} produk</span>
-            <div style="flex:1"></div>
-            ${tombolEkspor('produk')}
-            ${bolehIzin('produk', 'buat') ? `
-              <button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>
-              <button class="tombol" id="btnImporProduk">Impor massal</button>` : ''}
-          </div>
-        </div>
-        <div class="kartu">
-          ${tabel([
-            { judul: 'SKU', kunci: 'sku' },
-            { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
-              <div class="meta-kecil">${esc([r.kategori, r.merek, r.tipe_hp].filter(Boolean).join(' · '))}</div>` },
-            ...(modal ? [{ judul: 'Modal', angka: true, render: r => rp(r.harga_beli_terakhir) }] : []),
-            { judul: 'Eceran', angka: true, render: r => rp(r.harga_eceran) },
-            { judul: 'Grosir', angka: true, render: r => rp(r.harga_grosir) },
-            ...(modal ? [{ judul: 'Margin', angka: true, render: r => (r.margin_eceran || 0).toFixed(1) + '%' }] : []),
-            { judul: 'Stok', angka: true, render: r => `<span class="${r.stok <= r.stok_min ? 'stok-kritis' : ''}">${r.stok ?? '-'}</span>` },
-            { judul: 'Turunan', render: r => [
-                r.satuan.length ? `<span class="lencana">${r.satuan.length} satuan</span>` : '',
-                r.tier.length ? `<span class="lencana">${r.tier.length} tier</span>` : '',
-                r.varian.length ? `<span class="lencana">${r.varian.length} varian</span>` : ''
-              ].filter(Boolean).join(' ') || '—' },
-            { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` }
-          ], cacheProduk, { kosong: kueri ? 'Tidak ada produk cocok' : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' })}
-        </div>`;
+      dataProduk = d;
+      kueriProduk = kueri;
+      kategoriProduk = kategori;
+      gambarProduk();
     } catch (e) { galat('#isiProduk', e); }
+  }
+
+  /**
+   * Menggambar ulang daftar produk DARI DATA YANG SUDAH ADA.
+   *
+   * Mengganti kolom atau penyaring tidak menembak API lagi: daftarnya sudah di
+   * tangan, dan memuat ulang dari server hanya untuk mengganti satu lajur itu
+   * pemborosan yang baru terasa ketika koneksinya lambat — persis keadaan toko.
+   */
+  function gambarProduk() {
+    const d = dataProduk;
+    if (!d) return;
+    const modal = d.boleh_harga_modal;
+
+    const pilihan = KOLOM_PRODUK.filter(k => !k.butuhModal || modal);
+    // Tanpa izin harga modal, Margin tidak ada dalam daftar. Kalau ia yang
+    // sedang terpilih, jangan tinggalkan dropdown menunjuk pilihan yang lenyap.
+    if (kolomProduk && !pilihan.some(k => k.id === kolomProduk)) kolomProduk = 'poin';
+    const kolomAktif = pilihan.find(k => k.id === kolomProduk);
+
+    const saring = SARING_PRODUK.find(s => s.id === saringProduk) || SARING_PRODUK[0];
+    const baris = cacheProduk.filter(saring.lolos);
+    const hitung = baris.length === cacheProduk.length
+      ? `${cacheProduk.length} produk`
+      : `${baris.length} dari ${cacheProduk.length} produk`;
+
+    $('#isiProduk').innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat">
+          <input type="text" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueriProduk)}" style="max-width:300px">
+          <select id="filterKategori" style="max-width:180px">${opsiKategori(d.kategori_ada, kategoriProduk)}</select>
+          <select id="kolomProduk" style="max-width:170px" title="Kolom tambahan yang ditampilkan">
+            ${pilihan.map(k => `<option value="${k.id}" ${k.id === kolomProduk ? 'selected' : ''}>Tampilkan: ${esc(k.judul)}</option>`).join('')}
+            <option value="" ${kolomProduk ? '' : 'selected'}>Tampilkan: tidak ada</option>
+          </select>
+          <select id="saringProduk" style="max-width:160px" title="Saring baris">
+            ${SARING_PRODUK.map(s => `<option value="${s.id}" ${s.id === saringProduk ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+          </select>
+          <span class="lencana">${hitung}</span>
+          <div style="flex:1"></div>
+          ${tombolEkspor('produk')}
+          ${bolehIzin('produk', 'buat') ? `
+            <button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>
+            <button class="tombol" id="btnImporProduk">Impor massal</button>` : ''}
+        </div>
+      </div>
+      <div class="kartu">
+        ${tabel([
+          { judul: 'SKU', kunci: 'sku' },
+          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
+            <div class="meta-kecil">${esc([r.kategori, r.merek, r.tipe_hp].filter(Boolean).join(' · '))}</div>` },
+          ...(modal ? [{ judul: 'Modal', angka: true, render: r => rp(r.harga_beli_terakhir) }] : []),
+          { judul: 'Eceran', angka: true, render: r => rp(r.harga_eceran) },
+          { judul: 'Grosir', angka: true, render: r => rp(r.harga_grosir) },
+          { judul: 'Stok', angka: true, render: r => `<span class="${r.stok <= r.stok_min ? 'stok-kritis' : ''}">${r.stok ?? '-'}</span>` },
+          ...(kolomAktif ? [kolomAktif] : []),
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` }
+        ], baris, { kosong: (kueriProduk || saringProduk)
+            ? 'Tidak ada produk cocok'
+            : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' })}
+      </div>`;
   }
 
   function editorProduk(sku) {
@@ -582,9 +656,26 @@ const Admin = (() => {
 
   /* ==================== IMPOR PRODUK ==================== */
 
+  /**
+   * Angka dari berkas impor. Aturannya HARUS sama persis dengan _angka() di
+   * 17_Ekspor.gs, karena berkas yang sama dibaca dua kali: di sini untuk
+   * pratinjau, di server untuk menyimpan. Kalau dua aturan itu berbeda, yang
+   * dilihat pemakainya bukan yang tersimpan.
+   *
+   * Titik hanya dibuang bila diikuti TEPAT tiga angka. Jadi "25.000" jadi 25000
+   * sementara "2.5" tetap 2,5 — poin memang boleh pecahan, dan pembersih lama
+   * yang membuang semua titik mengubah 2,5 poin menjadi 25 poin tanpa satu pun
+   * tanda di layar.
+   */
+  const angkaImpor = (v) => {
+    if (v === null || v === undefined || v === '') return 0;
+    const n = Number(String(v).replace(/[^\d\-.]/g, '').replace(/\.(?=\d{3}\b)/g, ''));
+    return isNaN(n) ? 0 : n;
+  };
+
   const KOLOM_IMPOR = {
     produk: 'sku, barcode, nama, kategori, merek, tipe_hp, satuan_dasar, harga_beli_terakhir, ' +
-            'harga_eceran, harga_grosir, stok_min — wajib: sku, nama, harga_eceran',
+            'harga_eceran, harga_grosir, stok_min, poin_satuan — wajib: sku, nama, harga_eceran',
     pelanggan: 'nama, telepon, alamat, level_harga, limit_kredit, termin_hari — wajib: nama',
     supplier: 'nama, kontak, telepon, alamat, termin_hari — wajib: nama',
     stok_awal: 'sku, qty, hpp — semuanya wajib'
@@ -651,13 +742,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
 
     const angkaKol = ['harga_beli_terakhir', 'harga_eceran', 'harga_grosir',
-                      'stok_min', 'limit_kredit', 'termin_hari', 'qty', 'hpp'];
+                      'stok_min', 'limit_kredit', 'termin_hari', 'qty', 'hpp',
+                      'poin_satuan'];
     barisImpor = baris.slice(1).map(sel => {
       const o = {};
       judul.forEach((h, i) => {
         let v = String(sel[i] ?? '').trim();
-        // Buang pemisah ribuan supaya "25.000" dan "25,000" ikut terbaca
-        if (angkaKol.includes(h)) v = Number(v.replace(/[^\d\-]/g, '')) || 0;
+        if (angkaKol.includes(h)) v = angkaImpor(v);
         o[h] = v;
       });
       return o;
@@ -1123,23 +1214,53 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol utama" id="btnSimpanPetugas">Simpan</button>`);
   }
 
-  /* ==================== LAPORAN POIN ====================
+  /* ==================== LAPORAN PERFORMA (id layar tetap 'poin') ============
    * Sistem berhenti pada poin. Berapa rupiah satu poin sengaja tidak ada di sini —
    * itu keputusan pemilik, bisa berubah tiap bulan, dan bisa berbentuk apa pun.
+   *
+   * Layarnya bernama Performa sejak v1.22 karena isinya bukan poin saja: ada
+   * omzet, jumlah nota, dan peringkat cabang. Id layar, kunci izin, wadah
+   * #isiPoin dan jenis ekspor tetap 'poin' — lihat catatan di MENU pada app.js.
    */
+
+  /* Urutan peringkat. Nilainya <ukuran>_<arah> supaya satu dropdown cukup untuk
+     "poin/omzet" DAN "tertinggi/terendah" tanpa kotak centang tambahan. */
+  const URUT_PETUGAS = [
+    { id: 'poin_desc', label: 'Poin tertinggi' },
+    { id: 'poin_asc', label: 'Poin terendah' },
+    { id: 'omzet_desc', label: 'Omzet tertinggi' },
+    { id: 'omzet_asc', label: 'Omzet terendah' }
+  ];
+  const URUT_CABANG = [
+    { id: 'omzet_desc', label: 'Omzet tertinggi' },
+    { id: 'omzet_asc', label: 'Omzet terendah' }
+  ];
+
+  /** Salinan terurut — array aslinya tidak diubah supaya bisa diurut ulang. */
+  const urutkan = (rows, kunciArah) => {
+    const [kunci, arah] = String(kunciArah || 'poin_desc').split('_');
+    return rows.slice().sort((a, b) => arah === 'asc'
+      ? Number(a[kunci]) - Number(b[kunci])
+      : Number(b[kunci]) - Number(a[kunci]));
+  };
+
+  let dataPoin = null, urutPetugas = 'poin_desc', urutCabang = 'omzet_desc';
 
   async function muatPoin() {
     memuat('#isiPoin');
     try {
       const rows = await API.daftarPetugas().catch(() => []);
       const kini = new Date();
-      const awal = new Date(kini.getFullYear(), kini.getMonth(), 1);
+      // tanggalLokal(), BUKAN toISOString(): yang kedua itu UTC, dan tengah
+      // malam 1 Agustus di WIB masih 31 Juli pukul 17:00 UTC. Rentang bawaannya
+      // dulu mundur sehari dan ikut menarik penjualan hari terakhir bulan lalu.
+      const awal = tanggalLokal(new Date(kini.getFullYear(), kini.getMonth(), 1));
       $('#isiPoin').innerHTML = `
         <div class="kartu">
-          <h3>Poin &amp; klaim per petugas</h3>
+          <h3>Performa petugas &amp; cabang</h3>
           <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
             <div style="max-width:170px"><label>Dari</label>
-              <input type="date" id="poinDari" value="${awal.toISOString().substring(0, 10)}"></div>
+              <input type="date" id="poinDari" value="${awal}"></div>
             <div style="max-width:170px"><label>Sampai</label>
               <input type="date" id="poinSampai" value="${tanggalLokal(kini)}"></div>
             <div style="max-width:220px"><label>Petugas</label><select id="poinPetugas">
@@ -1160,16 +1281,45 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const wadah = $('#hasilPoin');
     wadah.innerHTML = '<div class="kartu">Menghitung…</div>';
     try {
-      const d = await API.laporanPoin({
+      dataPoin = await API.laporanPoin({
         dari: nilai('poinDari'), sampai: nilai('poinSampai'),
         kode_petugas: nilai('poinPetugas') || undefined
       });
-      const r = d.ringkas;
-      const adaLaba = r.laba !== undefined;
-      const bobot = Object.keys(d.bobot || {})
-        .map(k => `${esc(LABEL_PERAN_PETUGAS[k] || k)} ${d.bobot[k]}`).join(' : ');
+      gambarPeringkat();
+    } catch (e) { galat('#hasilPoin', e); }
+  }
 
-      wadah.innerHTML = `
+  /**
+   * Menggambar peringkat DARI HASIL YANG SUDAH ADA.
+   *
+   * Mengganti urutan tidak menghitung ulang lewat server: laporan ini membaca
+   * seluruh penjualan dan klaim sebulan di beberapa cabang — itu perhitungan
+   * paling berat di aplikasi, dan mengulangnya hanya untuk membalik urutan
+   * membuat layar diam beberapa detik tanpa satu pun angka yang berubah.
+   */
+  function gambarPeringkat() {
+    const wadah = $('#hasilPoin');
+    const d = dataPoin;
+    if (!d) return;
+    const r = d.ringkas;
+    const adaLaba = r.laba !== undefined;
+    const bobot = Object.keys(d.bobot || {})
+      .map(k => `${esc(LABEL_PERAN_PETUGAS[k] || k)} ${d.bobot[k]}`).join(' : ');
+
+    const cabang = urutkan(d.per_cabang || [], urutCabang);
+    /* Selisih antara omzet cabang dan omzet yang terbagi ke petugas = penjualan
+       yang tidak punya petugas sama sekali. Itu bukan galat, tapi harus terlihat:
+       tanpa angka ini, peringkat petugas terlihat menjelaskan seluruh omzet
+       padahal tidak. */
+    const takTerklaim = cabang.reduce((t, c) =>
+      t + Math.max(0, Number(c.omzet) - Number(c.omzet_klaim)), 0);
+    const petugas = urutkan(d.petugas || [], urutPetugas);
+    const pilihUrut = (id, daftar, terpilih) =>
+      `<select id="${id}" style="max-width:180px">${daftar.map(u =>
+        `<option value="${u.id}" ${u.id === terpilih ? 'selected' : ''}>${esc(u.label)}</option>`
+      ).join('')}</select>`;
+
+    wadah.innerHTML = `
         <div class="petak">
           <div class="kartu statistik"><div class="label">Petugas</div><div class="nilai">${r.petugas}</div></div>
           <div class="kartu statistik"><div class="label">Nota terklaim</div><div class="nilai">${r.nota}</div></div>
@@ -1178,13 +1328,36 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Rekap per petugas</h3><div style="flex:1"></div>
+          <div class="bar-alat"><h3 style="margin:0">Peringkat cabang</h3>
+            <div style="flex:1"></div>
+            <label style="margin:0">Urutkan</label>${pilihUrut('urutCabang', URUT_CABANG, urutCabang)}</div>
+          ${tabel([
+            { judul: '#', angka: true, render: x => `<strong>${cabang.indexOf(x) + 1}</strong>` },
+            { judul: 'Cabang', kunci: 'cabang' },
+            { judul: 'Nota', angka: true, kunci: 'nota' },
+            { judul: 'Omzet', angka: true, render: x => `<strong>${rp(x.omzet)}</strong>` },
+            { judul: 'Poin', angka: true, kunci: 'poin' },
+            { judul: 'Petugas', angka: true, kunci: 'petugas' }
+          ], cabang, { kosong: 'Belum ada penjualan pada rentang tanggal ini' })}
+          ${takTerklaim > 0 ? `<p class="petunjuk"><strong>${rp(takTerklaim)}</strong> dari omzet
+             di atas <strong>belum terklaim</strong> — nota terjual tanpa petugas, jadi tidak
+             muncul di peringkat petugas mana pun. Omzet cabang dibaca dari penjualan, omzet
+             petugas dari klaim; selisih inilah bedanya.</p>` : ''}
+        </div>
+
+        <div class="kartu">
+          <div class="bar-alat"><h3 style="margin:0">Peringkat per petugas</h3>
+            <div style="flex:1"></div>
+            <label style="margin:0">Urutkan</label>${pilihUrut('urutPetugas', URUT_PETUGAS, urutPetugas)}
             ${tombolEkspor('poin', { dari: nilai('poinDari'), sampai: nilai('poinSampai') })}</div>
-          <p class="petunjuk">Nilai poin diatur per produk di menu Produk → tab
+          <p class="petunjuk">Omzet petugas adalah <strong>porsi</strong> dia, bukan nilai nota
+             penuh: nota 100.000 yang dikerjakan berdua terbagi menurut bobot peran, jadi jumlah
+             omzet semua petugas tidak dobel. Nilai poin diatur per produk di menu Produk → tab
              <strong>Tim &amp; poin</strong>. Bobot peran saat kasir tidak mengisi
              sendiri: ${bobot || '—'}. Berapa rupiah satu poin sengaja tidak dihitung
              sistem — itu keputusan Anda.</p>
           ${tabel([
+            { judul: '#', angka: true, render: x => `<strong>${petugas.indexOf(x) + 1}</strong>` },
             { judul: 'Petugas', kunci: 'nama' },
             { judul: 'Poin', angka: true, render: x => `<strong>${x.poin}</strong>` },
             { judul: 'Nota', angka: true, kunci: 'nota' },
@@ -1193,7 +1366,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ...(adaLaba ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba) }] : []),
             { judul: 'Rincian peran', render: x => x.per_peran.map(p =>
                 `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[p.peran] || p.peran)} ${p.poin}</span>`).join(' ') }
-          ], d.petugas, { kosong: 'Belum ada klaim pada rentang tanggal ini' })}
+          ], petugas, { kosong: 'Belum ada klaim pada rentang tanggal ini' })}
         </div>
 
         <div class="kartu">
@@ -1211,7 +1384,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Omzet', angka: true, render: x => rp(x.omzet) }
           ], d.rinci, { kosong: 'Belum ada klaim' })}
         </div>`;
-    } catch (e) { galat('#hasilPoin', e); }
   }
 
   /* ==================== PIUTANG ==================== */
@@ -3074,6 +3246,28 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            ke elemen yang sudah tidak ada. */
         return muatProduk($('#cariProduk')?.value || '', e.target.value)
           .then(() => $('#filterKategori')?.focus());
+      }
+      /* Kolom dan penyaring digambar ulang dari data yang sudah ada — tidak
+         menembak API. Fokus dikembalikan dengan alasan yang sama seperti
+         kategori di atas: elemennya diganti yang baru saat digambar ulang. */
+      /* Peringkat diurut ulang dari hasil yang sudah ada — alasannya sama, dan
+         di sini bahkan lebih penting: laporan ini membaca sebulan penjualan dan
+         klaim di beberapa cabang. */
+      if (e.target.id === 'urutPetugas' || e.target.id === 'urutCabang') {
+        const id = e.target.id;
+        if (id === 'urutPetugas') urutPetugas = e.target.value;
+        else urutCabang = e.target.value;
+        gambarPeringkat();
+        $('#' + id)?.focus();
+        return;
+      }
+      if (e.target.id === 'kolomProduk' || e.target.id === 'saringProduk') {
+        const id = e.target.id;
+        if (id === 'kolomProduk') kolomProduk = e.target.value;
+        else saringProduk = e.target.value;
+        gambarProduk();
+        $('#' + id)?.focus();
+        return;
       }
       if (e.target.id === 'cariStok' || e.target.id === 'stokKategori') {
         const q = ($('#cariStok')?.value || '').toLowerCase();
