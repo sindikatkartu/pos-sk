@@ -443,14 +443,11 @@ const Admin = (() => {
       </div>
 
       <div data-panel="tim" class="sembunyi">
-        <p class="petunjuk">Dibuat untuk pekerjaan yang memang dikerjakan lebih dari satu orang —
-          kasus utamanya <strong>pemasangan tempered glass</strong>: satu memasang, satu memegang
-          dan membersihkan. Baris nota yang berisi produk bertanda ini <strong>wajib</strong> punya
-          daftar petugasnya sendiri, dan karena itu keluar dari klaim nota. Tanpa pemisahan itu,
-          satu pemasangan akan dihargai dua kali.</p>
-
-        <label class="cek"><input type="checkbox" id="pButuhTim" ${p?.butuh_tim ? 'checked' : ''}>
-          Dikerjakan tim — kasir wajib memilih petugasnya per baris</label>
+        <p class="petunjuk">Isi poin di sini, dan produk ini otomatis bisa dibagi berdua di
+          meja kasir — tombol <strong>+ Pemasang</strong> muncul sendiri pada barisnya.
+          Tidak ada yang perlu dicentang, dan tidak ada yang wajib: kalau penjualnya
+          mengerjakan sendiri, dia mendapat seluruh poin baris itu; kalau ada yang membantu
+          memasang, kasir menambahkan namanya dan poinnya dibagi menurut bobot peran.</p>
 
         <div class="grup" style="margin-top:12px;max-width:220px">
           <label>Poin per satuan dasar</label>
@@ -564,7 +561,8 @@ const Admin = (() => {
       harga_eceran: angka('pEceran'), harga_grosir: angka('pGrosir'),
       aktif: centang('pAktif'),
       deskripsi: nilai('pDeskripsi'), kata_kunci: nilai('pKataKunci'),
-      butuh_tim: centang('pButuhTim'),
+      // `butuh_tim` sengaja TIDAK dikirim lagi — penanda wajib-tim dihapus
+      // 24 Agu 2026; poin sendiri yang menentukan apakah barisnya bisa dibagi.
       poin_satuan: angka('pPoinSatuan'),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
       varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel')

@@ -687,25 +687,38 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
 
 /* ==================== KERANJANG ==================== */
 
-/** Baris tim di bawah rincian item — merah selagi belum lengkap. */
+/**
+ * Daftar petugas baris, kalau memang ada. TIDAK PERNAH merah.
+ *
+ * Diubah 24 Agu 2026: dulu baris produk bertanda `butuh_tim` diwarnai merah
+ * "butuh 2 petugas — baru 0" sampai kasir mengisinya. Padahal tempered glass
+ * tidak selalu dipasangkan — sering penjualnya mengerjakan sendiri. Merah di
+ * layar berarti "ada yang salah", dan memerahkan keadaan yang justru normal
+ * mengajari kasir mengabaikan warna merah.
+ */
 function gambarBarisTim(x) {
   const tim = x.tim || [];
-  if (!x.butuh_tim && !tim.length) return '';
-  const min = MAKS_PETUGAS;   // butuh_tim selalu berarti berdua sejak v1.13
-  if (x.butuh_tim && tim.length < min) {
-    return `<br><span style="color:var(--bahaya)">butuh ${min} petugas — baru ${tim.length}</span>`;
-  }
+  if (!tim.length) return '';
   return `<br><span class="tanda-tier">tim: ${esc(tim.map(t => namaPetugas(t.kode)).join(', '))}</span>`;
 }
 
-/** Tombol Tim hanya muncul di baris yang memang relevan, bukan di semua baris. */
+/**
+ * Tombol pemasang — muncul di baris yang PUNYA POIN, bukan yang dicentang di master.
+ *
+ * Inilah akar friksi yang lama: tombolnya dulu hanya ada kalau produknya
+ * bertanda `butuh_tim`, jadi baris produk berpoin biasa tidak punya tombol sama
+ * sekali. Satu-satunya cara membagi berdua adalah mencentang di master — yang
+ * lalu memaksanya SELALU berdua. Dua kenyataan, satu jawaban, salah separuh waktu.
+ *
+ * Sekarang: ada poin berarti pekerjaannya bisa dibagi, jadi tombolnya tersedia.
+ * Tidak pernah wajib, tidak pernah menahan pembayaran. Labelnya menyebut
+ * "Pemasang" selagi kosong supaya kasir tahu gunanya tanpa harus mencoba.
+ */
 function tombolTimBaris(x) {
   const tim = x.tim || [];
-  if (!x.butuh_tim && !tim.length) return '';
-  const min = MAKS_PETUGAS;   // butuh_tim selalu berarti berdua sejak v1.13
-  const kurang = x.butuh_tim && tim.length < min;
-  return `<button data-aksi="tim" title="Petugas yang mengerjakan baris ini"${
-    kurang ? ' style="color:var(--bahaya);font-weight:700"' : ''}>Tim</button>`;
+  if (!tim.length && !(Number(x.poin_satuan) > 0)) return '';
+  return `<button data-aksi="tim" title="Petugas yang mengerjakan baris ini">${
+    tim.length ? 'Tim' : '+ Pemasang'}</button>`;
 }
 
 function gambarKeranjang() {
@@ -826,17 +839,11 @@ function gambarPilihanPetugas() {
 function gambarJagaKlaim() {
   const w = $('#byrJagaKlaim');
   if (!w) return true;
-  const kurang = Keranjang.barisTimKurang();
 
-  if (kurang.length) {
-    w.innerHTML = `<div class="pesan peringatan">
-      Baris berikut dikerjakan tim dan belum lengkap petugasnya:
-      <ul style="margin:6px 0 0 18px">${kurang.map(b => `<li>${esc(b.nama)} — butuh ${
-        MAKS_PETUGAS} orang, terisi ${(b.tim || []).length}</li>`).join('')}</ul>
-      <div style="margin-top:8px">Tutup layar ini, lalu tekan tombol <strong>Tim</strong> pada baris itu di keranjang.</div>
-    </div>`;
-    return false;
-  }
+  /* Tidak ada lagi penahan "tim belum lengkap". Sejak 24 Agu 2026 pemasang
+     bersifat opsional per baris — memaksa dua nama pada tempered glass yang
+     sering dikerjakan sendiri hanya membuat kasir mengarang nama kedua supaya
+     tombolnya hidup, dan data karangan lebih buruk daripada data kosong. */
 
   // Ada baris yang masih bergantung pada klaim nota?
   const adaSisa = Keranjang.baris.some(b => !(b.tim || []).length);

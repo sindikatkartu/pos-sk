@@ -207,23 +207,6 @@ const Keranjang = (() => {
       return (b && b.tim) ? b.tim : [];
     },
 
-    /**
-     * Baris yang menuntut tim tapi belum punya anggota cukup.
-     * Dipakai layar bayar untuk menahan nota SEBELUM dikirim — server memeriksa
-     * hal yang sama, tapi kalau hanya server yang menjaga, kasir baru tahu
-     * notanya ditolak beberapa menit kemudian saat pelanggannya sudah pergi.
-     */
-    barisTimKurang() {
-      return baris.filter(b => {
-        if (!b.butuh_tim) return false;
-        /* Selalu 2 — `min_petugas` di master TIDAK lagi dibaca. Maksimumnya juga 2,
-           jadi produk lama bernilai 3 mustahil dipenuhi: kasir akan melihat "butuh 3
-           petugas" pada dialog yang cuma menyediakan dua slot, dan tombol Selesaikan
-           mati selamanya. Server sudah memaksa 2; layar harus sepakat. */
-        const min = 2;
-        return (b.tim || []).length < min;
-      });
-    },
 
     _hitungUlang(b) {
       const h = Harga.hitung(b._produk, {
