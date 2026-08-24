@@ -302,70 +302,246 @@
     </section>
 
     <!-- ---------- BANTUAN ----------
-         Manual book & SOP dasar, ditulis langsung di halaman supaya tetap terbaca
+         Manual book & SOP, ditulis langsung di halaman supaya tetap terbaca
          SAAT INTERNET MATI — sama seperti alasan ikon di app.js digambar sebagai
-         SVG sebaris, bukan diambil dari CDN. Isinya draf awal; sunting bebas
-         lewat editor GitHub atau clone lokal, lalu terbitkan seperti biasa
-         (lihat KONTEKS.md § Cara terbit) — tidak perlu sentuh Apps Script. -->
+         SVG sebaris, bukan diambil dari CDN. Sunting bebas lewat editor GitHub
+         atau clone lokal, lalu terbitkan seperti biasa (lihat KONTEKS.md § Cara
+         terbit) — tidak perlu sentuh Apps Script.
+
+         ATURAN MENYUNTING HALAMAN INI: tulis apa yang BENAR-BENAR ada di layar,
+         dengan nama tombol persis seperti tertulis. Manual yang menyebut tombol
+         yang sudah tidak ada, atau menjanjikan penjagaan yang tidak ada di kode,
+         lebih buruk daripada tidak ada manual — sekali orang menemukannya salah,
+         seluruh halaman ini berhenti dipercaya. Ada uji statis di uji/uji.js
+         bagian AR yang menjaga sebagian di antaranya. -->
     <section class="layar" id="layarBantuan">
       <div class="petak-tunggal">
+
         <div class="kartu">
-          <h3>Alur kasir harian</h3>
-          <ol style="margin:0 0 0 18px;padding:0">
-            <li><strong>Buka shift</strong> di menu Shift, isi kas awal laci sebelum melayani pembeli pertama.</li>
-            <li><strong>Jual</strong> — cari produk di kolom pencarian (nama, SKU, atau tipe HP), atur qty/satuan, lalu Bayar.</li>
-            <li><strong>Bayar</strong> — isi jumlah yang diterima per metode. Kolom Jumlah tidak pernah terisi otomatis; itu memang uang yang benar-benar diterima, dipakai untuk menghitung kembalian.</li>
-            <li><strong>Tutup shift</strong> di akhir hari/giliran, isi uang fisik di laci apa adanya — selisih (kalau ada) tercatat, bukan disembunyikan.</li>
-          </ol>
-          <p class="petunjuk">Nota tersimpan &amp; tercetak seketika walau internet mati. Sinkronisasi ke server terjadi di belakang layar, kasir tidak pernah menunggunya.</p>
+          <h3>Cara memakai halaman ini</h3>
+          <p>Halaman ini tersimpan di dalam aplikasi, jadi <strong>tetap terbaca walau internet mati</strong>. Isinya dua bagian: <strong>Bagian A</strong> untuk kasir, <strong>Bagian B</strong> untuk pemilik &amp; back office.</p>
+          <p class="petunjuk">Menu yang tidak Anda lihat di sisi kiri berarti peran Anda memang tidak diberi aksesnya — itu bukan kerusakan. Kalau menu yang biasanya ada tiba-tiba hilang, keluar lalu masuk lagi supaya izin terbaru terbaca.</p>
         </div>
 
         <div class="kartu">
-          <h3>Penjual &amp; Pemasang (klaim petugas)</h3>
-          <p>Kolom pramuniaga di layar kasir mencatat siapa yang <strong>menjual</strong> — belum tentu sama dengan kasir yang mengetik nota. Untuk barang yang butuh pemasangan (mis. tempered glass), tombol <strong>Tim</strong> pada baris itu mencatat siapa yang <strong>memasang</strong>, terpisah dari penjual nota.</p>
+          <h3>A1. Alur kasir harian</h3>
+          <ol style="margin:0 0 0 18px;padding:0">
+            <li><strong>Buka shift</strong> di menu Shift, isi <strong>Kas awal laci</strong> sebelum melayani pembeli pertama. Selama shift belum dibuka, tombol Bayar akan menolak dan menawarkan membukanya.</li>
+            <li><strong>Jual</strong> — cari produk di kolom pencarian (nama, SKU, merek, atau tipe HP), atur qty/satuan, lalu Bayar.</li>
+            <li><strong>Bayar</strong> — isi jumlah yang diterima per metode. Kolom Jumlah tidak pernah terisi otomatis; itu memang uang yang benar-benar diterima, dipakai untuk menghitung kembalian.</li>
+            <li><strong>Catat kas laci</strong> di menu Kas setiap kali uang keluar/masuk laci di luar penjualan — ongkos kirim, beli galon, setoran ke bank.</li>
+            <li><strong>Tutup shift</strong> di akhir giliran, isi uang fisik di laci apa adanya — selisih (kalau ada) tercatat, bukan disembunyikan.</li>
+          </ol>
+          <p class="petunjuk">Nota tersimpan &amp; tercetak seketika walau internet mati. Sinkronisasi ke server terjadi di belakang layar; kasir tidak pernah menunggunya.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A2. Mencari barang di layar Kasir</h3>
+          <p>Kolom pencarian (pintasan <strong>F2</strong>) mencari sekaligus di nama, SKU, merek, tipe HP, kategori, deskripsi, kata kunci alias, dan daftar kecocokan tipe HP. Itulah sebabnya satu SKU tempered glass bisa ketemu apa pun tipe HP yang disebut pembeli.</p>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li>Satu orang dipilih → dicatat sebagai <strong>Penjual</strong>.</li>
-            <li>Dua orang dipilih → yang pertama <strong>Penjual</strong>, yang kedua <strong>Pemasang</strong>.</li>
-            <li>Poin &amp; pembagian omzet dihitung otomatis dari bobot peran di menu Petugas — kasir hanya memilih orangnya, tidak mengetik angka apa pun.</li>
+            <li><strong>Barcode yang cocok persis langsung masuk keranjang</strong> tanpa perlu menekan Enter, dan tetap ketemu walau saringan kategori sedang aktif.</li>
+            <li>Dropdown kategori hanya alat bantu melihat; pencarian tidak dibatasi olehnya.</li>
+            <li>Tombol <strong>⋯</strong> pada baris keranjang membuka detail item: qty, satuan, harga satuan, dan diskon baris.</li>
+          </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>A3. Harga: level, satuan, tier, varian</h3>
+          <p>Harga ditentukan berurutan, yang lebih spesifik menang:</p>
+          <ol style="margin:0 0 0 18px;padding:0">
+            <li><strong>Satuan bertingkat</strong> (lusin, box) — punya harganya sendiri per level pelanggan.</li>
+            <li><strong>Tier qty</strong> — potongan karena beli banyak; ambang tertinggi yang terpenuhi yang dipakai.</li>
+            <li><strong>Level harga</strong> — Eceran atau Grosir.</li>
+            <li><strong>Varian</strong> — warna/model bisa menambah atau mengurangi harga.</li>
+          </ol>
+          <p class="petunjuk"><strong>Yang paling sering mengejutkan:</strong> tier qty hanya berlaku pada <strong>satuan dasar</strong>. Beli 12 pcs dapat harga tier; beli 1 lusin memakai harga satuan lusin, bukan tier. Keduanya memang bisa berbeda. Memilih pelanggan di dropdown pelanggan <strong>otomatis mengganti level harganya</strong> sesuai data pelanggan itu.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A4. Penjual &amp; Pemasang (klaim petugas)</h3>
+          <p>Dropdown <strong>pramuniaga</strong> di atas mencatat siapa yang <strong>menjual nota ini</strong> — belum tentu sama dengan kasir yang mengetik. Itu berlaku untuk seluruh baris nota.</p>
+          <p>Pada baris yang punya nilai poin, muncul tombol <strong>+ Pemasang</strong>. Pakai tombol itu <strong>hanya bila baris itu dikerjakan orang lain</strong> — misalnya penjualnya tidak bisa memasang tempered glass lalu minta tolong rekannya. Kalau penjualnya mengerjakan sendiri, biarkan saja: dia mendapat seluruh poin baris itu.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Tombolnya bertuliskan <strong>+ Pemasang</strong> selagi kosong, dan berubah jadi <strong>Tim</strong> begitu terisi.</li>
+            <li><strong>Tidak pernah wajib dan tidak pernah menahan pembayaran.</strong> Tidak ada yang perlu dicentang di master produk — cukup produknya punya poin.</li>
+            <li>Pada tombol baris: satu orang dipilih berarti dialah yang <strong>memasang</strong>; dua orang berarti yang pertama Penjual, yang kedua Pemasang.</li>
+            <li>Maksimal dua orang per pekerjaan. Poin, omzet, dan laba dibagi otomatis menurut bobot peran di menu Petugas — kasir tidak mengetik angka apa pun.</li>
           </ul>
           <p class="petunjuk">Nama Penjual &amp; Pemasang (bila ada) ikut tercetak di struk.</p>
         </div>
 
         <div class="kartu">
-          <h3>Garansi</h3>
-          <p>Di layar Bayar ada kolom <strong>Garansi (opsional)</strong> — pilih durasinya (7 hari, 30 hari, 90 hari, atau 1 tahun) bila barang/jasa ini bergaransi. Kosongkan (Tidak ada garansi) bila tidak.</p>
-          <p class="petunjuk">Tanggal jatuh temponya dihitung otomatis dari tanggal nota + durasi yang dipilih, lalu tercetak di struk sebagai bukti garansi pelanggan.</p>
+          <h3>A5. Diskon &amp; persetujuan atasan</h3>
+          <p>Diskon bisa diisi per baris (lewat tombol <strong>⋯</strong>) atau per nota (kolom <strong>Diskon nota</strong> di layar Bayar). Setiap peran punya batas maksimal, dihitung dari <strong>gabungan keduanya</strong> terhadap nilai bruto.</p>
+          <p>Melebihi batas itu, layar Bayar meminta <strong>Persetujuan diskon</strong>: atasan memasukkan sendiri username, PIN, dan alasannya di perangkat yang sama. PIN tidak tersimpan di mana pun, dan satu persetujuan hanya berlaku untuk satu nota.</p>
         </div>
 
         <div class="kartu">
-          <h3>Diskon</h3>
-          <p>Setiap peran punya batas diskon maksimal (baris + nota digabung, dihitung dari nilai bruto). Melebihi batas itu, layar Bayar akan meminta <strong>persetujuan atasan</strong> — atasan memasukkan username &amp; PIN-nya sendiri di perangkat yang sama, PIN tidak tersimpan di mana pun.</p>
+          <h3>A6. Garansi</h3>
+          <p>Di layar Bayar ada dropdown <strong>Garansi (opsional)</strong> — 7 hari, 30 hari, 90 hari, atau 1 tahun. Kosongkan (Tidak ada garansi) bila tidak bergaransi.</p>
+          <p class="petunjuk">Tanggal jatuh temponya dihitung server dari tanggal nota + durasi, lalu tercetak di struk sebagai bukti pelanggan.</p>
         </div>
 
         <div class="kartu">
-          <h3>Printer struk</h3>
+          <h3>A7. Pembayaran &amp; bayar campur</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Kolom <strong>Jumlah</strong> mulai dari nol, bukan dari total. Untuk tunai ada chip pecahan dan tombol <strong>Uang pas</strong>.</li>
+            <li><strong>+ Metode bayar lain (split)</strong> menambah baris bila pembeli bayar sebagian tunai, sebagian transfer/QRIS/kartu.</li>
+            <li>Metode <strong>PIUTANG</strong> memunculkan kolom Jatuh tempo — nota jadi utang pelanggan, ditagih lewat menu Piutang.</li>
+            <li>Label sisa berganti sendiri antara <strong>Kembali</strong> dan <strong>Kurang</strong>. Tombol Selesaikan mati bila kurang bayar tanpa metode piutang.</li>
+          </ul>
+          <p class="petunjuk">Pintasan: <strong>F12</strong> membuka layar Bayar.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A8. Kas masuk / keluar laci</h3>
+          <p>Menu <strong>Kas</strong> untuk uang yang bergerak di laci <strong>di luar penjualan</strong>: bayar ongkos kirim, beli galon, setor ke bank. Isi <strong>Jenis</strong> (kas keluar / kas masuk), <strong>Akun lawan</strong>, <strong>Jumlah</strong>, dan <strong>Keterangan</strong>.</p>
+          <p><strong>Kenapa ini wajib:</strong> tanpa dicatat di sini, setiap pengeluaran nyata akan muncul sebagai "selisih kas" saat tutup shift dan dibukukan sebagai beban yang tidak pernah terjadi. Angka serah terima laci jadi tidak bisa dipercaya.</p>
+          <p class="petunjuk">Catatan kas hanya bisa disimpan saat <strong>shift terbuka</strong>, dan tidak lewat antrean offline seperti nota. Kalau internet mati, catat di kertas dulu lalu masukkan begitu tersambung — <strong>selagi masih di shift yang sama</strong>.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A9. Tutup shift &amp; selisih kas</h3>
+          <p>Isi <strong>Uang fisik di laci</strong> apa adanya. Sistem menghitung sendiri:</p>
+          <p class="petunjuk" style="font-family:'Courier New',monospace">kas sistem = kas awal + tunai masuk dari penjualan − kas keluar bersih<br>selisih&nbsp;&nbsp;&nbsp;= uang fisik − kas sistem</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Hanya nota AKTIF dan hanya bagian <strong>tunai</strong> yang dihitung — transfer dan QRIS tidak masuk laci.</li>
+            <li>Selisih dijurnal apa adanya, lebih maupun kurang. Menutupinya hanya memindahkan masalah ke bulan depan.</li>
+            <li>Hasil tutup shift <strong>bertahan di layar sampai shift berikutnya dibuka</strong> — itu angka serah terima.</li>
+          </ul>
+          <p class="petunjuk">Shift melekat pada <strong>orangnya</strong>, bukan perangkatnya. Kalau masih ada nota di antrean saat menutup, layar memperingatkan lebih dulu karena kas sistem bisa belum lengkap.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A10. Void nota &amp; Retur</h3>
+          <p>Keduanya ada di menu <strong>Retur</strong>, dan bukan hal yang sama:</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Void nota</strong> (tombol merah kanan atas) — untuk nota yang <strong>salah dibuat</strong>. Seluruh nota dibatalkan: stok kembali ke lapisan asalnya, jurnal dibalik, piutangnya batal, poin petugasnya dibatalkan. Wajib mengisi <strong>alasan minimal 5 karakter</strong>. Tidak bisa diurungkan, dan hanya peran berizin yang melihat tombolnya.</li>
+            <li><strong>+ Retur baru</strong> — untuk barang yang <strong>benar terjual lalu dikembalikan</strong>. Penjualan aslinya tetap tercatat; returnya muncul terpisah di laporan.</li>
+          </ul>
+          <p>Pada retur, pilih <strong>Penyelesaian</strong>: <strong>Kembali uang</strong> atau <strong>Tukar barang</strong> (wajib mengisi minimal satu barang pengganti). Per barang pilih kondisi <strong>layak jual</strong> atau <strong>rusak</strong> — yang rusak tidak kembali ke stok jual, tapi jejaknya tetap tercatat. <strong>Alasan retur wajib diisi.</strong></p>
+          <p class="petunjuk">Kalau pembeli kehilangan struk, ada tautan <strong>Lanjut tanpa nota</strong>. Boleh dipakai, tapi modal barangnya jadi perkiraan — laba historisnya bisa sedikit meleset. Nota yang sudah di-void tidak bisa diretur; pencarian pun tidak akan menemukannya lagi.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A11. Printer struk</h3>
           <p>Sambungkan printer thermal Bluetooth sekali di menu <strong>Perangkat</strong> — tombol "Hubungkan printer Bluetooth", lalu "Uji cetak" untuk memastikan. Kalau Bluetooth gagal atau belum disambungkan, aplikasi otomatis mencetak lewat jendela print biasa (perlu izin pop-up peramban).</p>
           <p class="petunjuk">Susunan &amp; isi struk (nama usaha, alamat, footer, lebar kertas) diatur pemilik di menu Setting — bukan di sini, karena berlaku untuk semua cabang sekaligus.</p>
         </div>
 
         <div class="kartu">
-          <h3>Kalau internet mati</h3>
+          <h3>A12. Kalau internet mati</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li>Kasir tetap bisa berjualan seperti biasa — nota tersimpan di perangkat &amp; ikut tercetak "* belum tersinkron *".</li>
             <li>Begitu internet kembali, nota terkirim otomatis dalam beberapa detik.</li>
+            <li>Menu back office (Produk, Laporan, dan lainnya) sengaja tidak bisa dibuka offline, supaya tidak ada yang mengubah master berdasarkan data basi.</li>
             <li>Keluar (logout) ditolak selama shift masih terbuka saat online — offline, keluar tetap boleh setelah konfirmasi, dan tercatat untuk dilaporkan saat kembali online.</li>
           </ul>
         </div>
 
         <div class="kartu">
-          <h3>Kalau ada yang tidak beres</h3>
+          <h3>A13. Kalau ada yang tidak beres</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Struk tidak keluar</strong> — cek menu Perangkat &gt; Printer, coba "Uji cetak". Nota tetap tersimpan walau cetaknya gagal.</li>
-            <li><strong>Nota nyangkut di antrean</strong> — lihat kotak peringatan "Nota ditolak server" bila muncul; tunjukkan ke pemilik, biasanya butuh tindakan di sisi server (mis. periode yang sudah dikunci).</li>
+            <li><strong>Lencana merah "nota ditolak"</strong> — klik untuk melihat daftarnya. Penyebab paling sering: tanggal notanya jatuh di <strong>periode yang sudah ditutup buku</strong>. Tunjukkan ke pemilik; koreksinya lewat periode berjalan, bukan dari perangkat kasir.</li>
             <li><strong>Menu yang biasanya ada hilang</strong> — kemungkinan hak akses peran berubah; keluar lalu masuk lagi supaya izin terbaru terbaca.</li>
+            <li><strong>Aplikasi terasa versi lama sesudah pembaruan</strong> — tekan Ctrl+Shift+R. Kalau masih lama, muat ulang sekali lagi: versi baru memasang diri di muat pertama dan baru berkuasa di muat kedua.</li>
             <li>Untuk hal lain di luar daftar ini, hubungi pemilik/pengelola toko.</li>
           </ul>
         </div>
+
+        <div class="kartu">
+          <h3>B1. Produk, poin, &amp; impor massal</h3>
+          <p>Editor produk punya enam tab: <strong>Umum</strong>, <strong>Kecocokan &amp; pencarian</strong>, <strong>Satuan bertingkat</strong>, <strong>Tier harga</strong>, <strong>Varian</strong>, dan <strong>Tim &amp; poin</strong>.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Tim &amp; poin</strong> hanya berisi <strong>Poin per satuan dasar</strong>. Nilainya dikalikan qty dasar: 12 pcs × 3 poin = 36 poin. Boleh pecahan (0,5). <strong>Mengisi poin otomatis memunculkan tombol + Pemasang</strong> di layar kasir — tidak ada yang perlu dicentang. Poin 0 berarti produk ini tidak berpoin; omzetnya tetap tercatat atas nama petugasnya.</li>
+            <li>Di daftar produk, dropdown <strong>Tampilkan</strong> memilih satu kolom tambahan — Poin (bawaan), Margin, Turunan, Stok min, Barcode, atau Satuan. Dropdown di sebelahnya menyaring: <strong>Berpoin</strong>, <strong>Tanpa poin</strong>, atau <strong>Nonaktif</strong>. Pakai "Tanpa poin" untuk memeriksa produk mana yang poinnya belum disetel.</li>
+            <li><strong>Impor massal</strong> bisa mengisi Produk, Pelanggan, Supplier, dan Stok awal — termasuk kolom <strong>poin_satuan</strong>, jadi poin ratusan produk bisa disetel dari berkas. Unduh templatenya dulu, lalu tekan <strong>Pratinjau</strong> sebelum menjalankan.</li>
+          </ul>
+          <p class="petunjuk">Impor bersifat <strong>semua-atau-tidak sama sekali</strong>: satu baris bermasalah membatalkan seluruh berkas. Impor hanya <strong>menambah produk baru</strong> — SKU yang sudah ada ditolak, jadi mengubah poin produk lama tetap lewat layar.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B2. Pembelian &amp; Retur Beli</h3>
+          <p>Menu <strong>Pembelian</strong> mencatat barang masuk dari supplier: tanggal, no faktur, supplier, cara bayar (tunai/transfer/<strong>kredit</strong> dengan jatuh tempo), lalu baris barang beserta <strong>faktor/isi</strong> (lusin = 12). Diskon dokumen dan PPN diisi di bawah.</p>
+          <p>Setiap pembelian membentuk <strong>lapisan stok baru</strong> pada harga belinya. Modal dihitung <strong>FIFO berlapis</strong> — barang yang masuk lebih dulu dijual lebih dulu. Diskon dokumen ikut memotong nilai lapisannya, jadi modal yang tercatat adalah harga bersih.</p>
+          <p><strong>Retur Beli</strong> mengembalikan barang ke supplier. Pilih penyelesaian: <strong>Potong utang ke supplier</strong> atau <strong>Uang dikembalikan</strong>. Stok di rak harus mencukupi — mengembalikan barang yang tidak ada selalu ditolak.</p>
+          <p class="petunjuk">Nilai yang ditagihkan ke supplier memakai harga beli asli, sementara yang keluar dari nilai stok memakai modal barang itu. Kalau harga beli sudah berubah sejak barang masuk, kedua angka itu memang berbeda.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B3. Transfer antar cabang</h3>
+          <p>Dua langkah dan dua orang: cabang asal menekan <strong>+ Kirim barang</strong>, cabang tujuan menekan <strong>Terima barang</strong>. Statusnya <strong>DIKIRIM</strong> → <strong>DITERIMA</strong>.</p>
+          <p>Kalau jumlah yang diterima kurang dari yang dikirim, dokumennya berstatus <strong>SELISIH</strong> dan kekurangannya otomatis dibukukan sebagai barang hilang <strong>di cabang pengirim</strong>. Barang yang hilang di jalan tidak bisa lolos diam-diam.</p>
+          <p class="petunjuk">Membatalkan hanya bisa di cabang asal, hanya selagi berstatus DIKIRIM, dan hanya oleh peran yang berizin. Yang sudah diterima tidak bisa dibatalkan.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B4. Opname (hitung fisik)</h3>
+          <p>Tiga tahap: <strong>DRAFT</strong> (mengisi hitungan fisik) → <strong>REVIEW</strong> (selisih baru boleh dilihat) → <strong>POSTED</strong> (stok disesuaikan). Cakupannya bisa parsial per kategori/merek, penuh, atau spot check beberapa SKU.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Toko boleh terus berjualan selama opname.</strong> Stok sistem dikunci pada detik barang itu dihitung, bukan saat diposting.</li>
+            <li>Saat posting sistem <strong>hanya menambahkan selisihnya</strong>, tidak menimpa stok dengan angka fisik.</li>
+            <li>Baris yang dibiarkan kosong berarti <strong>belum dihitung</strong>, bukan nol.</li>
+            <li>Memposting butuh izin terpisah dari mengisi — pemisahan itu yang mencegah selisih dihapus diam-diam.</li>
+          </ul>
+          <p class="petunjuk">Opname yang sudah diposting tidak bisa dikoreksi. Untuk memperbaiki, buat opname baru.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B5. Pelanggan &amp; Piutang</h3>
+          <p>Pelanggan punya <strong>Level harga</strong> (eceran/grosir) yang otomatis dipakai kasir begitu pelanggan itu dipilih, serta <strong>Limit kredit</strong> dan <strong>Termin</strong> sebagai catatan.</p>
+          <p>Menu <strong>Piutang</strong> mengelompokkan tagihan menurut umurnya: belum jatuh tempo, telat 1–30, 31–60, 61–90, dan lebih dari 90 hari. Tombol <strong>Terima bayar</strong> menerima pelunasan maupun cicilan — jumlahnya boleh diubah.</p>
+          <p class="petunjuk"><strong>Limit kredit saat ini hanya angka acuan</strong> — sistem tidak menolak penjualan piutang yang melebihinya. Pemeriksaannya masih di tangan Anda.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B6. Petugas &amp; bobot peran</h3>
+          <p>Menu <strong>Petugas</strong> berbeda dari Pengguna: pramuniaga tidak perlu punya akun login. Isinya nama, peran utama (Penjual/Pemasang), cabang, dan telepon.</p>
+          <p><strong>Bobot peran</strong> (bawaan 60 : 40) membagi poin, omzet, dan laba antara penjual dan pemasang bila satu pekerjaan dikerjakan berdua. <strong>Tidak ada tarif per orang</strong> — nilai pekerjaan melekat pada produknya, supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>
+          <p class="petunjuk">Peran utama hanya jadi <em>bawaan</em>; peran sesungguhnya pada sebuah nota ditentukan urutan pemilihan kasir. Petugas yang berhenti cukup <strong>dinonaktifkan</strong>, jangan dihapus — klaim lama masih menunjuk ke namanya.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B7. Laporan, Performa, Keuangan, Diskon</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Dashboard</strong> — nota &amp; omzet hari ini, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis.</li>
+            <li><strong>Laporan</strong> — penjualan per rentang tanggal: per metode bayar (termasuk biaya MDR), per cabang, dan produk terlaris.</li>
+            <li><strong>Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
+            <li><strong>Keuangan</strong> — Laba Rugi, Neraca, <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis), dan Tutup buku.</li>
+            <li><strong>Diskon</strong> — berapa banyak diskon diberikan, oleh kasir siapa, dan mana yang lewat batas sehingga butuh persetujuan.</li>
+          </ul>
+          <p class="petunjuk">Di Performa, <strong>omzet petugas adalah porsinya</strong>, bukan nilai nota penuh: nota 100.000 yang dikerjakan berdua terbagi menurut bobot peran. Bila ada nota yang terjual tanpa petugas, layar itu menuliskan sendiri berapa omzet yang belum terklaim.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B8. Tutup buku &amp; periode terkunci</h3>
+          <p>Di menu <strong>Keuangan</strong>, pilih periode lalu tekan <strong>Tutup buku</strong>. Sesudah dikunci, <strong>tidak ada dokumen bertanggal periode itu yang bisa masuk</strong> — nota, kas, retur, pembelian, opname, maupun void. Koreksi harus lewat periode berjalan.</p>
+          <p>Jalankan <strong>Uji kebenaran</strong> lebih dulu. Kalau pemeriksaannya gagal, penguncian ditolak beserta daftar apa yang belum cocok.</p>
+          <p class="petunjuk">Efeknya di kasir: notanya tetap tersimpan dan tercetak di perangkat, tapi ditolak server dan muncul sebagai lencana merah. Jangan menutup buku bulan berjalan sebelum semua perangkat kasir tersinkron.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B9. Pengguna, Cabang, Setting, Audit, Arsip</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Pengguna</strong> — akun login, peran &amp; hak aksesnya, dan pendaftaran perangkat kasir. Perubahan izin baru terbaca setelah orangnya keluar lalu masuk lagi.</li>
+            <li><strong>Cabang</strong> — setiap cabang punya berkas database sendiri; itulah sebabnya kasir cabang A tidak pernah menunggu cabang B.</li>
+            <li><strong>Setting</strong> — nama usaha, kop &amp; footer struk, lebar kertas, PPN, dan lainnya. Berlaku untuk <strong>seluruh cabang</strong>.</li>
+            <li><strong>Audit</strong> — jejak kejadian terakhir beserta pelakunya. Tidak bisa dihapus dari dalam aplikasi.</li>
+            <li><strong>Arsip</strong> — kapasitas berkas dan rotasi tahunan. Data lama <strong>dipindah, bukan dihapus</strong>, dan uji coba wajib dijalankan lebih dulu.</li>
+          </ul>
+          <p class="petunjuk">Bobot peran sengaja tidak ada di Setting — tempatnya di menu Petugas. Satu hal yang bisa diubah dari dua tempat berarti yang terakhir menyimpan menang tanpa ada yang tahu.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B10. Akun saya, Perangkat, Tentang</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Akun saya</strong> — ganti PIN sendiri (6 digit). Selalu tersedia untuk semua peran.</li>
+            <li><strong>Perangkat</strong> — printer, umur data master, jumlah antrean kirim, dan tombol tarik/kirim manual.</li>
+            <li><strong>Tentang</strong> — versi aplikasi, cabang aktif, siapa yang login, dan versi data lokal. <strong>Sebutkan versinya setiap kali melaporkan masalah</strong>; itu pertanyaan pertama yang akan diajukan.</li>
+          </ul>
+        </div>
+
       </div>
     </section>
 

@@ -920,7 +920,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           </div>
         </div>
         <div class="kartu">
-          <p class="petunjuk">Setiap pembelian menaikkan stok dan menghitung ulang HPP rata-rata bergerak, lalu membukukan jurnal Persediaan / Utang secara otomatis.</p>
+          <!-- "rata-rata bergerak" — keterangan yang salah sejak awal dan diperbaiki
+               24 Agu 2026. Mesin persediaannya FIFO berlapis (06_Stock.gs), dan
+               metode_hpp yang dikembalikan API pun berbunyi FIFO. Angka rata-rata yang
+               tampil di layar Stok hanyalah rata-rata tertimbang dari lapisan yang
+               MASIH TERSISA — untuk dilihat, bukan yang dipakai menghitung HPP.
+               Keterangan yang salah di layar cepat atau lambat disalin ke manual,
+               lalu dipercaya saat menyelisihkan HPP. -->
+          <p class="petunjuk">Setiap pembelian menaikkan stok dan membentuk lapisan FIFO baru pada harga belinya (diskon dokumen ikut memotong nilai lapisan), lalu membukukan jurnal Persediaan / Utang secara otomatis.</p>
           ${tabel([
             { judul: 'Tanggal', kunci: 'tanggal' },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
