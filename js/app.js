@@ -810,16 +810,23 @@ const normalPeran = (p) => {
 const namaPetugas = (kode) =>
   (APP_STATE.daftarPetugas.find(p => p.kode === kode) || {}).nama || kode;
 
-/** Isi dropdown pramuniaga di bar alat kasir. */
-function gambarPilihanPetugas() {
-  const sel = $('#selPetugas');
+/**
+ * Isi SATU dropdown pramuniaga.
+ *
+ * Ada dua di layar: `#selPetugas` di bar alat kasir (disetel di awal, terlihat
+ * sekilas selagi barang di-scan) dan `#selPetugasBayar` di layar Bayar (tempat
+ * memastikannya sebelum uang diterima). Keduanya tampilan dari SATU keadaan —
+ * `Keranjang.petugasNota` — dan digambar fungsi ini, bukan disalin. Dua salinan
+ * daftar yang sama adalah cara paling pasti membuat keduanya berbeda diam-diam.
+ */
+function isiSatuDropdownPetugas(sel, tombol) {
   if (!sel) return;
   const daftar = APP_STATE.daftarPetugas || [];
   const dipilih = Keranjang.petugasNota;
 
   // Toko yang belum mengisi daftar petugas tidak perlu melihat kolom yang selalu kosong.
   sel.classList.toggle('sembunyi', daftar.length === 0);
-  $('#btnTimNota')?.classList.toggle('sembunyi', daftar.length === 0);
+  tombol?.classList.toggle('sembunyi', daftar.length === 0);
   if (!daftar.length) return;
 
   // Lebih dari satu orang tidak muat di satu dropdown — dalam keadaan itu kolomnya
@@ -836,8 +843,26 @@ function gambarPilihanPetugas() {
         ? ' · ' + esc(String(p.peran_utama).toLowerCase()) : ''}</option>`).join('');
 }
 
+/** Gambar ulang KEDUA dropdown pramuniaga sekaligus, supaya tidak pernah beda. */
+function gambarPilihanPetugas() {
+  isiSatuDropdownPetugas($('#selPetugas'), $('#btnTimNota'));
+  isiSatuDropdownPetugas($('#selPetugasBayar'), $('#btnTimNotaBayar'));
+}
+
 /**
- * Penjagaan klaim di layar bayar.
+ * Klaim petugas di layar bayar — sekarang BISA DIUBAH DI TEMPAT.
+ *
+ * Sebelum 24 Agu 2026 bagian ini hanya mengabarkan bahwa klaimnya kurang lalu
+ * menyuruh kasir keluar: "Pilih siapa yang melayani di kolom pramuniaga pada
+ * layar kasir." Itu jalan buntu tepat di detik pembeli menyodorkan uang —
+ * tombol Selesaikan mati, dan satu-satunya jalan keluar adalah menutup layar
+ * bayar, memperbaiki, lalu mengulang seluruh pengisian pembayaran.
+ *
+ * Dropdown di bar alat kasir SENGAJA tidak dipindah ke sini, hanya digandakan
+ * tampilannya: pramuniaga diketahui saat pembeli datang, bukan saat membayar,
+ * dan menyetelnya di awal berarti layar bayar tinggal memastikan. Keduanya
+ * membaca dan menulis satu keadaan yang sama.
+ *
  * @return {boolean} boleh dilanjutkan
  */
 function gambarJagaKlaim() {
@@ -851,19 +876,39 @@ function gambarJagaKlaim() {
 
   // Ada baris yang masih bergantung pada klaim nota?
   const adaSisa = Keranjang.baris.some(b => !(b.tim || []).length);
-  if (APP_STATE.klaimWajib && adaSisa && !Keranjang.petugasNota.length) {
-    w.innerHTML = `<div class="pesan galat">Nota ini belum ada pramuniaganya.
-      Pilih siapa yang melayani di kolom pramuniaga pada layar kasir.</div>`;
-    return false;
-  }
-
   const daftar = Keranjang.petugasNota;
-  w.innerHTML = daftar.length
-    ? `<div class="pesan info">Diklaim oleh <strong>${
-        esc(daftar.map(x => namaPetugas(x.kode)).join(', '))}</strong>${
-        adaSisa ? '' : ' — seluruh baris sudah punya timnya sendiri, jadi klaim nota tidak dipakai.'}</div>`
-    : '';
-  return true;
+  const kurang = APP_STATE.klaimWajib && adaSisa && !daftar.length;
+
+  const ket = kurang
+    ? '<div class="pesan galat">Nota ini belum ada pramuniaganya — pilih di sini.</div>'
+    : daftar.length
+      ? `<div class="pesan info">Diklaim oleh <strong>${
+          esc(daftar.map(x => namaPetugas(x.kode)).join(', '))}</strong>${
+          adaSisa ? '' : ' — seluruh baris sudah punya timnya sendiri, jadi klaim nota tidak dipakai.'}</div>`
+      : '';
+
+  /* Digambar ulang setiap kali ringkasan bayar berubah — termasuk pada setiap
+     ketikan jumlah uang. Menyusun ulang elemen yang sedang dipakai akan
+     merampas fokus dan menutup daftar dropdown yang sedang dibuka, jadi
+     rangkanya hanya dibuat SEKALI lalu isinya saja yang diperbarui. */
+  if (!w.querySelector('#selPetugasBayar')) {
+    w.innerHTML =
+      `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+         <label style="margin:0;white-space:nowrap">Pramuniaga</label>
+         <select id="selPetugasBayar" style="flex:1;min-width:0"
+                 title="Pramuniaga yang melayani nota ini"></select>
+         <button class="tombol kecil" id="btnTimNotaBayar" type="button"
+                 title="Bagi nota ini ke beberapa pramuniaga">Tim</button>
+       </div>
+       <div id="byrKetKlaim"></div>`;
+  }
+  /* Isinya tetap disegarkan tiap kali — kecuali saat kolomnya SEDANG DIPAKAI.
+     Menyusun ulang <option> pada dropdown yang sedang terbuka akan menutup
+     daftarnya di tengah kasir memilih. */
+  const sel = $('#selPetugasBayar');
+  if (document.activeElement !== sel) isiSatuDropdownPetugas(sel, $('#btnTimNotaBayar'));
+  $('#byrKetKlaim').innerHTML = ket;
+  return !kurang;
 }
 
 /* ---------- Modal tim ---------- */
@@ -1858,16 +1903,27 @@ function pasangEvent() {
     gambarKeranjang(); gambarProduk($('#inpCari').value);
   });
 
-  /* --- klaim petugas --- */
-  $('#selPetugas').addEventListener('change', e => {
+  /* --- klaim petugas ---
+     Satu pendengar untuk DUA kolom: `#selPetugas` di bar alat kasir dan
+     `#selPetugasBayar` di layar bayar. Yang kedua digambar ulang setiap kali
+     ringkasan bayar berubah, jadi pendengarnya dipasang di document (delegasi)
+     — memasangnya langsung pada elemennya akan hilang bersama elemennya. */
+  const ubahPetugasNota = (nilai) => {
     // '__tim__' hanyalah label ringkasan saat notanya dibagi ke beberapa orang;
     // memilihnya berarti membuka kembali dialognya, bukan mengubah apa pun.
-    if (e.target.value === '__tim__') return bukaTim('#NOTA');
-    Keranjang.setPetugasNota(e.target.value ? [{ kode: e.target.value }] : []);
+    if (nilai === '__tim__') return bukaTim('#NOTA');
+    Keranjang.setPetugasNota(nilai ? [{ kode: nilai }] : []);
     gambarPilihanPetugas();
     if ($('#tiraiBayar').classList.contains('tampil')) gambarRingkasBayar();
+  };
+  document.addEventListener('change', e => {
+    if (e.target.id === 'selPetugas' || e.target.id === 'selPetugasBayar') {
+      ubahPetugasNota(e.target.value);
+    }
   });
-  $('#btnTimNota').addEventListener('click', () => bukaTim('#NOTA'));
+  document.addEventListener('click', e => {
+    if (e.target.id === 'btnTimNota' || e.target.id === 'btnTimNotaBayar') bukaTim('#NOTA');
+  });
 
   $('#btnBatalTim').addEventListener('click', () => {
     $('#tiraiTim').classList.remove('tampil');
