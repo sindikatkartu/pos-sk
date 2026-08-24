@@ -1411,12 +1411,25 @@ async function muatKas() {
 
   /* Daftar akun diambil dari COA yang SUDAH tersinkron ke perangkat, bukan
      daftar mati di kode: begitu pemilik menambah akun beban baru, akun itu
-     langsung muncul di sini — dan daftarnya tetap ada saat internet mati. */
+     langsung muncul di sini — dan daftarnya tetap ada saat internet mati.
+
+     NAMA KOLOMNYA `kode`/`nama`/`transaksi`, BUKAN nama kolom sheet-nya.
+     `apiTarikMaster` (05_Master.gs) memetakan ulang baris COA sebelum
+     mengirimnya: kode_akun→kode, saldo_normal→normal, boleh_transaksi→transaksi.
+     Salah nama kolom di sini tidak melempar galat apa pun — JavaScript cuma
+     memberi `undefined`, dan dropdown-nya terisi baris kosong yang tampak
+     seperti daftar sungguhan sampai ada yang mencoba memilihnya.
+
+     Saringannya memakai `transaksi` (boleh_transaksi), BUKAN daftar tipe akun.
+     Tipe adalah tebakan yang harus diperbarui tiap kali COA berubah; `transaksi`
+     adalah pernyataan COA itu sendiri tentang akun mana yang boleh menerima
+     jurnal. Tanpa itu, akun induk seperti "1-0000 ASET" ikut bisa dipilih dan
+     jurnal menempel di akun ringkasan. */
   const coa = await DB.kvGet('coa', []);
   const pilihan = (coa || [])
-    .filter(c => _AKUN_KAS_SENDIRI.indexOf(String(c.kode_akun)) === -1)
-    .filter(c => ['Beban', 'HPP', 'Aset', 'Kewajiban', 'Pendapatan Lain', 'Pendapatan'].indexOf(String(c.tipe)) > -1)
-    .map(c => `<option value="${esc(c.kode_akun)}">${esc(c.kode_akun)} — ${esc(c.nama_akun)}</option>`);
+    .filter(c => c.transaksi === true || String(c.transaksi) === 'true')
+    .filter(c => _AKUN_KAS_SENDIRI.indexOf(String(c.kode)) === -1)
+    .map(c => `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`);
   $('#kasAkun').innerHTML = pilihan.length
     ? pilihan.join('')
     : '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
