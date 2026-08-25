@@ -309,62 +309,22 @@ function kelompokMenu(daftar) {
   return grup.sort((a, b) => urut(a) - urut(b));
 }
 
-/**
- * Kelompok sidebar bisa DILIPAT.
- *
- * Peran Owner melihat 28 menu. Daftar sepanjang itu harus digulir setiap kali,
- * dan yang dicari hampir selalu ada di bawah lipatan layar. Sekarang tiap
- * kelompok bisa ditutup, dan bawaannya hanya kelompok pertama yang terbuka —
- * sisanya sekali klik jauhnya, bukan lima kali gulir.
- *
- * Pilihannya diingat per PERANGKAT, bukan per akun: yang menentukan kebiasaan
- * membuka menu adalah layar di depan orangnya, bukan siapa yang login.
- */
-let grupTerbuka = null;   // Set berisi nama kelompok; null = belum dimuat
-
 function bangunNav() {
   const daftar = menuTampil();
-  const grup = kelompokMenu(daftar);
-  if (!grupTerbuka) grupTerbuka = new Set([grup[0]?.nama].filter(Boolean));
 
-  $('#navSisi').innerHTML = grup.map(g => `
-    <div class="sisi-grup-blok${grupTerbuka.has(g.nama) ? '' : ' tutup'}" data-grup="${esc(g.nama)}">
-      <button class="sisi-grup" data-grup-lipat="${esc(g.nama)}"
-              aria-expanded="${grupTerbuka.has(g.nama)}">
-        <span>${esc(g.nama)}</span>
-        <svg class="sisi-panah" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"
-             fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-      </button>
-      <div class="sisi-grup-isi">${g.isi.map(m =>
-        // title= dipakai saat sidebar terlipat: labelnya hilang, tooltipnya menggantikan.
-        `<button data-layar="${m.id}" title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></button>`
-      ).join('')}</div>
-    </div>`).join('');
+  $('#navSisi').innerHTML = kelompokMenu(daftar).map(g =>
+    `<div class="sisi-grup">${esc(g.nama)}</div>` +
+    g.isi.map(m =>
+      // title= dipakai saat sidebar terlipat: labelnya hilang, tooltipnya menggantikan.
+      `<button data-layar="${m.id}" title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></button>`
+    ).join('')
+  ).join('');
 
   bukaLayar(daftar[0].id);
 }
 
-/** Buka-tutup satu kelompok, lalu ingat pilihannya. */
-function lipatGrup(nama) {
-  if (grupTerbuka.has(nama)) grupTerbuka.delete(nama); else grupTerbuka.add(nama);
-  const blok = $$('.sisi-grup-blok').find(b => b.dataset.grup === nama);
-  if (blok) {
-    blok.classList.toggle('tutup', !grupTerbuka.has(nama));
-    blok.querySelector('.sisi-grup')?.setAttribute('aria-expanded', grupTerbuka.has(nama));
-  }
-  DB.kvSet('grup_sidebar', [...grupTerbuka]).catch(() => {});
-}
-
 function bukaLayar(id) {
   $$('#navSisi button').forEach(b => b.classList.toggle('aktif', b.dataset.layar === id));
-  /* Kelompok yang memuat layar aktif SELALU dibuka. Tanpa ini, membuka layar
-     dari tempat lain (pintasan, tombol "buka shift sekarang", muat ulang)
-     meninggalkan sidebar yang tidak menunjukkan sedang di mana — penanda
-     aktifnya ada, tapi tersembunyi di balik kelompok yang terlipat. */
-  const tombolAktif = $$('#navSisi button[data-layar]').find(b => b.dataset.layar === id);
-  const blok = tombolAktif?.closest('.sisi-grup-blok');
-  if (blok && blok.classList.contains('tutup')) lipatGrup(blok.dataset.grup);
   $$('.layar').forEach(l => l.classList.remove('aktif'));
   const el = $('#layar' + id[0].toUpperCase() + id.slice(1));
   if (el) el.classList.add('aktif');
@@ -1834,11 +1794,7 @@ function pasangEvent() {
   /* --- navigasi --- */
   $('#navSisi').addEventListener('click', e => {
     const b = e.target.closest('button');
-    if (!b) return;
-    // Judul kelompok dulu: ia juga <button>, jadi tanpa cabang ini kliknya
-    // jatuh ke bukaLayar(undefined) dan seluruh layar ikut padam.
-    if (b.dataset.grupLipat) return lipatGrup(b.dataset.grupLipat);
-    if (b.dataset.layar) bukaLayar(b.dataset.layar);
+    if (b) bukaLayar(b.dataset.layar);
   });
   $('#btnLaci').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>';
   $('#btnKeluar').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="m15.5 16.5 4.5-4.5-4.5-4.5"/><path d="M20 12H9"/></svg>';

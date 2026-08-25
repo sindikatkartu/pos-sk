@@ -118,21 +118,11 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-isi::-webkit-scrollbar { width: 6px; }
 .sisi-isi::-webkit-scrollbar-thumb { background: var(--garis-kuat); border-radius: 3px; }
 
-/* Judul kelompok kini TOMBOL pelipat — 28 menu terlalu panjang untuk digulir
-   setiap kali. Rupanya sengaja tetap seperti judul, bukan seperti tombol:
-   yang berubah hanya panahnya dan latar saat disentuh. */
 .sisi-grup {
   font-size: 10.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
-  color: var(--teks-redup); padding: 14px 10px 6px; white-space: nowrap;
-  display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  width: 100%; background: transparent; border: none; cursor: pointer;
-  border-radius: var(--radius);
+  color: var(--teks-redup); padding: 16px 10px 6px; white-space: nowrap;
 }
-.sisi-grup:hover { color: var(--teks); }
-.sisi-grup-blok:first-child .sisi-grup { padding-top: 6px; }
-.sisi-panah { flex: none; opacity: .7; transform: rotate(90deg); transition: transform .15s ease; }
-.sisi-grup-blok.tutup .sisi-panah { transform: rotate(0deg); }
-.sisi-grup-blok.tutup .sisi-grup-isi { display: none; }
+.sisi-grup:first-child { padding-top: 6px; }
 
 /* Item nav mengikuti sidebar pengaturan GitHub: hover abu muda, item aktif
    ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh. */
@@ -201,15 +191,9 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat .sisi-grup {
   /* Judul kelompok diganti garis pemisah — tetap ada jeda visual, tanpa teks terpotong */
   height: 1px; padding: 10px 0 0; margin: 6px 8px 6px; overflow: hidden;
-  border-top: 1px solid var(--garis); color: transparent; pointer-events: none;
+  border-top: 1px solid var(--garis); color: transparent;
 }
-#app.sisi-lipat .sisi-grup-blok:first-child .sisi-grup {
-  border-top: none; margin-top: 0; padding-top: 0; height: 4px;
-}
-/* Saat sidebar terlipat judulnya jadi garis — tidak ada lagi yang bisa diklik
-   untuk membuka kelompok, jadi semuanya WAJIB terbuka. Tanpa aturan ini, menu
-   di kelompok yang tertutup lenyap sama sekali dan tidak ada jalan kembali. */
-#app.sisi-lipat .sisi-grup-blok.tutup .sisi-grup-isi { display: block; }
+#app.sisi-lipat .sisi-grup:first-child { border-top: none; margin-top: 0; padding-top: 0; height: 4px; }
 #app.sisi-lipat .kartu-user { justify-content: center; padding: 8px 0; }
 
 /* ---------- Bilah atas ---------- */
