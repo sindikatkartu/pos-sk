@@ -115,7 +115,20 @@ const Grafik = (() => {
       return;
     }
 
-    const W = 900, H = 300, kiri = 62, kanan = 16, atas = 14, bawah = 30;
+    /* Lebar viewBox MENGIKUTI lebar kotaknya, tidak dipatok 900.
+       Dipatok, seluruh isi SVG ikut diperkecil saat kartunya sempit: di HP tegak
+       kotaknya 328px, jadi skalanya 0,36× dan tulisan 11px tergambar 4px — angka
+       sumbu dan tanggal sama-sama tidak terbaca. Penyakit yang sama sudah
+       ditemukan pada grafik batang dan diselesaikan dengan pindah ke HTML;
+       grafik garis tidak ikut diperbaiki waktu itu. Di sini penyelesaiannya
+       menyamakan satu satuan SVG dengan satu piksel layar, sehingga ukuran huruf
+       tetap sama berapa pun lebar kartunya.
+       Batas bawah 320 menjaga bentuknya tetap masuk akal bila kotaknya belum
+       terukur (masih tersembunyi, clientWidth 0). */
+    const W = Math.round(Math.min(900, Math.max(320, wadah.clientWidth || 900)));
+    const sempit = W < 560;
+    const H = sempit ? 240 : 300;
+    const kiri = sempit ? 46 : 62, kanan = 16, atas = 14, bawah = 30;
     const lebar = W - kiri - kanan, tinggi = H - atas - bawah;
 
     let maks = 0;
@@ -143,7 +156,10 @@ const Grafik = (() => {
     // Label tanggal — hanya beberapa, supaya tidak bertabrakan.
     // Label terakhir selalu ditampilkan, TAPI label sebelumnya dibuang bila terlalu
     // berdekatan; tanpa penjagaan ini keduanya saling menimpa di ujung kanan.
-    const lompat = Math.max(1, Math.ceil(tanggal.length / 8));
+    // Berapa label yang muat itu urusan LEBAR, bukan angka tetap. Delapan label
+    // "19/08" butuh ±280px; di plot selebar 250px mereka saling menimpa.
+    const muat = Math.max(3, Math.floor(lebar / 52));
+    const lompat = Math.max(1, Math.ceil(tanggal.length / muat));
     const indeksLabel = [];
     for (let i = 0; i < tanggal.length; i += lompat) indeksLabel.push(i);
     const terakhir = tanggal.length - 1;

@@ -21,13 +21,21 @@ const Admin = (() => {
      lebar menembus bingkai kartunya di rentang 761–±975px: garis kanan kartu
      terlukis melintasi baris data dan kolom terakhir terpotong di luar kartu.
      Pembungkusnya menyelesaikannya di semua lebar, tanpa memberi `.kartu`
-     konteks pemformatan baru yang bisa memotong elemen lain di dalamnya. */
+     konteks pemformatan baru yang bisa memotong elemen lain di dalamnya.
+
+     Setiap `<td>` membawa `data-l` berisi nama kolomnya. Di HP tegak, `thead`
+     disembunyikan dan tiap baris berubah jadi kartu bertumpuk — nama kolomnya
+     digambar dari `data-l` lewat `::before`. Tanpa itu, kartu bertumpuk hanya
+     menyisakan deretan angka telanjang: "25.000" tanpa keterangan ia modal,
+     eceran, atau grosir. Diletakkan di penggambar bersama ini supaya berlaku
+     untuk SELURUH tabel back office sekaligus, bukan disalin ke lima belas
+     layar satu per satu. */
   const tabelPolos = (kolom, baris, opsi = {}) => `
     <div class="gulir-x">
     <table>
       <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
-        kolom.map(k => `<td class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
+        kolom.map(k => `<td data-l="${esc(k.judul)}" class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
           k.render ? k.render(r) : k.tgl ? esc(tglTampil(r[k.kunci])) : esc(r[k.kunci] ?? '')}</td>`).join('')
       }</tr>`).join('')
         : `<tr><td colspan="${kolom.length}" style="text-align:center;color:var(--teks-redup);padding:28px">${esc(opsi.kosong || 'Belum ada data')}</td></tr>`}

@@ -744,6 +744,74 @@ input.sudah-hitung {
   .bar-atas h1 { font-size: 15.5px; }
   .lencana { padding: 3px 8px; font-size: 11px; }
   #lncUser { display: none; }   /* nama pengguna tetap ada di kaki sidebar */
+
+  /* ---- Kartu statistik: DUA per baris ----
+     `minmax(180px, 1fr)` butuh 372px untuk dua kolom, dan HP tegak yang paling
+     lazim hanya 390px dikurangi bingkai — jadi ia selalu jatuh ke satu kolom.
+     Akibatnya empat angka ringkasan memakan satu layar penuh dan pengguna harus
+     menggulir sebelum melihat data pertamanya. Di lebar ini jumlah kolomnya
+     ditetapkan, bukan ditawar. */
+  .petak { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  /* `margin-bottom: 16px` bawaan `.kartu` DITAMBAHKAN ke `gap` di dalam grid:
+     jarak antar baris jadi 24px sementara antar kolom 8px. Di layar lebar
+     `.petak` hampir selalu satu baris jadi tidak terlihat; di HP ia selalu
+     dua baris atau lebih, dan ketimpangan itu yang terbaca sebagai renggang
+     tak beraturan. Jaraknya diserahkan sepenuhnya ke `gap`. */
+  .petak > .kartu { padding: 12px; margin-bottom: 0; }
+  /* Jumlah kartu ganjil menyisakan satu yang separuh lebar sendirian di baris
+     terakhir. Yang terakhir itu dilebarkan penuh. */
+  .petak > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .statistik .nilai { font-size: 19px; }
+  .statistik .label { font-size: 11.5px; line-height: 1.35; }
+  /* Kartu yang isinya kalimat, bukan angka, tetap selebar penuh. */
+  .petak > .kartu.penuh, .petak > .penuh { grid-column: 1 / -1; }
+
+  /* ---- Bar alat: satu kolom, sama lebar ----
+     Dibiarkan `flex-wrap`, tiap kendali selebar isinya sendiri: "Semua kategori"
+     180px, "Tampilkan: Poin" 170px, "Semua produk" 160px — bertumpuk dengan tepi
+     kanan yang tidak pernah sejajar. Itulah yang terbaca sebagai berantakan,
+     bukan jumlah kendalinya. */
+  .bar-alat { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  /* `max-width` juga dinolkan, bukan hanya `width`. Lebar tiap kendali diberikan
+     sebagai gaya SEBARIS di admin.js (`max-width:180px`, `170px`, `160px`) —
+     angka yang dipilih untuk layar lebar. Kolom gridnya memang sudah 1fr, tapi
+     tanpa baris ini isinya tetap bertangga 180/170/160 di dalamnya.
+     `!important` dipakai sadar: gaya sebaris tidak bisa dikalahkan cara lain,
+     dan memindahkan tiga belas angka lebar itu ke stylesheet berarti menyebar
+     id layar ke berkas gaya. Kalau suatu saat angka-angka itu jadi kelas,
+     hapus `!important`-nya. */
+  .bar-alat > * { width: 100%; max-width: none !important; min-width: 0; }
+  /* SATU kolom, bukan dua. Dengan dua kolom, jumlah kendali yang ganjil selalu
+     menyisakan satu yang lebarnya separuh sendirian di baris terakhir — persis
+     bentuk tidak rapi yang mau dihilangkan. Satu kolom juga mengembalikan teks
+     bantuan kotak cari ("Cari SKU, nama, merek, tipe HP…") yang di lebar separuh
+     terpotong di tengah dan berhenti memberi tahu apa yang bisa dicari. */
+  /* Tombol aksi bertumpuk selebar penuh — tiga tombol di dua kolom selalu
+     menyisakan satu yang separuh lebar dan terbaca sebagai salah taruh. */
+  .bar-alat > .kanan { margin-left: 0; display: grid; grid-template-columns: 1fr; }
+  .bar-alat > .kanan > * { width: 100%; }
+  .bar-alat > .kanan > .ekspor { display: grid; }
+  .jumlah-baris { text-align: right; }
+
+  /* ---- Bar alat kasir ----
+     Lima kendali (kategori, level harga, pelanggan, pramuniaga, Tim) yang
+     lebarnya mengikuti isi teksnya masing-masing bertumpuk jadi dua baris
+     bertangga 145/133/138/156/51 dengan tepi yang tidak pernah sejajar. Dua
+     kolom tetap: tiga baris rapi, dan tiap kendali cukup lebar untuk dibaca.
+     `max-width` sebaris dari index.html ikut dinolkan — sama seperti pada
+     `.bar-alat`, alasan `!important`-nya ada di sana. */
+  .baris-alat-kasir { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .baris-alat-kasir > * { width: 100% !important; max-width: none !important; min-width: 0; }
+  .baris-alat-kasir > .lencana { width: auto !important; justify-self: start; align-self: center; }
+
+  /* ---- Sasaran sentuh ----
+     Jari bukan kursor. Apa pun yang diklik harus ≥40px; di bawah itu salah
+     tekan jadi lumrah, dan di layar Produk salah tekan berarti membuka form
+     produk yang salah. */
+  select, input[type=text], input[type=number], input[type=password],
+  input[type=date], input[type=month], input[type=tel], input[type=search],
+  textarea, .tombol { min-height: 42px; }
+  .tombol.kecil { min-height: 40px; padding: 8px 14px; font-size: 13px; }
 }
 
 /* Landscape pendek (HP dimiringkan): tinggi layar mahal, rapatkan bilah atas. */
@@ -757,17 +825,100 @@ input.sudah-hitung {
 /* Pembungkus tabel: yang menggulir adalah tabelnya, bukan halamannya. */
 .gulir-x { overflow-x: auto; max-width: 100%; }
 
-/* Tabel back office di layar sempit */
-@media (max-width: 760px) {
+/* Tabel back office di layar sedang (tablet, jendela sempit) */
+@media (max-width: 760px) and (min-width: 621px) {
   /* `.kartu` sengaja TIDAK lagi menggulir. `overflow-x: auto` memaksa `overflow-y`
      ikut jadi `auto`, dan itulah yang memotong menu Ekspor di bawah kartu selama
      ini. Sejak setiap tabel punya pembungkus `.gulir-x` sendiri, penggulingan
      tidak perlu lagi dibebankan ke kartunya. */
   table { min-width: 560px; }
-  .modal.lebar { max-width: 100%; }
   .kartu > table,
   .kartu > .gulir-x { margin: -16px 0; width: auto; }
   .kartu > .gulir-x > table { width: 100%; }
+}
+@media (max-width: 760px) { .modal.lebar { max-width: 100%; } }
+
+/* ==================== TABEL DI HP TEGAK ====================
+   Di bawah 620px tabelnya BERHENTI jadi tabel: tiap baris berubah jadi kartu
+   kecil bertumpuk, tiap sel jadi satu baris "Nama kolom …… isi".
+
+   Kenapa bukan sekadar digulir ke samping seperti sebelumnya: `min-width: 560px`
+   di kotak selebar 328px berarti empat dari tujuh kolom berada di luar layar,
+   dan di HP tidak ada bilah gulir yang terlihat untuk memberitahu bahwa mereka
+   ada. Yang terjadi bukan "pengguna menggeser" melainkan "pengguna mengira
+   kolomnya memang cuma empat". Nama pelanggan pun terpotong di tengah kata.
+
+   Nama kolomnya diambil dari `data-l` yang dipasang tabelPolos() di admin.js —
+   jangan hapus salah satunya tanpa yang lain, atau yang tersisa hanya angka
+   telanjang tanpa keterangan. */
+@media (max-width: 620px) {
+  .gulir-x > table,
+  .gulir-x > table > thead,
+  .gulir-x > table > tbody,
+  .gulir-x > table > tbody > tr,
+  .gulir-x > table > tbody > tr > td { display: block; width: auto; }
+
+  /* Kepala tabel tidak dibuang dari HTML — hanya disembunyikan dari mata.
+     Pembaca layar tetap membutuhkannya, dan lebar layar bukan alasan untuk
+     mencabut keterangan kolom dari orang yang justru paling bergantung padanya. */
+  .gulir-x > table > thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+
+  .gulir-x { overflow-x: visible; }
+  .kartu > .gulir-x { margin: 0; }
+
+  .gulir-x > table > tbody > tr {
+    border: 1px solid var(--garis); border-radius: var(--radius);
+    padding: 4px 12px; margin-bottom: 8px; background: var(--panel);
+  }
+  .gulir-x > table > tbody > tr:last-child { margin-bottom: 0; }
+
+  /* Namanya DILETAKKAN mutlak, bukan dijadikan item flex. Dengan flex, isi sel
+     yang terdiri dari beberapa elemen — nama produk lalu baris kecil kategori ·
+     merek di bawahnya — ikut terpecah jadi item-item sebaris, dan baris kecil
+     itu berdiri di sebelah kanan namanya alih-alih di bawahnya. Diposisikan
+     mutlak, isi selnya tetap aliran blok biasa persis seperti di layar lebar. */
+  .gulir-x > table > tbody > tr > td {
+    position: relative; padding: 8px 0 8px 38%;
+    border-bottom: 1px solid var(--garis-halus);
+    text-align: right; white-space: normal;
+    /* Nama kolomnya diletakkan mutlak, jadi ia tidak ikut menyangga tinggi sel.
+       Sel yang isinya kosong akan setinggi nol dan namanya jatuh menimpa baris
+       di bawahnya — "Kode" dan "Nama" tercetak bertumpuk. */
+    min-height: 20px;
+  }
+  .gulir-x > table > tbody > tr > td:last-child { border-bottom: none; }
+  /* Sel yang memang kosong dibuang saja dari kartunya. Baris "Telepon" tanpa
+     nomor apa pun bukan keterangan, hanya baris kosong yang memanjangkan kartu.
+     Di tabel layar lebar kolomnya tetap ada, jadi tidak ada data yang hilang. */
+  .gulir-x > table > tbody > tr > td[data-l]:empty { display: none; }
+
+  .gulir-x > table > tbody > tr > td::before {
+    content: attr(data-l);
+    position: absolute; left: 0; top: 8px; width: 35%;
+    text-align: left; color: var(--teks-redup);
+    font-size: 12px; font-weight: 500; line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+
+  /* Sel tanpa nama kolom (tombol aksi) memakai seluruh lebar kartunya. */
+  .gulir-x > table > tbody > tr > td[data-l=""] { padding-left: 0; }
+  .gulir-x > table > tbody > tr > td[data-l=""]::before { content: none; }
+  /* Nomor peringkat "1., 2., 3." tidak perlu barisnya sendiri di dalam kartu. */
+  .gulir-x > table > tbody > tr > td.sempit { width: auto; }
+
+  /* Baris "Belum ada data" itu satu sel melintang — jangan diberi label. */
+  .gulir-x > table > tbody > tr > td[colspan] { padding-left: 0; text-align: center; }
+  .gulir-x > table > tbody > tr > td[colspan]::before { content: none; }
+  .gulir-x > table > tbody > tr:has(> td[colspan]) { border: none; padding: 0; }
+
+  /* Angka tetap rata kanan — di susunan ini itu memang sudah arah bakunya. */
+  .gulir-x > table > tbody > tr > td.angka { text-align: right; }
+
+  /* Kartu di dalam blok "Nonaktif" ikut menyesuaikan tepinya. */
+  .blok-nonaktif > .gulir-x { padding: 0 12px 12px; }
 }
 
 /* Contoh garis di legenda — membawa pola putus, bukan cuma warna */
