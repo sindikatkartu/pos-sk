@@ -22,18 +22,48 @@ const Admin = (() => {
      terlukis melintasi baris data dan kolom terakhir terpotong di luar kartu.
      Pembungkusnya menyelesaikannya di semua lebar, tanpa memberi `.kartu`
      konteks pemformatan baru yang bisa memotong elemen lain di dalamnya. */
-  const tabel = (kolom, baris, opsi = {}) => `
+  const tabelPolos = (kolom, baris, opsi = {}) => `
     <div class="gulir-x">
     <table>
-      <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
+      <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
-        kolom.map(k => `<td class="${k.angka ? 'angka' : ''}">${
+        kolom.map(k => `<td class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
           k.render ? k.render(r) : k.tgl ? esc(tglTampil(r[k.kunci])) : esc(r[k.kunci] ?? '')}</td>`).join('')
       }</tr>`).join('')
         : `<tr><td colspan="${kolom.length}" style="text-align:center;color:var(--teks-redup);padding:28px">${esc(opsi.kosong || 'Belum ada data')}</td></tr>`}
       </tbody>
     </table>
     </div>`;
+
+  /**
+   * Tabel master, dengan baris NONAKTIF dikeluarkan dari daftar utama.
+   *
+   * Produk, pengguna, petugas, pelanggan, supplier dan cabang semuanya bisa
+   * dinonaktifkan, dan sebelumnya semua bercampur — barang yang sudah lama stop
+   * jual tetap ikut terbaca setiap kali daftarnya dibuka. Tapi menyembunyikannya
+   * sama sekali lebih buruk: orang mengira produknya hilang lalu membuat SKU
+   * kembar, dan SKU kembar merusak kartu stok.
+   *
+   * Jalan tengahnya: keluar dari daftar utama, tetap SATU KLIK jauhnya, dengan
+   * jumlahnya tertulis supaya tidak perlu dibuka hanya untuk memastikan kosong.
+   * Dipasang di penggambar bersama ini, bukan disalin ke enam layar.
+   */
+  const tabel = (kolom, baris, opsi = {}) => {
+    if (!opsi.pisahNonaktif) return tabelPolos(kolom, baris, opsi);
+    const rows = baris || [];
+    // `aktif !== false`, bukan `aktif === true`: baris lama yang kolomnya belum
+    // pernah diisi bernilai undefined, dan itu bukan alasan menyembunyikannya.
+    // Sebagian daftar tidak punya kolom `aktif` — perangkat kasir memakai
+    // `status: DIBLOKIR`. Karena itu penentunya bisa diberikan pemanggil.
+    const mati_p = opsi.nonaktif || ((r) => r.aktif === false);
+    const hidup = rows.filter(r => !mati_p(r));
+    const mati = rows.filter(mati_p);
+    return tabelPolos(kolom, hidup, opsi) + (mati.length ? `
+      <details class="blok-nonaktif">
+        <summary>Nonaktif <span class="lencana">${mati.length}</span></summary>
+        ${tabelPolos(kolom, mati, opsi)}
+      </details>` : '');
+  };
 
   const memuat = (el) => { $(el).innerHTML = '<div class="kartu">Memuat…</div>'; };
   const galat = (el, e) => { $(el).innerHTML = `<div class="pesan galat">${esc(e.message || e)}</div>`; };
@@ -187,7 +217,7 @@ const Admin = (() => {
             ${d.piutang_jatuh_tempo > 0 ? `<div style="color:var(--bahaya);font-size:12px;margin-top:4px">${rp(d.piutang_jatuh_tempo)} lewat tempo</div>` : ''}</div>
         </div>
 
-        <div class="kartu"><h3>Penjualan per cabang — ${esc(d.tanggal)}</h3>
+        <div class="kartu"><h3>Penjualan per cabang — ${esc(tglTampil(d.tanggal))}</h3>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Nota', kunci: 'nota', angka: true },
@@ -201,7 +231,7 @@ const Admin = (() => {
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Kasir', kunci: 'id_user' },
-            { judul: 'Dibuka', render: r => esc(String(r.buka).replace('T', ' ')) }
+            { judul: 'Dibuka', render: r => esc(waktuTampil(r.buka)) }
           ], d.shift_terbuka)}</div>` : ''}
 
         <div class="kartu grafik">
@@ -350,8 +380,10 @@ const Admin = (() => {
   const SARING_PRODUK = [
     { id: '', label: 'Semua produk', lolos: () => true },
     { id: 'berpoin', label: 'Berpoin', lolos: r => Number(r.poin_satuan) > 0 },
-    { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) },
-    { id: 'nonaktif', label: 'Nonaktif', lolos: r => !r.aktif }
+    { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) }
+    /* Pilihan "Nonaktif" dibuang: produk nonaktif sekarang punya tempatnya
+       sendiri di bawah daftar. Dua jalan menuju hal yang sama hanya membuat
+       orang bertanya-tanya apakah keduanya menunjukkan isi yang berbeda. */
   ];
 
   /* Pilihan layar, bukan pengaturan akun: hidup selama sesi ini saja dan tidak
@@ -407,12 +439,13 @@ const Admin = (() => {
           <select id="saringProduk" style="max-width:160px" title="Saring baris">
             ${SARING_PRODUK.map(s => `<option value="${s.id}" ${s.id === saringProduk ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
           </select>
-          <span class="lencana">${hitung}</span>
-          <div style="flex:1"></div>
-          ${tombolEkspor('produk')}
-          ${bolehIzin('produk', 'buat') ? `
-            <button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>
-            <button class="tombol" id="btnImporProduk">Impor massal</button>` : ''}
+          <span class="jumlah-baris">${hitung}</span>
+          <div class="kanan">
+            ${tombolEkspor('produk')}
+            ${bolehIzin('produk', 'buat') ? `
+              <button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>
+              <button class="tombol" id="btnImporProduk">Impor massal</button>` : ''}
+          </div>
         </div>
       </div>
       <div class="kartu">
@@ -426,7 +459,7 @@ const Admin = (() => {
           { judul: 'Stok', angka: true, render: r => `<span class="${r.stok <= r.stok_min ? 'stok-kritis' : ''}">${r.stok ?? '-'}</span>` },
           ...(kolomAktif ? [kolomAktif] : []),
           { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` }
-        ], baris, { kosong: (kueriProduk || saringProduk)
+        ], baris, { pisahNonaktif: true, kosong: (kueriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
             : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' })}
       </div>`;
@@ -1042,7 +1075,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
                 ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
             { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}">Ubah</button>` }
-          ], pel, { kosong: 'Belum ada pelanggan' })}
+          ], pel, { kosong: 'Belum ada pelanggan', pisahNonaktif: true })}
         </div>
 
         <div class="kartu">
@@ -1055,7 +1088,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Telepon', kunci: 'telepon' },
             { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
             { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}">Ubah</button>` }
-          ], sup, { kosong: 'Belum ada supplier' })}
+          ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true })}
         </div>`;
       $('#isiMitra')._pel = pel;
       $('#isiMitra')._sup = sup;
@@ -1183,7 +1216,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Telepon', kunci: 'telepon' },
             { judul: '', render: r => bolehIzin('petugas', 'ubah')
                 ? `<button class="tombol kecil" data-edit-petugas="${esc(r.kode)}">Ubah</button>` : '' }
-          ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun' })}
+          ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun', pisahNonaktif: true })}
         </div>`;
       $('#isiPetugas')._rows = rows;
     } catch (e) { galat('#isiPetugas', e); }
@@ -1340,7 +1373,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>
             <label style="margin:0">Urutkan</label>${pilihUrut('urutCabang', URUT_CABANG, urutCabang)}</div>
           ${tabel([
-            { judul: '#', angka: true, render: x => `<strong>${cabang.indexOf(x) + 1}</strong>` },
+            { judul: '#', angka: true, kelas: 'sempit', render: x => `<strong>${cabang.indexOf(x) + 1}</strong>` },
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Nota', angka: true, kunci: 'nota' },
             { judul: 'Omzet', angka: true, render: x => `<strong>${rp(x.omzet)}</strong>` },
@@ -1365,7 +1398,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              sendiri: ${bobot || '—'}. Berapa rupiah satu poin sengaja tidak dihitung
              sistem — itu keputusan Anda.</p>
           ${tabel([
-            { judul: '#', angka: true, render: x => `<strong>${petugas.indexOf(x) + 1}</strong>` },
+            { judul: '#', angka: true, kelas: 'sempit', render: x => `<strong>${petugas.indexOf(x) + 1}</strong>` },
             { judul: 'Petugas', kunci: 'nama' },
             { judul: 'Poin', angka: true, render: x => `<strong>${x.poin}</strong>` },
             { judul: 'Nota', angka: true, kunci: 'nota' },
@@ -1434,7 +1467,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const p = ($('#isiPiutang')._rows || []).find(x => x.uuid === uuid);
     if (!p) return;
     bukaModal('Terima pembayaran piutang', `
-      <p class="petunjuk">${esc(p.nama_pelanggan)} · nota ${esc(p.tanggal)} · sisa <strong>${rp(p.sisa)}</strong></p>
+      <p class="petunjuk">${esc(p.nama_pelanggan)} · nota ${esc(tglTampil(p.tanggal))} · sisa <strong>${rp(p.sisa)}</strong></p>
       <div class="baris2">
         <div class="grup"><label>Tanggal</label><input type="date" id="bpTanggal" value="${tanggalLokal()}"></div>
         <div class="grup"><label>Jumlah bayar</label><input type="number" id="bpJumlah" value="${p.sisa}"></div>
@@ -1473,11 +1506,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Username', kunci: 'username' },
             { judul: 'Peran', render: r => `<span class="lencana">${esc(r.nama_peran)}</span>` },
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua' : esc(r.cabang) },
-            { judul: 'Login terakhir', render: r => esc(String(r.terakhir_login).replace('T', ' ') || '—') },
+            { judul: 'Login terakhir', render: r => esc(waktuTampil(r.terakhir_login)) },
             { judul: '', render: r => `
               <button class="tombol kecil" data-edit-user="${esc(r.id_user)}">Ubah</button>
               ${bolehIzin('user', 'ubah') ? `<button class="tombol kecil" data-reset-pin="${esc(r.id_user)}">Reset PIN</button>` : ''}` }
-          ], user, { kosong: 'Belum ada pengguna' })}
+          ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true })}
         </div>
 
         <div class="kartu">
@@ -1506,11 +1539,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Status', render: r => `<span class="lencana ${
                 r.status === 'DISETUJUI' ? 'hijau' : (r.status === 'DIBLOKIR' ? 'merah' : 'kuning')}">${esc(r.status)}</span>` },
-            { judul: 'Sinkron terakhir', render: r => esc(String(r.terakhir_sinkron).replace('T', ' ') || '—') },
+            { judul: 'Sinkron terakhir', render: r => esc(waktuTampil(r.terakhir_sinkron)) },
             { judul: '', render: r => bolehIzin('user', 'setujui') ? `
               ${r.status !== 'DISETUJUI' ? `<button class="tombol kecil sukses" data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI">Setujui</button>` : ''}
               ${r.status !== 'DIBLOKIR' ? `<button class="tombol kecil bahaya" data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR">Blokir</button>` : ''}` : '' }
-          ], perangkat, { kosong: 'Belum ada perangkat' })}
+          ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true,
+               nonaktif: r => r.status === 'DIBLOKIR' })}
         </div>`;
       $('#isiPengguna')._user = user;
     } catch (e) { galat('#isiPengguna', e); }
@@ -1608,7 +1642,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Telepon', kunci: 'telepon' },
             { judul: 'Prefix nota', kunci: 'prefix_nota' },
             { judul: '', render: r => `<button class="tombol kecil" data-edit-cabang="${esc(r.kode_cabang)}">Ubah</button>` }
-          ], rows, { kosong: 'Belum ada cabang' })}
+          ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true })}
         </div>`;
       $('#isiCabang')._rows = rows;
     } catch (e) { galat('#isiCabang', e); }
@@ -1913,7 +1947,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(t.cabang_asal)} → ${esc(t.cabang_tujuan)} ·
         <span class="lencana ${LENCANA_TRANSFER[t.status] || ''}">${esc(t.status)}</span><br>
         Dikirim ${esc(waktuTampil(t.tanggal_kirim))} oleh ${esc(t.user_kirim)}
-        ${t.tanggal_terima ? `<br>Diterima ${esc(String(t.tanggal_terima).replace('T', ' '))} oleh ${esc(t.user_terima)}` : ''}
+        ${t.tanggal_terima ? `<br>Diterima ${esc(waktuTampil(t.tanggal_terima))} oleh ${esc(t.user_terima)}` : ''}
         ${t.catatan ? `<br>Catatan: ${esc(t.catatan)}` : ''}
         ${t.catatan_terima ? `<br>Catatan terima: ${esc(t.catatan_terima)}` : ''}</p>
       ${tabel([
@@ -2111,12 +2145,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Selisih', angka: true, render: i => `<strong style="color:${i.selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)'}">${
               i.selisih > 0 ? '+' : ''}${i.selisih}</strong>` },
           ...(punyaNilai ? [{ judul: 'Nilai', angka: true, render: i => rp(i.nilai_selisih) }] : []),
-          { judul: 'Dihitung', render: i => esc(String(i.waktu_hitung).replace('T', ' ').substring(0, 19)) }
+          { judul: 'Dihitung', render: i => esc(waktuTampil(i.waktu_hitung)) }
         ], selisih) : '<div class="pesan sukses">Tidak ada selisih sama sekali — stok sistem dan fisik cocok semua.</div>'}
       </div>
 
       ${d.status === 'POSTED'
-        ? `<div class="pesan info">Sudah diposting ${esc(String(d.waktu_posting).replace('T', ' '))}
+        ? `<div class="pesan info">Sudah diposting ${esc(waktuTampil(d.waktu_posting))}
              oleh ${esc(d.id_user_posting || '—')}. Untuk mengoreksi, buat opname baru.</div>`
         : (d.boleh_posting
             ? `<div class="grup" style="margin-top:12px"><label>Catatan posting</label>

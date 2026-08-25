@@ -131,7 +131,7 @@ async function tampilkanDitolak() {
   const isi = rows.map(o => `<div class="pesan galat" style="margin-bottom:8px">
       <strong>${esc(o.dokumen?.no_nota || o.uuid)}</strong>
       <div style="font-size:12.5px;margin-top:4px">${esc(o.pesan_galat || 'Tanpa keterangan')}</div>
-      <div class="meta-kecil">Dicoba ${o.percobaan || 0}x · ${esc(String(o.dibuat || '').replace('T', ' ').substring(0, 16))}</div>
+      <div class="meta-kecil">Dicoba ${o.percobaan || 0}x · ${esc(waktuTampil(o.dibuat).substring(0, 14))}</div>
     </div>`).join('');
   Admin.modal('Nota ditolak server', `
     <p>Nota berikut sudah tercatat di perangkat ini tapi <strong>ditolak server</strong>,
