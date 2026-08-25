@@ -383,10 +383,17 @@ let pinBuffer = '';
 function gambarPin() {
   $('#titikPin').innerHTML = Array.from({ length: 6 },
     (_, i) => `<span class="${i < pinBuffer.length ? 'isi' : ''}"></span>`).join('');
+  /* OK dimatikan selama PIN belum genap 6 digit.
+     Dibiarkan hidup, satu-satunya keluaran yang bisa dicapai adalah pesan
+     "PIN 6 digit." — dan tombol yang hanya bisa menghasilkan galat itu jebakan,
+     bukan tombol. Lebih jelas mematikannya: enam titik di atasnya sudah
+     memberitahu berapa lagi yang kurang. */
+  const okBtn = $('.papan-pin button[data-pin="masuk"]');
+  if (okBtn) okBtn.disabled = pinBuffer.length < 6;
 }
 
-/* Penjaga login ganda. Digit ke-6 memulai login, tapi pinBuffer tetap berisi
-   6 angka selama menunggu server — satu ketukan lagi memicu login KEDUA dengan
+/* Penjaga login ganda. Dulu digit ke-6 yang memulai login, tapi pinBuffer tetap
+   berisi 6 angka selama menunggu server — satu ketukan lagi memicu login KEDUA dengan
    PIN yang sama: dua sesi, dua token, dua kali mulaiSesi() berjalan bersamaan,
    dan token pertama menggantung. Penanda sibuk per-tombol tidak menolong di sini
    karena tombol yang ditekan berikutnya adalah tombol yang berbeda. */
@@ -1773,7 +1780,18 @@ function gambarPreviewStruk() {
 /* ==================== EVENT ==================== */
 function pasangEvent() {
 
-  /* --- login --- */
+  /* --- login ---
+     TIDAK ADA login otomatis di digit ke-6; yang mengirim adalah tombol OK.
+     Sampai v1.28 digit ke-6 langsung menembak server, dan itu punya dua akibat
+     yang baru terasa saat dipakai sungguhan:
+       1. OK tidak pernah bisa memasukkan siapa pun. Buffer dipatok 6, dan pas 6
+          login sudah jalan — jadi OK hanya bisa ditekan di 0–5 digit, di mana
+          login() langsung menolak "PIN 6 digit." Tombol mati yang menempel.
+       2. Salah tekan digit KEENAM langsung jadi percobaan login yang gagal.
+          Kasir tidak pernah punya kesempatan menekan ← untuk membetulkannya —
+          padahal papan itu justru ada di sebelahnya.
+     Dijaga uji/uji-login.mjs. Kalau suatu saat login otomatis mau dihidupkan
+     lagi, baca dulu alasan no. 2. */
   $('#titikPin') && gambarPin();
   $$('.papan-pin button').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.pin;
@@ -1781,8 +1799,40 @@ function pasangEvent() {
     else if (v === 'masuk') return login(false);
     else if (pinBuffer.length < 6) pinBuffer += v;
     gambarPin();
-    if (pinBuffer.length === 6) login(false);
   }));
+  /* Papan ketik fisik. Di laptop, papan PIN yang hanya bisa diklik memaksa
+     tangan pindah ke tetikus enam kali untuk sesuatu yang jarinya sudah hafal.
+     Angka mengisi, Backspace menghapus, Enter mengirim — Enter mengikuti tombol
+     OK persis: diam saja selama PIN belum genap enam digit.
+
+     TIGA PENJAGA, dan yang pertama bukan kehati-hatian berlebihan.
+     Penangan ini duduk di `document`, jadi tanpa penjaga pertama ia ikut menelan
+     angka yang sedang diketik di kolom Username: username "kasir1" diam-diam
+     mengisi PIN dengan "1", lalu digit pertama yang sebenarnya jadi digit KEDUA.
+     Kasir tidak akan pernah tahu kenapa PIN-nya "salah".
+       1. fokus sedang di kolom isian → biarkan kolomnya yang mengurus
+       2. mode password sedang tampil → papan PIN tidak terlihat, dan buffer yang
+          menumpuk tanpa terlihat siapa pun itu jebakan
+       3. layar login sudah lewat → di dalam aplikasi, angka milik layar lain */
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.target.closest('input, textarea, select')) return;
+    if ($('#modePin').classList.contains('sembunyi')) return;
+    if ($('#layarLogin').classList.contains('sembunyi')) return;
+
+    if (e.key >= '0' && e.key <= '9' && e.key.length === 1) {
+      if (pinBuffer.length < 6) pinBuffer += e.key;
+    } else if (e.key === 'Backspace') {
+      pinBuffer = pinBuffer.slice(0, -1);
+    } else if (e.key === 'Enter') {
+      if (pinBuffer.length === 6) login(false);
+      return;
+    } else return;
+
+    e.preventDefault();   // Backspace tidak boleh memundurkan halaman
+    gambarPin();
+  });
+
   $('#btnLoginPassword').addEventListener('click', () => login(true));
   $('#inpPassword').addEventListener('keydown', e => { if (e.key === 'Enter') login(true); });
   $('#btnTukarMode').addEventListener('click', () => {
