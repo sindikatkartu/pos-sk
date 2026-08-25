@@ -1060,8 +1060,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatMitra() {
     memuat('#isiMitra');
     try {
-      const [pel, sup] = await Promise.all([API.daftarPelanggan(), API.daftarSupplier()]);
+      /* Ditarik TERPISAH, masing-masing dengan penjagaannya sendiri.
+         Dulu keduanya dalam satu Promise.all, dan itu bug nyata: Kepala Cabang
+         punya izin pelanggan tapi TIDAK punya supplier, jadi permintaan supplier
+         ditolak server, satu penolakan menjatuhkan seluruh Promise.all, dan
+         daftar pelanggan mereka ikut lenyap di balik kotak merah — gara-gara
+         tabel yang memang bukan urusan mereka.
+         `null` berarti "tidak boleh / gagal", dan kartunya tidak digambar sama
+         sekali. Kartu kosong tanpa keterangan lebih membingungkan daripada
+         tidak ada kartu. */
+      const [pel, sup] = await Promise.all([
+        bolehIzin('pelanggan', 'lihat') ? API.daftarPelanggan().catch(() => null) : null,
+        bolehIzin('supplier', 'lihat') ? API.daftarSupplier().catch(() => null) : null
+      ]);
       $('#isiMitra').innerHTML = `
+        ${pel ? `
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Pelanggan</h3><div style="flex:1"></div>
             ${bolehIzin('pelanggan', 'buat') ? '<button class="tombol utama" id="btnPelangganBaru">+ Pelanggan</button>' : ''}</div>
@@ -1076,8 +1089,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
             { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}">Ubah</button>` }
           ], pel, { kosong: 'Belum ada pelanggan', pisahNonaktif: true })}
-        </div>
+        </div>` : ''}
 
+        ${sup ? `
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Supplier</h3><div style="flex:1"></div>
             ${bolehIzin('supplier', 'buat') ? '<button class="tombol utama" id="btnSupplierBaru">+ Supplier</button>' : ''}</div>
@@ -1089,7 +1103,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
             { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}">Ubah</button>` }
           ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true })}
-        </div>`;
+        </div>` : ''}`;
       $('#isiMitra')._pel = pel;
       $('#isiMitra')._sup = sup;
     } catch (e) { galat('#isiMitra', e); }
