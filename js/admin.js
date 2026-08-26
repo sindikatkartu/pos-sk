@@ -84,7 +84,18 @@ const Admin = (() => {
   const tutupModal = () => $('#tiraiUmum').classList.remove('tampil');
 
   const nilai = (id) => ($('#' + id)?.value ?? '').trim();
-  const angka = (id) => Number($('#' + id)?.value || 0);
+  /**
+   * Kolom uang ('1.250.000') diurai lewat angkaDari; sisanya lewat Number.
+   *
+   * Pemilahannya WAJIB lewat class `uang`, bukan menyapu semua kolom:
+   * `pPoinSatuan` berlangkah 0,5 dan membuang titiknya mengubah 0,5 poin jadi
+   * 5 poin — bertambah sepuluh kali lipat, diam-diam.
+   */
+  const angka = (id) => {
+    const el = $('#' + id);
+    if (!el) return 0;
+    return el.classList.contains('uang') ? angkaDari(el.value) : Number(el.value || 0);
+  };
   const centang = (id) => !!$('#' + id)?.checked;
 
   /** Bilang "berhasil" lalu muat ulang layar yang sedang aktif. */
@@ -505,11 +516,11 @@ const Admin = (() => {
           <div class="grup"><label>Satuan dasar</label><input type="text" id="pSatuanDasar" value="${esc(p?.satuan_dasar || 'pcs')}"></div>
           <div class="grup"><label>Stok minimum</label><input type="number" id="pStokMin" value="${p?.stok_min || 0}"></div>
           ${modal ? `<div class="grup"><label>Harga beli ${baru ? '(awal)' : '(dari pembelian)'}</label>
-            <input type="number" id="pHargaBeli" value="${p?.harga_beli_terakhir || 0}" ${baru ? '' : 'disabled'}></div>` : '<div></div>'}
+            <input type="text" inputmode="numeric" class="uang" id="pHargaBeli" value="${ribuan(p?.harga_beli_terakhir || 0)}" ${baru ? '' : 'disabled'}></div>` : '<div></div>'}
         </div>
         <div class="baris3">
-          <div class="grup"><label>Harga eceran *</label><input type="number" id="pEceran" value="${p?.harga_eceran || 0}"></div>
-          <div class="grup"><label>Harga grosir</label><input type="number" id="pGrosir" value="${p?.harga_grosir || 0}"></div>
+          <div class="grup"><label>Harga eceran *</label><input type="text" inputmode="numeric" class="uang" id="pEceran" value="${ribuan(p?.harga_eceran || 0)}"></div>
+          <div class="grup"><label>Harga grosir</label><input type="text" inputmode="numeric" class="uang" id="pGrosir" value="${ribuan(p?.harga_grosir || 0)}"></div>
         </div>
         <label class="cek"><input type="checkbox" id="pAktif" ${p?.aktif !== false ? 'checked' : ''}> Produk aktif</label>
         ${baru ? '' : '<p class="petunjuk">Harga beli tidak bisa diubah dari sini — ia dihitung ulang otomatis setiap ada pembelian, supaya HPP dan laba tetap sahih.</p>'}
@@ -605,8 +616,8 @@ const Admin = (() => {
       <div class="baris-anak" data-anak="satuan">
         <input type="text" data-f="nama_satuan" placeholder="lusin" value="${esc(s.nama_satuan || '')}">
         <input type="number" data-f="isi" placeholder="isi" value="${s.isi || ''}">
-        <input type="number" data-f="harga_eceran" placeholder="eceran" value="${s.harga_eceran || ''}">
-        <input type="number" data-f="harga_grosir" placeholder="grosir" value="${s.harga_grosir || ''}">
+        <input type="text" inputmode="numeric" class="uang" data-f="harga_eceran" placeholder="eceran" value="${s.harga_eceran ? ribuan(s.harga_eceran) : ''}">
+        <input type="text" inputmode="numeric" class="uang" data-f="harga_grosir" placeholder="grosir" value="${s.harga_grosir ? ribuan(s.harga_grosir) : ''}">
         ${barisHapus}
       </div>`);
   }
@@ -624,7 +635,7 @@ const Admin = (() => {
             `<option value="${l}" ${normalLevelWeb(t.level_harga) === l ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
         <input type="number" data-f="qty_min" placeholder="qty min" value="${t.qty_min || ''}">
-        <input type="number" data-f="harga" placeholder="harga" value="${t.harga || ''}">
+        <input type="text" inputmode="numeric" class="uang" data-f="harga" placeholder="harga" value="${t.harga ? ribuan(t.harga) : ''}">
         ${t.aktif === false ? '<span class="lencana merah" title="Dinonaktifkan migrasi karena bentrok — hapus salah satu">nonaktif</span>' : ''}
         ${barisHapus}
       </div>`);
@@ -635,14 +646,27 @@ const Admin = (() => {
         <input type="text" data-f="kode_varian" placeholder="kode" value="${esc(v.kode_varian || '')}">
         <input type="text" data-f="nama_varian" placeholder="nama (Merah)" value="${esc(v.nama_varian || '')}">
         <input type="text" data-f="barcode" placeholder="barcode" value="${esc(v.barcode || '')}">
-        <input type="number" data-f="selisih_harga" placeholder="selisih" value="${v.selisih_harga || ''}">
+        <input type="text" inputmode="numeric" class="uang" data-f="selisih_harga" placeholder="selisih" value="${v.selisih_harga ? ribuan(v.selisih_harga) : ''}">
         ${barisHapus}
       </div>`);
   }
 
   const kumpulkanAnak = (jenis) => $$(`[data-anak="${jenis}"]`).map(el => {
     const o = {};
-    el.querySelectorAll('[data-f]').forEach(i => o[i.dataset.f] = i.value);
+    /* Kolom uang diurai DI SINI, di titik pengumpulan — bukan di tiap pemakai
+       di hilirnya. Baris harga per satuan, tier, varian, item pembelian, dan
+       item retur semuanya lewat fungsi ini; kalau tiap pembaca harus ingat
+       sendiri, satu yang lupa sudah cukup untuk mengubah Rp 1.000.000 jadi
+       Rp 1 tanpa satu pun pesan galat. */
+    el.querySelectorAll('[data-f]').forEach(i => {
+      /* Kolom uang KOSONG tetap dikembalikan sebagai '' — bukan 0.
+         Penyaring baris kosong di bawah memakai `String(nilai).trim() !== ''`,
+         jadi 0 terbaca sebagai "terisi": satu baris satuan yang ditambah lalu
+         ditinggalkan kosong akan ikut tersimpan, bernama kosong, berisi 0.
+         Di hilirnya Number('') tetap 0, persis seperti sebelum perubahan ini. */
+      const u = i.classList.contains('uang');
+      o[i.dataset.f] = u ? (String(i.value).trim() === '' ? '' : angkaDari(i.value)) : i.value;
+    });
     return o;
   }).filter(o => Object.keys(o).some(
     k => !KOLOM_OTOMATIS.includes(k) && String(o[k] ?? '').trim() !== ''));
@@ -1007,8 +1031,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         `<option value="${esc(p.sku)}">${esc(p.nama)}</option>`).join('')}</datalist>
 
       <div class="baris2" style="margin-top:14px">
-        <div class="grup"><label>Diskon dokumen</label><input type="number" id="beliDiskon" value="0"></div>
-        <div class="grup"><label>PPN</label><input type="number" id="beliPpn" value="0"></div>
+        <div class="grup"><label>Diskon dokumen</label><input type="text" inputmode="numeric" class="uang" id="beliDiskon" value="0"></div>
+        <div class="grup"><label>PPN</label><input type="text" inputmode="numeric" class="uang" id="beliPpn" value="0"></div>
       </div>
       <div class="total-baris besar" style="font-size:20px"><span>TOTAL</span><span id="beliTotal">Rp 0</span></div>
       <div id="pesanBeli"></div>`,
@@ -1024,7 +1048,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <input type="number" data-f="qty" placeholder="qty" value="1">
         <input type="text" data-f="satuan" placeholder="pcs" value="pcs">
         <input type="number" data-f="faktor" placeholder="isi" value="1" title="Isi per satuan (lusin = 12)">
-        <input type="number" data-f="harga_satuan" placeholder="harga beli">
+        <input type="text" inputmode="numeric" class="uang" data-f="harga_satuan" placeholder="harga beli">
         ${barisHapus}
       </div>`);
   }
@@ -1133,7 +1157,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="grup"><label>Alamat</label><input type="text" id="cAlamat" value="${esc(p?.alamat || '')}"></div>
       <div class="baris2">
-        <div class="grup"><label>Limit kredit (Rp)</label><input type="number" id="cLimit" value="${p?.limit_kredit || 0}"></div>
+        <div class="grup"><label>Limit kredit (Rp)</label><input type="text" inputmode="numeric" class="uang" id="cLimit" value="${ribuan(p?.limit_kredit || 0)}"></div>
         <div class="grup"><label>Termin (hari)</label><input type="number" id="cTermin" value="${p?.termin_hari || 0}"></div>
       </div>
       <label class="cek"><input type="checkbox" id="cAktif" ${p?.aktif !== false ? 'checked' : ''}> Aktif</label>
@@ -1492,7 +1516,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(p.nama_pelanggan)} · nota ${esc(tglTampil(p.tanggal))} · sisa <strong>${rp(p.sisa)}</strong></p>
       <div class="baris2">
         <div class="grup"><label>Tanggal</label><input type="date" id="bpTanggal" value="${tanggalLokal()}"></div>
-        <div class="grup"><label>Jumlah bayar</label><input type="number" id="bpJumlah" value="${p.sisa}"></div>
+        <div class="grup"><label>Jumlah bayar</label><input type="text" inputmode="numeric" class="uang" id="bpJumlah" value="${ribuan(p.sisa)}"></div>
       </div>
       <div class="baris2">
         <div class="grup"><label>Metode</label><select id="bpMetode">
@@ -2288,7 +2312,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <input type="hidden" data-f="faktor" value="${i.faktor || 1}">
           <input type="number" data-f="qty" value="0" min="0" max="${i.sisa_bisa_retur}"
                  title="maksimal ${i.sisa_bisa_retur}">
-          <input type="number" data-f="harga_satuan" value="${i.harga_satuan}" readonly>
+          <input type="text" inputmode="numeric" class="uang" data-f="harga_satuan" value="${ribuan(i.harga_satuan)}" readonly>
           <select data-f="kondisi">
             <option value="LAYAK_JUAL">layak jual</option>
             <option value="RUSAK">rusak</option>
@@ -2356,7 +2380,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris-anak" data-anak="${jenis}">
         <input type="text" data-f="sku" list="${list}" placeholder="SKU" style="flex:2">
         <input type="number" data-f="qty" placeholder="qty" value="1">
-        <input type="number" data-f="harga_satuan" placeholder="harga">
+        <input type="text" inputmode="numeric" class="uang" data-f="harga_satuan" placeholder="harga">
         ${jenis === 'rt' ? `<select data-f="kondisi">
           <option value="LAYAK_JUAL">layak jual</option><option value="RUSAK">rusak</option></select>` : ''}
         ${barisHapus}
@@ -2497,7 +2521,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <input type="hidden" data-f="satuan" value="${esc(i.satuan)}">
           <input type="hidden" data-f="faktor" value="${i.faktor || 1}">
           <input type="number" data-f="qty" value="0" min="0" max="${i.sisa_bisa_retur}">
-          <input type="number" data-f="harga_beli" value="${i.harga_beli}" readonly>
+          <input type="text" inputmode="numeric" class="uang" data-f="harga_beli" value="${ribuan(i.harga_beli)}" readonly>
         </div>
         <div class="meta-kecil" style="margin:-4px 0 8px 2px">${esc(i.nama_produk)} — dibeli ${i.qty} ${esc(i.satuan)}${
           i.sudah_diretur > 0 ? `, sudah diretur ${i.sudah_diretur}` : ''}</div>`).join('')
@@ -2542,7 +2566,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris-anak" data-anak="rb">
         <input type="text" data-f="sku" list="dlProdukRb" placeholder="SKU" style="flex:2">
         <input type="number" data-f="qty" placeholder="qty" value="1">
-        <input type="number" data-f="harga_beli" placeholder="harga beli">
+        <input type="text" inputmode="numeric" class="uang" data-f="harga_beli" placeholder="harga beli">
         ${barisHapus}
       </div>`);
   }

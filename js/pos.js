@@ -409,7 +409,123 @@ async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
   return `${prefixCabang}-${kodePerangkat}/${ym}/${String(urut).padStart(5, '0')}`;
 }
 
+/* ==================== KOLOM ANGKA ====================
+ *
+ * Dua keluhan pemakai yang sebenarnya satu perkara:
+ *
+ *   1. Kolom yang sudah berisi `0` memaksa kasir menggeser kursor dan menghapus
+ *      dulu sebelum bisa mengetik — tiga sentuhan untuk satu angka, puluhan kali
+ *      sehari.
+ *   2. `1500000` tidak terbaca. Satu nol lebih atau kurang tidak kelihatan
+ *      sampai notanya tercetak.
+ *
+ * Jawaban no.1: isi kolom DIPILIH otomatis saat difokus, jadi ketikan pertama
+ * langsung menimpanya. Berlaku untuk semua kolom angka, termasuk qty.
+ *
+ * Jawaban no.2: kolom uang bertitik ribuan sambil diketik. Ini menuntut kolomnya
+ * `type="text"`, karena `type="number"` MENOLAK '1.000' — nilainya jadi kosong
+ * dan angkanya hilang tanpa jejak.
+ *
+ * ⚠️ BAHAYA yang menentukan seluruh bentuk kode di bawah:
+ * `Number('1.000')` bukan galat dan bukan NaN — hasilnya **1**. Satu pembaca
+ * yang terlewat mengubah Rp 1.000.000 jadi Rp 1, diam-diam. Karena itu ada SATU
+ * pengurai bersama (`angkaDari`), pengurainya dipasang di titik PENGUMPULAN
+ * (`angka()` dan `kumpulkanAnak()` di admin.js) bukan di tiap pemakai, dan ada
+ * uji bagian AS yang mendaftar setiap kolom uang satu per satu.
+ *
+ * Rupiah di aplikasi ini selalu bilangan bulat — tidak ada sen. Itu sebabnya
+ * membuang semua titik aman di sini, dan TIDAK aman untuk `poin_satuan` yang
+ * berlangkah 0,5. Pemilahannya lewat class `uang`, bukan menyapu semua kolom.
+ */
+
+/** '1.250.000' → 1250000 · 'Rp 1.000' → 1000 · '-5.000' → -5000 · '' → 0 */
+function angkaDari(v) {
+  if (typeof v === 'number') return Math.trunc(v) || 0;
+  const s = String(v == null ? '' : v);
+  const minus = /^\s*-/.test(s);
+  const d = s.replace(/\D/g, '');
+  if (!d) return 0;
+  return (minus ? -1 : 1) * Number(d);
+}
+
+/**
+ * 1250000 → '1.250.000'
+ *
+ * Menerima nilai yang SUDAH berformat dan mengembalikannya utuh. Kolom digambar
+ * ulang berkali-kali dan nilainya dibaca balik dari DOM; ribuan() yang memakai
+ * Number() mentah akan mengubah '1.250.000' jadi '0' — kerugian senyap.
+ */
+function ribuan(n) {
+  const x = angkaDari(n);
+  return (x < 0 ? '-' : '') + String(Math.abs(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/**
+ * Kolom yang dilayani. Sengaja TIDAK memakai `inputmode`: kolom PIN bertype
+ * password + inputmode=numeric, dan memilih isi kolom sandi bukan perilaku yang
+ * diminta siapa pun.
+ */
+function kolomAngka(el) {
+  return !!el && el.tagName === 'INPUT' && !el.disabled && !el.readOnly &&
+         (el.type === 'number' || (el.classList && el.classList.contains('uang')));
+}
+
+/** Rapikan titik ribuan satu kolom, dengan kursor tetap di tempatnya. */
+function rapikanUang(el) {
+  const lama = String(el.value);
+  /* Kolom kosong dibiarkan kosong (placeholder-nya masih berguna), dan '-'
+     sendirian adalah keadaan sah di tengah mengetik angka negatif. */
+  if (lama.trim() === '' || lama.trim() === '-') return;
+  const baru = ribuan(lama);
+  if (baru === lama) return;
+  /* Kursor dihitung dari JUMLAH ANGKA di kirinya, bukan indeks huruf — titik
+     yang baru muncul menggeser indeks, angkanya tidak. */
+  const sebelum = (lama.slice(0, el.selectionStart == null ? lama.length : el.selectionStart)
+                       .match(/\d/g) || []).length;
+  el.value = baru;
+  let i = 0, n = 0;
+  while (i < baru.length && n < sebelum) { if (baru.charCodeAt(i) > 47 && baru.charCodeAt(i) < 58) n++; i++; }
+  try { el.setSelectionRange(i, i); } catch (e) { /* sebagian peramban menolak */ }
+}
+
+function pasangKolomAngka(akar) {
+  const doc = akar || document;
+
+  doc.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (!kolomAngka(el)) return;
+    el._baruFokus = true;
+    try { el.select(); } catch (err) {}
+    /* Sebagian peramban menaruh kursornya SESUDAH focusin selesai; pemilihan
+       diulang di gilir berikutnya supaya tidak keburu batal. */
+    setTimeout(() => {
+      if (document.activeElement === el && el._baruFokus) { try { el.select(); } catch (err) {} }
+    }, 0);
+  });
+
+  /* Dengan tetikus, klik menaruh kursor lewat mouseup — sesudah focusin — dan
+     itu membatalkan pemilihannya. mouseup PERTAMA sesudah fokus dibatalkan;
+     klik kedua tetap bisa menaruh kursor seperti biasa. */
+  doc.addEventListener('mouseup', (e) => {
+    const el = e.target;
+    if (kolomAngka(el) && el._baruFokus) { el._baruFokus = false; e.preventDefault(); }
+  });
+  doc.addEventListener('focusout', (e) => { if (e.target) e.target._baruFokus = false; });
+
+  /* Satu penyimak untuk seluruh aplikasi: kolom yang digambar belakangan oleh
+     admin.js ikut terlayani tanpa perlu didaftarkan satu per satu. */
+  doc.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el && el.classList && el.classList.contains('uang')) rapikanUang(el);
+  });
+}
+
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  pasangKolomAngka(document);
+}
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil };
+  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil,
+                     angkaDari, ribuan };
 }

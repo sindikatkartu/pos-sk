@@ -224,7 +224,7 @@
           <div id="infoShift"></div>
           <div class="grup" style="margin-top:12px" id="grupKasAwal">
             <label>Kas awal laci</label>
-            <input type="number" id="inpKasAwal" value="0">
+            <input type="text" inputmode="numeric" class="uang" id="inpKasAwal" value="0">
           </div>
           <button class="tombol utama" id="btnBukaShift">Buka shift</button>
           <button class="tombol bahaya" id="btnTutupShift" style="margin-top:8px">Tutup shift</button>
@@ -257,7 +257,7 @@
           </div>
           <div class="grup">
             <label>Jumlah (Rp)</label>
-            <input type="number" id="kasJumlah" inputmode="numeric" min="1" placeholder="0">
+            <input type="text" inputmode="numeric" class="uang" id="kasJumlah" placeholder="0">
           </div>
           <div class="grup">
             <label>Keterangan</label>
@@ -332,6 +332,7 @@
             <li><strong>Catat kas laci</strong> di menu Kas setiap kali uang keluar/masuk laci di luar penjualan — ongkos kirim, beli galon, setoran ke bank.</li>
             <li><strong>Tutup shift</strong> di akhir giliran, isi uang fisik di laci apa adanya — selisih (kalau ada) tercatat, bukan disembunyikan.</li>
           </ol>
+          <p class="petunjuk"><strong>Kolom angka:</strong> begitu disentuh, isinya langsung terpilih — ketik saja angkanya, tidak perlu menghapus <strong>0</strong> yang sudah ada lebih dulu. Kolom rupiah memberi titik ribuan sendiri sambil diketik (<em>1250000</em> menjadi <em>1.250.000</em>); titik itu hanya untuk dibaca, yang tersimpan tetap angkanya.</p>
           <p class="petunjuk">Nota tersimpan &amp; tercetak seketika walau internet mati. Sinkronisasi ke server terjadi di belakang layar; kasir tidak pernah menunggunya.</p>
         </div>
 
@@ -615,7 +616,7 @@
   <div class="modal">
     <h3>Pembayaran</h3>
     <div class="total-baris besar" style="border:none;margin:0 0 14px"><span>TOTAL</span><span id="byrTotal">Rp 0</span></div>
-    <div class="grup"><label>Diskon nota (Rp)</label><input type="number" id="byrDiskonNota" value="0"></div>
+    <div class="grup"><label>Diskon nota (Rp)</label><input type="text" inputmode="numeric" class="uang" id="byrDiskonNota" value="0"></div>
     <div id="byrJagaDiskon"></div>
     <!-- Opsional — kosongkan bila barangnya tidak bergaransi. Tanggal jatuh
          temponya dihitung server dari tanggal nota + jumlah hari ini, bukan
@@ -657,8 +658,8 @@
       <div class="grup"><label>Satuan</label><select id="itmSatuan"></select></div>
     </div>
     <div class="baris2">
-      <div class="grup"><label>Harga satuan</label><input type="number" id="itmHarga"></div>
-      <div class="grup"><label>Diskon (Rp)</label><input type="number" id="itmDiskon" value="0"></div>
+      <div class="grup"><label>Harga satuan</label><input type="text" inputmode="numeric" class="uang" id="itmHarga"></div>
+      <div class="grup"><label>Diskon (Rp)</label><input type="text" inputmode="numeric" class="uang" id="itmDiskon" value="0"></div>
     </div>
     <p style="font-size:12px;color:var(--teks-redup)" id="itmInfo"></p>
     <div class="aksi-modal">
@@ -692,7 +693,7 @@
 <div class="tirai" id="tiraiTutupShift">
   <div class="modal">
     <h3>Tutup shift</h3>
-    <div class="grup"><label>Uang fisik di laci (Rp)</label><input type="number" id="tsKasFisik" value="0"></div>
+    <div class="grup"><label>Uang fisik di laci (Rp)</label><input type="text" inputmode="numeric" class="uang" id="tsKasFisik" value="0"></div>
     <div class="grup"><label>Catatan</label><textarea id="tsCatatan" rows="2"></textarea></div>
     <div id="tsHasil"></div>
     <div class="aksi-modal">

@@ -1120,7 +1120,7 @@ function bukaBayar() {
   APP_STATE.uuidNota = crypto.randomUUID ? crypto.randomUUID()
                      : 'X' + Date.now() + Math.random().toString(36).slice(2);
   APP_STATE.otorisasiDiskon = null;
-  $('#byrDiskonNota').value = Keranjang.diskonNota;
+  $('#byrDiskonNota').value = ribuan(Keranjang.diskonNota);
   $('#byrJatuhTempo').value = '';
   $('#byrGaransi').value = '0';
   pesan('#pesanBayar', '');
@@ -1156,7 +1156,7 @@ function gambarMetode() {
       </div>
       <div style="display:flex;gap:6px;align-items:end">
         <div style="flex:1"><label>Jumlah</label>
-          <input type="number" inputmode="numeric" data-i="${i}" data-f="jumlah" value="${m.jumlah}"></div>
+          <input type="text" inputmode="numeric" class="uang" data-i="${i}" data-f="jumlah" value="${ribuan(m.jumlah)}"></div>
         ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : ''}
       </div>
     </div>
@@ -1527,7 +1527,7 @@ async function gambarDaftarKas() {
 async function simpanKasBaru() {
   if (!APP_STATE.idShift) return Admin.toast('Buka shift dulu sebelum mencatat kas.', 'galat');
   const akun = $('#kasAkun').value;
-  const jumlah = Number($('#kasJumlah').value);
+  const jumlah = angkaDari($('#kasJumlah').value);
   const ket = $('#kasKeterangan').value.trim();
   if (!akun) return Admin.toast('Pilih akun lawannya dulu.', 'galat');
   if (!(jumlah > 0)) return Admin.toast('Jumlah harus lebih dari nol.', 'galat');
@@ -2030,9 +2030,9 @@ function pasangEvent() {
     itemAktif = b;
     $('#itmNama').textContent = b.nama;
     $('#itmQty').value = b.qty;
-    $('#itmHarga').value = b.harga_satuan;
+    $('#itmHarga').value = ribuan(b.harga_satuan);
     $('#itmHarga').disabled = !APP_STATE.flag.ubah_harga_saat_jual;
-    $('#itmDiskon').value = b.diskon;
+    $('#itmDiskon').value = ribuan(b.diskon);
     const satuanLain = [{ nama: b._produk.satuan || 'pcs', isi: 1 }, ...(b._produk.satuan_lain || [])];
     $('#itmSatuan').innerHTML = satuanLain.map(s =>
       `<option value="${esc(s.nama)}" ${s.nama === b.satuan ? 'selected' : ''}>${esc(s.nama)} (isi ${s.isi})</option>`).join('');
@@ -2052,8 +2052,8 @@ function pasangEvent() {
                             daftarSatuan: p.satuan_lain || [], daftarTier: p.tier || [] });
     } else {
       Keranjang.ubahQty(itemAktif.id, Number($('#itmQty').value));
-      if (APP_STATE.flag.ubah_harga_saat_jual) Keranjang.ubahHarga(itemAktif.id, $('#itmHarga').value);
-      Keranjang.ubahDiskon(itemAktif.id, $('#itmDiskon').value);
+      if (APP_STATE.flag.ubah_harga_saat_jual) Keranjang.ubahHarga(itemAktif.id, angkaDari($('#itmHarga').value));
+      Keranjang.ubahDiskon(itemAktif.id, angkaDari($('#itmDiskon').value));
     }
     $('#tiraiItem').classList.remove('tampil');
     gambarKeranjang();
@@ -2076,7 +2076,7 @@ function pasangEvent() {
   $('#byrDaftarMetode').addEventListener('input', e => {
     const i = Number(e.target.dataset.i), f = e.target.dataset.f;
     if (f !== 'jumlah') return;
-    APP_STATE.metodeBayar[i].jumlah = Number(e.target.value);
+    APP_STATE.metodeBayar[i].jumlah = angkaDari(e.target.value);
     // Hanya ringkasannya yang diperbarui — kolom yang sedang diketik JANGAN disentuh.
     gambarRingkasBayar();
   });
@@ -2104,11 +2104,11 @@ function pasangEvent() {
     } else return;
 
     const inp = $(`#byrDaftarMetode input[data-f=jumlah][data-i="${i}"]`);
-    if (inp) inp.value = m.jumlah;     // isi kolomnya langsung, tanpa gambar ulang
+    if (inp) inp.value = ribuan(m.jumlah);   // isi kolomnya langsung, tanpa gambar ulang
     gambarRingkasBayar();
   });
   $('#byrDiskonNota').addEventListener('input', e => {
-    Keranjang.setDiskonNota(e.target.value);
+    Keranjang.setDiskonNota(angkaDari(e.target.value));
     /* Jumlah uang yang diterima TIDAK ikut diubah di sini. Diskon mengubah yang
        harus dibayar, bukan yang sudah dipegang kasir; menimpanya akan menghapus
        angka yang barusan diketik. */
@@ -2135,7 +2135,7 @@ function pasangEvent() {
   });
   $('#btnBukaShift').addEventListener('click', async () => {
     try {
-      const d = await API.bukaShift({ kas_awal: Number($('#inpKasAwal').value) });
+      const d = await API.bukaShift({ kas_awal: angkaDari($('#inpKasAwal').value) });
       APP_STATE.idShift = d.id_shift;
       await DB.kvSet('id_shift', d.id_shift);
       gambarKeadaanShift();          // seketika, tanpa menunggu periksaShift()
@@ -2177,7 +2177,7 @@ function pasangEvent() {
   $('#btnKonfirmasiTutup').addEventListener('click', async () => {
     try {
       const d = await API.tutupShift({ id_shift: APP_STATE.idShift,
-        kas_fisik: Number($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
+        kas_fisik: angkaDari($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
       APP_STATE.idShift = null;
       await DB.kvSet('id_shift', null);
       /* Hasilnya dipindah ke layar Shift, lalu modalnya ditutup.
@@ -2186,7 +2186,7 @@ function pasangEvent() {
          justru angka yang paling perlu dibaca saat serah terima laci. */
       APP_STATE.hasilTutupShift = d;
       $('#tsHasil').innerHTML = '';
-      $('#tsKasFisik').value = 0;
+      $('#tsKasFisik').value = '0';
       $('#tsCatatan').value = '';
       $('#tiraiTutupShift').classList.remove('tampil');
       /* Layar di belakang modal disegarkan SEKARANG, dari keadaan yang sudah
