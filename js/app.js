@@ -809,23 +809,6 @@ const MAKS_PETUGAS = 2;
  */
 const peranUrut = (jumlah, jenis) =>
   jumlah <= 1 ? [jenis === 'BARIS' ? 'PEMASANG' : 'PENJUAL'] : ['PENJUAL', 'PEMASANG'];
-
-/**
- * Petakan peran apa pun ke peran yang masih hidup.
- *
- * Master petugas bisa saja masih berisi PEMBANTU — selama belum dimigrasi, atau
- * selama perangkat ini belum menarik master baru. Tanpa pemetaan ini bobotnya
- * `undefined`, usulan poinnya jatuh ke 0, dan karena 0 terkirim sebagai angka
- * yang EKSPLISIT server menghormatinya: porsi omzet orang itu jadi 0%.
- *
- * PEMBANTU dilebur ke PEMASANG, sama seperti migrasinya di server — bukan ke
- * PENJUAL, supaya keduanya tidak saling bertentangan.
- */
-const normalPeran = (p) => {
-  const v = String(p || '').toUpperCase();
-  return (v === 'PEMASANG' || v === 'PEMBANTU') ? 'PEMASANG' : 'PENJUAL';
-};
-
 const namaPetugas = (kode) =>
   (APP_STATE.daftarPetugas.find(p => p.kode === kode) || {}).nama || kode;
 

@@ -224,7 +224,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    bertitik, dan satu tabel bisa berisi belasan titik yang tidak menandakan
    apa-apa — itu yang membuat layarnya terasa ramai tanpa alasan. */
 .lencana.hijau::before, .lencana.kuning::before,
-.lencana.merah::before, .lencana.biru::before, .lencana.titik::before {
+.lencana.merah::before, .lencana.titik::before {
   content: ''; width: 8px; height: 8px; border-radius: 50%;
   background: currentColor; flex-shrink: 0; opacity: .85;
 }
@@ -234,7 +234,6 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .lencana.hijau  { color: var(--sukses);     border-color: rgba(26,127,55,.35);  background: var(--sukses-lembut); }
 .lencana.kuning { color: var(--peringatan); border-color: rgba(154,103,0,.35);  background: var(--peringatan-lembut); }
 .lencana.merah  { color: var(--bahaya);     border-color: rgba(207,34,46,.35);  background: var(--bahaya-lembut); }
-.lencana.biru   { color: var(--utama);      border-color: rgba(9,105,218,.35);  background: var(--utama-lembut); }
 
 /* Deret pecahan rupiah di layar pembayaran. Sasarannya jari, bukan kursor:
    tinggi 34px agar nyaman ditekan di layar sentuh, dan membungkus rapi. */
