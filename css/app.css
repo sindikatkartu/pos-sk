@@ -348,15 +348,44 @@ main { flex: 1; overflow: hidden; position: relative; }
 .baris-item .judul { font-weight: 600; font-size: 14px; letter-spacing: -.1px; }
 .baris-item .rinci { font-size: 12px; color: var(--teks-redup); margin-top: 3px; }
 .baris-item .kanan { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
-.baris-item .aksi { display: flex; gap: 5px; margin-top: 8px; align-items: center; }
+/* `flex-wrap` bukan hiasan: deret ini memuat tombol berlambang (− + ⋯) DAN
+   tombol bertulisan ("Tim", "+ Pemasang") yang lebarnya mengikuti isinya. Di
+   keranjang yang sempit — lembar bawah HP, atau panel 287px saat tablet miring —
+   tanpa membungkus, yang terakhir terdesak keluar. */
+/* Deret kendali menempati LEBAR PENUH barisnya (`1 / -1`), bukan hanya kolom
+   kiri. Selama ia bersarang di dalam kolom judul, lebarnya dipotong kolom harga
+   di kanan: di panel keranjang tablet miring tersisa 195px untuk kendali yang
+   butuh 304px, sehingga tombol `⋯` pun ikut terlempar turun. Dengan lebar
+   penuh, di HP tegak semuanya kembali muat satu baris. */
+.baris-item .aksi {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px;
+  margin-top: 8px; align-items: center;
+}
+/* LEBARNYA MINIMUM, BUKAN TETAP.
+
+   Sampai v1.33 baris ini berbunyi `width: 30px` — angka yang dipilih untuk
+   tombol satu lambang, lalu ikut mengenai "+ Pemasang" yang butuh 81px.
+   Tulisannya tumpah keluar kotak dan menindih baris di bawahnya; dilaporkan
+   pemilik 26 Agu 2026 dengan tangkapan layar. Seluruh uji keranjang yang ada
+   lulus, sebab semuanya memeriksa ADA/TIDAKNYA tombol, bukan MUATNYA. Uji
+   `uji/uji-rapi.mjs` sekarang mengukur kotaknya di lima ukuran layar. */
 .baris-item .aksi button {
-  width: 30px; height: 30px; background: var(--panel-2); color: var(--teks-2);
+  min-width: 30px; height: 30px; padding: 0 7px; white-space: nowrap;
+  background: var(--panel-2); color: var(--teks-2);
   font-weight: 700; border: 1px solid var(--garis);
 }
+/* Tombol tim membawa kata, bukan lambang: hurufnya dikecilkan supaya tidak
+   mengalahkan angka qty di sebelahnya, dan diberi napas kiri-kanan. */
+.baris-item .aksi button[data-aksi="tim"] { padding: 0 11px; font-size: 12px; font-weight: 650; }
 .baris-item .aksi button:hover { background: var(--panel); border-color: var(--garis-kuat); color: var(--teks); }
+/* Tingginya DISAMAKAN dengan tombol di kiri-kanannya. Dengan `padding: 5px`
+   saja kolom ini 36px sementara tombolnya 30px — selisih enam piksel yang
+   membuat deretnya terbaca bergelombang, dan itu bagian dari "tidak rapi" yang
+   dilaporkan. `min-height` bawaan kolom teks dikalahkan di sini dengan sengaja. */
 .baris-item .aksi input {
-  width: 56px; text-align: center; background: var(--panel); border: 1px solid var(--garis);
-  border-radius: 7px; padding: 5px; font-variant-numeric: tabular-nums; font-weight: 600;
+  width: 56px; height: 30px; min-height: 0; text-align: center;
+  background: var(--panel); border: 1px solid var(--garis);
+  border-radius: 7px; padding: 0 5px; font-variant-numeric: tabular-nums; font-weight: 600;
 }
 
 .tanda-tier, .tanda-manual {
@@ -815,6 +844,18 @@ input.sudah-hitung {
   input[type=date], input[type=month], input[type=tel], input[type=search],
   textarea, .tombol { min-height: 42px; }
   .tombol.kecil { min-height: 40px; padding: 8px 14px; font-size: 13px; }
+}
+
+/* ---- Sasaran sentuh di KERANJANG ----
+   Aturan ≥40px di blok 620px hanya mengenai `.tombol`; kendali keranjang adalah
+   `button` telanjang, jadi ia tetap 30×30 justru di layar yang paling sering
+   disentuh. Dan lebar bukan penentu yang benar di sini: HP yang dimiringkan
+   selebar 844px tetap dioperasikan dengan jari. Karena itu `pointer: coarse`
+   ikut jadi syarat, bukan lebar saja. */
+@media (max-width: 620px), (pointer: coarse) {
+  .baris-item .aksi { gap: 7px; }
+  .baris-item .aksi button { min-width: 40px; height: 40px; }
+  .baris-item .aksi input { height: 40px; width: 62px; }
 }
 
 /* Landscape pendek (HP dimiringkan): tinggi layar mahal, rapatkan bilah atas. */

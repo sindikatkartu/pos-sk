@@ -407,6 +407,23 @@ async function login(pakaiPassword = false) {
   if (!pakaiPassword && pinBuffer.length < 6) return pesan('#pesanLogin', 'PIN 6 digit.', 'galat');
 
   pesan('#pesanLogin', 'Menghubungi server…', 'info');
+
+  /* Tombolnya menandai DIRINYA SENDIRI, tidak menumpang pasangPenandaSibuk().
+   *
+   * Penanda otomatis itu menyalakan pemintal pada tombol yang kliknya
+   * MELAHIRKAN permintaan, diperiksa satu gilir sesudah kliknya. Di sini
+   * `idPerangkat()` (baca IndexedDB) ditunggu lebih dulu, jadi pada saat
+   * diperiksa belum ada permintaan apa pun dan tombolnya dilewati — hasilnya
+   * tombol OK yang tidak berubah sedikit pun selama beberapa detik menunggu
+   * jaringan seluler. `_sedangLogin` memang sudah menolak panggilan kedua, tapi
+   * penolakan yang tidak terlihat sama saja dengan tombol yang rusak: pemakainya
+   * tidak punya cara membedakan "sedang jalan" dari "tidak bereaksi", lalu
+   * menekan berkali-kali. Dijaga uji uji-login.mjs.
+   */
+  const tblLogin = pakaiPassword ? $('#btnLoginPassword')
+                                 : $('.papan-pin button[data-pin="masuk"]');
+  if (tblLogin) { tblLogin.classList.add('sibuk'); tblLogin.disabled = true; }
+
   _sedangLogin = true;
   try {
     const d = await API.login({
@@ -440,6 +457,14 @@ async function login(pakaiPassword = false) {
     }
   } finally {
     _sedangLogin = false;
+    if (tblLogin) {
+      tblLogin.classList.remove('sibuk');
+      /* JANGAN sekadar `disabled = false`. Jalur galat mengosongkan pinBuffer
+         lalu menggambar ulang papan PIN, dan gambarPin() yang menentukan OK
+         hidup atau mati (mati sampai enam digit penuh). Menghidupkannya di sini
+         akan mengembalikan tombol yang hanya bisa menghasilkan "PIN 6 digit." */
+      if (pakaiPassword) tblLogin.disabled = false; else gambarPin();
+    }
   }
 }
 
@@ -737,6 +762,17 @@ function gambarBarisTim(x) {
  * Tidak pernah wajib, tidak pernah menahan pembayaran. Labelnya menyebut
  * "Pemasang" selagi kosong supaya kasir tahu gunanya tanpa harus mencoba.
  */
+/**
+ * Tombol tim SENGAJA berada paling belakang di deretnya.
+ *
+ * Ia satu-satunya tombol yang membawa kata, jadi lebarnya mengikuti isi dan
+ * bisa mencapai 94px. Di lembar keranjang HP deretan itu cuma 266px, sehingga
+ * satu tombol pasti turun ke baris kedua — dan yang turun harus tombol INI,
+ * bukan `⋯` yang terdesak olehnya. Sampai v1.33 urutannya − qty + [tim] ⋯,
+ * jadi yang terlempar justru `⋯`, meninggalkan satu tombol yatim di baris bawah
+ * yang terbaca seperti salah taruh. Urutan ini dijaga uji `uji/uji-rapi.mjs`:
+ * `⋯` wajib sebaris dengan kolom qty di semua ukuran layar.
+ */
 function tombolTimBaris(x) {
   const tim = x.tim || [];
   if (!tim.length && !(Number(x.poin_satuan) > 0)) return '';
@@ -750,7 +786,7 @@ function gambarKeranjang() {
 
   $('#isiKeranjang').innerHTML = b.length ? b.map(x => `
     <div class="baris-item" data-id="${x.id}">
-      <div>
+      <div class="info">
         <div class="judul">${esc(x.nama)}</div>
         <div class="rinci">${x.qty} ${esc(x.satuan)} × ${rp(x.harga_satuan)}
           ${x.sumber_harga === 'tier' ? '<span class="tanda-tier">tier</span>' : ''}
@@ -760,15 +796,15 @@ function gambarKeranjang() {
           ${x.diskonDipotong ? '<br><span style="color:var(--peringatan)">diskon dipotong ke batas peran</span>' : ''}
           ${gambarBarisTim(x)}
         </div>
-        <div class="aksi">
-          <button data-aksi="kurang">−</button>
-          <input type="number" value="${x.qty}" data-aksi="qty" min="0">
-          <button data-aksi="tambah">+</button>
-          ${tombolTimBaris(x)}
-          <button data-aksi="detail">⋯</button>
-        </div>
       </div>
       <div class="kanan">${rp(x.qty * x.harga_satuan - x.diskon)}</div>
+      <div class="aksi">
+        <button data-aksi="kurang">−</button>
+        <input type="number" value="${x.qty}" data-aksi="qty" min="0">
+        <button data-aksi="tambah">+</button>
+        <button data-aksi="detail">⋯</button>
+        ${tombolTimBaris(x)}
+      </div>
     </div>`).join('')
     : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Keranjang kosong</p>';
 
@@ -1285,7 +1321,14 @@ async function kirimOtorisasiDiskon() {
 
 async function selesaikanTransaksi() {
   const btn = $('#btnSelesaikan');
+  /* Dimatikan DAN diberi pemintal. Dimatikan saja tidak cukup: tombol padat
+     berwarna yang tiba-tiba redup terbaca sebagai "tidak bisa ditekan", bukan
+     "sedang dikerjakan" — dan penandanya harus sama persis dengan tombol lain,
+     bukan gaya tersendiri. Penanda otomatis di pasangPenandaSibuk() tidak
+     mengenai tombol ini: nomor nota dan arsip lokal ditunggu lebih dulu, jadi
+     saat penanda memeriksa belum ada permintaan apa pun. */
   btn.disabled = true;
+  btn.classList.add('sibuk');
   try {
     const t = Keranjang.total();
     const uid = APP_STATE.uuidNota || (crypto.randomUUID ? crypto.randomUUID()
@@ -1351,6 +1394,7 @@ async function selesaikanTransaksi() {
     pesan('#pesanBayar', 'Gagal: ' + e.message, 'galat');
   } finally {
     btn.disabled = false;
+    btn.classList.remove('sibuk');
   }
 }
 
@@ -1861,31 +1905,58 @@ function pasangEvent() {
    * diberi jalan keluar yang TERCATAT.
    */
   $('#btnKeluar').addEventListener('click', async () => {
+    const tbl = $('#btnKeluar');
+    if (tbl.classList.contains('sibuk')) return;
+
+    if (APP_STATE.idShift && API.online) {
+      bukaLayar('shift');
+      // Admin.toast, bukan toast: `toast` hanya hidup di dalam IIFE admin.js.
+      // Memanggilnya telanjang di sini melempar ReferenceError, dan penolakannya
+      // jadi tidak pernah terlihat — kasir cuma melihat layar melompat.
+      Admin.toast('Tutup shift dulu sebelum keluar — laci ini belum dicocokkan.', 'galat');
+      return;
+    }
+
+    /* SATU pertanyaan, dirakit dari keadaannya — bukan dua dialog berturut-turut.
+     *
+     * Dua sebab. Pertama, sampai v1.33 jalur yang paling biasa (tanpa shift,
+     * tanpa nota tertahan) tidak bertanya apa pun: satu sentuhan di ikon Keluar
+     * yang duduk tepat di bawah nama pengguna langsung mengakhiri sesi, dan
+     * ongkos salah sentuh adalah login ulang enam digit di tengah antrean.
+     * Kedua, dialog yang muncul beruntun melatih orang menekan "OK" tanpa
+     * membaca — dan yang hilang justru peringatan yang paling penting. */
+    const alasan = [];
+    if (APP_STATE.idShift) alasan.push(
+      'Sedang offline, jadi shift tidak bisa ditutup sekarang. Kalau Anda tetap ' +
+      'keluar, shift ini menggantung tanpa hitungan kas — dan kejadiannya akan ' +
+      'tercatat atas nama Anda begitu perangkat tersambung lagi.');
+    const tertahan = await DB.outboxJumlah();
+    if (tertahan > 0) alasan.push(
+      `Masih ada ${tertahan} nota belum terkirim. Nota tetap tersimpan di ` +
+      'perangkat ini dan akan dikirim saat Anda masuk lagi.');
+
+    if (!confirm((alasan.length ? alasan.join('\n\n') + '\n\n' : '') + 'Keluar dari akun ini?')) return;
+
     if (APP_STATE.idShift) {
-      if (API.online) {
-        bukaLayar('shift');
-        // Admin.toast, bukan toast: `toast` hanya hidup di dalam IIFE admin.js.
-        // Memanggilnya telanjang di sini melempar ReferenceError, dan penolakannya
-        // jadi tidak pernah terlihat — kasir cuma melihat layar melompat.
-        Admin.toast('Tutup shift dulu sebelum keluar — laci ini belum dicocokkan.', 'galat');
-        return;
-      }
-      const ya = confirm(
-        'Sedang offline, jadi shift tidak bisa ditutup sekarang.\n\n' +
-        'Kalau Anda tetap keluar, shift ini menggantung tanpa hitungan kas — dan ' +
-        'kejadiannya akan tercatat atas nama Anda begitu perangkat tersambung lagi.\n\n' +
-        'Tetap keluar?');
-      if (!ya) return;
       // Disimpan sekarang, dilaporkan saat login berikutnya — sesi yang sedang
       // berjalan sudah tidak punya jalan ke server.
       await antrikanKeluarPaksa({ sebab: 'OFFLINE' });
     }
 
-    const tertahan = await DB.outboxJumlah();
-    if (tertahan > 0 && !confirm(`Masih ada ${tertahan} nota belum terkirim. Nota tetap tersimpan di perangkat ini. Tetap keluar?`)) return;
-    try { await API.logout(); } catch (e) {}
-    await DB.kvSet('token', null);
-    location.reload();
+    /* Mengakhiri sesi butuh jaringan, dan di jaringan seluler itu beberapa detik.
+       Tanpa penanda, ikon yang tidak bereaksi mengundang sentuhan kedua. */
+    tbl.classList.add('sibuk'); tbl.disabled = true;
+    try {
+      try { await API.logout(); } catch (e) {}
+      await DB.kvSet('token', null);
+      location.reload();
+    } finally {
+      /* Biasanya halaman sudah memuat ulang sebelum baris ini berarti apa-apa.
+         Ia ada untuk jalur yang TIDAK sampai ke sana — kvSet gagal, penyimpanan
+         penuh — supaya tombolnya tidak tertinggal berputar selamanya dengan
+         satu-satunya jalan keluar berupa muat ulang manual. */
+      tbl.classList.remove('sibuk'); tbl.disabled = false;
+    }
   });
 
   /* --- pencarian & produk --- */
@@ -2205,9 +2276,16 @@ function pasangEvent() {
   });
 
   /* --- pengaturan --- */
+  /* Menyambung printer Bluetooth bisa memakan belasan detik dan TIDAK lewat
+     API sama sekali, jadi penanda otomatis tidak akan pernah mengenainya.
+     Tanpa pemintal, tombol yang diam belasan detik ditekan lagi — dan tekanan
+     kedua memunculkan dialog pemilihan perangkat kedua di atas yang pertama. */
   $('#btnHubungkanPrinter').addEventListener('click', async () => {
+    const b = $('#btnHubungkanPrinter');
+    b.classList.add('sibuk'); b.disabled = true;
     try { const n = await Struk.hubungkanBluetooth(); alert('Terhubung: ' + n); perbaruiInfoData(); }
     catch (e) { alert('Gagal: ' + e.message); }
+    finally { b.classList.remove('sibuk'); b.disabled = false; }
   });
   $('#btnUjiCetak').addEventListener('click', () => {
     Struk.cetak({
