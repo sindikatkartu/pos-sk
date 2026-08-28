@@ -524,8 +524,124 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   pasangKolomAngka(document);
 }
 
+/**
+ * Peran ditentukan URUTAN, bukan dipilih kasir. Cermin persis `_peranUrut()` di
+ * 21_Klaim.gs — kalau keduanya berbeda, struk menyebut peran yang tidak sama
+ * dengan yang dicatat sistem, dan tidak ada satu pun galat yang memberi tahu.
+ */
+function _peranUrutKlaim(jumlah, jenis) {
+  if (jumlah <= 1) return [jenis === 'BARIS' ? 'PEMASANG' : 'PENJUAL'];
+  return ['PENJUAL', 'PEMASANG'];
+}
+
+/**
+ * SATU daftar tunggal "siapa mengerjakan apa di nota ini".
+ *
+ * MASALAH YANG DISELESAIKAN (dilaporkan dari lapangan 28 Agu 2026, hari pertama
+ * jualan). Ada dua tempat mengisi petugas — dropdown "Pramuniaga" untuk seluruh
+ * nota, dan tombol "Tim" untuk satu baris — dan aturannya: baris yang punya tim
+ * sendiri KELUAR dari klaim nota. Aturannya benar, tapi hasilnya tidak pernah
+ * ditampilkan sebagai satu kesatuan:
+ *
+ *   · layar bayar hanya menyebut klaim NOTA
+ *   · struk hanya mencetak klaim NOTA
+ *   · yang memasang tempered glass tidak muncul di keduanya
+ *
+ * Jadi orang yang mengerjakan pekerjaan paling berat justru tidak terlihat di
+ * mana pun sampai Laporan poin dibuka berhari-hari kemudian — sementara nama
+ * yang TERCETAK di struk adalah orang yang tidak mengerjakan baris itu. Dari
+ * lantai toko, itu terbaca sebagai dua aturan yang saling bertentangan.
+ *
+ * Fungsi ini jawabannya: dua jalur PENGISIAN boleh tetap berbeda (yang cepat
+ * untuk nota biasa, yang rinci untuk baris pemasangan), tapi HASILNYA satu.
+ * Layar bayar dan struk sama-sama membacanya dari sini — bukan masing-masing
+ * menyusun daftarnya sendiri, karena dua penyusun selalu berakhir berbeda.
+ *
+ * Murni: tidak menyentuh APP_STATE/CONFIG/DOM, jadi bisa diuji di Node.
+ * Menerima bentuk nota SIAP KIRIM (`item[].klaim`) maupun bentuk keranjang
+ * (`item[].tim`) — layar bayar memakai yang kedua, sebelum notanya ada.
+ *
+ * Kode yang tidak ada di `daftarPetugas` (petugasnya sudah dinonaktifkan sejak
+ * nota lama itu dibuat) ditampilkan APA ADANYA sebagai kode, bukan disembunyikan:
+ * nota yang bisu lebih berbahaya daripada nota yang menyebut kode mentah.
+ *
+ * @param {{klaim?: Array, item?: Array}} nota
+ * @param {Array<{kode:string,nama:string}>} daftarPetugas
+ * @return {{penjual: string[], pemasang: string[],
+ *           rinci: Array<{kode:string,nama:string,peran:string,pekerjaan:string}>,
+ *           adaSisaNota: boolean, tanpaPetugas: string[]}}
+ */
+function susunPeranNota(nota, daftarPetugas) {
+  const namaDari = (kode) => {
+    const p = (daftarPetugas || []).find(x => String(x.kode) === String(kode));
+    return p ? p.nama : String(kode);
+  };
+  const hasil = { penjual: [], pemasang: [], rinci: [], adaSisaNota: false, tanpaPetugas: [] };
+  const sudah = {};
+  const tambah = (peran, kode, pekerjaan) => {
+    if (!kode) return;
+    const nama = namaDari(kode);
+    hasil.rinci.push({ kode: String(kode), nama: nama, peran: peran, pekerjaan: pekerjaan });
+    /* Daftar nama untuk struk DIBUAT UNIK per peran. Satu orang yang memasang
+       tiga baris cukup disebut sekali; mengulang namanya tiga kali membuat
+       struk panjang tanpa menambah satu pun keterangan baru. */
+    const kunci = peran + '|' + kode;
+    if (sudah[kunci]) return;
+    sudah[kunci] = true;
+    (peran === 'PEMASANG' ? hasil.pemasang : hasil.penjual).push(nama);
+  };
+
+  const item = (nota && Array.isArray(nota.item)) ? nota.item : [];
+  item.forEach(function (it) {
+    const tim = (Array.isArray(it.klaim) && it.klaim.length) ? it.klaim
+              : (Array.isArray(it.tim) ? it.tim : []);
+    if (!tim.length) {
+      hasil.adaSisaNota = true;
+      // Baris berpoin yang tidak punya tim DAN tidak tertutup klaim nota =
+      // pekerjaan yang tidak ada pemiliknya. Dikumpulkan supaya layar bayar bisa
+      // menyebutnya sebelum notanya ditutup, bukan sesudah.
+      if (Number(it.poin_satuan) > 0) hasil.tanpaPetugas.push(String(it.nama || it.sku || ''));
+      return;
+    }
+    const peran = _peranUrutKlaim(tim.length, 'BARIS');
+    tim.slice(0, 2).forEach((a, i) => tambah(peran[i], a.kode, String(it.nama || it.sku || '')));
+  });
+
+  /* Nota tanpa satu baris pun dianggap PUNYA sisa: dipakai layar Uji cetak dan
+     nota lama yang itemnya tidak ikut tersimpan. Tanpa ini klaim notanya lenyap
+     dari struk hanya karena daftar itemnya kosong. */
+  if (!item.length) hasil.adaSisaNota = true;
+
+  if (hasil.adaSisaNota) {
+    const klaim = (nota && Array.isArray(nota.klaim)) ? nota.klaim : [];
+    const peran = _peranUrutKlaim(klaim.length, 'NOTA');
+    klaim.slice(0, 2).forEach((a, i) => tambah(peran[i], a.kode, 'nota'));
+  } else {
+    /* Seluruh baris sudah punya timnya sendiri, jadi klaim nota memang TIDAK
+       dipakai sistem. Ia tidak boleh ikut tercetak — struk yang menyebut nama
+       yang tidak mendapat apa-apa persis sumber kebingungan yang diperbaiki. */
+    hasil.tanpaPetugas = [];
+  }
+  return hasil;
+}
+
+/**
+ * Penjual & Pemasang dari klaim TINGKAT NOTA saja.
+ *
+ * Dipertahankan sebagai pembungkus tipis di atas `susunPeranNota()` — BUKAN
+ * disalin ulang — supaya aturan peran hidup di satu tempat. Dua salinan aturan
+ * yang sama selalu berpisah jalan, dan yang berpisah di sini berarti struk
+ * menyebut peran yang berbeda dari yang dicatat sistem.
+ *
+ * @return {{penjual: ?string, pemasang: ?string}}
+ */
+function resolvePenjualPemasang(nota, daftarPetugas) {
+  const r = susunPeranNota({ klaim: (nota || {}).klaim, item: [] }, daftarPetugas);
+  return { penjual: r.penjual[0] || null, pemasang: r.pemasang[0] || null };
+}
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil,
-                     angkaDari, ribuan };
+                     angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang };
 }

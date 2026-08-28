@@ -903,6 +903,82 @@ function gambarPilihanPetugas() {
  *
  * @return {boolean} boleh dilanjutkan
  */
+/**
+ * SIAPA MENDAPAT APA — satu daftar, terlihat sebelum notanya ditutup.
+ *
+ * Dilaporkan dari lapangan 28 Agu 2026: petugas bingung karena ada DUA tempat
+ * mengisi nama (dropdown "Pramuniaga" untuk nota, tombol "Tim" untuk baris) tapi
+ * cuma SATU yang pernah ditampilkan. Yang memasang tempered glass tidak muncul
+ * di layar bayar maupun di struk — namanya baru bisa dicek berhari-hari kemudian
+ * di Laporan poin, saat sudah tidak ada yang ingat notanya. Dari lantai toko itu
+ * terbaca sebagai dua aturan yang saling bertentangan.
+ *
+ * Jalur pengisiannya sengaja TIDAK diubah — yang cepat tetap cepat. Yang
+ * ditambahkan cuma satu: hasil akhirnya dipampang, dan dipampang dari sumber
+ * yang SAMA dengan yang dipakai struk (`susunPeranNota` di print.js). Menyusun
+ * daftar kedua di sini akan mengulang persis kesalahan yang sedang diperbaiki.
+ *
+ * Poin sengaja tidak diangkakan di layar ini. Angka pastinya diputuskan server
+ * lewat bobot peran, dan menampilkan taksiran di sisi kasir hanya melahirkan
+ * angka kedua yang bisa berbeda dari yang tercatat — persis pola yang sudah
+ * dihindari `Keranjang.petugasNota` (lihat komentarnya di pos.js).
+ */
+function gambarRosterKlaim() {
+  const semu = {
+    klaim: Keranjang.petugasNota,
+    item: Keranjang.baris.map(b => ({
+      nama: b.nama, poin_satuan: b.poin_satuan, tim: b.tim || []
+    }))
+  };
+  const r = susunPeranNota(semu, APP_STATE.daftarPetugas);
+  if (!r.rinci.length && !r.tanpaPetugas.length) return '';
+
+  /* Digabung per ORANG + PERAN. Satu pemasang yang mengerjakan tiga baris cukup
+     muncul sekali dengan ketiga pekerjaannya, bukan tiga baris berbeda yang
+     terbaca seperti tiga orang. */
+  const peta = [];
+  r.rinci.forEach(x => {
+    const ada = peta.find(y => y.kode === x.kode && y.peran === x.peran);
+    if (ada) ada.kerja.push(x.pekerjaan);
+    else peta.push({ kode: x.kode, nama: x.nama, peran: x.peran, kerja: [x.pekerjaan] });
+  });
+
+  const kerjaTeks = (k) => k.map(x => x === 'nota'
+    ? 'baris tanpa tim sendiri' : x).join(' · ');
+
+  const baris = peta.map(p => `
+    <div style="display:flex;gap:8px;align-items:baseline;padding:3px 0">
+      <strong style="min-width:0">${esc(p.nama)}</strong>
+      <span class="lencana ${p.peran === 'PEMASANG' ? 'kuning' : 'hijau'}">${
+        p.peran === 'PEMASANG' ? 'memasang' : 'melayani'}</span>
+      <span style="color:var(--teks-redup);font-size:12px;flex:1;min-width:0">${esc(kerjaTeks(p.kerja))}</span>
+    </div>`).join('');
+
+  /* Baris berpoin yang tidak dimiliki siapa pun disebut NAMANYA, bukan cuma
+     dihitung. "1 baris belum ada petugasnya" memaksa kasir menebak yang mana;
+     menyebut namanya membuatnya bisa langsung ditekan tombol Tim-nya. */
+  const yatim = r.tanpaPetugas.length && !Keranjang.petugasNota.length
+    ? `<div class="pesan galat" style="margin-top:6px">Belum ada yang mengklaim: <strong>${
+        esc(r.tanpaPetugas.join(', '))}</strong></div>`
+    : '';
+
+  /* Kalau pramuniaga nota sudah dipilih tapi SELURUH baris punya timnya sendiri,
+     namanya memang tidak muncul di daftar — itu aturan servernya, bukan bug.
+     Tanpa keterangan ini kasir melihat nama yang barusan ia pilih lenyap begitu
+     saja dari panel, dan itu menambah kebingungan yang sedang diobati.
+     Menjelaskan lebih baik daripada diam-diam menghilangkan. */
+  const notaTakDipakai = !r.adaSisaNota && Keranjang.petugasNota.length
+    ? `<div class="pesan" style="margin-top:6px">Seluruh baris sudah punya timnya sendiri, jadi
+        <strong>${esc(Keranjang.petugasNota.map(x => namaPetugas(x.kode)).join(', '))}</strong>
+        tidak mendapat poin di nota ini.</div>`
+    : '';
+
+  return `<div class="pesan info" style="text-align:left">
+      <div style="font-size:12px;color:var(--teks-redup);margin-bottom:4px">Poin nota ini masuk ke</div>
+      ${baris || '<em>belum ada</em>'}
+    </div>${yatim}${notaTakDipakai}`;
+}
+
 function gambarJagaKlaim() {
   const w = $('#byrJagaKlaim');
   if (!w) return true;
@@ -917,13 +993,9 @@ function gambarJagaKlaim() {
   const daftar = Keranjang.petugasNota;
   const kurang = APP_STATE.klaimWajib && adaSisa && !daftar.length;
 
-  const ket = kurang
+  const ket = (kurang
     ? '<div class="pesan galat">Nota ini belum ada pramuniaganya — pilih di sini.</div>'
-    : daftar.length
-      ? `<div class="pesan info">Diklaim oleh <strong>${
-          esc(daftar.map(x => namaPetugas(x.kode)).join(', '))}</strong>${
-          adaSisa ? '' : ' — seluruh baris sudah punya timnya sendiri, jadi klaim nota tidak dipakai.'}</div>`
-      : '';
+    : '') + gambarRosterKlaim();
 
   /* Digambar ulang setiap kali ringkasan bayar berubah — termasuk pada setiap
      ketikan jumlah uang. Menyusun ulang elemen yang sedang dipakai akan

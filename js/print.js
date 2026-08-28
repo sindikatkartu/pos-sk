@@ -5,42 +5,12 @@
  *   2. HTML window.print()          — cadangan universal (USB, PDF, printer apa pun)
  *
  * Catatan: Web Bluetooth hanya tersedia di Chrome/Edge Android & desktop, dan wajib HTTPS.
+ *
+ * Daftar "siapa mengerjakan apa" TIDAK disusun di sini. Aturannya milik domain
+ * klaim, bukan domain cetak, dan dipakai juga oleh panel di layar bayar — jadi ia
+ * tinggal di pos.js (`susunPeranNota`). Menyalinnya ke sini akan melahirkan
+ * daftar kedua, dan dua daftar yang berbeda persis keluhan yang melahirkannya.
  */
-
-/**
- * Tentukan siapa Penjual & Pemasang dari klaim TINGKAT NOTA (`nota.klaim`), untuk
- * dicetak di struk. Fungsi murni — tidak menyentuh APP_STATE/CONFIG/DOM — supaya
- * bisa diuji langsung di Node (lihat uji/uji.js) tanpa perlu browser.
- *
- * Aturan peran SAMA PERSIS dengan `_peranUrut(jumlah, 'NOTA')` di 21_Klaim.gs:
- * satu orang = Penjual; dua orang = Penjual lalu Pemasang, urutan sesuai urutan
- * pemilihan di layar kasir. Kalau sampai berbeda, struk bisa menyebut nama yang
- * salah sementara sistem membagi poin & omzet ke orang lain — persis kelas bug
- * yang berulang kali muncul di proyek ini (lihat KONTEKS.md §12).
- *
- * Hanya klaim tingkat NOTA yang dicetak. Klaim per BARIS (tim pemasangan tempered
- * glass, dsb.) sengaja tidak dirinci satu-satu di struk — bisa ada beberapa baris
- * dengan tim yang berbeda-beda, dan mencantumkan semuanya membuat struk kasir
- * terlalu panjang untuk kertas 58mm.
- *
- * kode yang tidak ditemukan di `daftarPetugas` (mis. petugasnya sudah dinonaktifkan
- * sejak nota lama ini dibuat) dicetak APA ADANYA sebagai kode, bukan disembunyikan —
- * nota yang bisu lebih berbahaya daripada nota yang menyebut kode mentah.
- *
- * @param {{klaim?: Array<{kode:string}>}} nota
- * @param {Array<{kode:string,nama:string}>} daftarPetugas
- * @return {{penjual: ?string, pemasang: ?string}}
- */
-function resolvePenjualPemasang(nota, daftarPetugas) {
-  const klaim = (nota && Array.isArray(nota.klaim)) ? nota.klaim : [];
-  if (!klaim.length) return { penjual: null, pemasang: null };
-  const nama = (kode) => {
-    const p = (daftarPetugas || []).find(x => String(x.kode) === String(kode));
-    return p ? p.nama : kode;
-  };
-  if (klaim.length === 1) return { penjual: nama(klaim[0].kode), pemasang: null };
-  return { penjual: nama(klaim[0].kode), pemasang: nama(klaim[1].kode) };
-}
 
 const Struk = (() => {
   let perangkatBt = null, karakteristik = null;
@@ -129,9 +99,13 @@ const Struk = (() => {
     out.push(...duaKolom('No', nota.no_nota));
     out.push(...duaKolom(tglTampil(nota.tanggal), nota.jam));
     out.push(...duaKolom('Kasir', APP_STATE.user.nama));
-    const pp = resolvePenjualPemasang(nota, APP_STATE.daftarPetugas);
-    if (pp.penjual) out.push(...duaKolom('Penjual', pp.penjual));
-    if (pp.pemasang) out.push(...duaKolom('Pemasang', pp.pemasang));
+    /* SELURUH yang terlibat, termasuk tim per baris — bukan hanya klaim nota.
+       Angka poinnya sengaja TIDAK dicetak: itu angka internal toko, dan struk
+       adalah kertas milik pelanggan. Yang perlu terbaca di sini cuma namanya,
+       supaya petugas yang bersangkutan bisa memeriksanya di tempat. */
+    const pp = susunPeranNota(nota, APP_STATE.daftarPetugas);
+    if (pp.penjual.length) out.push(...duaKolom('Dilayani', pp.penjual.join(', ')));
+    if (pp.pemasang.length) out.push(...duaKolom('Dipasang', pp.pemasang.join(', ')));
     if (nota.kode_pelanggan && nota.kode_pelanggan !== 'C001') {
       out.push(...duaKolom('Plgn', nota._nama_pelanggan || nota.kode_pelanggan));
     }
@@ -310,5 +284,5 @@ const Struk = (() => {
 // diekspor — Struk sendiri bergantung pada DOM/Web Bluetooth dan tidak masuk akal
 // dipanggil di luar browser.
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { resolvePenjualPemasang };
+  module.exports = {};
 }
