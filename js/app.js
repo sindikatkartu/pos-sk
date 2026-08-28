@@ -1779,6 +1779,19 @@ async function perbaruiInfoData() {
     `Kode: <strong>${esc(APP_STATE.perangkat?.kode || '—')}</strong><br>${esc(APP_STATE.perangkat?.nama || '')}`;
   const pr = await DB.kvGet('printer_nama', null);
   $('#infoPrinter').textContent = pr ? 'Tersimpan: ' + pr : 'Belum terhubung';
+  /* Setelan ekor struk dibaca lewat Struk.bacaEkor(), BUKAN dibaca ulang dari
+     IndexedDB di sini. Dua pembaca dengan dua nilai bawaan berbeda berarti layar
+     bisa menampilkan "berpisau" untuk printer yang sedang dicetaki tanpa potong,
+     dan orang mematikan sakelar yang memang sudah mati. */
+  /* Dijaga terhadap print.js versi LAMA yang masih dilayani Service Worker.
+     Cache di sini cache-first dan pergantiannya butuh dua kali muat ulang, jadi
+     "app.js baru bertemu print.js lama" adalah keadaan yang PASTI terjadi sekali
+     di tiap perangkat setiap kali terbit. Tanpa penjagaan ini seluruh
+     perbaruiInfoData() melempar, dan layar Perangkat — satu-satunya tempat
+     memperbaiki printer — justru yang ikut mati. */
+  const ekor = Struk.bacaEkor ? await Struk.bacaEkor() : { potong: true, umpan: 3 };
+  if ($('#setPrinterPotong')) $('#setPrinterPotong').checked = ekor.potong;
+  if ($('#setPrinterUmpan')) $('#setPrinterUmpan').value = ekor.umpan;
   gambarPreviewStruk();
 }
 
@@ -2272,7 +2285,31 @@ function pasangEvent() {
         ? 'Shift ditutup, kas cocok.'
         : `Shift ditutup — selisih ${rp(d.selisih)}.`,
         Math.abs(d.selisih) < 1 ? 'sukses' : 'galat');
-    } catch (e) { $('#tsHasil').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+    } catch (e) {
+      /* Shift yang TIDAK ADA di server, atau yang ternyata sudah tertutup,
+         harus dilepaskan perangkat ini — bukan ditampilkan sebagai galat lalu
+         dibiarkan.
+         Sebelum ini perangkat menyimpan id_shift-nya selamanya: server menjawab
+         "Shift tidak ditemukan", pesan itu muncul di modal, dan penandanya tetap
+         di tempat. Akibatnya kasir tidak bisa menutup shift itu DAN tidak bisa
+         membuka shift baru — perangkatnya berhenti bisa berjualan sama sekali,
+         dan satu-satunya jalan keluar adalah membersihkan IndexedDB lewat
+         Console. Terjadi sungguhan 28 Agu 2026: shift uji coba seorang petugas
+         terhapus bersama pembersihan database cabang, lalu perangkatnya buntu.
+         `periksaShift()` sudah bisa memulihkan keadaan ini sendiri, tapi HANYA
+         saat online — dan tidak pernah terpanggil di jalur galat ini. */
+      if (e.kode === 'NOTFOUND' || e.kode === 'STATUS') {
+        APP_STATE.idShift = null;
+        await DB.kvSet('id_shift', null);
+        APP_STATE.hasilTutupShift = null;
+        $('#tiraiTutupShift').classList.remove('tampil');
+        gambarKeadaanShift();
+        Admin.toast('Shift itu sudah tidak ada di server, jadi dilepas dari perangkat ini. '
+                    + 'Silakan buka shift baru.', 'galat');
+        return;
+      }
+      $('#tsHasil').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
+    }
   });
 
   /* --- pengaturan --- */
@@ -2286,6 +2323,23 @@ function pasangEvent() {
     try { const n = await Struk.hubungkanBluetooth(); alert('Terhubung: ' + n); perbaruiInfoData(); }
     catch (e) { alert('Gagal: ' + e.message); }
     finally { b.classList.remove('sibuk'); b.disabled = false; }
+  });
+  /* Disimpan begitu diubah, tanpa tombol Simpan. Setelan ini dicari orang
+     justru saat printernya sedang salah, dan tombol Simpan yang terlewat berarti
+     mereka menyimpulkan sakelarnya tidak berpengaruh. */
+  $('#setPrinterPotong')?.addEventListener('change', async (e) => {
+    await DB.kvSet('printer_potong', !!e.target.checked);
+    Admin.toast(e.target.checked ? 'Struk akan dipotong otomatis.'
+                                 : 'Perintah potong dimatikan untuk perangkat ini.', 'sukses');
+  });
+  $('#setPrinterUmpan')?.addEventListener('change', async (e) => {
+    /* Dijepit 0..6 DI SINI juga, bukan hanya di atribut min/max: `type=number`
+       tidak menghalangi angka yang diketik langsung, dan 400 baris kosong per
+       struk menghabiskan segulung kertas sebelum ada yang sempat menyadarinya. */
+    const n = Math.max(0, Math.min(6, Math.round(Number(e.target.value) || 0)));
+    e.target.value = n;
+    await DB.kvSet('printer_umpan', n);
+    Admin.toast(`Ujung struk: ${n} baris kosong.`, 'sukses');
   });
   $('#btnUjiCetak').addEventListener('click', () => {
     Struk.cetak({

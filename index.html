@@ -554,6 +554,26 @@
           <p style="color:var(--teks-redup);font-size:13px" id="infoPrinter">Belum terhubung</p>
           <button class="tombol" id="btnHubungkanPrinter">Hubungkan printer Bluetooth</button>
           <button class="tombol" id="btnUjiCetak" style="margin-top:8px">Uji cetak</button>
+
+          <!-- Ekor struk. Setelan PER PERANGKAT, bukan setting global: satu toko
+               bisa memakai dua printer berbeda di dua meja, dan yang satu punya
+               pisau sementara yang lain tidak. Perintah potong ESC/POS selalu
+               MEMAJUKAN kertas ke posisi pisau lebih dulu — printer tanpa pisau
+               tetap memuntahkan 2-3 cm kertas kosong lalu tidak memotong apa pun.
+               Lihat print.js, bagian EKOR_BAWAAN. -->
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+              <input type="checkbox" id="setPrinterPotong" style="width:auto;margin:0">
+              Printer ini punya pisau pemotong
+            </label>
+            <p style="color:var(--teks-redup);font-size:12px;margin:6px 0 10px">
+              Matikan bila kertas keluar panjang dan kosong di bawah struk —
+              itu tandanya printer ini tidak berpisau.
+            </p>
+            <label style="font-size:13px;color:var(--teks-redup)">Baris kosong di ujung struk</label>
+            <input type="number" id="setPrinterUmpan" min="0" max="6" step="1" style="max-width:90px">
+          </div>
+
           <!-- Pratinjau BACA-SAJA dari kop & footer struk yang berlaku sekarang (setting
                global — nama usaha, alamat, footer, lebar kertas). Diubahnya tetap lewat
                menu Setting, bukan di sini: setting itu berlaku untuk SEMUA cabang &

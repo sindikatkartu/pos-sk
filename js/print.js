@@ -59,58 +59,119 @@ const Struk = (() => {
     const garis = '-'.repeat(L);
     const out = [];
 
-    const tengah = (t) => t.length >= L ? t : ' '.repeat(Math.floor((L - t.length) / 2)) + t;
+    /**
+     * Potong teks menjadi baris-baris yang MUAT di kertas.
+     *
+     * Printer termal tidak tahu apa itu kata: begitu satu baris melewati lebar
+     * kolomnya, ia patah di karakter ke-33 — di tengah kata, kadang di tengah
+     * angka. Footer toko ini panjangnya 131 karakter dan alamatnya 37, jadi
+     * setiap struk keluar dengan dua blok teks yang patah sembarangan. Itulah
+     * "struk berantakan" yang dilaporkan pemilik 28 Agu 2026, hari pertama
+     * jualan. Yang salah bukan printernya — tidak ada satu pun baris di sini
+     * yang pernah dipotong sebelum dikirim.
+     *
+     * Pemotongan sadar-kata: kata yang tidak muat pindah baris utuh. Kata yang
+     * SENDIRIAN lebih panjang dari kertas (nama produk migrasi seperti
+     * "TGOGRL5/RLC20/RLC21/…" panjangnya 77 karakter tanpa satu spasi pun)
+     * dipatah paksa per L karakter — itu satu-satunya pilihan yang tersisa, dan
+     * jauh lebih baik daripada dibuang diam-diam.
+     */
+    const bungkus = (t) => {
+      const teks = String(t == null ? '' : t);
+      if (teks.length <= L) return [teks];
+      const hasil = [];
+      let kini = '';
+      teks.split(/\s+/).filter(Boolean).forEach(kata => {
+        while (kata.length > L) {                 // kata tunggal lebih lebar dari kertas
+          if (kini) { hasil.push(kini); kini = ''; }
+          hasil.push(kata.slice(0, L));
+          kata = kata.slice(L);
+        }
+        if (!kini) { kini = kata; }
+        else if (kini.length + 1 + kata.length <= L) { kini += ' ' + kata; }
+        else { hasil.push(kini); kini = kata; }
+      });
+      if (kini) hasil.push(kini);
+      return hasil.length ? hasil : [''];
+    };
+    const satuBaris = (t) => t.length >= L ? t : ' '.repeat(Math.floor((L - t.length) / 2)) + t;
+    /* Tengah selalu mengembalikan LARIK: teks panjang ditengahkan baris demi
+       baris sesudah dipotong, bukan dikirim utuh lalu dipatah printer. */
+    const tengah = (t) => bungkus(t).map(satuBaris);
+    /**
+     * Dua kolom: keterangan di kiri, nilainya rata kanan. Mengembalikan LARIK,
+     * karena tidak semua pasangan muat dalam satu baris.
+     *
+     * Tiga keadaan, sengaja dibedakan:
+     *   1. muat  → satu baris, kanan menempel di tepi kertas
+     *   2. kanan masih muat sendirian → kiri yang dipendekkan (keterangan boleh
+     *      terpotong; nilainya tidak — itu nominal yang dibayar orang, atau nama
+     *      pelanggan di struknya sendiri)
+     *   3. kanan SAJA sudah selebar kertas (nama pelanggan panjang) → kanan
+     *      turun ke barisnya sendiri dan ikut dipotong
+     *
+     * Keadaan 3 dulu menghasilkan `substring(0, angka negatif)`, yang diam-diam
+     * mengembalikan '' — barisnya justru jadi LEBIH panjang dari kertas dan
+     * dipatah printer di tengah nama.
+     */
     const duaKolom = (kiri, kanan) => {
       const sisa = L - kiri.length - kanan.length;
-      return sisa > 0 ? kiri + ' '.repeat(sisa) + kanan
-                      : kiri.substring(0, L - kanan.length - 1) + ' ' + kanan;
+      if (sisa > 0) return [kiri + ' '.repeat(sisa) + kanan];
+      if (kanan.length + 2 <= L) return [kiri.substring(0, L - kanan.length - 1) + ' ' + kanan];
+      return bungkus(kiri).concat(bungkus(kanan));
     };
 
-    out.push(tengah((s.nama_usaha || 'SINDIKAT KARTU').toUpperCase()));
-    if (s.alamat_usaha) out.push(tengah(s.alamat_usaha));
-    if (s.telepon_usaha) out.push(tengah(s.telepon_usaha));
-    out.push(tengah(APP_STATE.namaCabang || APP_STATE.cabang));
+    out.push(...tengah((s.nama_usaha || 'SINDIKAT KARTU').toUpperCase()));
+    if (s.alamat_usaha) out.push(...tengah(s.alamat_usaha));
+    if (s.telepon_usaha) out.push(...tengah(s.telepon_usaha));
+    out.push(...tengah(APP_STATE.namaCabang || APP_STATE.cabang));
     out.push(garis);
-    out.push(duaKolom('No', nota.no_nota));
-    out.push(duaKolom(tglTampil(nota.tanggal), nota.jam));
-    out.push(duaKolom('Kasir', APP_STATE.user.nama));
+    out.push(...duaKolom('No', nota.no_nota));
+    out.push(...duaKolom(tglTampil(nota.tanggal), nota.jam));
+    out.push(...duaKolom('Kasir', APP_STATE.user.nama));
     const pp = resolvePenjualPemasang(nota, APP_STATE.daftarPetugas);
-    if (pp.penjual) out.push(duaKolom('Penjual', pp.penjual));
-    if (pp.pemasang) out.push(duaKolom('Pemasang', pp.pemasang));
+    if (pp.penjual) out.push(...duaKolom('Penjual', pp.penjual));
+    if (pp.pemasang) out.push(...duaKolom('Pemasang', pp.pemasang));
     if (nota.kode_pelanggan && nota.kode_pelanggan !== 'C001') {
-      out.push(duaKolom('Plgn', nota._nama_pelanggan || nota.kode_pelanggan));
+      out.push(...duaKolom('Plgn', nota._nama_pelanggan || nota.kode_pelanggan));
     }
-    if (nota.level_harga !== 'eceran') out.push(duaKolom('Harga', nota.level_harga.toUpperCase()));
+    if (nota.level_harga !== 'eceran') out.push(...duaKolom('Harga', nota.level_harga.toUpperCase()));
     out.push(garis);
 
     nota.item.forEach(it => {
-      out.push(it.nama.substring(0, L));
+      /* Nama produk DIPOTONG jadi beberapa baris, bukan dipangkas.
+         `substring(0, L)` membuang sisanya tanpa tanda apa pun: nama migrasi
+         "TGOGRL5/RLC20/RLC21/OPA585G/VOY20/…" tercetak sebagai
+         "TGOGRL5/RLC20/RLC21/OPA585G/VOY2" — pelanggan memegang struk yang
+         menyebut barang yang tidak persis ia beli, dan tidak ada yang tahu ada
+         yang hilang. */
+      out.push(...bungkus(it.nama));
       const kiri = `  ${it.qty} ${it.satuan} x ${rupiah(it.harga_satuan)}`;
-      out.push(duaKolom(kiri, rupiah(it.qty * it.harga_satuan)));
-      if (it.diskon > 0) out.push(duaKolom('  Diskon', '-' + rupiah(it.diskon)));
+      out.push(...duaKolom(kiri, rupiah(it.qty * it.harga_satuan)));
+      if (it.diskon > 0) out.push(...duaKolom('  Diskon', '-' + rupiah(it.diskon)));
     });
 
     out.push(garis);
     const t = nota._total || {};
-    out.push(duaKolom('Subtotal', rupiah(t.bruto)));
-    if (t.diskon_item > 0) out.push(duaKolom('Diskon item', '-' + rupiah(t.diskon_item)));
-    if (nota.diskon_nota > 0) out.push(duaKolom('Diskon nota', '-' + rupiah(nota.diskon_nota)));
-    if (nota.ppn > 0) out.push(duaKolom('PPN', rupiah(nota.ppn)));
-    out.push(duaKolom('TOTAL', rupiah(nota.total)));
+    out.push(...duaKolom('Subtotal', rupiah(t.bruto)));
+    if (t.diskon_item > 0) out.push(...duaKolom('Diskon item', '-' + rupiah(t.diskon_item)));
+    if (nota.diskon_nota > 0) out.push(...duaKolom('Diskon nota', '-' + rupiah(nota.diskon_nota)));
+    if (nota.ppn > 0) out.push(...duaKolom('PPN', rupiah(nota.ppn)));
+    out.push(...duaKolom('TOTAL', rupiah(nota.total)));
     out.push(garis);
 
     (nota.bayar || []).forEach(b => {
-      out.push(duaKolom(b.metode.toUpperCase(), rupiah(b.jumlah)));
+      out.push(...duaKolom(b.metode.toUpperCase(), rupiah(b.jumlah)));
     });
-    if (nota._kembali > 0) out.push(duaKolom('KEMBALI', rupiah(nota._kembali)));
-    if (nota.jatuh_tempo) out.push(duaKolom('Jatuh tempo', tglTampil(nota.jatuh_tempo)));
+    if (nota._kembali > 0) out.push(...duaKolom('KEMBALI', rupiah(nota._kembali)));
+    if (nota.jatuh_tempo) out.push(...duaKolom('Jatuh tempo', tglTampil(nota.jatuh_tempo)));
     if (nota.garansi_hari > 0) {
-      out.push(`Garansi ${nota.garansi_hari} hari (s.d. ${tglTampil(nota.garansi_sampai)})`);
+      out.push(...bungkus(`Garansi ${nota.garansi_hari} hari (s.d. ${tglTampil(nota.garansi_sampai)})`));
     }
 
     out.push('');
-    out.push(tengah(s.footer_struk || 'Terima kasih'));
-    if (nota._offline) out.push(tengah('* belum tersinkron *'));
+    out.push(...tengah(s.footer_struk || 'Terima kasih'));
+    if (nota._offline) out.push(...tengah('* belum tersinkron *'));
     out.push('');
     return out;
   }
@@ -130,21 +191,71 @@ const Struk = (() => {
     return perangkatBt.name;
   }
 
+  /**
+   * Ekor struk: berapa baris kosong, lalu potong atau tidak.
+   *
+   * `GS V 66 0` bukan sekadar "potong". Artinya "MAJUKAN kertas sampai posisi
+   * pisau, lalu potong". Printer yang punya pisau memotong di situ dan hasilnya
+   * pas. Printer yang TIDAK punya pisau tetap menjalankan bagian majukannya —
+   * 2-3 cm kertas kosong keluar setiap struk, lalu tidak terjadi apa-apa.
+   * Itu sebabnya dua printer yang diberi data yang sama persis mengeluarkan
+   * panjang kertas yang berbeda; dilaporkan pemilik 28 Agu 2026.
+   *
+   * Tidak ada cara menanyakan ke printer apakah ia berpisau, jadi ini setelan
+   * PER PERANGKAT (IndexedDB, bukan setting global): satu toko bisa memakai dua
+   * printer berbeda di dua meja, dan setting global akan selalu salah untuk
+   * salah satunya. Bawaannya `true` supaya printer yang selama ini sudah benar
+   * tidak berubah perilaku; yang tanpa pisau tinggal dimatikan sakelarnya.
+   */
+  const EKOR_BAWAAN = { potong: true, umpan: 3 };
+
+  /** Penjepit nilai ekor. Sengaja MURNI & sinkron supaya bisa diuji apa adanya. */
+  const normalEkor = (potong, umpan) => ({
+    potong: potong !== false,
+    umpan: Math.max(0, Math.min(6, Math.round(Number(umpan)) || 0))
+  });
+
+  async function bacaEkor() {
+    try {
+      return normalEkor(await DB.kvGet('printer_potong', EKOR_BAWAAN.potong),
+                        await DB.kvGet('printer_umpan', EKOR_BAWAAN.umpan));
+    } catch (e) { return { ...EKOR_BAWAAN }; }
+  }
+
+  /**
+   * Rakit bita ESC/POS dari baris teks yang sudah jadi. MURNI dan SINKRON —
+   * tidak menyentuh Bluetooth maupun IndexedDB.
+   *
+   * Dipisah dari `cetakBluetooth` bukan demi kerapian, melainkan supaya isinya
+   * bisa diuji sungguhan: penjalan uji di repo ini (`uji()` di uji/uji.js)
+   * memanggil fungsi ujinya secara SINKRON dan mengabaikan Promise yang
+   * dikembalikan. Uji apa pun yang harus `await` di sana akan selalu hijau,
+   * apa pun isinya. Selama perakitan bita masih terkunci di dalam fungsi async,
+   * ia tidak bisa dijaga uji sama sekali.
+   */
+  function bitaStruk(isi, ekor) {
+    const enc = new TextEncoder();
+    const buf = [];
+    const push = (arr) => buf.push(...arr);
+    push(ESC.INIT); push(ESC.TENGAH); push(ESC.TEBAL_ON);
+    push(Array.from(enc.encode(isi[0] + '\n')));
+    push(ESC.TEBAL_OFF); push(ESC.KIRI);
+    isi.slice(1).forEach(b => push(Array.from(enc.encode(b + '\n'))));
+    for (let i = 0; i < ekor.umpan; i++) push([0x0a]);
+    if (ekor.potong) push(ESC.POTONG);
+    return new Uint8Array(buf);
+  }
+
   async function cetakBluetooth(nota) {
     if (!karakteristik) await hubungkanBluetooth();
-    const enc = new TextEncoder();
-    let buf = [];
-    const push = (arr) => buf.push(...arr);
-
-    push(ESC.INIT); push(ESC.TENGAH); push(ESC.TEBAL_ON);
-    push(Array.from(enc.encode(baris(nota)[0] + '\n')));
-    push(ESC.TEBAL_OFF); push(ESC.KIRI);
-    baris(nota).slice(1).forEach(b => push(Array.from(enc.encode(b + '\n'))));
-    push([0x0a, 0x0a, 0x0a]);
-    push(ESC.POTONG);
+    const ekor = await bacaEkor();
+    /* Disusun SEKALI. Dulu `baris(nota)` dipanggil dua kali — sekali untuk kop,
+       sekali untuk sisanya — jadi seluruh struk dirakit dua kali per cetak, dan
+       kalau isinya sempat berubah di antara dua panggilan itu, kop dan badan
+       struk berasal dari dua versi yang berbeda. */
+    const data = bitaStruk(baris(nota), ekor);
 
     // Kirim per 180 byte — banyak printer thermal punya buffer kecil
-    const data = new Uint8Array(buf);
     for (let i = 0; i < data.length; i += 180) {
       await karakteristik.writeValue(data.slice(i, i + 180));
       await new Promise(r => setTimeout(r, 40));
@@ -191,7 +302,8 @@ const Struk = (() => {
     return 'html';
   }
 
-  return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, baris, rupiah };
+  return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, baris, rupiah,
+           bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };
 })();
 
 // Ekspor untuk pengujian di Node (lihat uji/uji.js). Hanya fungsi murni yang
