@@ -557,14 +557,15 @@ async function muatMaster() {
   APP_STATE.namaCabang = cab ? cab.nama : APP_STATE.cabang;
   // Seluruh cabang aktif — dipakai layar "intip stok", termasuk cabang yang user ini
   // tidak berhak bertransaksi di sana. Yang ditampilkan hanya jumlah stok, bukan harga modal.
-  APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode);
+  APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode).sort(urutNama);
 
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
     // Labelnya ikut dinormalkan supaya tidak bertentangan dengan kolom level di
     // sebelahnya: memilih pelanggan lama membuat #selLevel berbunyi "Grosir",
     // dan label yang tetap berbunyi "(reseller)" hanya membingungkan kasir.
-    pel.map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(Harga.normalLevel(p.level_harga))})</option>`).join('');
+    urutkanOleh(pel, p => p.nama)
+      .map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(Harga.normalLevel(p.level_harga))})</option>`).join('');
 
   /* Daftar petugas. Store `petugas` baru ada sejak DB_VERSI 3; perangkat yang
      belum sempat memutakhirkan skema lokalnya tidak boleh gagal memuat kasir
@@ -575,7 +576,7 @@ async function muatMaster() {
 
   $('#keuCabang').innerHTML =
     (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
-    APP_STATE.daftarCabang.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    APP_STATE.daftarCabang.slice().sort(urutNama).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 
   $('#lncJumlahProduk').textContent = (await DB.jumlah('produk')) + ' produk';
 }
@@ -859,7 +860,13 @@ const namaPetugas = (kode) =>
  */
 function isiSatuDropdownPetugas(sel, tombol) {
   if (!sel) return;
-  const daftar = APP_STATE.daftarPetugas || [];
+  /* Diurutkan A-Z DI PENGGAMBAR, bukan saat daftarnya dimuat.
+     `APP_STATE.daftarPetugas` sengaja dibiarkan apa adanya: satu-satunya yang
+     butuh urut abjad adalah yang DILIHAT orang. Mengurutkan di titik muat
+     berarti ada jalur muat lain yang bisa terlewat — dan dropdown yang kembali
+     acak di satu layar saja adalah jenis cacat yang tidak pernah dilaporkan,
+     cuma dijalani. */
+  const daftar = urutkanOleh(APP_STATE.daftarPetugas || [], p => p.nama);
   const dipilih = Keranjang.petugasNota;
 
   // Toko yang belum mengisi daftar petugas tidak perlu melihat kolom yang selalu kosong.
@@ -1068,7 +1075,7 @@ function gambarAnggotaTim() {
       <div><label>${esc(peran[i])}</label>
         <select data-i="${i}" data-f="kode">
           <option value="">— pilih —</option>
-          ${APP_STATE.daftarPetugas.map(p =>
+          ${urutkanOleh(APP_STATE.daftarPetugas, p => p.nama).map(p =>
             `<option value="${esc(p.kode)}" ${p.kode === a.kode ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
         </select></div>
       ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : '<span></span>'}

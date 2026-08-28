@@ -513,6 +513,23 @@ th {
   color: var(--teks); font-size: 12.5px; font-weight: 600;
   background: var(--panel-2); border-bottom: 1px solid var(--garis);
 }
+/* Judul kolom bisa diklik untuk mengurutkan.
+
+   Panah SELALU ada tempatnya — `::after` diberi lebar tetap walau kosong.
+   Tanpa itu seluruh kolom bergeser beberapa piksel setiap kali urutannya
+   diganti, dan pergeseran itu terbaca seperti tabelnya berkedip. */
+th.bisa-urut { cursor: pointer; user-select: none; white-space: nowrap; }
+th.bisa-urut:hover { background: var(--garis-halus); }
+th.bisa-urut::after {
+  content: ''; display: inline-block; width: 12px; text-align: right;
+  color: var(--teks-redup); font-size: 10px;
+}
+th.bisa-urut[data-arah="naik"]::after  { content: '\25B2'; color: var(--teks); }
+th.bisa-urut[data-arah="turun"]::after { content: '\25BC'; color: var(--teks); }
+/* Kolom angka rata kanan: panahnya ikut ke KIRI judul, supaya angka tetap
+   menempel di tepi kolomnya dan tidak terdorong panah. */
+th.angka.bisa-urut::after { float: left; text-align: left; }
+
 tbody tr:hover td { background: var(--panel-2); }
 tbody tr:last-child td { border-bottom: none; }
 /* Kolom angka tidak boleh patah baris.

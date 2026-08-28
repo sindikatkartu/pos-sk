@@ -30,18 +30,77 @@ const Admin = (() => {
      eceran, atau grosir. Diletakkan di penggambar bersama ini supaya berlaku
      untuk SELURUH tabel back office sekaligus, bukan disalin ke lima belas
      layar satu per satu. */
+  /* Judul kolom BISA DIKLIK untuk mengurutkan — A→Z, kecil→besar, dan sebaliknya.
+     Dilaporkan dari lapangan 28 Agu 2026: tabel keluar dengan urutan baris sheet,
+     yang bagi pemakainya sama saja dengan acak. Dipasang di penggambar bersama
+     ini, bukan di lima belas layar satu per satu — persis alasan `data-l` untuk
+     kartu bertumpuk di HP juga ada di sini.
+
+     `data-urut` membawa nilai MENTAH untuk kolom yang punya kunci. Teks selnya
+     sudah diformat (tanggal jadi '28/08/26', angka jadi 'Rp 1.250.000'), dan
+     mengurutkan hasil format berarti mengurutkan tanggal menurut HARInya.
+     Kolom `render` tidak punya nilai mentah; ia jatuh ke teks sel, dan itu
+     memang yang dibaca orang di layar.
+
+     Kolom tanpa judul (lajur tombol Ubah) tidak diberi penanda: tidak ada yang
+     bisa diurutkan dari kolom tombol, dan judul kosong yang bisa diklik hanya
+     membuat orang mengira ada yang rusak. */
   const tabelPolos = (kolom, baris, opsi = {}) => `
     <div class="gulir-x">
     <table>
-      <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
+      <thead><tr>${kolom.map((k, i) => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}${
+        k.judul ? ' bisa-urut' : ''}"${k.judul ? ` data-urut-kol="${i}"` : ''}>${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
-        kolom.map(k => `<td data-l="${esc(k.judul)}" class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
+        kolom.map(k => `<td data-l="${esc(k.judul)}"${
+          k.kunci ? ` data-urut="${esc(r[k.kunci] ?? '')}"` : ''} class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
           k.render ? k.render(r) : k.tgl ? esc(tglTampil(r[k.kunci])) : esc(r[k.kunci] ?? '')}</td>`).join('')
       }</tr>`).join('')
         : `<tr><td colspan="${kolom.length}" style="text-align:center;color:var(--teks-redup);padding:28px">${esc(opsi.kosong || 'Belum ada data')}</td></tr>`}
       </tbody>
     </table>
     </div>`;
+
+  /**
+   * Urutkan satu tabel DI TEMPAT, dengan memindahkan simpul `<tr>`-nya.
+   *
+   * Tidak menggambar ulang layar, dan itu disengaja. Tabel di sini disusun
+   * sebagai teks HTML oleh belasan fungsi berbeda, masing-masing dengan sumber
+   * datanya sendiri; menitipkan keadaan urutan ke semuanya berarti menyentuh
+   * belasan tempat dan melupakan satu. Menyusun ulang barisnya berlaku untuk
+   * SEMUA tabel sekaligus, tanpa satu pun pemanggil perlu tahu.
+   *
+   * Konsekuensinya jujur: urutannya kembali ke asal begitu layarnya dimuat
+   * ulang. Itu perilaku yang sama dengan penyaring di layar Produk.
+   */
+  function urutkanTabel(th) {
+    const tbl = th.closest('table');
+    const tbody = tbl && tbl.tBodies[0];
+    if (!tbody) return;
+    const idx = Number(th.dataset.urutKol);
+    /* Baris keadaan-kosong ('Belum ada data') memakai colspan dan tidak boleh
+       ikut diurutkan — kalau ikut, ia bisa terlempar ke tengah daftar. */
+    const rows = Array.from(tbody.rows).filter(r => !r.querySelector('td[colspan]'));
+    if (rows.length < 2) return;
+
+    const arah = th.dataset.arah === 'naik' ? 'turun' : 'naik';
+    Array.from(th.parentNode.children).forEach(x => {
+      delete x.dataset.arah; x.removeAttribute('aria-sort');
+    });
+    th.dataset.arah = arah;
+    th.setAttribute('aria-sort', arah === 'naik' ? 'ascending' : 'descending');
+
+    const nilai = (r) => {
+      const td = r.cells[idx];
+      if (!td) return '';
+      return td.dataset.urut !== undefined ? td.dataset.urut : td.textContent.trim();
+    };
+    const angkaKol = th.classList.contains('angka');
+    const arahNum = arah === 'naik' ? 1 : -1;
+    rows.sort((a, b) => arahNum * (angkaKol
+      ? angkaUrut(nilai(a)) - angkaUrut(nilai(b))
+      : urutNama(nilai(a), nilai(b))));
+    rows.forEach(r => tbody.appendChild(r));
+  }
 
   /**
    * Tabel master, dengan baris NONAKTIF dikeluarkan dari daftar utama.
@@ -363,7 +422,9 @@ const Admin = (() => {
   /** Isi dropdown kategori. Nilai kosong = semua, supaya selalu ada jalan kembali. */
   const opsiKategori = (daftar, terpilih) =>
     `<option value="">Semua kategori</option>` +
-    (daftar || []).map(k =>
+    /* Diurutkan A-Z di sini, satu tempat untuk kedua layar yang memakainya
+       (Produk dan Stok). Urutan aslinya adalah urutan kemunculan di sheet. */
+    (daftar || []).slice().sort(urutNama).map(k =>
       `<option value="${esc(k)}" ${k === terpilih ? 'selected' : ''}>${esc(k)}</option>`).join('');
 
   /**
@@ -1013,7 +1074,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>No dokumen / faktur</label><input type="text" id="beliNo"></div>
         <div class="grup"><label>Supplier</label><select id="beliSupplier">
           <option value="">—</option>
-          ${sup.filter(s => s.aktif).map(s => `<option value="${esc(s.kode)}">${esc(s.nama)}</option>`).join('')}
+          ${urutkanOleh(sup.filter(s => s.aktif), s => s.nama).map(s => `<option value="${esc(s.kode)}">${esc(s.nama)}</option>`).join('')}
         </select></div>
       </div>
       <div class="baris2">
@@ -1352,7 +1413,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <input type="date" id="poinSampai" value="${tanggalLokal(kini)}"></div>
             <div style="max-width:220px"><label>Petugas</label><select id="poinPetugas">
               <option value="">Semua petugas</option>
-              ${rows.map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
+              ${urutkanOleh(rows, r => r.nama).map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
             </select></div>
             <button class="tombol utama" id="btnLaporanPoin">Tampilkan</button>
           </div>
@@ -1607,10 +1668,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="baris2">
         <div class="grup"><label>Peran *</label><select id="uPeran">
-          ${(cachePeran || []).map(p => `<option value="${esc(p.kode_peran)}" ${u?.peran === p.kode_peran ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
+          ${urutkanOleh(cachePeran || [], p => p.nama).map(p => `<option value="${esc(p.kode_peran)}" ${u?.peran === p.kode_peran ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
         </select></div>
         <div class="grup"><label>Cabang</label><select id="uCabang">
-          ${cabangOpsi.map(c => `<option value="${esc(c)}" ${u?.cabang === c ? 'selected' : ''}>${c === '*' ? 'Semua cabang' : esc(c)}</option>`).join('')}
+          ${cabangOpsi.slice().sort(urutNama).map(c => `<option value="${esc(c)}" ${u?.cabang === c ? 'selected' : ''}>${c === '*' ? 'Semua cabang' : esc(c)}</option>`).join('')}
         </select></div>
       </div>
       ${u ? `<label class="cek"><input type="checkbox" id="uAktif" ${u.aktif ? 'checked' : ''}> Aktif</label>`
@@ -1939,7 +2000,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris3">
         <div class="grup"><label>Dari</label><input type="text" value="${esc(APP_STATE.cabang)}" disabled></div>
         <div class="grup"><label>Ke cabang *</label><select id="tfTujuan">
-          ${tujuan.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></div>
+          ${tujuan.slice().sort(urutNama).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></div>
         <div class="grup"><label>Tanggal</label><input type="date" id="tfTanggal" value="${tanggalLokal()}"></div>
       </div>
       <label>Barang yang dikirim</label>
@@ -2073,11 +2134,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="baris2">
           <div class="grup"><label>Kategori</label><select id="opKategori">
             <option value="">— semua kategori —</option>
-            ${(f.kategori || []).map(k => `<option value="${esc(k.nama)}">${esc(k.nama)} (${k.jumlah})</option>`).join('')}
+            ${urutkanOleh(f.kategori || [], k => k.nama).map(k => `<option value="${esc(k.nama)}">${esc(k.nama)} (${k.jumlah})</option>`).join('')}
           </select></div>
           <div class="grup"><label>Merek</label><select id="opMerek">
             <option value="">— semua merek —</option>
-            ${(f.merek || []).map(k => `<option value="${esc(k.nama)}">${esc(k.nama)} (${k.jumlah})</option>`).join('')}
+            ${urutkanOleh(f.merek || [], k => k.nama).map(k => `<option value="${esc(k.nama)}">${esc(k.nama)} (${k.jumlah})</option>`).join('')}
           </select></div>
         </div>
         <p class="petunjuk">Isi salah satu atau keduanya. Kalau dua-duanya dikosongkan, pilih cakupan Penuh.</p>
@@ -2369,7 +2430,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function isiDatalistProduk() {
     const semua = await DB.all('produk');
-    const opsi = semua.map(p => `<option value="${esc(p.sku)}">${esc(p.nama)}</option>`).join('');
+    const opsi = urutkanOleh(semua, p => p.nama).map(p => `<option value="${esc(p.sku)}">${esc(p.nama)}</option>`).join('');
     ['dlProdukRt', 'dlProdukRp'].forEach(id => { if ($('#' + id)) $('#' + id).innerHTML = opsi; });
   }
 
@@ -2634,7 +2695,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="grup"><label>Cabang</label>
               <select id="arsipCabang">
                 <option value="">Semua cabang</option>
-                ${APP_STATE.daftarCabangSemua.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+                ${APP_STATE.daftarCabangSemua.slice().sort(urutNama).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
               </select></div>
           </div>
 
@@ -2737,6 +2798,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* ==================== EVENT (delegasi tunggal) ==================== */
 
   function pasang() {
+    /* Klik judul kolom = urutkan. Pendengarnya SATU, di dokumen, bukan dipasang
+       ulang tiap kali tabel digambar: seluruh tabel back office dibuat sebagai
+       teks HTML yang mengganti innerHTML, jadi pendengar yang dipasang ke
+       elemennya akan hilang pada penggambaran berikutnya — dan hilangnya tidak
+       kelihatan sampai ada yang mengklik dan tidak terjadi apa-apa. */
+    document.addEventListener('click', (e) => {
+      const th = e.target.closest('th[data-urut-kol]');
+      if (th) urutkanTabel(th);
+    });
+
     document.addEventListener('click', async (e) => {
       const t = e.target.closest('button, [data-tutup]');
       if (!t) return;

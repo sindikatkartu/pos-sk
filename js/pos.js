@@ -438,6 +438,64 @@ async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
  * berlangkah 0,5. Pemilahannya lewat class `uang`, bukan menyapu semua kolom.
  */
 
+/* ==================== URUTAN ====================
+ *
+ * Satu pembanding untuk seluruh aplikasi. Dilaporkan dari lapangan 28 Agu 2026:
+ * dropdown dan tabel keluar dengan urutan baris sheet — yaitu urutan orang itu
+ * diketik bertahun-tahun lalu, yang bagi pemakainya sama saja dengan acak.
+ * Dengan 382 produk, mencari satu nama berarti membaca seluruh daftar.
+ *
+ * `numeric: true` bukan hiasan. Tanpanya urutan teks murni menghasilkan
+ *
+ *     Samsung A10 · Samsung A15 · Samsung A2 · Samsung A26 · Samsung A3
+ *
+ * karena dibandingkan karakter demi karakter. Katalog ini hampir seluruhnya
+ * bernama "merek + angka", jadi tanpa perbandingan angka, mengurutkannya nyaris
+ * tidak menolong siapa pun. Dengan `numeric`:
+ *
+ *     Samsung A2 · Samsung A3 · Samsung A10 · Samsung A15 · Samsung A26
+ *
+ * `sensitivity: 'base'` membuat besar-kecil huruf tidak memisahkan "iPhone"
+ * dari "IPHONE" — katalog hasil migrasi memuat keduanya.
+ */
+const _KOLATOR = (typeof Intl !== 'undefined' && Intl.Collator)
+  ? new Intl.Collator('id', { sensitivity: 'base', numeric: true })
+  : null;
+
+/** Bandingkan dua teks seperti manusia membacanya. Dipakai dropdown & tabel. */
+function urutNama(a, b) {
+  const x = String(a == null ? '' : a), y = String(b == null ? '' : b);
+  return _KOLATOR ? _KOLATOR.compare(x, y) : (x < y ? -1 : x > y ? 1 : 0);
+}
+
+/**
+ * SALINAN larik yang sudah urut menurut satu kunci.
+ *
+ * Mengembalikan salinan, tidak mengurutkan di tempat: sebagian daftar yang
+ * diurutkan untuk dropdown juga dipegang APP_STATE dan dibaca bagian lain yang
+ * mengandalkan urutan aslinya — urutan anggota tim menentukan PERANNYA (lihat
+ * `_peranUrutKlaim`). Mengurutkan di tempat akan menukar penjual dan pemasang.
+ */
+function urutkanOleh(arr, ambil) {
+  return (arr || []).slice().sort((a, b) => urutNama(ambil(a), ambil(b)));
+}
+
+/**
+ * Angka dari teks sel tabel, untuk PENGURUTAN saja.
+ *
+ * Berbeda dari `angkaDari()`, yang membuang seluruh titik dan koma karena
+ * rupiah di aplikasi ini selalu bulat. Di sini desimal harus dipertahankan:
+ * kolom Poin berlangkah 0,5 dan `angkaDari('0,5')` menghasilkan 5 — yang akan
+ * menaruh 0,5 poin DI ATAS 3 poin. Urutan yang salah lebih buruk daripada tidak
+ * ada urutan sama sekali, karena ia tetap terlihat rapi.
+ */
+function angkaUrut(t) {
+  const s = String(t == null ? '' : t).replace(/[^\d,.-]/g, '');
+  if (!s) return 0;
+  const n = Number(s.replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+
 /** '1.250.000' → 1250000 · 'Rp 1.000' → 1000 · '-5.000' → -5000 · '' → 0 */
 function angkaDari(v) {
   if (typeof v === 'number') return Math.trunc(v) || 0;
@@ -643,5 +701,6 @@ function resolvePenjualPemasang(nota, daftarPetugas) {
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil,
-                     angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang };
+                     angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
+                     urutNama, urutkanOleh, angkaUrut };
 }
