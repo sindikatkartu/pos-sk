@@ -606,6 +606,57 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 /* Isinya diredupkan sedikit — terbaca jelas, tapi jelas bukan daftar utama. */
 .blok-nonaktif > .gulir-x table tbody td { opacity: .72; }
 
+
+/* ==================== DASHBOARD PADAT ====================
+   Diperkenalkan 28 Agu 2026. Kepadatannya datang dari JARAK dan UKURAN HURUF
+   yang lebih kecil, bukan dari membuang isi: satu layar yang harus digulir tiga
+   kali sama saja dengan tiga layar, dan bagian bawahnya tidak pernah dibaca. */
+.petak-mini {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 8px;
+}
+.mini {
+  background: var(--panel); border: 1px solid var(--garis-halus);
+  border-radius: var(--radius); padding: 9px 11px; min-width: 0;
+}
+.mini-label { font-size: 11.5px; color: var(--teks-redup); line-height: 1.3; }
+/* `tabular-nums` supaya deretan angka di beberapa kotak tetap sejajar lebarnya
+   dan tidak bergoyang tiap kali datanya berubah. */
+.mini-nilai {
+  font-size: 19px; font-weight: 650; line-height: 1.25; margin-top: 2px;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.mini-ekor { margin-top: 3px; }
+.delta { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.delta.naik  { color: var(--sukses); }
+.delta.turun { color: var(--bahaya); }
+.delta.datar, .delta.baru { color: var(--teks-redup); font-weight: 500; }
+
+/* Dua lajur yang RUNTUH jadi satu di bawah 780px. Tanpa titik runtuh ini, dua
+   tabel berdampingan di tablet tegak masing-masing tinggal 180px dan nama
+   produknya terpotong jadi tidak ada gunanya. */
+/* `align-items: start` supaya kartu yang pendek TIDAK diregangkan mengikuti
+   tetangganya yang panjang. Tanpa ini kartu "Jam ramai" menyisakan ruang
+   kosong sebesar setengah kartu, dan ruang kosong sebesar itu terbaca seperti
+   ada isi yang gagal dimuat. */
+.petak-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+@media (max-width: 780px) { .petak-2 { grid-template-columns: 1fr; } }
+
+.kartu.rapat { padding: 12px 14px; }
+.kartu.rapat h4 { margin: 0 0 8px; font-size: 13.5px; font-weight: 650; }
+.kartu.rapat table { font-size: 12.5px; }
+.kartu.rapat th, .kartu.rapat td { padding: 5px 9px; }
+.bar-alat.rapat { margin-bottom: 10px; gap: 10px; align-items: center; }
+
+.umur-piutang { margin-top: 10px; font-size: 12.5px; }
+.umur-piutang > div {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 4px 0; border-top: 1px solid var(--garis-halus);
+}
+.umur-piutang strong { font-variant-numeric: tabular-nums; }
+.umur-piutang .peringatan { color: var(--peringatan); }
+.umur-piutang .bahaya { color: var(--bahaya); }
+
 .petak { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .statistik .nilai {
   font-size: 24px; font-weight: 600; margin-top: 2px;

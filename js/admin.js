@@ -269,10 +269,59 @@ const Admin = (() => {
 
   /* ==================== DASHBOARD ==================== */
 
+  /**
+   * Dashboard — dipadatkan dan diberi pembanding, 28 Agu 2026.
+   *
+   * Sampai v1.40 isinya empat kotak besar berisi angka HARI INI, dan satu angka
+   * tanpa pembanding tidak bisa dipakai memutuskan apa pun: omzet Rp 3 juta itu
+   * bagus atau buruk hanya bisa dijawab kalau kemarin diketahui. Sekarang tiap
+   * angka inti membawa selisihnya terhadap periode sepanjang yang sama tepat
+   * sebelumnya, dan pemilihan periodenya ada di satu tempat.
+   *
+   * Kepadatan dikejar dengan mengecilkan JARAK dan UKURAN HURUF, bukan dengan
+   * membuang isi. Satu layar yang harus digulir tiga kali sama saja dengan tiga
+   * layar — dan bagian bawahnya tidak pernah dibaca.
+   */
+  let periodeDash = 'hari';
+
+  const LABEL_PERIODE = { hari: 'Hari ini', '7': '7 hari', '30': '30 hari', bulan: 'Bulan berjalan' };
+
+  /**
+   * Selisih terhadap periode pembanding, sebagai lencana.
+   *
+   * Dari NOL ke angka berapa pun bukan "naik 100%" — itu pembagian dengan nol
+   * yang disamarkan. Ditulis "baru" supaya tidak ada yang mengutipnya sebagai
+   * pertumbuhan. Selisih di bawah 0,5% dianggap datar: angka yang bergoyang
+   * setengah persen tiap kali dibuka membuat lencananya berhenti diperhatikan.
+   */
+  function lencanaSelisih(kini, lalu) {
+    const a = Number(kini) || 0, b = Number(lalu) || 0;
+    if (b === 0) return a > 0 ? '<span class="delta baru">baru</span>' : '';
+    const persen = (a - b) / Math.abs(b) * 100;
+    if (Math.abs(persen) < 0.5) return '<span class="delta datar">tetap</span>';
+    const naik = persen > 0;
+    return `<span class="delta ${naik ? 'naik' : 'turun'}">${naik ? '▲' : '▼'} ${
+      Math.abs(persen).toFixed(persen >= 10 || persen <= -10 ? 0 : 1)}%</span>`;
+  }
+
+  const petakMini = (isi) => `<div class="petak-mini">${isi}</div>`;
+  const kotakMini = (label, nilai, ekor) => `<div class="mini">
+      <div class="mini-label">${esc(label)}</div>
+      <div class="mini-nilai">${nilai}</div>
+      ${ekor ? `<div class="mini-ekor">${ekor}</div>` : ''}
+    </div>`;
+
+  /** Tabel peringkat: ringkas, tanpa kepala tebal, angka rata kanan. */
+  const kartuPeringkat = (judul, kolom, baris, kosong) => `
+    <div class="kartu rapat">
+      <h4>${esc(judul)}</h4>
+      ${tabel(kolom, baris || [], { kosong: kosong || 'Belum ada data' })}
+    </div>`;
+
   async function muatDashboard() {
     memuat('#isiDashboard');
     try {
-      const d = await API.dashboard({});
+      const d = await API.dashboard({ periode: periodeDash });
       /**
        * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
        * di-deploy ulang, permintaan pertama mengenai celah propagasi dan jawabannya
@@ -280,41 +329,133 @@ const Admin = (() => {
        * gangguan sesaat yang seharusnya tidak terlihat malah tampil sebagai kotak
        * merah di depan kasir. Jawaban tak lengkap adalah kondisi jaringan yang wajar,
        * bukan hal luar biasa, jadi kodenya harus tahan menghadapinya.
+       *
+       * `kini` dipakai lebih dulu, `hari_ini` sebagai cadangan: server LAMA yang
+       * masih dijalankan sesaat setelah terbit hanya mengirim bentuk yang lama.
        */
-      if (!d || !d.hari_ini) {
+      const k = (d && (d.kini || d.hari_ini));
+      if (!d || !k) {
         throw new Error('Server membalas tanpa data ringkasan. ' +
                         'Biasanya ini sementara — coba muat ulang beberapa saat lagi.');
       }
-      const h = d.hari_ini;
+      const l = d.lalu || {};
+      const st = d.stok || {};
+      const kas = d.kas || {};
+      const pi = (kas.piutang) || {};
+      const pk = d.peringkat || {};
+      const adaMargin = k.laba_kotor !== undefined;
+
       $('#isiDashboard').innerHTML = `
-        <div class="petak">
-          <div class="kartu statistik"><div class="label">Nota hari ini</div><div class="nilai">${h.nota}</div></div>
-          <div class="kartu statistik"><div class="label">Omzet hari ini</div><div class="nilai">${rp(h.omzet)}</div></div>
-          ${h.laba_kotor !== undefined ? `<div class="kartu statistik"><div class="label">Laba kotor</div><div class="nilai">${rp(h.laba_kotor)}</div></div>` : ''}
-          <div class="kartu statistik"><div class="label">Piutang beredar</div><div class="nilai">${rp(d.piutang_total)}</div>
-            ${d.piutang_jatuh_tempo > 0 ? `<div style="color:var(--bahaya);font-size:12px;margin-top:4px">${rp(d.piutang_jatuh_tempo)} lewat tempo</div>` : ''}</div>
+        <div class="bar-alat rapat">
+          <select id="periodeDash" style="width:auto">
+            ${Object.keys(LABEL_PERIODE).map(x =>
+              `<option value="${x}" ${x === periodeDash ? 'selected' : ''}>${LABEL_PERIODE[x]}</option>`).join('')}
+          </select>
+          <span class="petunjuk" style="margin:0">${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}
+            · dibanding ${esc(tglTampil(d.dari_lalu))} – ${esc(tglTampil(d.sampai_lalu))}</span>
         </div>
 
-        <div class="kartu"><h3>Penjualan per cabang — ${esc(tglTampil(d.tanggal))}</h3>
-          ${tabel([
+        ${petakMini([
+          kotakMini('Omzet', rp(k.omzet), lencanaSelisih(k.omzet, l.omzet)),
+          kotakMini('Nota', k.nota, lencanaSelisih(k.nota, l.nota)),
+          kotakMini('Rata-rata/nota', rp(k.rata_nota || 0), lencanaSelisih(k.rata_nota, l.rata_nota)),
+          adaMargin ? kotakMini('Laba kotor', rp(k.laba_kotor), lencanaSelisih(k.laba_kotor, l.laba_kotor)) : '',
+          adaMargin ? kotakMini('Margin', (k.margin || 0).toFixed(1) + '%',
+            l.margin !== undefined ? `<span class="delta datar">dulu ${(l.margin || 0).toFixed(1)}%</span>` : '') : '',
+          kotakMini('Piutang beredar', rp(pi.total || 0),
+            (pi.d1_30 + pi.d30plus) > 0
+              ? `<span class="delta turun">${rp(pi.d1_30 + pi.d30plus)} lewat tempo</span>` : '')
+        ].join(''))}
+
+        <div class="petak-2">
+          <div class="kartu rapat">
+            <h4>Jam ramai</h4>
+            <div id="wadahJam"><p class="grafik-kosong">Belum ada penjualan</p></div>
+          </div>
+          <div class="kartu rapat">
+            <h4>Kas masuk &amp; piutang</h4>
+            ${tabel([
+              { judul: 'Metode', render: r => esc(String(r.metode).toUpperCase()) },
+              { judul: 'Jumlah', angka: true, render: r => rp(r.jumlah) }
+            ], kas.per_metode || [], { kosong: 'Belum ada pembayaran' })}
+            <div class="umur-piutang">
+              <div><span>Belum jatuh tempo</span><strong>${rp(pi.belum || 0)}</strong></div>
+              <div><span>Lewat 1–30 hari</span><strong class="${pi.d1_30 > 0 ? 'peringatan' : ''}">${rp(pi.d1_30 || 0)}</strong></div>
+              <div><span>Lewat 30+ hari</span><strong class="${pi.d30plus > 0 ? 'bahaya' : ''}">${rp(pi.d30plus || 0)}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="petak-2">
+          ${kartuPeringkat('Produk terlaris', [
+            { judul: 'Produk', kunci: 'nama' },
+            { judul: 'Qty', kunci: 'qty', angka: true },
+            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
+          ], pk.produk, 'Belum ada penjualan')}
+          ${kartuPeringkat('Kategori', [
+            { judul: 'Kategori', kunci: 'nama' },
+            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) },
+            ...(adaMargin ? [{ judul: 'Margin', angka: true, render: r => (r.margin || 0).toFixed(1) + '%' }] : [])
+          ], pk.kategori, 'Belum ada penjualan')}
+          ${kartuPeringkat('Petugas', [
+            { judul: 'Nama', kunci: 'nama' },
+            { judul: 'Poin', kunci: 'poin', angka: true },
+            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
+          ], pk.petugas, 'Belum ada klaim petugas')}
+          ${kartuPeringkat('Cabang', [
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Nota', kunci: 'nota', angka: true },
-            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) },
-            ...(d.per_cabang[0]?.laba_kotor !== undefined ? [{ judul: 'Laba kotor', angka: true, render: r => rp(r.laba_kotor) }] : [])
-          ], d.per_cabang, { kosong: 'Belum ada transaksi hari ini' })}
+            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
+          ], pk.cabang || d.per_cabang, 'Belum ada transaksi')}
         </div>
 
-        ${d.shift_terbuka.length ? `<div class="kartu"><h3>Shift masih terbuka <span class="lencana kuning">${d.shift_terbuka.length}</span></h3>
-          <p style="color:var(--teks-redup);font-size:13px">Shift yang tidak ditutup membuat selisih kas tidak bisa dilacak.</p>
+        <div class="kartu rapat">
+          <h4>Kesehatan stok <span class="petunjuk" style="font-weight:400">· cabang ${esc(APP_STATE.cabang)}</span></h4>
+          ${petakMini([
+            kotakMini('Nilai persediaan', rp(st.nilai || 0)),
+            /* "Hari persediaan" = nilai stok dibagi HPP per hari. Tanpa penjualan
+               sama sekali jawabannya bukan nol melainkan tidak terhingga — server
+               mengirim null, dan di sini ditulis '—'. */
+            kotakMini('Hari persediaan', st.hari_persediaan === null || st.hari_persediaan === undefined
+              ? '—' : st.hari_persediaan + ' hari'),
+            kotakMini('Nilai barang mati', rp(st.nilai_mati || 0),
+              st.jumlah_mati ? `<span class="delta turun">${st.jumlah_mati} SKU tak terjual</span>` : ''),
+            kotakMini('Stok menipis', String(st.jumlah_kritis || 0),
+              st.jumlah_kritis ? '<span class="delta turun">perlu dipesan</span>'
+                               : '<span class="delta naik">aman</span>')
+          ].join(''))}
+          <div class="petak-2" style="margin-top:10px">
+            <div>
+              <div class="petunjuk">Stok menyentuh ambang minimum</div>
+              ${tabel([
+                { judul: 'Produk', kunci: 'nama' },
+                { judul: 'Stok', kunci: 'qty', angka: true },
+                { judul: 'Min', kunci: 'stok_min', angka: true }
+              ], st.kritis || [], { kosong: 'Tidak ada' })}
+            </div>
+            <div>
+              <div class="petunjuk">Bernilai besar tapi tidak terjual periode ini</div>
+              ${tabel([
+                { judul: 'Produk', kunci: 'nama' },
+                { judul: 'Stok', kunci: 'qty', angka: true },
+                { judul: 'Nilai', angka: true, render: r => rp(r.nilai) }
+              ], st.mati || [], { kosong: 'Semua produk berstok terjual' })}
+            </div>
+          </div>
+        </div>
+
+        ${(d.shift_terbuka || []).length ? `<div class="kartu rapat"><h4>Shift masih terbuka
+          <span class="lencana kuning">${d.shift_terbuka.length}</span></h4>
+          <p class="petunjuk">Shift yang tidak ditutup membuat selisih kas tidak bisa dilacak.</p>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Kasir', kunci: 'id_user' },
             { judul: 'Dibuka', render: r => esc(waktuTampil(r.buka)) }
           ], d.shift_terbuka)}</div>` : ''}
 
-        <div class="kartu grafik">
+        <div class="kartu grafik rapat">
           <div class="bar-alat">
-            <h3 style="margin:0">Tren penjualan</h3>
+            <h4 style="margin:0">Tren penjualan</h4>
             <div style="flex:1"></div>
             <select id="grafikHari" style="width:auto">
               <option value="14">14 hari</option>
@@ -324,18 +465,18 @@ const Admin = (() => {
             </select>
           </div>
           <div id="wadahGrafik"><p class="grafik-kosong">Memuat grafik…</p></div>
-        </div>
-
-        <div class="kartu"><h3>Stok menipis
-          ${d.jumlah_stok_kritis ? `<span class="lencana merah">${d.jumlah_stok_kritis}</span>` : '<span class="lencana hijau">aman</span>'}</h3>
-          <p style="color:var(--teks-redup);font-size:13px">Cabang ${esc(APP_STATE.cabang)}. Produk yang stoknya sudah menyentuh ambang minimum.</p>
-          ${tabel([
-            { judul: 'SKU', kunci: 'sku' },
-            { judul: 'Nama', kunci: 'nama' },
-            { judul: 'Stok', kunci: 'qty', angka: true },
-            { judul: 'Minimum', kunci: 'stok_min', angka: true }
-          ], d.stok_kritis, { kosong: 'Tidak ada produk di bawah stok minimum' })}
         </div>`;
+
+      /* Jam ramai. Jam yang NOL sengaja ikut dikirim server lalu disaring di sini,
+         bukan disaring di server: yang menentukan jam buka toko adalah pemiliknya,
+         dan menyaring di server berarti memutuskan untuk semua toko. */
+      const jam = (d.per_jam || []).filter(x => x.nota > 0);
+      if (jam.length) {
+        Grafik.batang($('#wadahJam'), {
+          data: jam.map(x => ({ label: String(x.jam).padStart(2, '0') + ':00',
+                                nilai: x.omzet, tambahan: x.nota + ' nota' }))
+        });
+      }
       muatGrafik(30);
     } catch (e) { galat('#isiDashboard', e); }
   }
@@ -1522,6 +1663,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${d.dipotong ? '<p class="petunjuk">Hanya 500 klaim terbaru yang ditampilkan. Gunakan Ekspor untuk data penuh.</p>' : ''}
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+            /* Jam diambil dari notanya lewat gabungan di server — penjualan_klaim
+               sendiri tidak menyimpan jam. Nota lama yang notanya sudah dihapus
+               (mis. dibatalkan lalu dibersihkan) tidak punya jam; ditulis '—'
+               supaya jelas datanya memang tidak ada, bukan pukul 00:00. */
+            { judul: 'Jam', kunci: 'jam', render: x => esc(x.jam ? x.jam.substring(0, 5) : '—') },
+            { judul: 'Nota', kunci: 'no_nota' },
             { judul: 'Petugas', kunci: 'nama' },
             { judul: 'Peran', render: x => esc(LABEL_PERAN_PETUGAS[x.peran] || x.peran) },
             { judul: 'Cakupan', render: x => x.jenis === 'NOTA'
@@ -3462,6 +3609,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     document.addEventListener('change', async (e) => {
       if (e.target.id === 'grafikHari') { muatGrafik(Number(e.target.value)); return; }
+      /* Periode dashboard menembak ulang API — beda dengan penyaring layar Produk
+         yang menggambar ulang dari data di tangan. Di sini memang harus: omzet,
+         peringkat, dan pembandingnya semua dihitung server per rentang tanggal,
+         dan menyalin perhitungan itu ke perangkat berarti dua tempat menghitung
+         satu angka. */
+      if (e.target.id === 'periodeDash') { periodeDash = e.target.value; muatDashboard(); return; }
       if (e.target.id === 'imporEntitas') {
         $('#imporKolom').textContent = KOLOM_IMPOR[e.target.value] || '';
         $('#hasilPratinjau').innerHTML = '';
