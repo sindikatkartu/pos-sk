@@ -663,6 +663,9 @@ const Admin = (() => {
           <span class="jumlah-baris">${hitung}</span>
           <div class="kanan">
             ${tombolEkspor('produk')}
+            ${bolehIzin('produk', 'ubah') ? `
+              <button class="tombol" id="btnTandaiPasang"
+                title="Tandai seluruh kategori sekaligus sebagai barang yang dipasang">Tandai butuh pemasangan</button>` : ''}
             ${bolehIzin('produk', 'buat') ? `
               <button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>
               <button class="tombol" id="btnImporProduk">Impor massal</button>` : ''}
@@ -782,6 +785,16 @@ const Admin = (() => {
           <label>Poin per satuan dasar</label>
           <input type="number" id="pPoinSatuan" min="0" step="0.5" value="${p?.poin_satuan || 0}">
         </div>
+
+        <label class="cek" style="margin-top:14px"><input type="checkbox" id="pButuhPasang"
+          ${p?.butuh_pasang ? 'checked' : ''}> Barang ini <strong>dipasang</strong>, bukan sekadar diserahkan</label>
+        <p class="petunjuk">Dicentang untuk tempered glass dan sejenisnya. Akibatnya satu:
+          begitu barang ini masuk keranjang, layar bayar menanyakan <strong>siapa yang
+          memasang</strong> — dan hanya menawarkan petugas yang memang bisa memasang.
+          Tetap tidak wajib diisi: kalau penjualnya memasang sendiri, biarkan kosong dan
+          seluruh poin baris itu jadi miliknya.<br>
+          Untuk menandai banyak sekaligus, pakai tombol <strong>Tandai butuh pemasangan</strong>
+          di layar Produk — mencentang 155 tempered glass satu per satu tidak akan pernah selesai.</p>
 
         <p class="petunjuk"><strong>Poin per satuan dasar.</strong> Nilai yang diisi di
           sini dikalikan qty dasar pada nota — 12 pcs dengan 3 poin menghasilkan 36 poin
@@ -1070,6 +1083,9 @@ const Admin = (() => {
       // `butuh_tim` sengaja TIDAK dikirim lagi — penanda wajib-tim dihapus
       // 24 Agu 2026; poin sendiri yang menentukan apakah barisnya bisa dibagi.
       poin_satuan: angka('pPoinSatuan'),
+      // Berbeda dari butuh_tim: ini tidak mewajibkan apa pun, hanya membuat
+      // layar bayar BERTANYA siapa pemasangnya.
+      butuh_pasang: centang('pButuhPasang'),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
       varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel')
     };
@@ -1112,6 +1128,70 @@ const Admin = (() => {
     supplier: 'nama, kontak, telepon, alamat, termin_hari — wajib: nama',
     stok_awal: 'sku, qty, hpp — semuanya wajib'
   };
+
+  /**
+   * Tandai butuh pemasangan untuk seluruh kategori sekaligus.
+   *
+   * Per kategori, bukan per produk, karena begitulah bentuk kenyataannya:
+   * seluruh isi "TG 9H", "TG OG", "TG Privacy" dipasang, seluruh isi "Case B"
+   * tidak. Mencentang 155 tempered glass satu per satu adalah pekerjaan yang
+   * tidak akan pernah selesai — dan kolom yang tidak pernah terisi sama saja
+   * dengan fitur yang tidak pernah ada.
+   */
+  function dialogTandaiPasang() {
+    const kategori = urutkanOleh([...new Set(cacheProduk.map(p => p.kategori).filter(Boolean))],
+                                 k => k);
+    if (!kategori.length) return toast('Belum ada kategori produk.', 'galat');
+    /* Berapa yang SUDAH bertanda ditampilkan per kategori. Tanpa angka itu,
+       dialognya menyuruh memilih tanpa memberi tahu keadaan sekarang — dan
+       menandai ulang yang sudah bertanda terasa seperti tidak terjadi apa-apa. */
+    const sudah = {};
+    cacheProduk.forEach(p => {
+      const k = p.kategori || '';
+      sudah[k] = sudah[k] || { total: 0, tanda: 0 };
+      sudah[k].total++;
+      if (p.butuh_pasang) sudah[k].tanda++;
+    });
+    bukaModal('Tandai butuh pemasangan', `
+      <p class="petunjuk">Pilih kategori yang barangnya <strong>dipasang</strong> — tempered
+        glass dan sejenisnya. Layar bayar akan menanyakan siapa pemasangnya setiap kali
+        barang dari kategori ini masuk keranjang.</p>
+      <div class="matriks" style="max-height:320px">
+        ${kategori.map(k => `<label class="cek" style="padding:6px 10px">
+          <input type="checkbox" class="katPasang" value="${esc(k)}"
+            ${sudah[k] && sudah[k].tanda === sudah[k].total ? 'checked' : ''}>
+          ${esc(k)} <span class="petunjuk">· ${sudah[k].tanda} dari ${sudah[k].total} sudah bertanda</span>
+        </label>`).join('')}
+      </div>
+      <div class="grup" style="margin-top:12px">
+        <label>Tindakan</label>
+        <select id="tandaiNilai">
+          <option value="1">Tandai butuh pemasangan</option>
+          <option value="0">Lepas tandanya</option>
+        </select>
+      </div>
+      <div id="pesanTandai"></div>`,
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol utama" id="btnJalankanTandai">Terapkan</button>`);
+  }
+
+  async function jalankanTandaiPasang() {
+    const kategori = $$('.katPasang:checked').map(c => c.value);
+    if (!kategori.length) {
+      return pesan('#pesanTandai', 'Pilih dulu minimal satu kategori.', 'galat');
+    }
+    const nilaiBaru = nilai('tandaiNilai') === '1';
+    const btn = $('#btnJalankanTandai');
+    btn.disabled = true;
+    try {
+      const r = await API.tandaiButuhPasang({ kategori, nilai: nilaiBaru });
+      await Sync.tarikMaster(true);
+      await sukses(`${r.diubah} produk diperbarui dari ${r.cocok} yang cocok.`, 'produk');
+    } catch (e) {
+      pesan('#pesanTandai', e.message, 'galat');
+      btn.disabled = false;
+    }
+  }
 
   function dialogImpor(entitas = 'produk') {
     bukaModal('Impor data massal', `
@@ -1622,6 +1702,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Kode', kunci: 'kode' },
             { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
             { judul: 'Peran utama', render: r => `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[r.peran_utama] || r.peran_utama)}</span>` },
+            /* Kemampuan ditampilkan di tabel, bukan hanya di dalam editornya.
+               Pertanyaan "siapa saja yang bisa memasang?" adalah pertanyaan
+               harian; menjawabnya dengan membuka satu per satu berarti tidak
+               pernah dijawab. */
+            { judul: 'Kemampuan', render: r => [
+                r.bisa_jual !== false ? '<span class="lencana hijau">jual</span>' : '',
+                r.bisa_pasang ? '<span class="lencana kuning">pasang</span>' : ''
+              ].filter(Boolean).join(' ') || '<span class="petunjuk">—</span>' },
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua cabang' : esc(r.cabang) },
             { judul: 'Telepon', kunci: 'telepon' },
             { judul: '', render: r => bolehIzin('petugas', 'ubah')
@@ -1655,10 +1743,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${lintas ? `<option value="*" ${p?.cabang === '*' ? 'selected' : ''}>Semua cabang</option>` : ''}
         </select></div>
       </div>
-      <label class="cek"><input type="checkbox" id="ptAktif" ${p?.aktif !== false ? 'checked' : ''}> Aktif</label>
-      <p class="petunjuk"><strong>Peran utama</strong> dipakai sebagai bawaan saat namanya
-        dimasukkan ke sebuah tim, dan menentukan bobot pembagian bila kasir tidak
-        mengisi poin sendiri.<br>
+      <label>Kemampuan</label>
+      <p class="petunjuk" style="margin-top:0">Menentukan di kolom mana namanya ditawarkan
+        kepada kasir. Orang yang bisa keduanya cukup dicentang dua-duanya — tidak perlu
+        dua nama.</p>
+      <label class="cek"><input type="checkbox" id="ptBisaJual"
+        ${p ? (p.bisa_jual !== false ? 'checked' : '') : 'checked'}> Bisa <strong>menjual</strong> (muncul di kolom Pramuniaga)</label>
+      <label class="cek"><input type="checkbox" id="ptBisaPasang"
+        ${p?.bisa_pasang ? 'checked' : ''}> Bisa <strong>memasang</strong> (muncul di kolom Pemasang)</label>
+      <label class="cek" style="margin-top:10px"><input type="checkbox" id="ptAktif" ${p?.aktif !== false ? 'checked' : ''}> Aktif</label>
+      <p class="petunjuk"><strong>Peran utama</strong> menentukan bobot pembagian poin;
+        <strong>kemampuan</strong> menentukan siapa yang boleh dipilih di layar kasir.
+        Keduanya sengaja terpisah — orang yang bisa memasang belum tentu selalu berperan
+        sebagai pemasang di setiap nota.<br>
+        Selama <em>belum ada satu pun</em> petugas yang ditandai bisa memasang, layar kasir
+        menawarkan semua nama: daftar kosong terbaca sebagai aplikasi rusak, bukan sebagai
+        data yang belum diisi.<br>
         Tidak ada tarif per orang: nilai pekerjaan melekat pada <strong>produk</strong>,
         supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>`,
       `<button class="tombol" data-tutup="1">Batal</button>
@@ -3164,6 +3264,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
+      if (t.id === 'btnTandaiPasang')   return dialogTandaiPasang();
+      if (t.id === 'btnJalankanTandai') return jalankanTandaiPasang();
       if (t.id === 'btnImporProduk')    return dialogImpor();
       if (t.id === 'btnPratinjauImpor') return pratinjauImpor();
       if (t.id === 'btnTemplateImpor') {
@@ -3230,6 +3332,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await API.simpanPetugas({
             kode: nilai('ptKode') || undefined, nama: nilai('ptNama'),
             peran_utama: nilai('ptPeran'), telepon: nilai('ptTelepon'),
+            bisa_jual: centang('ptBisaJual'), bisa_pasang: centang('ptBisaPasang'),
             cabang: nilai('ptCabang'), aktif: centang('ptAktif')
           });
           // Daftar petugas ikut turun lewat tarik_master, jadi layar kasir di

@@ -488,8 +488,16 @@ async function mulaiSesi(d) {
   $('#namaUser').title         = d.user.nama;
   $('#lncUser').textContent    = d.user.nama + ' · ' + d.user.nama_peran;
   $('#lncCabang').textContent  = d.cabang;
-  $('#sisiCabang').textContent = d.cabang + (d.nama_cabang ? ' · ' + d.nama_cabang : '');
-  $('#sisiCabang').title       = $('#sisiCabang').textContent;
+  /* Di bawah nama toko: NOMOR VERSI, bukan kode cabang.
+     Kode cabangnya tidak hilang — ia ada di lencana header (#lncCabang) dan di
+     kartu "Cabang aktif" di layar Perangkat, dua tempat yang memang dilihat
+     saat orang mempertanyakan cabang. Yang selama ini tidak punya tempat sama
+     sekali justru nomor versinya, padahal setiap laporan dari lapangan harus
+     dimulai dengan menebak versi mana yang sedang dipakai orang itu — dan
+     tebakan itu salah tepat ketika perangkatnya belum sempat memuat ulang. */
+  $('#sisiVersi').textContent = 'Versi ' + CONFIG.VERSI;
+  $('#sisiVersi').title       = 'Versi aplikasi · cabang ' + d.cabang +
+                                (d.nama_cabang ? ' (' + d.nama_cabang + ')' : '');
 
   await terapkanLipat(await DB.kvGet('sisi_lipat', false), false);
   bangunNav();
@@ -746,9 +754,15 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
  * mengajari kasir mengabaikan warna merah.
  */
 function gambarBarisTim(x) {
-  const tim = x.tim || [];
+  /* Tim EFEKTIF: pemasang yang dipilih di layar bayar ikut terlihat di barisnya,
+     bukan cuma di panel ringkasan. Kasir harus bisa melihat akibat pilihannya di
+     tempat barangnya berada — kalau tidak, "sudah dipilih atau belum" jadi
+     pertanyaan yang cuma bisa dijawab dengan membuka layar lain. */
+  const tim = Keranjang.timEfektif(x);
   if (!tim.length) return '';
-  return `<br><span class="tanda-tier">tim: ${esc(tim.map(t => namaPetugas(t.kode)).join(', '))}</span>`;
+  const manual = (x.tim || []).length;
+  return `<br><span class="tanda-tier">${manual ? 'tim' : 'pasang'}: ${
+    esc(tim.map(t => namaPetugas(t.kode)).join(', '))}</span>`;
 }
 
 /**
@@ -866,7 +880,13 @@ function isiSatuDropdownPetugas(sel, tombol) {
      berarti ada jalur muat lain yang bisa terlewat — dan dropdown yang kembali
      acak di satu layar saja adalah jenis cacat yang tidak pernah dilaporkan,
      cuma dijalani. */
-  const daftar = urutkanOleh(APP_STATE.daftarPetugas || [], p => p.nama);
+  /* Disaring menurut kemampuan MENJUAL, alasannya sama dengan kolom Pemasang:
+     nama yang tidak pernah bisa menjual tidak perlu ditawarkan sebagai penjual.
+     `petugasUntukPeran` menawarkan semua orang selama belum ada satu pun yang
+     ditandai — jadi toko yang belum sempat mengisi kolomnya tidak kehilangan
+     apa pun. */
+  const daftar = urutkanOleh(petugasUntukPeran(APP_STATE.daftarPetugas || [], 'PENJUAL'),
+                             p => p.nama);
   const dipilih = Keranjang.petugasNota;
 
   // Toko yang belum mengisi daftar petugas tidak perlu melihat kolom yang selalu kosong.
@@ -886,6 +906,39 @@ function isiSatuDropdownPetugas(sel, tombol) {
     daftar.map(p => `<option value="${esc(p.kode)}" ${p.kode === terpilih ? 'selected' : ''}>${
       esc(p.nama)}${p.peran_utama && p.peran_utama !== 'PENJUAL'
         ? ' · ' + esc(String(p.peran_utama).toLowerCase()) : ''}</option>`).join('');
+}
+
+/**
+ * Kolom PEMASANG di layar bayar — muncul hanya kalau memang ada yang dipasang.
+ *
+ * Diminta pemilik 29 Agu 2026. Sebelum ini satu-satunya jalan menyebut pemasang
+ * adalah tombol "Tim" per baris: kasir harus tahu baris mana yang dipasang,
+ * membukanya, lalu memilih dua nama — untuk pekerjaan yang terjadi di hampir
+ * setiap nota tempered glass. Sekarang cukup satu pilihan di layar bayar, dan
+ * ia menempel sendiri ke baris-baris yang butuh dipasang.
+ *
+ * Kolomnya SEMBUNYI selama tidak ada barang yang dipasang. Kolom yang selalu
+ * ada tapi hampir selalu kosong mengajari orang mengabaikannya — dan yang
+ * diabaikan sama saja dengan yang tidak ada.
+ */
+function gambarPilihanPemasang() {
+  const baris = $('#barisPemasang');
+  const sel = $('#selPemasangBayar');
+  if (!baris || !sel) return;
+
+  const perlu = Keranjang.adaButuhPasang();
+  baris.classList.toggle('sembunyi', !perlu);
+  if (!perlu) return;
+
+  // Dropdown yang sedang dibuka tidak boleh disusun ulang di tengah orang memilih.
+  if (document.activeElement === sel) return;
+
+  const daftar = urutkanOleh(petugasUntukPeran(APP_STATE.daftarPetugas || [], 'PEMASANG'),
+                             p => p.nama);
+  const kini = Keranjang.pemasangNota;
+  sel.innerHTML = '<option value="">— belum dipilih —</option>' +
+    daftar.map(p => `<option value="${esc(p.kode)}" ${p.kode === kini ? 'selected' : ''}>${
+      esc(p.nama)}</option>`).join('');
 }
 
 /** Gambar ulang KEDUA dropdown pramuniaga sekaligus, supaya tidak pernah beda. */
@@ -933,8 +986,12 @@ function gambarPilihanPetugas() {
 function gambarRosterKlaim() {
   const semu = {
     klaim: Keranjang.petugasNota,
+    /* Tim EFEKTIF, bukan `b.tim` mentah — pemasang yang baru dipilih di layar
+       bayar harus ikut terlihat di panel ini. Sumbernya sama persis dengan yang
+       dikirim ke server dan yang dicetak di struk (`timEfektifBaris` di pos.js),
+       jadi ketiganya tidak mungkin berbeda. */
     item: Keranjang.baris.map(b => ({
-      nama: b.nama, poin_satuan: b.poin_satuan, tim: b.tim || []
+      nama: b.nama, poin_satuan: b.poin_satuan, tim: Keranjang.timEfektif(b)
     }))
   };
   const r = susunPeranNota(semu, APP_STATE.daftarPetugas);
@@ -1000,8 +1057,17 @@ function gambarJagaKlaim() {
   const daftar = Keranjang.petugasNota;
   const kurang = APP_STATE.klaimWajib && adaSisa && !daftar.length;
 
+  /* Peringatan, BUKAN penahan. Kadang penjualnya memasang sendiri, kadang
+     pelanggan memasang di rumah — menahan nota berarti menahan uang masuk demi
+     data yang belum tentu kurang. Warnanya kuning, bukan merah: merah berarti
+     "ada yang salah", dan yang ini cuma "periksa dulu".
+     Muncul hanya kalau memang ada barang yang dipasang dan pemasangnya belum
+     dipilih; baris yang sudah punya timnya sendiri tidak dihitung kurang. */
+  const pasangKosong = Keranjang.adaButuhPasang() && !Keranjang.pemasangNota;
   const ket = (kurang
     ? '<div class="pesan galat">Nota ini belum ada pramuniaganya — pilih di sini.</div>'
+    : '') + (pasangKosong
+    ? '<div class="pesan peringatan">Ada barang yang dipasang, tapi pemasangnya belum dipilih.</div>'
     : '') + gambarRosterKlaim();
 
   /* Digambar ulang setiap kali ringkasan bayar berubah — termasuk pada setiap
@@ -1017,6 +1083,12 @@ function gambarJagaKlaim() {
          <button class="tombol kecil" id="btnTimNotaBayar" type="button"
                  title="Bagi nota ini ke beberapa pramuniaga">Tim</button>
        </div>
+       <div id="barisPemasang" class="sembunyi"
+            style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+         <label style="margin:0;white-space:nowrap">Pemasang</label>
+         <select id="selPemasangBayar" style="flex:1;min-width:0"
+                 title="Petugas yang memasang barang di nota ini"></select>
+       </div>
        <div id="byrKetKlaim"></div>`;
   }
   /* Isinya tetap disegarkan tiap kali — kecuali saat kolomnya SEDANG DIPAKAI.
@@ -1024,6 +1096,7 @@ function gambarJagaKlaim() {
      daftarnya di tengah kasir memilih. */
   const sel = $('#selPetugasBayar');
   if (document.activeElement !== sel) isiSatuDropdownPetugas(sel, $('#btnTimNotaBayar'));
+  gambarPilihanPemasang();
   $('#byrKetKlaim').innerHTML = ket;
   return !kurang;
 }
@@ -1069,14 +1142,29 @@ function bukaTim(idBaris) {
 function gambarAnggotaTim() {
   const d = APP_STATE._timDraft || [];
   const peran = peranSlot(d);
+  const kode = peranKodeSlot(d);
+
+  /* Tiap slot hanya menawarkan orang yang MAMPU mengerjakan perannya. Slot
+     "Pemasang" yang berisi seluruh nama adalah cara paling mudah mencatat
+     pemasangan atas nama orang yang tidak pernah bisa memasang — dan itu baru
+     ketahuan saat bagi hasil, saat sudah tidak ada yang ingat notanya.
+     Nama yang SUDAH terpilih tetap ikut ditampilkan meski tidak lolos saringan,
+     supaya klaim lama tidak lenyap dari layar tanpa penjelasan. */
+  const opsiSlot = (i, terpilih) => {
+    const boleh = petugasUntukPeran(APP_STATE.daftarPetugas || [], kode[i]);
+    const ada = boleh.some(p => p.kode === terpilih);
+    const daftar = ada || !terpilih ? boleh
+      : boleh.concat((APP_STATE.daftarPetugas || []).filter(p => p.kode === terpilih));
+    return urutkanOleh(daftar, p => p.nama).map(p =>
+      `<option value="${esc(p.kode)}" ${p.kode === terpilih ? 'selected' : ''}>${esc(p.nama)}</option>`).join('');
+  };
 
   $('#timDaftar').innerHTML = d.map((a, i) => `
     <div class="baris-anak" style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:8px">
       <div><label>${esc(peran[i])}</label>
         <select data-i="${i}" data-f="kode">
           <option value="">— pilih —</option>
-          ${urutkanOleh(APP_STATE.daftarPetugas, p => p.nama).map(p =>
-            `<option value="${esc(p.kode)}" ${p.kode === a.kode ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
+          ${opsiSlot(i, a.kode)}
         </select></div>
       ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : '<span></span>'}
     </div>`).join('');
@@ -1114,6 +1202,12 @@ function peranSlot(d) {
   const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
   const peran = peranUrut(d.length, jenis);
   return d.map((a, i) => LABEL_PERAN[peran[i]] || 'Petugas');
+}
+
+/** Peran MENTAH tiap slot (PENJUAL/PEMASANG) — dipakai menyaring dropdownnya. */
+function peranKodeSlot(d) {
+  const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
+  return peranUrut(d.length, jenis);
 }
 
 /**
@@ -2127,6 +2221,14 @@ function pasangEvent() {
   document.addEventListener('change', e => {
     if (e.target.id === 'selPetugas' || e.target.id === 'selPetugasBayar') {
       ubahPetugasNota(e.target.value);
+    }
+    if (e.target.id === 'selPemasangBayar') {
+      Keranjang.setPemasangNota(e.target.value);
+      /* Keranjang ikut digambar ulang: baris yang butuh dipasang sekarang
+         menampilkan timnya, jadi kasir melihat akibat pilihannya di tempat
+         barangnya berada — bukan cuma di panel ringkasan. */
+      gambarKeranjang();
+      gambarRingkasBayar();
     }
   });
   document.addEventListener('click', e => {

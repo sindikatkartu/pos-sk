@@ -120,6 +120,17 @@ const Keranjang = (() => {
    */
   let petugasNota = [];
 
+  /**
+   * Pemasang untuk seluruh nota — SATU kode, bukan daftar.
+   *
+   * Dipilih sekali di layar bayar dan berlaku pada setiap baris yang butuh
+   * dipasang dan belum punya timnya sendiri. Disimpan terpisah, bukan langsung
+   * ditulis ke `baris[].tim`, karena penjualnya masih bisa berganti sesudahnya:
+   * kalau sudah terlanjur tertulis, tim baris memegang penjual yang lama dan
+   * layarnya menampilkan yang baru.
+   */
+  let pemasangNota = '';
+
   const total = () => {
     const bruto = baris.reduce((a, b) => a + b.qty * b.harga_satuan, 0);
     const diskonItem = baris.reduce((a, b) => a + (b.diskon || 0), 0);
@@ -181,6 +192,17 @@ const Keranjang = (() => {
       petugasNota = (daftar || []).filter(x => x && x.kode);
     },
 
+    get pemasangNota() { return pemasangNota; },
+    setPemasangNota(kode) { pemasangNota = String(kode || ''); },
+
+    /** Ada barang yang butuh dipasang dan belum punya timnya sendiri? */
+    adaButuhPasang() {
+      return baris.some(b => b.butuh_pasang && !(b.tim || []).length);
+    },
+
+    /** Tim yang BERLAKU untuk satu baris — lihat timEfektifBaris(). */
+    timEfektif(b) { return timEfektifBaris(b, petugasNota, pemasangNota); },
+
     /** Nilai poin bawaan sebuah baris: qty dasar x poin per satuan produknya. */
     poinBaris(id) {
       const b = baris.find(x => x.id === id);
@@ -188,10 +210,17 @@ const Keranjang = (() => {
       return Math.round(b.qty * b.faktor * (Number(b.poin_satuan) || 0) * 100) / 100;
     },
 
-    /** Poin bawaan seluruh baris yang TIDAK punya timnya sendiri — dasar klaim nota. */
+    /**
+     * Poin bawaan seluruh baris yang TIDAK punya timnya sendiri — dasar klaim nota.
+     *
+     * Memakai tim EFEKTIF, bukan `b.tim` mentah: baris yang mendapat pemasang
+     * dari layar bayar juga keluar dari klaim nota, dan menghitungnya di sini
+     * berarti angka yang ditampilkan memuat pekerjaan yang bukan lagi miliknya.
+     */
     poinSisaNota() {
       return Math.round(baris.reduce((a, b) =>
-        a + ((b.tim || []).length ? 0 : b.qty * b.faktor * (Number(b.poin_satuan) || 0)), 0) * 100) / 100;
+        a + (timEfektifBaris(b, petugasNota, pemasangNota).length
+             ? 0 : b.qty * b.faktor * (Number(b.poin_satuan) || 0)), 0) * 100) / 100;
     },
 
     /** Tim yang mengerjakan satu baris. Daftar kosong = baris itu ikut klaim nota. */
@@ -245,6 +274,7 @@ const Keranjang = (() => {
         // produk berubah di tengah transaksi (mis. tarik master kebetulan jalan
         // saat itu juga).
         butuh_tim: !!produk.butuh_tim,
+        butuh_pasang: !!produk.butuh_pasang,
         poin_satuan: Number(produk.poin_satuan) || 0,
         _produk: produk, _varian: varian, _satuan: daftarSatuan, _tier: daftarTier
       };
@@ -301,6 +331,7 @@ const Keranjang = (() => {
       // terasa praktis, tapi berarti pramuniaga sebelumnya diam-diam mengklaim
       // penjualan yang tidak ia layani.
       petugasNota = [];
+      pemasangNota = '';
     },
 
     /** Susun dokumen nota yang akan disimpan lokal & dikirim ke server. */
@@ -323,8 +354,12 @@ const Keranjang = (() => {
           sku: b.sku, kode_varian: b.kode_varian, nama: b.nama,
           qty: b.qty, satuan: b.satuan, faktor: b.faktor,
           harga_satuan: b.harga_satuan, diskon: b.diskon,
-          // Tim baris ikut dikirim mentah; server yang memutuskan sah atau tidak.
-          klaim: (b.tim || []).map(t => ({ kode: t.kode }))
+          /* Tim EFEKTIF, bukan `b.tim` mentah: pemasang yang dipilih di layar
+             bayar harus ikut terkirim, kalau tidak layarnya menyebut sebuah nama
+             dan notanya tidak — dan selisihnya baru ketahuan saat bagi hasil,
+             saat sudah tidak ada yang ingat notanya.
+             Isinya tetap dikirim mentah; server yang memutuskan sah atau tidak. */
+          klaim: timEfektifBaris(b, petugasNota, pemasangNota).map(t => ({ kode: t.kode }))
         })),
         klaim: petugasNota.map(t => ({ kode: t.kode })),
         bayar,
@@ -478,6 +513,64 @@ function urutNama(a, b) {
  */
 function urutkanOleh(arr, ambil) {
   return (arr || []).slice().sort((a, b) => urutNama(ambil(a), ambil(b)));
+}
+
+/* ==================== PEMASANGAN ====================
+ *
+ * Diminta pemilik 29 Agu 2026, dari praktik lapangan: tempered glass dipasang,
+ * casing tidak; dan sebagian petugas bisa menjual tapi tidak bisa memasang.
+ *
+ * Dua kolom baru menampung kenyataan itu — `produk.butuh_pasang` dan
+ * `petugas.bisa_jual` / `petugas.bisa_pasang` — dan dua fungsi di bawah adalah
+ * SATU-SATUNYA tempat aturannya ditulis. Panel "poin masuk ke siapa" di layar
+ * bayar, struk, dan isi nota yang dikirim ke server semuanya membacanya dari
+ * sini; kalau masing-masing menghitung sendiri, ketiganya pasti berpisah jalan
+ * dan yang paling sering salah adalah yang paling jarang dilihat.
+ */
+
+/**
+ * Petugas yang boleh mengisi sebuah peran.
+ *
+ * Cadangan "kembalikan semua" bukan kelalaian: kolomnya baru, dan sampai
+ * pemiliknya sempat mengisi, menyaring dengan kolom kosong akan mengosongkan
+ * dropdown pemasang di layar kasir. Dari lantai toko, dropdown kosong terbaca
+ * sebagai aplikasi rusak — bukan sebagai "datanya memang belum diisi".
+ */
+function petugasUntukPeran(daftar, peran) {
+  const semua = daftar || [];
+  const kunci = String(peran).toUpperCase() === 'PEMASANG' ? 'bisa_pasang' : 'bisa_jual';
+  // Sel Sheets bisa mengirim boolean maupun teks 'true'; keduanya diterima.
+  const cocok = semua.filter(p => p && (p[kunci] === true || p[kunci] === 'true'));
+  return cocok.length ? cocok : semua;
+}
+
+/**
+ * Tim yang BERLAKU untuk satu baris keranjang.
+ *
+ * Pemasang dipilih sekali di layar bayar, lalu menempel hanya pada baris yang
+ * memang butuh dipasang. Yang lain tetap ikut klaim nota, karena menempelkan
+ * pemasang ke casing berarti memotong poin penjualnya untuk pekerjaan yang
+ * tidak pernah ada.
+ *
+ * Empat keadaan yang dijawab di sini, semuanya pernah jadi pertanyaan nyata:
+ *   · tim baris diisi tangan  → itu yang menang, selalu
+ *   · penjual = pemasang      → jangan dipecah; satu orang berhak penuh
+ *   · belum ada penjual       → pemasang sendirian sah (peran BARIS tunggal
+ *                               memang PEMASANG, lihat _peranUrutKlaim)
+ *   · klaim nota sudah berdua → pemasangnya sudah disebut; jangan tambah lagi
+ */
+function timEfektifBaris(baris, petugasNota, pemasangNota) {
+  const b = baris || {};
+  const tim = b.tim || [];
+  if (tim.length) return tim;
+  const pemasang = String(pemasangNota || '');
+  if (!b.butuh_pasang || !pemasang) return [];
+  const nota = petugasNota || [];
+  if (nota.length > 1) return [];
+  const penjual = String((nota[0] || {}).kode || '');
+  if (!penjual) return [{ kode: pemasang }];
+  if (penjual === pemasang) return [];
+  return [{ kode: penjual }, { kode: pemasang }];
 }
 
 /* ==================== MENCARI PRODUK ====================
@@ -789,5 +882,6 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
-                     tokenProduk, cocokProduk, cariProduk, teksProduk };
+                     tokenProduk, cocokProduk, cariProduk, teksProduk,
+                     timEfektifBaris, petugasUntukPeran };
 }
