@@ -1130,20 +1130,44 @@ const Admin = (() => {
   /* ==================== IMPOR PRODUK ==================== */
 
   /**
-   * Angka dari berkas impor. Aturannya HARUS sama persis dengan _angka() di
+   * Angka dari berkas impor. Aturannya HARUS sama persis dengan `_angka()` di
    * 17_Ekspor.gs, karena berkas yang sama dibaca dua kali: di sini untuk
    * pratinjau, di server untuk menyimpan. Kalau dua aturan itu berbeda, yang
-   * dilihat pemakainya bukan yang tersimpan.
+   * dilihat pemakainya bukan yang tersimpan. Ada uji di §BI yang menjalankan
+   * KEDUANYA atas daftar kasus yang sama; jangan mengubah yang satu saja.
    *
-   * Titik hanya dibuang bila diikuti TEPAT tiga angka. Jadi "25.000" jadi 25000
-   * sementara "2.5" tetap 2,5 — poin memang boleh pecahan, dan pembersih lama
-   * yang membuang semua titik mengubah 2,5 poin menjadi 25 poin tanpa satu pun
-   * tanda di layar.
+   * Pemisah TERAKHIR yang menentukan, dan penentunya jumlah angka sesudahnya:
+   * tepat tiga berarti pemisah ribuan, selain itu desimal. Jadi "25.000" dan
+   * "25,000" sama-sama 25000, sementara "2,5" dan "2.5" sama-sama 2,5.
+   *
+   * Sampai v1.54 koma dibuang begitu saja — "2,5" terbaca 25. Poin satuan
+   * memang boleh pecahan (step="0.5" di layar produk), dan poin adalah dasar
+   * bagi hasil ke orang: salahnya sepuluh kali lipat, tanpa satu pun tanda.
    */
   const angkaImpor = (v) => {
-    if (v === null || v === undefined || v === '') return 0;
-    const n = Number(String(v).replace(/[^\d\-.]/g, '').replace(/\.(?=\d{3}\b)/g, ''));
-    return isNaN(n) ? 0 : n;
+  if (v === null || v === undefined || v === '') return 0;
+      let t = String(v).replace(/[^\d\-.,]/g, '');
+    if (!t || !/\d/.test(t)) return 0;
+      let minus = t.charAt(0) === '-';
+    t = t.replace(/-/g, '');
+
+    /* Pemisah TERAKHIR yang menentukan, dan yang menentukannya adalah JUMLAH
+       ANGKA sesudahnya:
+         tepat 3 angka  -> pemisah ribuan   ("25.000", "1.250.000", "25,000")
+         selain itu     -> pemisah desimal  ("2,5", "2.5", "1.000,50")
+       Aturan ini menerima gaya Indonesia (koma desimal) DAN gaya lama berkas ini
+       (titik desimal), tanpa harus menebak dari mana berkasnya berasal. */
+      let akhir = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+      let n;
+    if (akhir === -1) {
+      n = Number(t);
+    } else if (t.length - akhir - 1 === 3) {
+      n = Number(t.replace(/[.,]/g, ''));
+    } else {
+      n = Number(t.substring(0, akhir).replace(/[.,]/g, '') + '.' + t.substring(akhir + 1));
+    }
+    if (isNaN(n)) return 0;
+    return minus ? -n : n;
   };
 
   const KOLOM_IMPOR = {
