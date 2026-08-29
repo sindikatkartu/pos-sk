@@ -694,6 +694,14 @@ th.sempit, td.sempit { width: 1%; white-space: nowrap; }
 }
 .meta-kecil { font-size: 12px; color: var(--teks-redup); margin-top: 3px; }
 .petunjuk { font-size: 12.5px; color: var(--teks-redup); line-height: 1.6; margin: 6px 0 12px; }
+
+/* Kode user di belakang namanya. Diredupkan, bukan dibuang: dua orang bisa
+   bernama sama, dan kode itulah satu-satunya yang mencocokkan baris ini
+   dengan log audit. */
+.kode-redup {
+  font-size: 0.85em; color: var(--teks-redup); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .petunjuk code {
   background: var(--panel-2); border: 1px solid var(--garis); padding: 1px 5px;
   border-radius: 5px; font-size: 12px;

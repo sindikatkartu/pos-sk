@@ -24,6 +24,27 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const rp = (n) => CONFIG.MATA_UANG + ' ' + new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
 const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 
+/**
+ * Kasir sebagaimana ditampilkan: NAMA orangnya, dengan kodenya di belakang.
+ *
+ * Yang disimpan di setiap nota adalah `id_user` (U004), dan itu benar — nama
+ * berubah, kode tidak. Tapi yang dibaca manusia harus nama: admin yang membaca
+ * "U004" harus menghafal peta kode ke orang, dan peta hafalan adalah tempat
+ * kekeliruan lahir tanpa diketahui siapa pun.
+ *
+ * Kodenya TIDAK dibuang, hanya diredupkan. Dua orang bisa bernama sama, dan
+ * kode itulah satu-satunya yang membedakan mereka — juga satu-satunya yang bisa
+ * dicocokkan dengan log audit.
+ */
+function kasirTampil(o) {
+  const x = o || {};
+  const kode = String(x.id_user || '');
+  const nama = String(x.nama || '') || kode;
+  if (!kode) return esc(nama);
+  if (nama === kode) return esc(kode);
+  return esc(nama) + ' <span class="kode-redup">' + esc(kode) + '</span>';
+}
+
 function pesan(wadah, teks, jenis = 'info') {
   $(wadah).innerHTML = teks ? `<div class="pesan ${jenis}">${esc(teks)}</div>` : '';
 }
@@ -1639,7 +1660,7 @@ async function muatDaftarShift() {
           <th class="angka">Nota</th><th class="angka">Penjualan</th><th class="angka">Selisih kas</th><th></th></tr>
       ${rows.map(r => `<tr>
         <td>${esc(r.id_shift)}</td>
-        <td>${esc(r.id_user)}</td>
+        <td>${kasirTampil(r)}</td>
         <td>${esc(waktuTampil(r.buka))}</td>
         <td>${r.tutup ? esc(waktuTampil(r.tutup)) : '<span class="lencana hijau">berjalan</span>'}</td>
         <td class="angka">${r.tutup ? r.jumlah_nota : '—'}</td>
@@ -1670,7 +1691,7 @@ async function bukaLaporanShift(idShift) {
     $('#lapShiftIsi').innerHTML = `
       ${d.berjalan ? '<div class="pesan info">Shift ini masih berjalan — angkanya berjalan juga, ' +
         'dan dihitung dengan rumus yang sama persis dengan saat nanti ditutup.</div>' : ''}
-      <p class="petunjuk">Kasir ${esc(d.shift.id_user)} · perangkat ${esc(d.shift.id_perangkat || '—')}<br>
+      <p class="petunjuk">Kasir ${kasirTampil(d.shift)} · perangkat ${esc(d.shift.id_perangkat || '—')}<br>
         Buka ${esc(waktuTampil(d.shift.buka))}${d.shift.tutup ? ' · tutup ' + esc(waktuTampil(d.shift.tutup)) : ''}</p>
 
       <div class="kartu" style="background:var(--bg)">
@@ -1914,7 +1935,10 @@ async function antrikanKeluarPaksa(extra) {
     /* APP_STATE.user, BUKAN APP_STATE.sesi — yang kedua tidak pernah ada, jadi
        pelakunya selalu tercatat kosong dan kolom id_user audit terisi oleh orang
        yang login BERIKUTNYA. Catatannya justru menuduh orang lain. */
-    id_user: APP_STATE.user?.id || '',
+    /* `id_user`, bukan `id`. Yang dikirim server saat login bernama `id_user`;
+       `APP_STATE.user.id` tidak pernah ada, jadi pelakunya tercatat kosong —
+       persis kegagalan yang komentar di atas ini klaim sudah diperbaiki. */
+    id_user: APP_STATE.user?.id_user || '',
     cabang: APP_STATE.cabang || '',
     waktu: new Date().toISOString()
   }, extra || {}));
@@ -2040,7 +2064,7 @@ async function tampilkanLaporan() {
       ], d.per_hari || [], 'Tidak ada penjualan di rentang ini.')}
 
       ${tabel('Per kasir', [
-        { judul: 'Kasir', render: x => esc(x.id_user) },
+        { judul: 'Kasir', render: x => kasirTampil(x) },
         { judul: 'Nota', angka: true, render: x => x.nota },
         { judul: 'Omzet', angka: true, render: x => rp(x.total) }
       ], d.per_kasir || [], 'Tidak ada penjualan di rentang ini.')}
@@ -2082,7 +2106,7 @@ async function tampilkanLaporan() {
         { judul: 'No Nota', render: x => esc(x.no_nota) },
         { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
         { judul: 'Jam', render: x => esc(x.jam) },
-        { judul: 'Kasir', render: x => esc(x.id_user) },
+        { judul: 'Kasir', render: x => kasirTampil(x) },
         { judul: 'Nilai', angka: true, render: x => rp(x.total) },
         { judul: 'Alasan', render: x => esc(x.alasan_batal) }
       ], d.batal || [], 'Tidak ada nota yang dibatalkan.')}

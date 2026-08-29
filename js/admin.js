@@ -2069,12 +2069,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function editorUser(id) {
     const u = id ? ($('#isiPengguna')._user || []).find(x => x.id_user === id) : null;
     const cabangOpsi = ['*', ...APP_STATE.daftarCabang];
+    /* Username adalah kunci masuk orang lain. Izin `user.ubah` dipegang peran
+       manajerial supaya mereka bisa membetulkan nama dan cabang; memindahkan
+       kunci masuk dibatasi lebih ketat daripada itu. Servernya memeriksa hal
+       yang sama — yang di sini cuma supaya isian yang pasti ditolak tidak
+       terlihat bisa diisi. */
+    const bolehUsername = String(APP_STATE.user?.peran || '') === 'OWNER';
     bukaModal(u ? 'Ubah pengguna — ' + u.username : 'Pengguna baru', `
       <div class="baris2">
         <div class="grup"><label>Nama lengkap *</label><input type="text" id="uNama" value="${esc(u?.nama || '')}"></div>
         <div class="grup"><label>Username *</label>
-          <input type="text" id="uUsername" value="${esc(u?.username || '')}" ${u ? 'disabled' : ''} autocapitalize="none"></div>
+          <input type="text" id="uUsername" value="${esc(u?.username || '')}"
+                 ${u && !bolehUsername ? 'disabled' : ''} autocapitalize="none" autocorrect="off"
+                 spellcheck="false" pattern="[a-z0-9._]{3,32}"></div>
       </div>
+      <p class="petunjuk">Username: huruf kecil, angka, titik, garis bawah. Tanpa spasi.
+        ${u ? (bolehUsername
+                ? 'Menggantinya tidak memutus riwayat apa pun — penjualan dan poin terkunci pada kode ' +
+                  esc(u.id_user) + ', bukan pada username. PIN juga tidak berubah. ' +
+                  'Beri tahu petugasnya sebelum ia masuk berikutnya.'
+                : 'Hanya Owner yang boleh mengganti username.')
+             : ''}</p>
       <div class="baris2">
         <div class="grup"><label>Peran *</label><select id="uPeran">
           ${urutkanOleh(cachePeran || [], p => p.nama).map(p => `<option value="${esc(p.kode_peran)}" ${u?.peran === p.kode_peran ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
