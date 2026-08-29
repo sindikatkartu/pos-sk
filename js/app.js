@@ -2999,6 +2999,17 @@ function pasangEvent() {
     const el = $('#lncSync');
     if (!API.online)          { el.textContent = 'Offline'; el.className = 'lencana merah'; }
     else if (s.mengirim)      { el.textContent = 'Mengirim…'; el.className = 'lencana kuning'; }
+    /* Sinkronisasi yang DITOLAK server, bukan yang sedang menunggu jaringan.
+       `status.galat` sudah ditulis sejak lama dan tidak pernah sekali pun
+       dibaca — saya sisir seluruh web/js. Nilai yang tidak pernah dibaca bukan
+       penanganan galat, cuma catatan untuk diri sendiri. Akibatnya antrean yang
+       macet permanen (peran kasir kehilangan izin `penjualan · buat`, misalnya)
+       tampil KUNING "8 menunggu" — rupanya sama persis dengan antrean sehat.
+       sync.js sengaja mengosongkan galat untuk gangguan jaringan, jadi cabang
+       ini hanya menyala untuk sebab yang tidak akan sembuh sendiri. */
+    else if (s.galat)         { el.textContent = s.tertahan > 0 ? '⚠ ' + s.tertahan + ' gagal terkirim'
+                                                                : '⚠ Gagal sinkron';
+                                el.className = 'lencana merah'; }
     else if (s.tertahan > 0)  { el.textContent = s.tertahan + ' menunggu'; el.className = 'lencana kuning'; }
     else                      { el.textContent = 'Tersinkron'; el.className = 'lencana hijau'; }
     if (s.tertahan >= CONFIG.PERINGATAN_OUTBOX) {
@@ -3014,6 +3025,10 @@ function pasangEvent() {
       el.title = 'Klik untuk melihat nota yang ditolak server';
     } else {
       el.removeAttribute('role'); el.removeAttribute('tabindex'); el.removeAttribute('title');
+      /* Alasannya, bukan cuma warnanya. Lencana merah tanpa keterangan hanya
+         bisa dilaporkan sebagai "lencananya merah" — dan itu tidak cukup untuk
+         menebak bahwa yang hilang adalah satu centang izin di layar Peran. */
+      if (s.galat) el.title = s.galat;
     }
   });
   $('#lncSync').addEventListener('click', () => { if (Sync.status.ditolak > 0) tampilkanDitolak(); });

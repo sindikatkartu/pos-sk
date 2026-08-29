@@ -3308,7 +3308,37 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (th) urutkanTabel(th);
     });
 
-    document.addEventListener('click', async (e) => {
+    /* JARING PENGAMAN untuk seluruh penangan klik aksi back office.
+       ------------------------------------------------------------------
+       `tanganiKlikAksi` panjangnya 588 baris dan sebagian besar cabangnya
+       berbentuk `return formX()` — mengembalikan Promise yang tidak ada yang
+       menunggu. Sampai v1.56 tidak ada penangkap galat di luarnya, jadi setiap
+       penolakan server di dalamnya menjadi unhandled rejection: modal tidak
+       muncul, tidak ada toast, tidak ada apa-apa. Tombolnya ditekan dan layar
+       diam saja.
+
+       Yang memicunya nyata: `formPembelian()` memanggil `API.daftarSupplier()`,
+       yang menuntut izin `supplier.lihat` — dan peran KEPALA_CABANG punya
+       `pembelian:['lihat','buat']` tapi TIDAK punya modul `supplier` sama
+       sekali. Dari lantai toko itu terbaca sebagai aplikasi rusak, bukan sebagai
+       izin yang kurang, dan tidak ada satu pun jejak untuk mendiagnosisnya.
+
+       Sengaja diletakkan sebagai pembungkus di SATU tempat, bukan try/catch di
+       tiap cabang: cabang ke-89 yang ditulis nanti akan lupa. Cabang yang sudah
+       punya try/catch sendiri tetap sah — yang lebih dekat menangani lebih dulu,
+       dan yang lolos jatuh ke sini.
+
+       Dicatat ke konsol SEKALIGUS ditoast. Toast hilang dalam beberapa detik dan
+       tidak bisa disalin; tanpa jejak konsol yang tersisa untuk mendiagnosis
+       hanya "katanya tidak bisa". */
+    document.addEventListener('click', (e) => {
+      tanganiKlikAksi(e).catch((x) => {
+        console.error('Aksi back office gagal:', x);
+        toast(x && x.message ? x.message : 'Aksi gagal dijalankan.', 'galat');
+      });
+    });
+
+    async function tanganiKlikAksi(e) {
       const t = e.target.closest('button, [data-tutup]');
       if (!t) return;
       const d = t.dataset;
@@ -3896,7 +3926,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
-    });
+    }
 
     /* --- pemilih produk ---
        Pendengarnya di dokumen, sama alasannya dengan pengurut tabel: barisnya

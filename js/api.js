@@ -54,6 +54,26 @@ const API = (() => {
     } catch (e) {
       if (e.name === 'AbortError') throw Object.assign(new Error('Server tidak menjawab'), { kode: 'TIMEOUT' });
       if (e.message === 'Failed to fetch') throw Object.assign(new Error('Tidak dapat menghubungi server'), { kode: 'JARINGAN' });
+      /* Sesi kedaluwarsa diumumkan DI SINI, dan hanya di sini.
+
+         Sampai v1.56 pengumumnya ada di catch milik `kirim()` di sync.js — dan
+         kirim() keluar lebih dulu kalau outboxnya kosong. Saat online outbox
+         SELALU kosong, jadi tidak ada permintaan yang lahir di sana dan kode
+         SESI tidak pernah terlihat siapa pun. Token 12 jam habis di tengah
+         shift: membuka Riwayat/Shift/Laporan cuma memunculkan kotak merah di
+         dalam layar, tombol Keluar ditolak ("tutup shift dulu"), dan Tutup shift
+         gagal karena app.js hanya memulihkan NOTFOUND dan STATUS. Kasir
+         terkurung, dan satu-satunya jalan keluar adalah memuat ulang halaman
+         sendiri — yang tidak ada yang tahu harus dilakukan.
+
+         `panggil()` adalah satu-satunya pintu yang dilalui SETIAP permintaan,
+         termasuk yang ditulis nanti. Dijaga ketat pada kode SESI: menyiarkan
+         untuk galat apa pun berarti gangguan jaringan sesaat melempar kasir
+         keluar dari shift yang sedang berjalan — persis yang paling tidak boleh
+         terjadi di aplikasi offline-first. Kode SESI hanya lahir dari gerbang
+         token di _router (04_Api.gs); `login` tidak pernah melewatinya, jadi
+         layar login tidak bisa menyiarkannya untuk dirinya sendiri. */
+      if (e.kode === 'SESI') document.dispatchEvent(new Event('sesi:berakhir'));
       throw e;
     } finally {
       clearTimeout(timer);

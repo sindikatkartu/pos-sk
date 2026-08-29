@@ -52,6 +52,12 @@ const Sync = (() => {
     if (!antri.length) { kabarkan(); return; }
 
     status.mengirim = true; status.galat = null; kabarkan();
+
+    /* Paket penjualan yang sedang dipertaruhkan saat ini. Catch di bawah berada
+       DI LUAR perulangan, jadi tanpa penanda ini ia tidak punya cara menyentuh
+       dokumen yang barusan ditolak — dan itulah sebabnya penghitung percobaannya
+       diam di nol selama ini. */
+    let sedangDikirim = [];
     try {
       for (let i = 0; i < antri.length; i += CONFIG.BATCH_SIZE) {
         const paket = antri.slice(i, i + CONFIG.BATCH_SIZE);
@@ -73,10 +79,12 @@ const Sync = (() => {
         const penjualan = paket.filter(o => o.jenis === 'penjualan');
         if (!penjualan.length) continue;
 
+        sedangDikirim = penjualan;
         const hasil = await API.kirimPenjualan({
           cabang: APP_STATE.cabang,
           dokumen: penjualan.map(o => o.dokumen)
         });
+        sedangDikirim = [];   // paketnya selamat; yang gagal sesudah ini bukan salahnya
 
         // Diterima maupun duplikat sama-sama berarti "sudah aman di server"
         const beres = new Set([...(hasil.diterima || []), ...(hasil.duplikat || [])]);
@@ -104,8 +112,45 @@ const Sync = (() => {
       await DB.kvSet('sync_terakhir', status.terakhir);
       await DB.outboxBersihkan(7);
     } catch (e) {
-      status.galat = e.message;
-      if (e.kode === 'SESI') document.dispatchEvent(new Event('sesi:berakhir'));
+      /* Kegagalan tingkat PAKET — `API.kirimPenjualan()` sendiri yang melempar,
+         bukan server yang menolak dokumen satu per satu. Dua pertanyaan yang
+         BERBEDA harus dijawab di sini, dan menyamakannya adalah asal masalahnya.
+
+         (1) Apakah ini membakar jatah percobaan dokumennya?
+             HANYA untuk penolakan yang akan berulang persis sama sampai ada
+             manusia yang mengubah sesuatu: IZIN dan VALIDASI. Owner memindahkan
+             kasir ke peran yang lupa dicentang `penjualan · buat` sementara 8
+             nota tertahan — sejak itu tiap 30 detik ditolak IZIN, dan sampai
+             v1.56 penghitungnya tidak pernah naik. Statusnya tetap PENDING
+             selamanya: lencana KUNING "8 menunggu", rupanya sama persis dengan
+             antrean sehat yang sedang menunggu jaringan.
+
+             Yang lain TIDAK boleh membakarnya. Aplikasi ini offline-first;
+             kalau kehabisan sinyal ikut dihitung, tiga kali offline sudah cukup
+             membuat nota yang sehat ditandai DITOLAK — jauh lebih mahal daripada
+             masalah yang diobati. SESI juga tidak: login ulang menyembuhkannya.
+             HTTP 500 juga tidak: server yang tumbang sembuh sendiri.
+
+         (2) Apakah ini pantas terlihat merah di lencana?
+             Semua yang bukan gangguan jaringan biasa. Untuk jaringan, keadaannya
+             sudah punya lencananya sendiri ("Offline" / "N menunggu"), dan
+             lencana yang merah tiap kali sinyal berkedip adalah lencana yang
+             berhenti dibaca. */
+      var jaringan = ['JARINGAN', 'OFFLINE', 'TIMEOUT'].includes(e.kode);
+      status.galat = jaringan ? null : e.message;
+
+      if (['IZIN', 'VALIDASI'].includes(e.kode)) {
+        for (const o of sedangDikirim) {
+          o.percobaan = (o.percobaan || 0) + 1;
+          o.pesan_galat = e.message;
+          if (o.percobaan >= 3) o.status = 'DITOLAK';
+          await DB.put('outbox', o);
+        }
+        console.warn('Paket ditolak server:', e.kode, e.message,
+                     '(' + sedangDikirim.length + ' dokumen)');
+      } else if (!jaringan) {
+        console.warn('Sinkronisasi gagal:', e.kode || '-', e.message);
+      }
     } finally {
       status.mengirim = false;
       status.tertahan = await DB.outboxJumlah();
