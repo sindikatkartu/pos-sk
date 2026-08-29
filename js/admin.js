@@ -987,6 +987,31 @@ const Admin = (() => {
    * tidak. Menukar produk menimpa yang bertanda itu saja — mengganti produk
    * tanpa mengganti harganya berarti membeli barang B dengan harga barang A.
    */
+  /**
+   * Harga produk, dari BENTUK DATA MANA PUN.
+   *
+   * Ada dua bentuk produk yang beredar di back office, dan keduanya sah:
+   *
+   *   jawaban API  : { harga_eceran, harga_grosir, harga_beli_terakhir }
+   *   salinan lokal: { harga: { eceran, grosir }, harga_beli }
+   *
+   * Layar Pembelian & Transfer memakai yang pertama (`API.daftarProduk()`);
+   * layar Retur & Retur Beli memakai yang kedua (`DB.all('produk')`), karena
+   * retur dibuka dari nota yang sudah ada dan tidak boleh menunggu jaringan.
+   *
+   * Sampai v1.53 pengisi otomatis hanya mengenal bentuk pertama. Di layar Retur
+   * ia membaca `undefined` lalu keluar diam-diam — kolom harga barang pengganti
+   * tetap KOSONG, padahal di layar Pembelian kolom yang sama terisi sendiri,
+   * jadi tidak ada yang menyangka harus mengetiknya. Retur diproses, barang
+   * pengganti bernilai Rp 0, barang keluar gratis. Tidak ada galat di mana pun:
+   * kedua nama kolom itu sama-sama "ada", yang salah cuma yang dicari.
+   */
+  function hargaProduk(p, jenis) {
+    const o = p || {};
+    if (jenis === 'beli') return Number(o.harga_beli_terakhir ?? o.harga_beli) || 0;
+    return Number(o.harga_eceran ?? o.harga?.eceran) || 0;
+  }
+
   function isiOtomatisBaris(baris, p) {
     const jenis = baris.dataset.anak;
     const isi = (f, v) => {
@@ -1004,9 +1029,9 @@ const Admin = (() => {
        ditimpa, bukan diisi kalau kosong. */
     if (baris.querySelector('[data-f="satuan"]')) isi('satuan', p.satuan_dasar || 'pcs');
     if (baris.querySelector('[data-f="faktor"]')) isi('faktor', 1);
-    isiUang('harga_beli', p.harga_beli_terakhir);
+    isiUang('harga_beli', hargaProduk(p, 'beli'));
     // Retur jual & barang pengganti bergerak pada harga JUAL, pembelian pada harga beli.
-    isiUang('harga_satuan', jenis === 'beli' ? p.harga_beli_terakhir : p.harga_eceran);
+    isiUang('harga_satuan', hargaProduk(p, jenis === 'beli' ? 'beli' : 'jual'));
   }
 
   function pilihProduk(baris, sku) {
