@@ -551,20 +551,29 @@ td.angka, th.angka {
 tr.tebal td { font-weight: 600; }
 tr.pisah td { border-top: 1px solid var(--garis); }
 
+/* Jarak tepi kartu dipegang SATU token, bukan diketik ulang di tiap aturan.
+   Tabel di dalam kartu ditarik keluar sejauh padding kartunya supaya bar
+   kepalanya menempel ke bingkai. Selama angkanya ditulis mati `16px`, kartu
+   `.rapat` yang berpadding 14px membuat tarikan itu meleset 2px ke kiri dan
+   isinya miring — dan Dashboard, satu-satunya layar yang dilihat pemilik tiap
+   hari, seluruhnya memakai kartu `.rapat`. */
 .kartu {
+  --tepi-x: 16px;
+  --tepi-y: 16px;
   background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
-  padding: 16px; margin-bottom: 16px; box-shadow: none;
+  padding: var(--tepi-y) var(--tepi-x); margin-bottom: 16px; box-shadow: none;
 }
 .kartu h3 { margin: 0 0 14px; font-size: 14px; font-weight: 600; }
 /* Tabel menempel ke tepi kartu supaya bar kepala terbaca sebagai satu kesatuan.
    Kelima aturan berlaku untuk tabel langsung MAUPUN yang dibungkus `.gulir-x` —
    tanpa pasangannya, tabel yang dibungkus kehilangan tampilan rapat-ke-tepi dan
    dua kartu di layar yang sama terlihat bergaya berbeda. */
-.kartu > table { margin: -16px; width: calc(100% + 32px); }
+.kartu > table { margin: calc(0px - var(--tepi-y)) calc(0px - var(--tepi-x));
+                 width: calc(100% + 2 * var(--tepi-x)); }
 .kartu > table th:first-child, .kartu > table td:first-child,
-.kartu > .gulir-x > table th:first-child, .kartu > .gulir-x > table td:first-child { padding-left: 16px; }
+.kartu > .gulir-x > table th:first-child, .kartu > .gulir-x > table td:first-child { padding-left: var(--tepi-x); }
 .kartu > table th:last-child,  .kartu > table td:last-child,
-.kartu > .gulir-x > table th:last-child,  .kartu > .gulir-x > table td:last-child  { padding-right: 16px; }
+.kartu > .gulir-x > table th:last-child,  .kartu > .gulir-x > table td:last-child  { padding-right: var(--tepi-x); }
 /* Sudut kepala tabel ikut membulat mengikuti bingkai kartu */
 .kartu > table tr:first-child th:first-child,
 .kartu > .gulir-x > table tr:first-child th:first-child { border-top-left-radius: 5px; }
@@ -575,7 +584,22 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    layar HP punya spesifisitas lebih rendah, jadi menyetelnya akan membatalkan
    lantai itu hanya untuk tabel yang dibungkus — dua gaya tabel berbeda lagi di
    layar yang sama. */
-.kartu > .gulir-x { margin: -16px; padding: 0; }
+/* `max-width: none` WAJIB di sini, dan ini yang paling mudah terlewat.
+   `.gulir-x` bawaannya `max-width: 100%` supaya tabel lebar tidak mendorong
+   halaman. Di dalam kartu, aturan itu melarang pembungkusnya tumbuh 2×tepi —
+   jadi ia cuma BERGESER ke kiri: rapat di tepi kiri, menggantung 2×tepi dari
+   tepi kanan. Tidak ada galat, tidak ada yang berubah warna; tabelnya sekadar
+   duduk miring di setiap layar back office. */
+.kartu > .gulir-x {
+  margin: calc(0px - var(--tepi-y)) calc(0px - var(--tepi-x));
+  padding: 0;
+  /* Lebarnya sengaja dibiarkan `auto`: blok dengan margin negatif memang
+     melebar sendiri sebesar margin itu. Menuliskan `width` di sini tidak
+     mengubah satu piksel pun — dibuktikan dengan mencabutnya dan melihat
+     uji simetri tetap hijau — dan baris yang tidak berbuat apa-apa nanti
+     terbaca seolah menopang sesuatu. */
+  max-width: none;
+}
 .kartu > .gulir-x > table { margin: 0; width: 100%; }
 
 /* Tarikan -16px itu HANYA sah di tepi kartu yang benar-benar kosong.
@@ -593,7 +617,8 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 /* Baris nonaktif: keluar dari daftar utama, tetap satu klik jauhnya.
    Sengaja tenang — abu-abu, tanpa warna bahaya. Yang dinonaktifkan itu keadaan
    normal dan disengaja, bukan masalah yang perlu diteriakkan. */
-.blok-nonaktif { margin: 10px -16px -16px; border-top: 1px solid var(--garis); }
+.blok-nonaktif { margin: 10px calc(0px - var(--tepi-x)) calc(0px - var(--tepi-y));
+                 border-top: 1px solid var(--garis); }
 .blok-nonaktif > summary {
   list-style: none; cursor: pointer; user-select: none;
   display: flex; align-items: center; gap: 8px;
@@ -648,7 +673,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .petak-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 @media (max-width: 780px) { .petak-2 { grid-template-columns: 1fr; } }
 
-.kartu.rapat { padding: 12px 14px; }
+.kartu.rapat { --tepi-x: 14px; --tepi-y: 12px; }
 .kartu.rapat h4 { margin: 0 0 8px; font-size: 13.5px; font-weight: 650; }
 .kartu.rapat table { font-size: 12.5px; }
 .kartu.rapat th, .kartu.rapat td { padding: 5px 9px; }
@@ -959,7 +984,7 @@ input.sudah-hitung {
      tidak perlu lagi dibebankan ke kartunya. */
   table { min-width: 560px; }
   .kartu > table,
-  .kartu > .gulir-x { margin: -16px 0; width: auto; }
+  .kartu > .gulir-x { margin: calc(0px - var(--tepi-y)) 0; width: 100%; max-width: 100%; }
   .kartu > .gulir-x > table { width: 100%; }
 }
 @media (max-width: 760px) { .modal.lebar { max-width: 100%; } }
@@ -993,7 +1018,7 @@ input.sudah-hitung {
   }
 
   .gulir-x { overflow-x: visible; }
-  .kartu > .gulir-x { margin: 0; }
+  .kartu > .gulir-x { margin: 0; width: 100%; max-width: 100%; }
 
   .gulir-x > table > tbody > tr {
     border: 1px solid var(--garis); border-radius: var(--radius);
