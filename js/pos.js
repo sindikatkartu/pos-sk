@@ -480,6 +480,81 @@ function urutkanOleh(arr, ambil) {
   return (arr || []).slice().sort((a, b) => urutNama(ambil(a), ambil(b)));
 }
 
+/* ==================== MENCARI PRODUK ====================
+ *
+ * Katalog toko ini punya satu bentuk yang merusak pencarian naif: satu tempered
+ * glass cocok untuk sepuluh tipe HP, dan sepuluh tipe itu tidak muat di nama
+ * produk. Akibatnya 98 dari 382 SKU memakai salah satu dari empat nama generik
+ * — yang terbesar dipakai 41 SKU sekaligus. Mencari lewat nama saja
+ * mengembalikan 41 baris yang tidak bisa dibedakan satu pun.
+ *
+ * Yang membedakannya ada di kolom lain yang MEMANG sudah terisi: tipe_hp, baris
+ * produk_kompatibel, dan kata_kunci (tempat menaruh nama barang versi
+ * supplier). Ketiganya ikut dicari di sini.
+ */
+
+/** Semua teks yang bisa dipakai menemukan satu produk, digabung & huruf kecil. */
+function tokenProduk(p) {
+  const o = p || {};
+  return [o.nama, o.sku, o.barcode, o.merek, o.kategori, o.tipe_hp, o.kata_kunci, o.deskripsi,
+          (o.kompatibel || []).map(k => `${k.merek || ''} ${k.tipe || ''}`).join(' ')]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+/**
+ * Cocok bila SETIAP kata pada kueri ada — bukan satu potongan berurutan.
+ *
+ * Inilah yang tidak bisa dilakukan `<datalist>` bawaan peramban, dan alasan
+ * pemilihnya digambar sendiri: dengan puluhan SKU bernama sama, satu kata tidak
+ * pernah cukup mempersempit. "og a11" harus menyisakan satu baris, dan dua kata
+ * itu hidup di dua kolom yang berbeda.
+ */
+function cocokProduk(p, kueri) {
+  const kata = String(kueri == null ? '' : kueri).toLowerCase().split(/\s+/).filter(Boolean);
+  if (!kata.length) return true;
+  const t = tokenProduk(p);
+  return kata.every(k => t.indexOf(k) !== -1);
+}
+
+/**
+ * Hasil pencarian yang sudah urut dan dibatasi jumlahnya.
+ *
+ * Pengurutan keduanya memakai tipe HP, tidak berhenti di nama. Untuk 41 SKU
+ * bernama sama, berhenti di nama berarti urutannya ditentukan urutan baris di
+ * sheet — urutan yang tidak pernah diputuskan siapa pun. Daftar yang posisinya
+ * tidak stabil membuat orang berhenti memakai posisi sebagai petunjuk, lalu
+ * membaca seluruh daftar lagi setiap kali.
+ *
+ * Batas jumlah bukan kerapian: barisnya digambar ulang pada SETIAP ketikan, dan
+ * 382 baris per ketikan membuat modalnya tersendat di HP.
+ */
+function cariProduk(daftar, kueri, batas) {
+  const q = String(kueri == null ? '' : kueri).trim().toLowerCase();
+  const hasil = (daftar || []).filter(p => cocokProduk(p, q));
+  hasil.sort((a, b) => {
+    // SKU yang diketik utuh — biasanya disalin dari faktur supplier — didahulukan.
+    const sa = String(a.sku || '').toLowerCase() === q ? 0 : 1;
+    const sb = String(b.sku || '').toLowerCase() === q ? 0 : 1;
+    if (sa !== sb) return sa - sb;
+    return urutNama(a.nama, b.nama) || urutNama(a.tipe_hp, b.tipe_hp)
+        || urutNama(a.sku, b.sku);
+  });
+  return hasil.slice(0, batas || 30);
+}
+
+/**
+ * Teks satu baris untuk produk yang SUDAH dipilih.
+ *
+ * Nama saja tidak cukup: kolom yang berbunyi "TG OG Multi_Device" tidak memberi
+ * tahu apa pun kepada orang berikutnya yang memeriksa faktur itu.
+ */
+function teksProduk(p) {
+  const o = p || {};
+  const tipe = String(o.tipe_hp || (o.kompatibel || []).map(k => k.tipe).join(' / ') || '').trim();
+  const nama = String(o.nama || o.sku || '').trim();
+  return tipe ? nama + ' — ' + tipe : nama;
+}
+
 /**
  * Angka dari teks sel tabel, untuk PENGURUTAN saja.
  *
@@ -553,11 +628,22 @@ function pasangKolomAngka(akar) {
     const el = e.target;
     if (!kolomAngka(el)) return;
     el._baruFokus = true;
+    el._nilaiFokus = el.value;
     try { el.select(); } catch (err) {}
     /* Sebagian peramban menaruh kursornya SESUDAH focusin selesai; pemilihan
-       diulang di gilir berikutnya supaya tidak keburu batal. */
+       diulang di gilir berikutnya supaya tidak keburu batal.
+       ⚠️ Isi kolomnya DIPERIKSA dulu — dan inilah bagian yang pernah salah.
+       "Gilir berikutnya" tidak dijamin datang sebelum orangnya mengetik: kalau
+       mesinnya sibuk, ia tiba SESUDAH angka pertama masuk. Yang terpilih lalu
+       bukan angka lama melainkan angka yang baru diketik, dan ketikan
+       berikutnya menimpanya — Rp 250.000 menjadi Rp 50.000, masih masuk akal
+       di layar, tanpa satu pun galat. Terjadi sungguhan 29 Agu 2026, dan hanya
+       di mesin yang lebih lambat. Kalau isinya sudah berubah, berarti orangnya
+       sudah memegang kendali dan pemilihan ulang tidak berhak lagi. */
     setTimeout(() => {
-      if (document.activeElement === el && el._baruFokus) { try { el.select(); } catch (err) {} }
+      if (document.activeElement === el && el._baruFokus && el.value === el._nilaiFokus) {
+        try { el.select(); } catch (err) {}
+      }
     }, 0);
   });
 
@@ -702,5 +788,6 @@ function resolvePenjualPemasang(nota, daftarPetugas) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
-                     urutNama, urutkanOleh, angkaUrut };
+                     urutNama, urutkanOleh, angkaUrut,
+                     tokenProduk, cocokProduk, cariProduk, teksProduk };
 }

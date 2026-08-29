@@ -853,6 +853,127 @@ const Admin = (() => {
       </div>`);
   }
 
+  /* ==================== PEMILIH PRODUK ====================
+   *
+   * Dilaporkan dari lapangan 29 Agu 2026, dengan tangkapan layar: di form
+   * Pembelian, mengetik "multi" memunculkan dua puluh baris yang SELURUHNYA
+   * berbunyi "TG OG Multi_Device" — hanya SKU-nya yang berbeda. Memilih yang
+   * benar cuma bisa dilakukan dengan menghafal SKU.
+   *
+   * Sebabnya bukan penamaan produk. Satu tempered glass memang cocok untuk
+   * sepuluh tipe HP dan sepuluh tipe itu tidak muat di nama; 98 dari 382 SKU
+   * berbagi salah satu dari empat nama generik. Sebabnya adalah pemilihnya:
+   * `<datalist>` bawaan peramban hanya bisa menampilkan value + satu label, dan
+   * hanya bisa mencocokkan satu potongan berurutan. Padahal `apiDaftarProduk`
+   * SUDAH mengirim tipe_hp, kompatibel, kata_kunci, stok, dan harga beli
+   * terakhir di jawaban yang sama — datanya sudah di tangan, tidak pernah
+   * ditampilkan.
+   *
+   * Digambar sendiri supaya bisa: mencocokkan banyak kata sekaligus lintas
+   * kolom (lihat `cariProduk` di pos.js), menampilkan tipe HP di bawah nama,
+   * dan mengisi satuan serta harga beli begitu produknya dipilih.
+   */
+
+  /* Daftar yang sedang dipakai pemilih. Diisi tiap form sebelum barisnya
+     digambar, karena sumbernya memang berbeda: pembelian & transfer memakai
+     jawaban server (ada stok & harga beli), retur memakai salinan lokal. */
+  let daftarPilihProduk = [];
+
+  function barisPilihProduk(lebar) {
+    /* SKU disimpan di kolom TERSEMBUNYI, terpisah dari kotak yang diketik.
+       `kumpulkanAnak` membaca [data-f] apa adanya; kalau kotak pencariannya
+       yang membawa data-f="sku", yang terkirim ke server adalah teks pencarian
+       ("og a11") dan dokumennya ditolak dengan pesan yang tidak menyebut
+       sebabnya. */
+    return `<div class="pilih-produk" style="flex:${lebar || 2}">
+        <input type="hidden" data-f="sku">
+        <input type="text" class="cari-prd" autocomplete="off"
+               placeholder="cari nama, tipe HP, atau SKU">
+        <div class="hasil-prd sembunyi"></div>
+      </div>`;
+  }
+
+  const _produkSku = (sku) => daftarPilihProduk.find(p => String(p.sku) === String(sku));
+
+  function gambarHasilProduk(kotak) {
+    const wadah = kotak.parentElement.querySelector('.hasil-prd');
+    if (!wadah) return;
+    const hasil = cariProduk(daftarPilihProduk, kotak.value);
+    wadah.innerHTML = hasil.length ? hasil.map((p, i) => {
+      const tipe = String(p.tipe_hp || (p.kompatibel || []).map(k => k.tipe).join(' / ') || '');
+      const ekor = [esc(p.sku),
+        p.stok === undefined || p.stok === null ? '' : 'stok ' + p.stok,
+        p.harga_beli_terakhir ? 'beli ' + rp(p.harga_beli_terakhir) : ''
+      ].filter(Boolean).join(' · ');
+      return `<div class="baris-prd${i === 0 ? ' aktif' : ''}" data-sku="${esc(p.sku)}">
+          <div class="prd-judul">${esc(p.nama)}${
+            p.kategori ? ` <span class="prd-kat">${esc(p.kategori)}</span>` : ''}</div>
+          ${tipe ? `<div class="prd-tipe">${esc(tipe)}</div>` : ''}
+          <div class="prd-ekor">${ekor}</div>
+        </div>`;
+    }).join('') : '<div class="prd-kosong">Tidak ada produk yang cocok</div>';
+    wadah.classList.remove('sembunyi');
+  }
+
+  const tutupHasilProduk = (kecuali) => $$('.hasil-prd').forEach(w => {
+    if (w !== kecuali) w.classList.add('sembunyi');
+  });
+
+  /**
+   * Isi kolom lain begitu produknya dipilih.
+   *
+   * Harga beli sebelumnya diketik ulang di setiap baris pembelian. Angka yang
+   * diketik ulang adalah angka yang bisa salah ketik, dan salah ketik harga
+   * beli merusak HPP — lalu seluruh laba yang dihitung darinya, tanpa satu pun
+   * galat yang muncul.
+   *
+   * Angka yang DIISI SENDIRI ditandai `data-auto`; angka yang diketik orang
+   * tidak. Menukar produk menimpa yang bertanda itu saja — mengganti produk
+   * tanpa mengganti harganya berarti membeli barang B dengan harga barang A.
+   */
+  function isiOtomatisBaris(baris, p) {
+    const jenis = baris.dataset.anak;
+    const isi = (f, v) => {
+      const el = baris.querySelector(`[data-f="${f}"]`);
+      if (el) { el.value = v; el.dataset.auto = '1'; }
+    };
+    const isiUang = (f, v) => {
+      const el = baris.querySelector(`[data-f="${f}"]`);
+      if (!el || !(Number(v) > 0)) return;
+      if (String(el.value).trim() !== '' && !el.dataset.auto) return;  // angka ketikan orang
+      el.value = ribuan(v); el.dataset.auto = '1';
+    };
+    /* Satuan & faktor MELEKAT pada produknya, bukan pada baris: "lusin isi 12"
+       milik produk lama tidak berlaku untuk produk baru. Karena itu keduanya
+       ditimpa, bukan diisi kalau kosong. */
+    if (baris.querySelector('[data-f="satuan"]')) isi('satuan', p.satuan_dasar || 'pcs');
+    if (baris.querySelector('[data-f="faktor"]')) isi('faktor', 1);
+    isiUang('harga_beli', p.harga_beli_terakhir);
+    // Retur jual & barang pengganti bergerak pada harga JUAL, pembelian pada harga beli.
+    isiUang('harga_satuan', jenis === 'beli' ? p.harga_beli_terakhir : p.harga_eceran);
+  }
+
+  function pilihProduk(baris, sku) {
+    const p = _produkSku(sku);
+    if (!p) return;
+    baris.querySelector('input[data-f="sku"]').value = p.sku;
+    const kotak = baris.querySelector('.cari-prd');
+    kotak.value = teksProduk(p);
+    kotak.title = teksProduk(p);
+    baris.querySelector('.hasil-prd')?.classList.add('sembunyi');
+    isiOtomatisBaris(baris, p);
+    hitungUlangSemua();
+  }
+
+  /* Satu pintu ke seluruh penghitung total: baris yang terisi otomatis harus
+     ikut mengubah total, dan menebak layar mana yang sedang terbuka dari sini
+     lebih rapuh daripada memanggil yang ada. */
+  function hitungUlangSemua() {
+    if ($('#beliTotal')) hitungTotalBeli();
+    if ($('#rtSelisih')) hitungRetur();
+    if ($('#rbTotal')) hitungReturBeli();
+  }
+
   const kumpulkanAnak = (jenis) => $$(`[data-anak="${jenis}"]`).map(el => {
     const o = {};
     /* Kolom uang diurai DI SINI, di titik pengumpulan — bukan di tiap pemakai
@@ -1229,9 +1350,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="barisBeli"></div>
       <button class="tombol" id="btnTambahBaris">+ Tambah baris</button>
 
-      <datalist id="dlProduk">${prod.produk.map(p =>
-        `<option value="${esc(p.sku)}">${esc(p.nama)}</option>`).join('')}</datalist>
-
       <div class="baris2" style="margin-top:14px">
         <div class="grup"><label>Diskon dokumen</label><input type="text" inputmode="numeric" class="uang" id="beliDiskon" value="0"></div>
         <div class="grup"><label>PPN</label><input type="text" inputmode="numeric" class="uang" id="beliPpn" value="0"></div>
@@ -1240,13 +1358,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="pesanBeli"></div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnSimpanPembelian">Simpan pembelian</button>`);
+    daftarPilihProduk = prod.produk;
     tambahBarisBeli();
   }
 
   function tambahBarisBeli() {
     $('#barisBeli').insertAdjacentHTML('beforeend', `
       <div class="baris-anak" data-anak="beli">
-        <input type="text" data-f="sku" list="dlProduk" placeholder="SKU" style="flex:2">
+        ${barisPilihProduk(3)}
         <input type="number" data-f="qty" placeholder="qty" value="1">
         <input type="text" data-f="satuan" placeholder="pcs" value="pcs">
         <input type="number" data-f="faktor" placeholder="isi" value="1" title="Isi per satuan (lusin = 12)">
@@ -2154,19 +2273,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">Transfer tidak boleh membuat stok minus — memindahkan barang yang tidak ada hanya memindahkan masalah ke cabang lain.</p>
       <div id="barisTf"></div>
       <button class="tombol" id="btnTambahBarisTf">+ Tambah baris</button>
-      <datalist id="dlProdukTf">${prod.produk.map(p =>
-        `<option value="${esc(p.sku)}">${esc(p.nama)} — stok ${p.stok ?? '?'}</option>`).join('')}</datalist>
       <div class="grup" style="margin-top:14px"><label>Catatan</label><input type="text" id="tfCatatan" placeholder="mis. dikirim lewat kurir X"></div>
       <div id="pesanTf"></div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnSimpanTransfer">Kirim</button>`);
+    daftarPilihProduk = prod.produk;
     tambahBarisTf();
   }
 
   function tambahBarisTf() {
     $('#barisTf').insertAdjacentHTML('beforeend', `
       <div class="baris-anak" data-anak="tf">
-        <input type="text" data-f="sku" list="dlProdukTf" placeholder="SKU" style="flex:3">
+        ${barisPilihProduk(3)}
         <input type="text" data-f="kode_varian" placeholder="varian (opsional)" style="flex:2">
         <input type="number" data-f="qty" placeholder="qty" value="1">
         ${barisHapus}
@@ -2504,7 +2622,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       '<button class="tombol" data-tutup="1">Tutup</button>');
   }
 
-  function gambarFormRetur(nota) {
+  async function gambarFormRetur(nota) {
     notaTerpilih = nota;
     $('#hasilCariNota').innerHTML = nota
       ? `<div class="pesan sukses">Nota ${esc(nota.no_nota)} · ${esc(nota.tanggal)} · ${rp(nota.total)}</div>`
@@ -2526,7 +2644,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <option value="RUSAK">rusak</option>
           </select>
         </div>
-        <div class="meta-kecil" style="margin:-4px 0 8px 2px">${esc(i.nama_produk)} — dibeli ${i.qty} ${esc(i.satuan)}${
+        <div class="meta-kecil" data-sku-meta="${esc(i.sku)}" style="margin:-4px 0 8px 2px">${esc(i.nama_produk)} — dibeli ${i.qty} ${esc(i.satuan)}${
           i.sudah_diretur > 0 ? `, sudah diretur ${i.sudah_diretur}` : ''}</div>`).join('')
       : '';
 
@@ -2537,7 +2655,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         nilainya langsung dibebankan ke akun Barang Rusak/Hilang.</p>
       <div id="barisRt">${barisAwal}</div>
       ${nota ? '' : '<button class="tombol" id="btnTambahBarisRt">+ Tambah barang</button>'}
-      ${nota ? '' : `<datalist id="dlProdukRt"></datalist>`}
 
       <div class="grup" style="margin-top:16px">
         <label>Penyelesaian</label>
@@ -2551,7 +2668,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <label>Barang pengganti</label>
         <div id="barisRp"></div>
         <button class="tombol" id="btnTambahBarisRp">+ Tambah pengganti</button>
-        <datalist id="dlProdukRp"></datalist>
       </div>
 
       <div class="baris2" style="margin-top:14px">
@@ -2571,22 +2687,43 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="pesanRetur"></div>
       <button class="tombol sukses besar" id="btnSimpanRetur" style="margin-top:12px">Proses retur</button>`;
 
-    isiDatalistProduk();
+    await muatDaftarPilihProduk();
     hitungRetur();
   }
 
-  async function isiDatalistProduk() {
-    const semua = await DB.all('produk');
-    const opsi = urutkanOleh(semua, p => p.nama).map(p => `<option value="${esc(p.sku)}">${esc(p.nama)}</option>`).join('');
-    ['dlProdukRt', 'dlProdukRp'].forEach(id => { if ($('#' + id)) $('#' + id).innerHTML = opsi; });
+  /* Layar retur bekerja dari salinan lokal, bukan dari server: ia dibuka dari
+     nota yang sudah ada dan tidak boleh menunggu jaringan hanya untuk mengisi
+     daftar pilihan. Konsekuensinya salinan ini tidak membawa stok maupun harga
+     beli terakhir — pemilihnya sudah menyembunyikan keduanya kalau kosong. */
+  async function muatDaftarPilihProduk() {
+    daftarPilihProduk = await DB.all('produk');
+    lengkapiTipeBaris();
+  }
+
+  /**
+   * Tempelkan tipe HP pada baris yang datang DARI NOTA, yang tidak pernah lewat
+   * pemilih produk sama sekali.
+   *
+   * Baris itu menampilkan `nama_produk` seperti yang tercatat saat penjualan —
+   * dan justru nama itulah yang berbunyi "TG OG Multi_Device" untuk 41 SKU
+   * sekaligus. Tanpa tipe HP-nya, orang yang memproses retur tidak bisa tahu
+   * barang mana yang sedang dikembalikan, padahal keterangannya ada di master.
+   */
+  function lengkapiTipeBaris() {
+    $$('[data-sku-meta]').forEach(el => {
+      const p = _produkSku(el.dataset.skuMeta);
+      const tipe = p ? String(p.tipe_hp || '') : '';
+      if (tipe && el.textContent.indexOf(tipe) === -1) {
+        el.insertAdjacentHTML('beforeend', ` <span class="prd-kat">· ${esc(tipe)}</span>`);
+      }
+    });
   }
 
   function tambahBarisRetur(jenis) {
     const wadah = jenis === 'rt' ? '#barisRt' : '#barisRp';
-    const list = jenis === 'rt' ? 'dlProdukRt' : 'dlProdukRp';
     $(wadah).insertAdjacentHTML('beforeend', `
       <div class="baris-anak" data-anak="${jenis}">
-        <input type="text" data-f="sku" list="${list}" placeholder="SKU" style="flex:2">
+        ${barisPilihProduk(3)}
         <input type="number" data-f="qty" placeholder="qty" value="1">
         <input type="text" inputmode="numeric" class="uang" data-f="harga_satuan" placeholder="harga">
         ${jenis === 'rt' ? `<select data-f="kondisi">
@@ -2731,7 +2868,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <input type="number" data-f="qty" value="0" min="0" max="${i.sisa_bisa_retur}">
           <input type="text" inputmode="numeric" class="uang" data-f="harga_beli" value="${ribuan(i.harga_beli)}" readonly>
         </div>
-        <div class="meta-kecil" style="margin:-4px 0 8px 2px">${esc(i.nama_produk)} — dibeli ${i.qty} ${esc(i.satuan)}${
+        <div class="meta-kecil" data-sku-meta="${esc(i.sku)}" style="margin:-4px 0 8px 2px">${esc(i.nama_produk)} — dibeli ${i.qty} ${esc(i.satuan)}${
           i.sudah_diretur > 0 ? `, sudah diretur ${i.sudah_diretur}` : ''}</div>`).join('')
       : '';
 
@@ -2739,7 +2876,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <hr style="border:none;border-top:1px solid var(--garis);margin:16px 0">
       <label>Barang yang dikembalikan</label>
       <div id="barisRb">${baris}</div>
-      ${beli ? '' : '<button class="tombol" id="btnTambahBarisRb">+ Tambah barang</button><datalist id="dlProdukRb"></datalist>'}
+      ${beli ? '' : '<button class="tombol" id="btnTambahBarisRb">+ Tambah barang</button>'}
 
       <div class="baris2" style="margin-top:14px">
         <div class="grup"><label>Penyelesaian</label><select id="rbPenyelesaian">
@@ -2760,19 +2897,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="pesanReturBeli"></div>
       <button class="tombol sukses besar" id="btnSimpanReturBeli" style="margin-top:12px">Proses retur pembelian</button>`;
 
-    if (!beli) {
-      const semua = await DB.all('produk');
-      $('#dlProdukRb').innerHTML = semua.map(p =>
-        `<option value="${esc(p.sku)}">${esc(p.nama)}</option>`).join('');
-      tambahBarisRb();
-    }
+    /* Dimuat juga saat retur berasal dari faktur: barisnya memang tidak lewat
+       pemilih, tapi tipe HP-nya tetap perlu ditempelkan ke keterangan baris. */
+    await muatDaftarPilihProduk();
+    if (!beli) tambahBarisRb();
     hitungReturBeli();
   }
 
   function tambahBarisRb() {
     $('#barisRb').insertAdjacentHTML('beforeend', `
       <div class="baris-anak" data-anak="rb">
-        <input type="text" data-f="sku" list="dlProdukRb" placeholder="SKU" style="flex:2">
+        ${barisPilihProduk(3)}
         <input type="number" data-f="qty" placeholder="qty" value="1">
         <input type="text" inputmode="numeric" class="uang" data-f="harga_beli" placeholder="harga beli">
         ${barisHapus}
@@ -3526,6 +3661,62 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           toast('Pengaturan tersimpan.');
         } catch (x) { toast(x.message, 'galat'); }
         return;
+      }
+    });
+
+    /* --- pemilih produk ---
+       Pendengarnya di dokumen, sama alasannya dengan pengurut tabel: barisnya
+       disisipkan lewat insertAdjacentHTML setiap kali "+ Tambah baris" ditekan,
+       jadi pendengar yang menempel ke elemennya hanya hidup untuk baris yang
+       kebetulan ada saat itu. */
+    document.addEventListener('input', (e) => {
+      if (e.target.classList.contains('cari-prd')) {
+        /* Mengetik ulang MEMBATALKAN pilihan sebelumnya. Kalau tidak, kotaknya
+           menampilkan barang yang satu sementara SKU tersembunyi masih memegang
+           barang yang lain — dan yang tersimpan adalah yang tidak terlihat. */
+        e.target.closest('.baris-anak').querySelector('input[data-f="sku"]').value = '';
+        return gambarHasilProduk(e.target);
+      }
+      // Angka yang disentuh orang berhenti dianggap isian otomatis.
+      if (e.target.dataset && e.target.dataset.auto) delete e.target.dataset.auto;
+    });
+
+    document.addEventListener('focusin', (e) => {
+      if (e.target.classList.contains('cari-prd')) gambarHasilProduk(e.target);
+      else tutupHasilProduk();
+    });
+
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('.baris-prd');
+      if (b) return pilihProduk(b.closest('.baris-anak'), b.dataset.sku);
+      if (!e.target.closest('.pilih-produk')) tutupHasilProduk();
+    });
+
+    /* Papan ketik penuh: ↓ ↑ pindah, Enter pilih, Esc tutup. Tanpa ini pemilih
+       yang digambar sendiri justru MUNDUR dari <datalist> bawaan, yang sejak
+       awal bisa dikemudikan tanpa menyentuh tetikus — dan pekerjaan pembelian
+       memang dikerjakan dua tangan di papan ketik. */
+    document.addEventListener('keydown', (e) => {
+      if (!e.target.classList.contains('cari-prd')) return;
+      const wadah = e.target.parentElement.querySelector('.hasil-prd');
+      if (!wadah || wadah.classList.contains('sembunyi')) {
+        if (e.key === 'ArrowDown') gambarHasilProduk(e.target);
+        return;
+      }
+      const baris = Array.from(wadah.querySelectorAll('.baris-prd'));
+      if (!baris.length) return;
+      const kini = baris.findIndex(x => x.classList.contains('aktif'));
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const ke = e.key === 'ArrowDown'
+          ? Math.min(baris.length - 1, kini + 1) : Math.max(0, kini - 1);
+        baris.forEach((x, i) => x.classList.toggle('aktif', i === ke));
+        baris[ke].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        pilihProduk(e.target.closest('.baris-anak'), baris[Math.max(0, kini)].dataset.sku);
+      } else if (e.key === 'Escape') {
+        wadah.classList.add('sembunyi');
       }
     });
 
