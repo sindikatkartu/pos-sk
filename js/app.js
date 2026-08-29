@@ -1698,7 +1698,7 @@ async function bukaLaporanShift(idShift) {
         ${d.nota.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
           <td>${esc(n.metode)}</td><td class="angka">${rp(n.total)}</td>
           <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
-            : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_void)}</span>`}</td>
+            : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
         </tr>`).join('')}</table></div>` : '<p class="petunjuk">Belum ada nota.</p>'}
 
       <h4 style="margin:16px 0 6px">Poin &amp; omzet petugas</h4>
@@ -1942,7 +1942,50 @@ async function laporkanKeluarPaksa() {
   await DB.kvSet('keluar_paksa', sisa);
 }
 
-/* ==================== LAPORAN ==================== */
+/* ==================== LAPORAN ====================
+ *
+ * Dilengkapi v1.49 atas laporan pemilik: "menu Laporan kurang informatif,
+ * sedikit sekali yang disajikan". Sebagiannya memang begitu — tapi `per_kasir`
+ * dan `per_hari` sudah dikirim server sejak lama dan dibuang tanpa pernah
+ * digambar. Menghitung sesuatu lalu membuangnya adalah biaya yang dibayar
+ * setiap kali layar dibuka, tanpa satu pun manfaat.
+ *
+ * Perannya sengaja DIBEDAKAN dari Dashboard: Dashboard menjawab "bagaimana
+ * keadaannya sekarang", Laporan menjawab "apa saja yang terjadi di rentang
+ * tanggal ini" — rinci, bisa diurut, bisa diekspor dan dicetak. Kalau keduanya
+ * menampilkan hal yang sama, yang bertambah cuma tempat untuk salah baca.
+ */
+
+/** Isi kolom tanggal dari tombol rentang cepat. */
+function rentangCepatLaporan(jenis) {
+  const hariIni = new Date();
+  const f = (d) => tanggalLokal(d);
+  const mundur = (n) => { const d = new Date(hariIni); d.setDate(d.getDate() - n); return d; };
+  let dari = hariIni, sampai = hariIni;
+  if (jenis === 'kemarin')          { dari = sampai = mundur(1); }
+  else if (jenis === '7')           { dari = mundur(6); }
+  else if (jenis === '30')          { dari = mundur(29); }
+  else if (jenis === 'bulan')       { dari = new Date(hariIni.getFullYear(), hariIni.getMonth(), 1); }
+  else if (jenis === 'bulan_lalu')  {
+    dari = new Date(hariIni.getFullYear(), hariIni.getMonth() - 1, 1);
+    sampai = new Date(hariIni.getFullYear(), hariIni.getMonth(), 0);   // hari 0 = akhir bulan lalu
+  }
+  $('#lapDari').value = f(dari);
+  $('#lapSampai').value = f(sampai);
+  return tampilkanLaporan();
+}
+
+/** Lencana selisih terhadap periode pembanding. Aturannya sama dengan dashboard. */
+function selisihLaporan(kini, lalu) {
+  const a = Number(kini) || 0, b = Number(lalu) || 0;
+  if (b === 0) return a > 0 ? '<span class="delta baru">baru</span>' : '';
+  const persen = (a - b) / Math.abs(b) * 100;
+  if (Math.abs(persen) < 0.5) return '<span class="delta datar">tetap</span>';
+  const naik = persen > 0;
+  return `<span class="delta ${naik ? 'naik' : 'turun'}">${naik ? '▲' : '▼'} ${
+    Math.abs(persen).toFixed(Math.abs(persen) >= 10 ? 0 : 1)}%</span>`;
+}
+
 async function tampilkanLaporan() {
   const w = $('#hasilLaporan');
   w.innerHTML = '<div class="kartu">Memuat…</div>';
@@ -1950,26 +1993,120 @@ async function tampilkanLaporan() {
     const par = { dari: $('#lapDari').value, sampai: $('#lapSampai').value };
     const d = await API.laporanPenjualan(par);
     const r = d.ringkas;
+    const l = d.lalu || {};
+    const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
+    const kotak = (label, nilai, ekor) => `<div class="kartu statistik">
+      <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div>
+      ${ekor ? `<div class="mini-ekor">${ekor}</div>` : ''}</div>`;
+    const tabel = (judul, kolom, baris, kosong) => `<div class="kartu"><h3>${esc(judul)}</h3>
+      ${baris.length ? `<div class="gulir-x"><table>
+        <tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr>
+        ${baris.map(b => `<tr>${kolom.map(k =>
+          `<td class="${k.angka ? 'angka' : ''}">${k.render(b)}</td>`).join('')}</tr>`).join('')}
+      </table></div>` : `<p class="petunjuk">${esc(kosong)}</p>`}</div>`;
+
     w.innerHTML = `
-      <div class="kartu"><div class="bar-alat"><strong>Unduh laporan ini</strong>
+      <div class="kartu tanpa-cetak"><div class="bar-alat"><strong>Unduh laporan ini</strong>
         <div style="flex:1"></div>
         ${Admin.tombolEkspor('penjualan', par)}
       </div></div>
-      <div class="petak">
-        <div class="kartu statistik"><div class="label">Jumlah nota</div><div class="nilai">${r.jumlah_nota}</div></div>
-        <div class="kartu statistik"><div class="label">Omzet</div><div class="nilai">${rp(r.total)}</div></div>
-        ${r.laba_kotor !== undefined ? `<div class="kartu statistik"><div class="label">Laba kotor</div><div class="nilai">${rp(r.laba_kotor)}</div></div>` : ''}
-        <div class="kartu statistik"><div class="label">Diskon</div><div class="nilai">${rp(r.diskon)}</div></div>
+
+      <div class="kartu">
+        <h3>${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}</h3>
+        <p class="petunjuk" style="margin-top:-4px">Dibanding ${
+          esc(tglTampil(d.rentang_lalu.dari))} – ${esc(tglTampil(d.rentang_lalu.sampai))}</p>
       </div>
-      <div class="kartu"><h3>Per metode bayar</h3>
-        <div class="gulir-x"><table><tr><th>Metode</th><th class="angka">Jumlah</th><th class="angka">Biaya MDR</th></tr>
-        ${d.per_metode.map(m => `<tr><td>${esc(m.metode.toUpperCase())}</td><td class="angka">${rp(m.jumlah)}</td><td class="angka">${rp(m.mdr)}</td></tr>`).join('')}</table></div></div>
-      <div class="kartu"><h3>Per cabang</h3>
-        <div class="gulir-x"><table><tr><th>Cabang</th><th class="angka">Nota</th><th class="angka">Total</th>${d.per_cabang[0]?.laba_kotor !== undefined ? '<th class="angka">Laba kotor</th>' : ''}</tr>
-        ${d.per_cabang.map(c => `<tr><td>${esc(c.cabang)}</td><td class="angka">${c.nota}</td><td class="angka">${rp(c.total)}</td>${c.laba_kotor !== undefined ? `<td class="angka">${rp(c.laba_kotor)}</td>` : ''}</tr>`).join('')}</table></div></div>
-      <div class="kartu"><h3>Produk terlaris</h3>
-        <div class="gulir-x"><table><tr><th>SKU</th><th>Nama</th><th class="angka">Qty</th><th class="angka">Omzet</th>${d.produk_teratas[0]?.margin_persen !== undefined ? '<th class="angka">Margin</th>' : ''}</tr>
-        ${d.produk_teratas.slice(0, 25).map(p => `<tr><td>${esc(p.sku)}</td><td>${esc(p.nama)}</td><td class="angka">${p.qty}</td><td class="angka">${rp(p.omzet)}</td>${p.margin_persen !== undefined ? `<td class="angka">${p.margin_persen}%</td>` : ''}</tr>`).join('')}</table></div></div>`;
+
+      <div class="petak">
+        ${kotak('Jumlah nota', r.jumlah_nota, selisihLaporan(r.jumlah_nota, l.jumlah_nota))}
+        ${kotak('Omzet kotor', rp(r.total), selisihLaporan(r.total, l.total))}
+        ${kotak('Retur', '−' + rp(r.retur_nilai),
+                r.jumlah_retur ? r.jumlah_retur + ' dokumen' : 'tidak ada')}
+        ${kotak('Penjualan bersih', rp(r.penjualan_bersih))}
+        ${r.laba_kotor !== undefined
+          ? kotak('Laba kotor', rp(r.laba_kotor), selisihLaporan(r.laba_kotor, l.laba_kotor)) : ''}
+        ${kotak('Diskon', rp(r.diskon))}
+        ${kotak('Nota batal', r.jumlah_batal, r.jumlah_batal ? rp(r.nilai_batal) : '')}
+        ${kotak('Piutang lahir', rp(pi.total),
+                pi.sisa ? `<span class="delta turun">${rp(pi.sisa)} belum lunas</span>` : 'lunas semua')}
+      </div>
+
+      <div class="kartu"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
+
+      ${tabel('Per hari', [
+        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+        { judul: 'Nota', angka: true, render: x => x.nota },
+        { judul: 'Omzet', angka: true, render: x => rp(x.total) }
+      ], d.per_hari || [], 'Tidak ada penjualan di rentang ini.')}
+
+      ${tabel('Per kasir', [
+        { judul: 'Kasir', render: x => esc(x.id_user) },
+        { judul: 'Nota', angka: true, render: x => x.nota },
+        { judul: 'Omzet', angka: true, render: x => rp(x.total) }
+      ], d.per_kasir || [], 'Tidak ada penjualan di rentang ini.')}
+
+      ${tabel('Per metode bayar', [
+        { judul: 'Metode', render: x => esc(String(x.metode).toUpperCase()) },
+        { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
+        { judul: 'Biaya MDR', angka: true, render: x => rp(x.mdr) },
+        { judul: 'Netto', angka: true, render: x => rp(x.jumlah - x.mdr) }
+      ], d.per_metode || [], 'Belum ada pembayaran.')}
+
+      ${tabel('Per cabang', [
+        { judul: 'Cabang', render: x => esc(x.cabang) },
+        { judul: 'Nota', angka: true, render: x => x.nota },
+        { judul: 'Omzet', angka: true, render: x => rp(x.total) },
+        ...(d.per_cabang[0]?.laba_kotor !== undefined
+          ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor) }] : [])
+      ], d.per_cabang || [], 'Tidak ada data.')}
+
+      ${tabel('Produk terlaris', [
+        { judul: 'SKU', render: x => esc(x.sku) },
+        { judul: 'Nama', render: x => esc(x.nama) },
+        { judul: 'Qty', angka: true, render: x => x.qty },
+        { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+        ...(d.produk_teratas[0]?.margin_persen !== undefined
+          ? [{ judul: 'Margin', angka: true, render: x => x.margin_persen + '%' }] : [])
+      ], (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
+
+      ${tabel('Retur', [
+        { judul: 'Dokumen', render: x => esc(x.no_dokumen) },
+        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+        { judul: 'Nota asal', render: x => esc(x.no_nota_asal) },
+        { judul: 'Jenis', render: x => esc(x.jenis) },
+        { judul: 'Nilai', angka: true, render: x => rp(x.nilai_retur) },
+        { judul: 'Alasan', render: x => esc(x.alasan) }
+      ], d.retur || [], 'Tidak ada retur di rentang ini.')}
+
+      ${tabel('Nota dibatalkan', [
+        { judul: 'No Nota', render: x => esc(x.no_nota) },
+        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+        { judul: 'Jam', render: x => esc(x.jam) },
+        { judul: 'Kasir', render: x => esc(x.id_user) },
+        { judul: 'Nilai', angka: true, render: x => rp(x.total) },
+        { judul: 'Alasan', render: x => esc(x.alasan_batal) }
+      ], d.batal || [], 'Tidak ada nota yang dibatalkan.')}
+
+      ${tabel('Piutang yang lahir di periode ini', [
+        { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan) },
+        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+        { judul: 'Jatuh tempo', render: x => esc(x.jatuh_tempo ? tglTampil(x.jatuh_tempo) : '—') },
+        { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
+        { judul: 'Sisa', angka: true, render: x => rp(x.sisa) },
+        { judul: 'Status', render: x => esc(x.status) }
+      ], pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.')}`;
+
+    /* Grafik digambar SESUDAH innerHTML, bukan disisipkan sebagai teks: wadahnya
+       baru ada setelah rangkanya terpasang. */
+    const hari = d.per_hari || [];
+    if (hari.length) {
+      Grafik.garis($('#wadahLapTren'), {
+        tanggal: hari.map(x => x.tanggal),
+        seri: [{ nama: 'Omzet', data: hari.map(x => x.total) }]
+      });
+    } else {
+      $('#wadahLapTren').innerHTML = '<p class="grafik-kosong">Belum ada penjualan pada rentang ini</p>';
+    }
   } catch (e) {
     w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
   }
@@ -2778,6 +2915,15 @@ function pasangEvent() {
 
   /* --- laporan --- */
   $('#btnLaporan').addEventListener('click', tampilkanLaporan);
+  $('#lapCepat').addEventListener('click', e => {
+    const j = e.target.dataset?.lapCepat;
+    if (j) rentangCepatLaporan(j);
+  });
+  /* Mencetak lewat peramban, bukan membuat PDF sendiri: yang keluar persis apa
+     yang dilihat di layar, dan aturan @media print di app.css yang memutuskan
+     bagian mana yang ikut. Membuat PDF sendiri berarti tata letak kedua yang
+     harus dijaga agar tidak berbeda dari yang pertama. */
+  $('#btnCetakLaporan').addEventListener('click', () => window.print());
   $('#btnLabaRugi').addEventListener('click', tampilkanLabaRugi);
   $('#btnNeraca').addEventListener('click', tampilkanNeraca);
   $('#btnUji').addEventListener('click', tampilkanUji);

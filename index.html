@@ -207,13 +207,28 @@
 
     <!-- ---------- LAPORAN ---------- -->
     <section class="layar" id="layarLaporan">
-      <div class="kartu">
+      <div class="kartu tanpa-cetak">
         <h3>Laporan penjualan</h3>
-        <div class="baris2" style="max-width:520px">
+        <!-- Tombol rentang cepat: yang dibuka orang hampir selalu salah satu
+             dari lima ini, dan mengetik dua tanggal untuk "kemarin" adalah
+             pekerjaan yang tidak perlu ada. Kolom tanggalnya tetap ada untuk
+             rentang yang tidak umum. -->
+        <div class="bar-alat" id="lapCepat">
+          <button class="tombol" data-lap-cepat="hari">Hari ini</button>
+          <button class="tombol" data-lap-cepat="kemarin">Kemarin</button>
+          <button class="tombol" data-lap-cepat="7">7 hari</button>
+          <button class="tombol" data-lap-cepat="30">30 hari</button>
+          <button class="tombol" data-lap-cepat="bulan">Bulan ini</button>
+          <button class="tombol" data-lap-cepat="bulan_lalu">Bulan lalu</button>
+        </div>
+        <div class="baris2" style="max-width:520px;margin-top:10px">
           <div><label>Dari</label><input type="date" id="lapDari"></div>
           <div><label>Sampai</label><input type="date" id="lapSampai"></div>
         </div>
-        <button class="tombol utama" id="btnLaporan" style="margin-top:12px">Tampilkan</button>
+        <div class="bar-alat" style="margin-top:12px">
+          <button class="tombol utama" id="btnLaporan">Tampilkan</button>
+          <button class="tombol" id="btnCetakLaporan">Cetak</button>
+        </div>
       </div>
       <div id="hasilLaporan"></div>
     </section>
