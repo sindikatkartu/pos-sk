@@ -913,11 +913,54 @@ const Admin = (() => {
         </div>`;
     }).join('') : '<div class="prd-kosong">Tidak ada produk yang cocok</div>';
     wadah.classList.remove('sembunyi');
+    tempatkanHasil(kotak);
+  }
+
+  /**
+   * Letakkan panel hasil tepat di bawah kotak pencariannya.
+   *
+   * Dihitung tangan karena panelnya `position: fixed` — dan itu disengaja:
+   * elemen `absolute` TETAP dihitung sebagai isi yang bisa digulir oleh modal
+   * yang membungkusnya, jadi membuka daftar produk menumbuhkan bilah gulir
+   * naik-turun di layar Pembelian padahal tidak ada isi yang bertambah.
+   * Dilaporkan dari lapangan 29 Agu 2026.
+   *
+   * Tingginya dibatasi ruang yang benar-benar tersisa, dan panelnya membalik ke
+   * ATAS kotak kalau ruang di bawah lebih sempit — daftar yang menjulur keluar
+   * layar sama saja dengan daftar yang isinya tidak bisa dibaca.
+   */
+  function tempatkanHasil(kotak) {
+    const wadah = kotak.parentElement.querySelector('.hasil-prd');
+    if (!wadah || wadah.classList.contains('sembunyi')) return;
+    const r = kotak.getBoundingClientRect();
+    const ruangBawah = window.innerHeight - r.bottom - 8;
+    const ruangAtas = r.top - 8;
+    const keAtas = ruangBawah < 150 && ruangAtas > ruangBawah;
+    const ruang = Math.max(120, keAtas ? ruangAtas : ruangBawah);
+    wadah.style.left = r.left + 'px';
+    wadah.style.width = r.width + 'px';
+    wadah.style.maxHeight = Math.min(290, ruang) + 'px';
+    if (keAtas) {
+      wadah.style.top = 'auto';
+      wadah.style.bottom = (window.innerHeight - r.top + 3) + 'px';
+    } else {
+      wadah.style.top = (r.bottom + 3) + 'px';
+      wadah.style.bottom = 'auto';
+    }
   }
 
   const tutupHasilProduk = (kecuali) => $$('.hasil-prd').forEach(w => {
     if (w !== kecuali) w.classList.add('sembunyi');
   });
+
+  /* Panel yang melayang tidak ikut bergerak sendiri saat modalnya digulir —
+     itu ongkos dari `fixed`. Letaknya dihitung ulang, bukan panelnya ditutup:
+     menutup daftar hanya karena layar bergeser sedikit membuat orang harus
+     mengetik ulang kuerinya. */
+  const ikutiGulir = () => {
+    const w = $('.hasil-prd:not(.sembunyi)');
+    if (w) tempatkanHasil(w.parentElement.querySelector('.cari-prd'));
+  };
 
   /**
    * Isi kolom lain begitu produknya dipilih.
@@ -3685,6 +3728,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (e.target.classList.contains('cari-prd')) gambarHasilProduk(e.target);
       else tutupHasilProduk();
     });
+
+    // Fase CAPTURE: gulir di dalam modal tidak menggelembung ke dokumen.
+    document.addEventListener('scroll', ikutiGulir, true);
+    window.addEventListener('resize', ikutiGulir);
 
     document.addEventListener('click', (e) => {
       const b = e.target.closest('.baris-prd');

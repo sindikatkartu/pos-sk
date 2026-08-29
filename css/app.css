@@ -1139,15 +1139,23 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
    ada di admin.js: <datalist> hanya bisa menampilkan value + satu label,
    sementara 98 dari 382 produk berbagi empat nama generik dan yang membedakan
    mereka (tipe HP) tidak muat di nama. */
-.pilih-produk { position: relative; min-width: 0; }
+.pilih-produk { min-width: 0; }
 .pilih-produk > input[type=text] { width: 100%; }
 
-/* Digambar DI ATAS isi modal, dengan gulirnya sendiri. Tanpa position:absolute
-   daftarnya mendorong baris di bawahnya tiap ketikan, dan seluruh formulir
-   melompat-lompat saat orang mengetik. */
+/* Digambar DI ATAS isi modal, dengan gulirnya sendiri: kalau ia ikut mengalir,
+   daftarnya mendorong baris di bawahnya tiap ketikan dan seluruh formulir
+   melompat-lompat saat orang mengetik.
+
+   `fixed`, BUKAN `absolute`, dan letaknya dihitung di admin.js.
+   Alasannya bukan selera: elemen `absolute` tetap dihitung sebagai isi yang
+   bisa digulir oleh leluhurnya yang ber-`overflow: auto`. Modal ini punya
+   `max-height: 90vh; overflow: auto`, jadi membuka daftar produk menumbuhkan
+   bilah gulir naik-turun di layar Pembelian — padahal tidak ada satu pun isi
+   yang bertambah. Elemen `fixed` tidak ikut dihitung, jadi panelnya benar-benar
+   melayang di atas layar. Ongkosnya: letaknya tidak lagi otomatis mengikuti
+   kotak pencarian, jadi harus dihitung dan diperbarui saat digulir. */
 .hasil-prd {
-  position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 3px);
-  max-height: 290px; overflow-y: auto;
+  position: fixed; z-index: 140; overflow-y: auto;
   /* `--panel` — nama tokennya, dan pernah tertulis `--kartu` yang tidak ada.
      Nilai yang tidak dikenal membatalkan propertinya tanpa bersuara: latarnya
      jadi tembus pandang dan daftar produk tercetak menumpuk di atas tulisan di
