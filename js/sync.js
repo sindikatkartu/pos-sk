@@ -27,6 +27,23 @@ const Sync = (() => {
     kirim();   // coba langsung; kalau offline akan gagal diam-diam dan dicoba lagi nanti
   }
 
+  /**
+   * Antrikan JEJAK cetak ulang struk di luar shift berjalan.
+   *
+   * Lewat outbox, bukan dipanggil langsung ke server, karena jejak yang menguap
+   * saat internet mati bukan jejak — dan cetak ulang justru paling mungkin
+   * terjadi saat kasir sedang sibuk melayani orang di depan meja, bukan saat
+   * jaringan sedang bagus.
+   */
+  async function antrikanCetakUlang(jejak) {
+    await DB.put('outbox', {
+      uuid: 'CU-' + (jejak.uuid || '') + '-' + Date.now(),
+      jenis: 'cetak_ulang', status: 'PENDING',
+      dibuat: new Date().toISOString(), percobaan: 0, dokumen: jejak
+    });
+    kirim();
+  }
+
   /** Kirim isi outbox secara berkelompok. */
   async function kirim() {
     if (status.mengirim || !API.online || !API.getToken()) return;
@@ -38,6 +55,21 @@ const Sync = (() => {
     try {
       for (let i = 0; i < antri.length; i += CONFIG.BATCH_SIZE) {
         const paket = antri.slice(i, i + CONFIG.BATCH_SIZE);
+        /* Jejak cetak ulang dikirim satu per satu dan TIDAK menghalangi apa pun:
+           kegagalannya hanya membuatnya dicoba lagi nanti. Ditaruh sebelum
+           penjualan supaya `continue` di bawah — yang melompati paket tanpa
+           nota — tidak ikut melompati jejaknya. */
+        for (const o of paket.filter(o => o.jenis === 'cetak_ulang')) {
+          try {
+            await API.catatCetakUlang(o.dokumen);
+            o.status = 'SYNCED'; o.waktu_sinkron = new Date().toISOString();
+          } catch (e) {
+            o.percobaan = (o.percobaan || 0) + 1;
+            if (o.percobaan >= 5) o.status = 'DITOLAK';
+          }
+          await DB.put('outbox', o);
+        }
+
         const penjualan = paket.filter(o => o.jenis === 'penjualan');
         if (!penjualan.length) continue;
 
@@ -209,7 +241,7 @@ const Sync = (() => {
     return (Date.now() - new Date(t).getTime()) / 3600000;
   }
 
-  return { mulai, berhenti, kirim, antrikanPenjualan, tarikMaster, tarikStok,
+  return { mulai, berhenti, kirim, antrikanPenjualan, antrikanCetakUlang, tarikMaster, tarikStok,
            tarikStokSemuaCabang, stokCabangLain, umurDataJam,
            get status() { return { ...status }; } };
 })();

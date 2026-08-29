@@ -117,6 +117,9 @@ const API = (() => {
     bukaShift:       (d) => panggil('buka_shift', d),
     tutupShift:      (d) => panggil('tutup_shift', d),
     shiftAktif:      ()  => panggil('shift_aktif'),
+    daftarShift:     (d) => panggil('daftar_shift', d),
+    laporanShift:    (d) => panggil('laporan_shift', d, { timeout: 90000 }),
+    catatCetakUlang: (d) => panggil('catat_cetak_ulang', d),
 
     kirimPenjualan:  (d) => ulang(() => panggil('kirim_penjualan', d, { timeout: 60000 })),
     voidPenjualan:   (d) => panggil('void_penjualan', d),

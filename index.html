@@ -159,9 +159,31 @@
       </aside>
     </section>
 
-    <!-- ---------- RIWAYAT ---------- -->
+    <!-- ---------- RIWAYAT ----------
+         Dikunci ke SHIFT YANG SEDANG BERJALAN sejak v1.48, atas permintaan admin
+         toko: kasir berikutnya tidak boleh menelusuri nota kasir sebelumnya.
+
+         Kotak cari di bawahnya adalah jalan keluar yang disepakati: nota lama
+         tetap bisa dicetak ulang kalau pelanggan membawa NOMOR notanya, tapi
+         daftarnya tidak bisa ditelusuri. Membedakan "menemukan" dari
+         "menelusuri" — dan setiap temuan di luar shift berjalan tercatat di
+         audit. -->
     <section class="layar" id="layarRiwayat">
-      <div class="kartu"><h3>Nota hari ini</h3><div id="isiRiwayat"></div></div>
+      <div class="kartu">
+        <h3>Nota shift ini</h3>
+        <div id="isiRiwayat"></div>
+      </div>
+      <div class="kartu">
+        <h3>Cari nota lama</h3>
+        <p class="petunjuk">Untuk melayani pelanggan yang membawa nomor notanya. Ketik
+          <strong>nomor lengkap</strong> — nomor separuh tidak menampilkan apa pun, dan
+          setiap cetak ulang nota di luar shift ini tercatat.</p>
+        <div class="bar-alat">
+          <input type="text" id="cariNotaRiwayat" placeholder="mis. SK01-20260829-0007" style="max-width:320px">
+          <button class="tombol" id="btnCariNotaRiwayat">Cari</button>
+        </div>
+        <div id="hasilNotaLama"></div>
+      </div>
     </section>
 
     <!-- ---------- BACK OFFICE (diisi admin.js) ---------- -->
@@ -228,6 +250,21 @@
           </div>
           <button class="tombol utama" id="btnBukaShift">Buka shift</button>
           <button class="tombol bahaya" id="btnTutupShift" style="margin-top:8px">Tutup shift</button>
+        </div>
+
+        <!-- Riwayat shift + laporannya. Datanya sudah tersimpan sejak lama di
+             sheet `shift`, tapi sampai v1.48 hanya bisa dilihat SEKALI di kartu
+             ringkasan saat tutup shift — sesudah itu tidak ada pintunya sama
+             sekali. Kasir hanya melihat shiftnya sendiri; penyaringnya di
+             server, bukan di layar ini. -->
+        <div class="kartu" id="kartuRiwayatShift">
+          <h3>Laporan shift</h3>
+          <div class="bar-alat">
+            <input type="date" id="shiftDari" style="max-width:170px">
+            <input type="date" id="shiftSampai" style="max-width:170px">
+            <button class="tombol" id="btnMuatShift">Tampilkan</button>
+          </div>
+          <div id="isiRiwayatShift"></div>
         </div>
       </div>
     </section>
@@ -691,6 +728,21 @@
     <div class="aksi-modal">
       <button class="tombol bahaya" id="btnHapusItem">Hapus</button>
       <button class="tombol utama" id="btnSimpanItem">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL LAPORAN SHIFT ====================
+     Dibuka dari layar Shift. Bisa dibuka untuk shift yang MASIH BERJALAN —
+     angkanya dihitung dengan rumus yang sama persis dengan yang nanti tertulis
+     saat shift ditutup (`_hitungKasShift` di 07_Sales.gs), jadi tidak ada
+     kejutan di detik terakhir serah terima laci. -->
+<div class="tirai" id="tiraiLapShift">
+  <div class="modal lebar">
+    <h3 id="lapShiftJudul">Laporan shift</h3>
+    <div id="lapShiftIsi"></div>
+    <div class="aksi-modal">
+      <button class="tombol" data-tutup-lapshift="1">Tutup</button>
     </div>
   </div>
 </div>

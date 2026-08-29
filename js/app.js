@@ -1608,6 +1608,110 @@ function menujuKartu(idLayar, idKartu, selektorFokus) {
 
 function menujuBukaShift() { menujuKartu('shift', 'kartuShift', '#inpKasAwal'); }
 
+/* ==================== LAPORAN SHIFT ====================
+ *
+ * Diminta admin toko 29 Agu 2026. Angkanya sudah dihitung sejak dulu saat tutup
+ * shift; yang tidak pernah ada adalah pintunya. Layar ini pintunya.
+ */
+
+/** Isi kolom tanggal dengan hari ini, sekali, saat layar Shift pertama dibuka. */
+function siapkanRentangShift() {
+  const d = $('#shiftDari'), sp = $('#shiftSampai');
+  if (!d || !sp) return;
+  if (!d.value) d.value = tanggalLokal();
+  if (!sp.value) sp.value = tanggalLokal();
+}
+
+async function muatDaftarShift() {
+  const wadah = $('#isiRiwayatShift');
+  if (!wadah) return;
+  siapkanRentangShift();
+  wadah.innerHTML = '<p class="petunjuk">Memuat…</p>';
+  try {
+    const d = await API.daftarShift({ dari: $('#shiftDari').value, sampai: $('#shiftSampai').value });
+    const rows = d.shift || [];
+    if (!rows.length) {
+      wadah.innerHTML = '<p style="color:var(--teks-redup)">Tidak ada shift pada rentang ini.</p>';
+      return;
+    }
+    wadah.innerHTML = `<div class="gulir-x"><table>
+      <tr><th>Shift</th><th>Kasir</th><th>Buka</th><th>Tutup</th>
+          <th class="angka">Nota</th><th class="angka">Penjualan</th><th class="angka">Selisih kas</th><th></th></tr>
+      ${rows.map(r => `<tr>
+        <td>${esc(r.id_shift)}</td>
+        <td>${esc(r.id_user)}</td>
+        <td>${esc(waktuTampil(r.buka))}</td>
+        <td>${r.tutup ? esc(waktuTampil(r.tutup)) : '<span class="lencana hijau">berjalan</span>'}</td>
+        <td class="angka">${r.tutup ? r.jumlah_nota : '—'}</td>
+        <td class="angka">${r.tutup ? rp(r.total_penjualan) : '—'}</td>
+        <td class="angka">${r.tutup
+          ? `<span class="${Math.abs(r.selisih) >= 1 ? 'bahaya' : ''}">${rp(r.selisih)}</span>` : '—'}</td>
+        <td><button class="tombol" data-lapshift="${esc(r.id_shift)}"
+              style="padding:5px 10px;font-size:13px">Laporan</button></td>
+      </tr>`).join('')}</table></div>
+      ${d.boleh_semua ? '' : '<p class="petunjuk">Anda hanya melihat shift Anda sendiri.</p>'}`;
+  } catch (e) { wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+}
+
+async function bukaLaporanShift(idShift) {
+  $('#lapShiftJudul').textContent = 'Laporan shift ' + idShift;
+  $('#lapShiftIsi').innerHTML = '<p class="petunjuk">Memuat…</p>';
+  $('#tiraiLapShift').classList.add('tampil');
+  try {
+    const d = await API.laporanShift({ id_shift: idShift });
+    const k = d.kas, p = d.penjualan;
+    const baris = (label, nilai, tebal) => `<div class="total-baris${tebal ? ' besar' : ''}">
+      <span>${esc(label)}</span><span>${nilai}</span></div>`;
+    /* Angka yang belum ada ditulis "—", bukan Rp 0. Nol itu angka, dan angka
+       yang salah lebih buruk daripada tanda hubung: "selisih kas Rp 0" pada
+       shift yang belum ditutup terbaca sebagai "sudah cocok". */
+    const rpAtau = (v) => (v === null || v === undefined) ? '—' : rp(v);
+
+    $('#lapShiftIsi').innerHTML = `
+      ${d.berjalan ? '<div class="pesan info">Shift ini masih berjalan — angkanya berjalan juga, ' +
+        'dan dihitung dengan rumus yang sama persis dengan saat nanti ditutup.</div>' : ''}
+      <p class="petunjuk">Kasir ${esc(d.shift.id_user)} · perangkat ${esc(d.shift.id_perangkat || '—')}<br>
+        Buka ${esc(waktuTampil(d.shift.buka))}${d.shift.tutup ? ' · tutup ' + esc(waktuTampil(d.shift.tutup)) : ''}</p>
+
+      <div class="kartu" style="background:var(--bg)">
+        ${baris('Kas awal laci', rp(k.awal))}
+        ${baris('Penerimaan tunai', rp(k.tunai_masuk))}
+        ${baris('Kas keluar (di luar penjualan)', '−' + rp(k.kas_keluar))}
+        ${baris('Kas sistem', rp(k.sistem), true)}
+        ${baris('Kas fisik dihitung', rpAtau(k.fisik))}
+        ${baris('Selisih', rpAtau(k.selisih), true)}
+      </div>
+
+      <h4 style="margin:16px 0 6px">Per metode bayar</h4>
+      ${d.per_metode.length ? `<div class="gulir-x"><table>
+        <tr><th>Metode</th><th class="angka">Diterima</th><th class="angka">MDR</th><th class="angka">Netto</th></tr>
+        ${d.per_metode.map(m => `<tr><td>${esc(String(m.metode).toUpperCase())}</td>
+          <td class="angka">${rp(m.jumlah)}</td><td class="angka">${rp(m.mdr)}</td>
+          <td class="angka">${rp(m.netto)}</td></tr>`).join('')}</table></div>`
+        : '<p class="petunjuk">Belum ada pembayaran.</p>'}
+
+      <h4 style="margin:16px 0 6px">Nota
+        <span class="petunjuk" style="font-weight:400">· ${p.jumlah_nota} aktif${
+          p.jumlah_void ? ', ' + p.jumlah_void + ' dibatalkan' : ''} · ${rp(p.total)}</span></h4>
+      ${d.nota.length ? `<div class="gulir-x"><table>
+        <tr><th>No Nota</th><th>Jam</th><th>Metode</th><th class="angka">Total</th><th>Status</th></tr>
+        ${d.nota.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
+          <td>${esc(n.metode)}</td><td class="angka">${rp(n.total)}</td>
+          <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
+            : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_void)}</span>`}</td>
+        </tr>`).join('')}</table></div>` : '<p class="petunjuk">Belum ada nota.</p>'}
+
+      <h4 style="margin:16px 0 6px">Poin &amp; omzet petugas</h4>
+      ${d.petugas.length ? `<div class="gulir-x"><table>
+        <tr><th>Petugas</th><th class="angka">Poin</th><th class="angka">Omzet</th></tr>
+        ${d.petugas.map(x => `<tr><td>${esc(x.nama)}</td>
+          <td class="angka">${x.poin}</td><td class="angka">${rp(x.omzet)}</td></tr>`).join('')}</table></div>`
+        : '<p class="petunjuk">Belum ada klaim petugas di shift ini.</p>'}`;
+  } catch (e) {
+    $('#lapShiftIsi').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
+  }
+}
+
 async function periksaShift() {
   try {
     const d = await API.shiftAktif();
@@ -1622,6 +1726,7 @@ async function periksaShift() {
      ditutup" — angka yang justru dipakai saat serah terima laci. */
   if (APP_STATE.idShift) APP_STATE.hasilTutupShift = null;
   gambarKeadaanShift();
+  muatDaftarShift();
 }
 
 /**
@@ -1937,17 +2042,99 @@ async function tampilkanUji() {
   } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
+/**
+ * Riwayat nota — HANYA shift yang sedang berjalan.
+ *
+ * Diminta admin toko 29 Agu 2026: kasir berikutnya tidak boleh menelusuri nota
+ * kasir sebelumnya di perangkat yang sama. Sebelum ini layar ini menampilkan
+ * SELURUH nota hari itu di perangkat tersebut — kasir sore membuka Riwayat dan
+ * melihat, serta bisa mencetak ulang, seluruh penjualan pagi.
+ *
+ * Yang menyaring adalah `id_shift` pada notanya, bukan jam: shift bisa melewati
+ * tengah malam, dan menyaring dengan tanggal akan memotong shift malam persis
+ * di tengahnya.
+ *
+ * Perlu dikatakan jujur: ini MENYEMBUNYIKAN, bukan mengamankan. Notanya tetap
+ * ada di IndexedDB perangkat ini dan di server, dan siapa pun yang tahu caranya
+ * tetap bisa membacanya lewat konsol peramban. Yang benar-benar mengikat adalah
+ * izin void dan log audit; layar ini hanya menutup jalur yang MUDAH.
+ */
 async function gambarRiwayat() {
   const semua = await DB.all('penjualan');
-  const hariIni = tanggalLokal();
-  const rows = semua.filter(n => n.tanggal === hariIni).sort((a, b) => b.jam.localeCompare(a.jam));
+  const shift = APP_STATE.idShift;
+  /* Tanpa shift aktif, tidak ada yang ditampilkan sama sekali — bukan jatuh
+     kembali ke "hari ini". Jatuh ke hari ini justru mengembalikan persis
+     keadaan yang sedang diperbaiki, dan tepat pada keadaan yang paling sering
+     terjadi: kasir baru datang, shiftnya belum dibuka. */
+  const rows = (shift ? semua.filter(n => String(n.id_shift) === String(shift)) : [])
+    .sort((a, b) => b.jam.localeCompare(a.jam));
+  if (!shift) {
+    $('#isiRiwayat').innerHTML = '<p style="color:var(--teks-redup)">Shift belum dibuka. ' +
+      'Riwayat menampilkan nota shift yang sedang berjalan.</p>';
+    return;
+  }
   $('#isiRiwayat').innerHTML = rows.length ? `<div class="gulir-x"><table>
     <tr><th>No Nota</th><th>Jam</th><th class="angka">Total</th><th>Sinkron</th><th></th></tr>
     ${rows.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
       <td class="angka">${rp(n.total)}</td>
       <td><span class="lencana ${n.status_sync === 'SYNCED' ? 'hijau' : 'kuning'}">${n.status_sync === 'SYNCED' ? 'terkirim' : 'menunggu'}</span></td>
       <td><button class="tombol" data-cetak="${esc(n.uuid)}" style="padding:5px 10px;font-size:13px">Cetak ulang</button></td>
-    </tr>`).join('')}</table></div>` : '<p style="color:var(--teks-redup)">Belum ada nota hari ini.</p>';
+    </tr>`).join('')}</table></div>` : '<p style="color:var(--teks-redup)">Belum ada nota di shift ini.</p>';
+}
+
+/**
+ * Cari SATU nota lama menurut nomornya — pencocokan PERSIS.
+ *
+ * Persis, bukan "mengandung", dan itu inti kesepakatannya: pencocokan sebagian
+ * mengembalikan daftar, dan daftar itulah yang sedang ditutup. Dengan pencocokan
+ * persis, yang bisa menemukan nota lama hanyalah orang yang sudah memegang
+ * nomornya — yaitu pelanggan yang membawa struknya.
+ *
+ * Dicari di perangkat ini saja (IndexedDB). Nota dari perangkat lain memang
+ * tidak akan ketemu; itu batas yang jujur, dan layarnya mengatakannya.
+ */
+async function cariNotaLama() {
+  const kueri = ($('#cariNotaRiwayat').value || '').trim().toUpperCase();
+  const wadah = $('#hasilNotaLama');
+  if (!kueri) { wadah.innerHTML = ''; return; }
+
+  const semua = await DB.all('penjualan');
+  const n = semua.find(x => String(x.no_nota || '').toUpperCase() === kueri);
+  if (!n) {
+    wadah.innerHTML = `<div class="pesan info">Tidak ada nota bernomor <strong>${esc(kueri)}</strong>
+      di perangkat ini. Nomornya harus lengkap, dan notanya harus dibuat di perangkat ini.</div>`;
+    return;
+  }
+  const lainShift = String(n.id_shift || '') !== String(APP_STATE.idShift || '');
+  wadah.innerHTML = `<div class="gulir-x"><table>
+    <tr><th>No Nota</th><th>Tanggal</th><th>Jam</th><th class="angka">Total</th><th></th></tr>
+    <tr><td>${esc(n.no_nota)}</td><td>${esc(tglTampil(n.tanggal))}</td><td>${esc(n.jam)}</td>
+      <td class="angka">${rp(n.total)}</td>
+      <td><button class="tombol" data-cetak="${esc(n.uuid)}" data-luar-shift="${lainShift ? '1' : ''}"
+        style="padding:5px 10px;font-size:13px">Cetak ulang</button></td></tr></table></div>
+    ${lainShift ? '<p class="petunjuk">Nota ini dari shift lain — cetak ulangnya akan tercatat.</p>' : ''}`;
+}
+
+/**
+ * Cetak ulang satu nota, dan CATAT bila notanya di luar shift berjalan.
+ *
+ * Jejaknya lewat outbox, bukan panggilan langsung: cetak ulang paling mungkin
+ * terjadi saat kasir sedang melayani orang di depan meja, bukan saat jaringan
+ * sedang bagus. Jejak yang menguap ketika internet mati bukan jejak.
+ */
+async function cetakUlangNota(uuid, luarShift) {
+  const n = await DB.get('penjualan', uuid);
+  if (!n) return;
+  if (luarShift) {
+    try {
+      await Sync.antrikanCetakUlang({
+        uuid: n.uuid, no_nota: n.no_nota,
+        id_shift_nota: n.id_shift || '', id_shift_aktif: APP_STATE.idShift || '',
+        waktu: new Date().toISOString()
+      });
+    } catch (e) { console.warn('Jejak cetak ulang gagal diantrikan:', e.message); }
+  }
+  await Struk.cetak({ ...n, _offline: n.status_sync !== 'SYNCED' });
 }
 
 async function perbaruiInfoData() {
@@ -2609,8 +2796,23 @@ function pasangEvent() {
 
   $('#isiRiwayat').addEventListener('click', async e => {
     const uuid = e.target.dataset?.cetak; if (!uuid) return;
-    const n = await DB.get('penjualan', uuid);
-    if (n) Struk.cetak({ ...n, _offline: n.status_sync !== 'SYNCED' });
+    await cetakUlangNota(uuid, false);
+  });
+  $('#hasilNotaLama').addEventListener('click', async e => {
+    const uuid = e.target.dataset?.cetak; if (!uuid) return;
+    await cetakUlangNota(uuid, e.target.dataset.luarShift === '1');
+  });
+  $('#btnMuatShift').addEventListener('click', () => muatDaftarShift());
+  $('#isiRiwayatShift').addEventListener('click', e => {
+    const id = e.target.dataset?.lapshift;
+    if (id) bukaLaporanShift(id);
+  });
+  document.addEventListener('click', e => {
+    if (e.target.dataset?.tutupLapshift) $('#tiraiLapShift').classList.remove('tampil');
+  });
+  $('#btnCariNotaRiwayat').addEventListener('click', () => cariNotaLama());
+  $('#cariNotaRiwayat').addEventListener('keydown', e => {
+    if (e.key === 'Enter') cariNotaLama();
   });
 
   /* --- status sinkronisasi --- */
