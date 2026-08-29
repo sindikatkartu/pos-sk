@@ -766,16 +766,26 @@ function gambarBarisTim(x) {
 }
 
 /**
- * Tombol pemasang — muncul di baris yang PUNYA POIN, bukan yang dicentang di master.
+ * Tombol pemasang — muncul di baris yang memang DIPASANG.
  *
- * Inilah akar friksi yang lama: tombolnya dulu hanya ada kalau produknya
- * bertanda `butuh_tim`, jadi baris produk berpoin biasa tidak punya tombol sama
- * sekali. Satu-satunya cara membagi berdua adalah mencentang di master — yang
- * lalu memaksanya SELALU berdua. Dua kenyataan, satu jawaban, salah separuh waktu.
+ * Riwayat aturannya, dan kenapa berubah dua kali:
  *
- * Sekarang: ada poin berarti pekerjaannya bisa dibagi, jadi tombolnya tersedia.
- * Tidak pernah wajib, tidak pernah menahan pembayaran. Labelnya menyebut
- * "Pemasang" selagi kosong supaya kasir tahu gunanya tanpa harus mencoba.
+ *   · sampai 24 Agu 2026 — ditentukan `butuh_tim` di master. Salah, karena
+ *     `butuh_tim` berarti "wajib berdua" dan tempered glass sering dipasang
+ *     sendiri: mencentangnya memaksa dua nama walau dikerjakan satu orang,
+ *     tidak mencentangnya membuat pemasangnya tidak pernah bisa dicatat.
+ *   · 24 Agu 2026 — ditentukan ada-tidaknya POIN. Benar untuk masalah saat itu,
+ *     tapi kelewat lebar: casing berpoin ikut mendapat tombol "+ Pemasang",
+ *     padahal casing tidak pernah dipasang.
+ *   · 29 Agu 2026 — ditentukan `butuh_pasang`, penanda yang artinya memang
+ *     persis itu. Dilaporkan pemilik: "barang yang tidak memerlukan penanganan
+ *     pemasangan tetap ada pilihan pemasangan, kurang tepat." Tombol yang
+ *     muncul di tempat yang tidak ada gunanya membuat kasir menebak apa
+ *     maksudnya — dan tebakan itu berakhir jadi data karangan.
+ *
+ * Membagi baris berpoin BIASA tetap mungkin; pintunya pindah ke tombol ⋯, bukan
+ * hilang. Baris yang SUDAH punya tim selalu menampilkan tombolnya apa pun
+ * penandanya — kalau tidak, tim yang terlanjur terisi tidak bisa dikoreksi lagi.
  */
 /**
  * Tombol tim SENGAJA berada paling belakang di deretnya.
@@ -790,7 +800,7 @@ function gambarBarisTim(x) {
  */
 function tombolTimBaris(x) {
   const tim = x.tim || [];
-  if (!tim.length && !(Number(x.poin_satuan) > 0)) return '';
+  if (!tim.length && !x.butuh_pasang) return '';
   return `<button data-aksi="tim" title="Petugas yang mengerjakan baris ini">${
     tim.length ? 'Tim' : '+ Pemasang'}</button>`;
 }
@@ -2304,8 +2314,20 @@ function pasangEvent() {
     $('#itmInfo').textContent =
       `Sumber harga: ${b.sumber_harga} · batas diskon peran Anda ${APP_STATE.diskonMaks}%` +
       (APP_STATE.flag.ubah_harga_saat_jual ? '' : ' · Anda tidak berhak mengubah harga');
+    /* Ditawarkan hanya kalau barisnya BERPOIN: membagi pekerjaan yang tidak
+       bernilai poin tidak mengubah apa pun, dan tombol yang tidak mengubah apa
+       pun cuma menambah pertanyaan. Baris yang butuh dipasang sudah punya
+       tombolnya sendiri di keranjang, jadi di sini ia tetap ditawarkan sebagai
+       jalan kedua — bukan disembunyikan dengan aturan tambahan yang harus
+       diingat orang. */
+    $('#btnTimItem').classList.toggle('sembunyi', !(Number(b.poin_satuan) > 0));
     $('#tiraiItem').classList.add('tampil');
   }
+  $('#btnTimItem').addEventListener('click', () => {
+    if (!itemAktif) return;
+    $('#tiraiItem').classList.remove('tampil');
+    bukaTim(itemAktif.id);
+  });
   $('#btnSimpanItem').addEventListener('click', () => {
     if (!itemAktif) return;
     const satuanBaru = $('#itmSatuan').value;

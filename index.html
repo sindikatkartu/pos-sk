@@ -682,6 +682,12 @@
       <div class="grup"><label>Diskon (Rp)</label><input type="text" inputmode="numeric" class="uang" id="itmDiskon" value="0"></div>
     </div>
     <p style="font-size:12px;color:var(--teks-redup)" id="itmInfo"></p>
+    <!-- Pintu ke pembagian petugas untuk baris yang TIDAK bertanda butuh_pasang.
+         Sejak v1.47 tombol "+ Pemasang" di keranjang hanya muncul di baris yang
+         memang dipasang; membagi baris berpoin biasa tetap mungkin, tapi lewat
+         sini — jarang dipakai, jadi tidak perlu menempati layar utama. -->
+    <button class="tombol sembunyi" id="btnTimItem" style="width:100%;margin-top:6px">
+      Bagi baris ini ke beberapa petugas</button>
     <div class="aksi-modal">
       <button class="tombol bahaya" id="btnHapusItem">Hapus</button>
       <button class="tombol utama" id="btnSimpanItem">Simpan</button>
