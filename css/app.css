@@ -1148,12 +1148,17 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
 .hasil-prd {
   position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 3px);
   max-height: 290px; overflow-y: auto;
-  background: var(--kartu); border: 1px solid var(--garis);
-  border-radius: var(--radius); box-shadow: 0 10px 26px rgba(0, 0, 0, .22);
+  /* `--panel` — nama tokennya, dan pernah tertulis `--kartu` yang tidak ada.
+     Nilai yang tidak dikenal membatalkan propertinya tanpa bersuara: latarnya
+     jadi tembus pandang dan daftar produk tercetak menumpuk di atas tulisan di
+     belakangnya. Bayangannya memakai token yang sama dengan menu lain di
+     aplikasi ini, bukan angka karangan sendiri. */
+  background: var(--panel); border: 1px solid var(--garis);
+  border-radius: var(--radius); box-shadow: var(--bayang-4);
 }
-.baris-prd { padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--garis); }
+.baris-prd { padding: 7px 10px; cursor: pointer; border-bottom: 1px solid var(--garis-halus); }
 .baris-prd:last-child { border-bottom: none; }
-.baris-prd.aktif, .baris-prd:hover { background: var(--bg); }
+.baris-prd.aktif, .baris-prd:hover { background: var(--panel-2); }
 .prd-judul { font-size: 13px; font-weight: 600; line-height: 1.25; }
 .prd-kat { font-weight: 400; font-size: 11px; color: var(--teks-redup); }
 /* Tipe HP dibatasi dua baris, bukan satu: satu tempered glass bisa menyebut
