@@ -2693,6 +2693,14 @@ function pasangEvent() {
     $('#tiraiItem').classList.remove('tampil');
     gambarKeranjang();
   });
+  /* Menutup saja — tidak menyentuh keranjang sama sekali. Isian jendela ini
+     memang diisi ulang dari barisnya setiap kali dibuka (`bukaDetailItem`),
+     jadi tidak ada yang perlu dikembalikan; yang penting justru TIDAK memanggil
+     Keranjang.ubah* apa pun. Tombol bernama "Batal" yang diam-diam menyimpan
+     lebih berbahaya daripada tidak ada tombolnya sama sekali. */
+  $('#btnBatalItem').addEventListener('click', () => {
+    $('#tiraiItem').classList.remove('tampil');
+  });
   $('#btnHapusItem').addEventListener('click', () => {
     if (itemAktif) Keranjang.hapus(itemAktif.id);
     $('#tiraiItem').classList.remove('tampil');

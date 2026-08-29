@@ -740,8 +740,17 @@
          sini — jarang dipakai, jadi tidak perlu menempati layar utama. -->
     <button class="tombol sembunyi" id="btnTimItem" style="width:100%;margin-top:6px">
       Bagi baris ini ke beberapa petugas</button>
+    <!-- Batal ada di sini sejak v1.51 karena sebelumnya TIDAK ada: satu-satunya
+         jalan keluar dari jendela ini adalah Hapus atau Simpan, dan keduanya
+         mengubah keranjang. Escape memang menutup semua tirai, tapi kasir
+         memakai tablet — di sana tidak ada Escape dan tidak ada klik latar,
+         jadi jendela ini benar-benar tanpa pintu di perangkat yang paling
+         banyak dipakai. Urutannya: yang menghancurkan paling kiri dan bertanda
+         merah, yang tidak mengubah apa pun di tengah, yang menyimpan paling
+         kanan. -->
     <div class="aksi-modal">
       <button class="tombol bahaya" id="btnHapusItem">Hapus</button>
+      <button class="tombol" id="btnBatalItem">Batal</button>
       <button class="tombol utama" id="btnSimpanItem">Simpan</button>
     </div>
   </div>

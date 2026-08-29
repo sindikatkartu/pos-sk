@@ -477,8 +477,14 @@ label {
   padding: 22px; width: 100%; max-width: 480px; max-height: 90vh; overflow: auto;
 }
 .modal h3 { margin: 0 0 16px; font-size: 18px; font-weight: 650; letter-spacing: -.25px; }
-.modal .aksi-modal { display: flex; gap: 10px; margin-top: 20px; }
-.modal .aksi-modal .tombol { flex: 1; padding: 12px 15px; }
+/* Sejak v1.51 deretan ini boleh membungkus. Modal opname punya EMPAT tombol
+   (Tutup · Batalkan opname · Simpan sementara · Selesai menghitung); dengan
+   `flex:1` tanpa batas bawah, keempatnya menyusut sampai labelnya terpotong
+   di tablet — dan tombol yang labelnya terpotong adalah tombol yang ditekan
+   orang tanpa tahu isinya. Membungkus ke baris kedua lebih baik daripada
+   empat tombol yang tidak terbaca. */
+.modal .aksi-modal { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.modal .aksi-modal .tombol { flex: 1 1 120px; padding: 12px 15px; }
 .modal.lebar { max-width: 880px; }
 
 /* ==================== LOGIN ==================== */

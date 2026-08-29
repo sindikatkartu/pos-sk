@@ -2640,7 +2640,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">Kosongkan berarti belum dihitung. Isi <strong>0</strong> bila barangnya memang habis —
         itu berbeda artinya dan akan tercatat sebagai selisih bila sistem mengira masih ada.</p>
       <div id="pesanHitung"></div>`,
-      `<button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>
+      /* "Tutup" ada di sini sejak v1.51 karena sebelumnya TIDAK ada. Ketiga
+         tombol lamanya berbuat sesuatu: "Batalkan opname" membuang SELURUH
+         dokumennya, "Simpan sementara" menyimpan tapi tidak menutup, "Selesai
+         menghitung" mengunci hitungan dan tidak bisa diurungkan. Orang yang
+         cuma ingin menutup jendela akan mencari tombol paling kiri yang
+         bukan tombol utama — dan menemukan tombol merah yang membuang
+         hitungan ratusan barang yang sedang berjalan.
+
+         Letaknya paling kiri, bukan setelah tombol merah: jalan keluar harus
+         berada di tempat mata mencarinya, dan yang menghancurkan tidak boleh. */
+      `<button class="tombol" id="btnTutupHitung">Tutup</button>
+       <button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>
        <button class="tombol" id="btnSimpanHitungan" data-uuid="${esc(d.uuid)}">Simpan sementara</button>
        <button class="tombol utama" id="btnSelesaiHitung" data-uuid="${esc(d.uuid)}">Selesai menghitung</button>`);
   }
@@ -3677,6 +3688,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               style="margin-top:8px">Lanjutkan yang itu</button>` : ''}</div>`;
           t.disabled = false;
         }
+        return;
+      }
+      /* Menutup TIDAK boleh membuang hitungan diam-diam. Jendela ini digambar
+         ulang dari data server setiap kali dibuka, jadi angka yang sudah
+         diketik tapi belum disimpan memang hilang saat ditutup — dan itu harus
+         dikatakan, bukan dibiarkan. Yang sudah tersimpan bertanda
+         `.sudah-hitung`; sisanya yang terisi berarti belum. */
+      if (t.id === 'btnTutupHitung') {
+        const belum = $$('[data-hitung]').filter(i =>
+          String(i.value).trim() !== '' && !i.classList.contains('sudah-hitung'));
+        if (belum.length && !confirm(
+              `${belum.length} hitungan belum disimpan dan akan hilang. Tutup saja?`)) return;
+        tutupModal();
         return;
       }
       if (t.id === 'btnSimpanHitungan') {
