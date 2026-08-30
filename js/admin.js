@@ -3209,10 +3209,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   function gambarHasilArsip(d) {
     const total = d.total_dipindah;
+    /* Rotasi arsip satu-satunya operasi di aplikasi ini yang MENGHAPUS data
+       produksi, dan sampai v1.58 spanduknya hijau "SELESAI" apa pun yang
+       terjadi — kegagalan hanya tercatat sebagai lencana merah kecil di kartu
+       cabang, jauh di bawah. Pemilik menutup layarnya dengan yakin semuanya
+       beres, padahal separuh sheet-nya sudah lenyap. */
+    const gagal = String(d.status) === 'GAGAL';
     $('#hasilArsip').innerHTML = `
-      <div class="pesan ${d.uji_coba ? 'info' : 'sukses'}" style="margin-top:14px">
-        ${d.uji_coba ? '<strong>UJI COBA</strong> — tidak ada satu baris pun yang dipindah atau dihapus.'
-                     : '<strong>SELESAI</strong> — data sudah dipindah ke folder ARSIP di Drive Anda.'}
+      <div class="pesan ${gagal ? 'galat' : (d.uji_coba ? 'info' : 'sukses')}" style="margin-top:14px">
+        ${gagal ? `<strong>BERHENTI DI TENGAH</strong> — rotasi tidak selesai${
+                    d.berhenti_di ? ' (berhenti di ' + esc(String(d.berhenti_di)) + ')' : ''}.
+                   Baca peringatan di bawah, betulkan sebabnya, lalu jalankan lagi:
+                   baris yang sudah pindah tidak akan tersalin dua kali.`
+                : d.uji_coba ? '<strong>UJI COBA</strong> — tidak ada satu baris pun yang dipindah atau dihapus.'
+                             : '<strong>SELESAI</strong> — data sudah dipindah ke folder ARSIP di Drive Anda.'}
         <br>Tahun ${esc(String(d.tahun))} · batas tanggal &lt; ${esc(d.batas)} ·
         <strong>${new Intl.NumberFormat(CONFIG.LOCALE).format(total)} baris</strong>
         ${d.uji_coba ? 'akan dipindah' : 'dipindah'}.
@@ -3726,7 +3736,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                                             cabang: nilai('arsipCabang') || undefined,
                                             uji_coba: !sungguhan });
           gambarHasilArsip(r);
-          if (sungguhan) toast('Rotasi arsip selesai.');
+          if (sungguhan) {
+            toast(String(r.status) === 'GAGAL'
+                    ? 'Rotasi arsip BERHENTI di tengah — baca laporannya.'
+                    : 'Rotasi arsip selesai.',
+                  String(r.status) === 'GAGAL' ? 'galat' : undefined);
+          }
         } catch (x) {
           $('#hasilArsip').innerHTML = `<div class="pesan galat" style="margin-top:14px">${esc(x.message)}
             ${Array.isArray(x.detail) ? `<ul style="margin:8px 0 0 16px">${x.detail.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
