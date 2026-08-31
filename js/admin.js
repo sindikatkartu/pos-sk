@@ -481,6 +481,44 @@ const Admin = (() => {
     } catch (e) { galat('#isiDashboard', e); }
   }
 
+  /* Muatan grafik terakhir, disimpan supaya perubahan tema bisa menggambar ulang
+     TANPA memanggil server lagi. SVG yang sudah tergambar tidak ikut berubah
+     warna sendiri seperti kotak dan teks — token CSS tidak menyentuh atribut
+     `fill` dan `stroke` yang sudah ditulis ke dalam elemennya. */
+  let grafikTerakhir = null;
+
+  /** Hanya menggambar. Tidak mengambil data, tidak menyentuh innerHTML wadahnya. */
+  function pasangGrafik(g) {
+    if (!g || !$('#gPenjualan')) return;
+    // Satu garis per cabang bila lintas cabang; kalau hanya satu cabang, satu garis omzet.
+    const seri = g.seri_cabang.length > 1
+      ? g.seri_cabang
+      : [{ nama: 'Omzet', data: g.deret_harian.map(x => x.total) }];
+    Grafik.garis($('#gPenjualan'), { tanggal: g.tanggal, seri });
+
+    Grafik.batang($('#gKategori'), {
+      data: g.kategori.map(k => ({ label: k.kategori, nilai: k.omzet })) });
+    Grafik.batang($('#gMetode'), {
+      data: g.metode_bayar.map(m => ({ label: m.metode.toUpperCase(), nilai: m.jumlah })) });
+    Grafik.batang($('#gProduk'), {
+      data: g.produk_teratas.map(p => ({ label: p.nama, nilai: p.omzet,
+                                         tambahan: p.qty + ' terjual' })) });
+    if (g.tren_bulanan) {
+      Grafik.garis($('#gBulanan'), {
+        tanggal: g.tren_bulanan.map(t => t.periode),
+        seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(t => t.laba_kotor) }]
+      });
+    }
+  }
+
+  /* Tema diubah pemilik dari perangkat lain; perangkat ini baru tahu saat
+     sinkronisasi. Kotak dan teks sudah ikut gelap lewat token CSS — grafiknya
+     belum, dan grafik terang di tengah layar gelap terbaca sebagai kerusakan.
+     Digambar ulang dari muatan yang sudah ada: tidak ada panggilan server. */
+  document.addEventListener('tema:berubah', () => {
+    if (grafikTerakhir) pasangGrafik(grafikTerakhir);
+  });
+
   async function muatGrafik(hari) {
     const w = $('#wadahGrafik');
     if (!w) return;
@@ -504,25 +542,8 @@ const Admin = (() => {
           ${g.tren_bulanan ? '<div><h4 class="judul-grafik">Laba kotor 6 bulan</h4><div id="gBulanan"></div></div>' : ''}
         </div>`;
 
-      // Satu garis per cabang bila lintas cabang; kalau hanya satu cabang, satu garis omzet.
-      const seri = g.seri_cabang.length > 1
-        ? g.seri_cabang
-        : [{ nama: 'Omzet', data: g.deret_harian.map(x => x.total) }];
-      Grafik.garis($('#gPenjualan'), { tanggal: g.tanggal, seri });
-
-      Grafik.batang($('#gKategori'), {
-        data: g.kategori.map(k => ({ label: k.kategori, nilai: k.omzet })) });
-      Grafik.batang($('#gMetode'), {
-        data: g.metode_bayar.map(m => ({ label: m.metode.toUpperCase(), nilai: m.jumlah })) });
-      Grafik.batang($('#gProduk'), {
-        data: g.produk_teratas.map(p => ({ label: p.nama, nilai: p.omzet,
-                                           tambahan: p.qty + ' terjual' })) });
-      if (g.tren_bulanan) {
-        Grafik.garis($('#gBulanan'), {
-          tanggal: g.tren_bulanan.map(t => t.periode),
-          seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(t => t.laba_kotor) }]
-        });
-      }
+      grafikTerakhir = g;
+      pasangGrafik(g);
     } catch (e) {
       w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
     }
@@ -2263,6 +2284,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     pkp: 'Pengusaha Kena Pajak (PPN dihitung per nota)',
     tarif_ppn: 'Tarif PPN (%)',
     izinkan_stok_minus: 'Boleh menjual saat stok 0 (ditandai untuk opname)',
+    tema: 'Tema tampilan (berlaku untuk SEMUA perangkat)',
     metode_hpp: 'Metode HPP', footer_struk: 'Baris penutup struk',
     lebar_struk: 'Lebar kertas struk (mm)', mdr_qris: 'Potongan QRIS (%)',
     auto_jurnal: 'Posting jurnal otomatis'
@@ -2283,6 +2305,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      ditampilkan — pemiliknya berhak tahu metode apa yang dipakai — tapi sebagai
      keterangan, bukan isian. */
   const SETTING_BACA_SAJA = ['metode_hpp'];
+
+  /* SETELAN BERPILIHAN. Kotak isian bebas menerima "Gelap", "dark", atau salah
+     ketik — dan yang terjadi kemudian bukan galat melainkan tema yang diam-diam
+     tidak berubah, tanpa satu pun petunjuk kenapa. */
+  const SETTING_PILIHAN = {
+    tema: [['terang', 'Terang'], ['gelap', 'Gelap']]
+  };
 
   async function muatSistem() {
     memuat('#isiSistem');
@@ -2308,6 +2337,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 return `<div class="grup"><label>${esc(label)}</label>
                   <p style="margin:4px 0 0"><span class="lencana hijau">${esc(r.nilai)}</span>
                   <span class="petunjuk"> — ditetapkan mesin persediaan, tidak bisa diubah</span></p></div>`;
+              }
+              if (SETTING_PILIHAN[r.kunci]) {
+                return `<div class="grup"><label>${esc(label)}</label>
+                  <select data-setting="${esc(r.kunci)}">
+                    ${SETTING_PILIHAN[r.kunci].map(([v, t]) =>
+                      `<option value="${esc(v)}" ${String(r.nilai) === v ? 'selected' : ''}>${esc(t)}</option>`
+                    ).join('')}
+                  </select></div>`;
               }
               if (SETTING_BOOL.includes(r.kunci)) {
                 return `<label class="cek kartu-cek">

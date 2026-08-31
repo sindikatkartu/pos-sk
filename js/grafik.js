@@ -27,12 +27,42 @@ const Grafik = (() => {
   // Keenamnya warna foreground Primer yang sesungguhnya (accent, severe, success,
   // done, sponsors, muted) — jadi grafik memakai bahasa warna yang sama dengan
   // sisa antarmuka, bukan palet asing yang ditempel.
-  const SERI = ['#0969da', '#bc4c00', '#1a7f37', '#8250df', '#bf3989', '#59636e'];
+  /* Warna dibaca dari token CSS, bukan disimpan di sini. Daftar warna kedua di
+     berkas ini adalah daftar yang cepat atau lambat berpisah jalan dari CSS-nya
+     — dan sejak ada mode gelap, berpisah jalan berarti grafik terang di tengah
+     layar gelap. Cadangan hex-nya dipertahankan supaya grafik tetap tergambar
+     bila berkas CSS gagal dimuat. */
+  const CADANGAN = {
+    '--seri-1': '#0969da', '--seri-2': '#bc4c00', '--seri-3': '#1a7f37',
+    '--seri-4': '#8250df', '--seri-5': '#bf3989', '--seri-6': '#59636e',
+    '--teks': '#1f2328', '--teks-redup': '#59636e',
+    '--garis': '#d1d9e0', '--kertas-grafik': '#ffffff'
+  };
+  const token = (nama) => {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(nama).trim();
+      return v || CADANGAN[nama];
+    } catch (e) { return CADANGAN[nama]; }
+  };
+
+  /* Urutan slot bukan hiasan — lihat catatan di atas. Isinya diperbarui tiap
+     kali menggambar, bukan sekali saat berkas dimuat: tema bisa berubah selagi
+     aplikasi terbuka. */
+  let SERI = [CADANGAN['--seri-1'], CADANGAN['--seri-2'], CADANGAN['--seri-3'],
+              CADANGAN['--seri-4'], CADANGAN['--seri-5'], CADANGAN['--seri-6']];
   // Isyarat kedua: pola garis. Slot 1 sengaja utuh — seri tunggal paling sering dipakai.
   const POLA = ['', '6 3', '2 3', '9 3 2 3', '1 4', '12 4'];
   // Isyarat ketiga: bentuk penanda, dipakai saat titik digambar (data <= 14 hari).
   const BENTUK = ['bulat', 'kotak', 'wajik', 'segitiga', 'silang', 'bulat-kosong'];
-  const TEKS = '#1f2328', TEKS_REDUP = '#59636e', GARIS = '#d1d9e0', KERTAS = '#ffffff';
+  let TEKS = CADANGAN['--teks'], TEKS_REDUP = CADANGAN['--teks-redup'],
+      GARIS = CADANGAN['--garis'], KERTAS = CADANGAN['--kertas-grafik'];
+
+  /** Dipanggil di awal SETIAP penggambaran, bukan sekali saat berkas dimuat. */
+  function segarkanWarna() {
+    SERI = ['--seri-1', '--seri-2', '--seri-3', '--seri-4', '--seri-5', '--seri-6'].map(token);
+    TEKS = token('--teks'); TEKS_REDUP = token('--teks-redup');
+    GARIS = token('--garis'); KERTAS = token('--kertas-grafik');
+  }
 
   /** Gambar penanda seri pada koordinat (cx,cy) sesuai bentuk slotnya. */
   function penanda(si, cx, cy, warna, r = 4) {
@@ -108,6 +138,7 @@ const Grafik = (() => {
    * @param opsi { tanggal:[], seri:[{nama,data:[]}], judul, satuan:'rupiah'|'angka' }
    */
   function garis(wadah, opsi) {
+    segarkanWarna();
     const { tanggal = [], seri = [] } = opsi;
     const fmt = opsi.satuan === 'angka' ? (n => String(Math.round(n))) : rupiah;
     if (!tanggal.length || !seri.length) {
@@ -233,6 +264,7 @@ const Grafik = (() => {
    * berapa pun lebar kartunya.
    */
   function batang(wadah, opsi) {
+    segarkanWarna();
     const data = (opsi.data || []).filter(d => d.nilai > 0);
     const fmt = opsi.satuan === 'angka' ? (n => String(Math.round(n))) : rupiah;
     if (!data.length) {
@@ -323,5 +355,8 @@ const Grafik = (() => {
     data.map(d => `<tr><td>${esc(d.label)}</td><td class="angka">${fmt(d.nilai)}</td></tr>`).join('')
     }</tbody></table>`;
 
-  return { garis, batang, SERI, ringkas };
+  /* SERI diekspor sebagai FUNGSI: nilainya berubah bersama tema, jadi acuan
+     yang diambil sekali saat berkas dimuat akan basi. Tidak ada pemakai di luar
+     berkas ini hari ini; bentuk fungsi menjaganya tetap benar bila suatu saat ada. */
+  return { garis, batang, seri: () => SERI.slice(), ringkas };
 })();

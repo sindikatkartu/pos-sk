@@ -561,8 +561,48 @@ async function mulaiSesi(d) {
  * tertinggal, layar memperlihatkan angka yang berbeda dari yang akan dicatat
  * server — dan itu justru yang dijanjikan tidak mungkin terjadi.
  */
+/**
+ * Pasang tema tampilan. Satu sakelar milik pemilik, berlaku di semua perangkat.
+ *
+ * Nilainya datang dari setelan `tema` lewat tarik_master, jadi perangkat lain
+ * mengikutinya pada sinkronisasi berikutnya — bukan seketika. Yang berubah cuma
+ * satu atribut di <html>; seluruh warna hidup di token CSS dan ikut sendiri.
+ *
+ * Disalin ke localStorage supaya pemasang di <head> punya sesuatu untuk dibaca
+ * sebelum gambar pertama. Tanpa itu ada kilatan putih setiap kali aplikasi
+ * dibuka — beberapa puluh kali sehari di toko bermode gelap.
+ *
+ * Dibungkus try: peramban yang memblokir penyimpanan situs membuat localStorage
+ * MELEMPAR, bukan mengembalikan null. Gagal di sini berarti kedipannya kembali,
+ * bukan aplikasinya mati.
+ */
+function terapkanTema(nilai) {
+  const gelap = String(nilai) === 'gelap';
+  const sebelum = document.documentElement.dataset.tema || 'terang';
+  const sesudah = gelap ? 'gelap' : 'terang';
+  if (gelap) document.documentElement.dataset.tema = 'gelap';
+  else       delete document.documentElement.dataset.tema;
+
+  /* Bilah alamat peramban dan bilah status Android ikut warnanya. Tanpa ini,
+     aplikasi gelap masih dibingkai putih di layar penuh. */
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', gelap ? '#0d1117' : '#ffffff');
+
+  try { localStorage.setItem('possk_tema', sesudah); } catch (e) { /* diblokir */ }
+
+  /* Warna kotak dan teks berubah seketika karena token CSS. Grafik TIDAK — ia
+     SVG yang sudah tergambar. Tanpa siaran ini, pemilik yang sedang membuka
+     Dashboard saat menyalakan mode gelap melihat grafik terang tertinggal di
+     tengah layar yang sudah gelap. Disiarkan hanya bila BERUBAH: menggambar
+     ulang grafik pada tiap sinkronisasi lima menit adalah kedipan tanpa sebab. */
+  if (sebelum !== sesudah) {
+    document.dispatchEvent(new CustomEvent('tema:berubah', { detail: sesudah }));
+  }
+}
+
 function bacaSettingKeState() {
   const st = APP_STATE.setting || {};
+  terapkanTema(st.tema);
   APP_STATE.pkp = String(st.pkp) === 'true';
   APP_STATE.tarifPpn = Number(st.tarif_ppn || 0);
   const brs = $('#brsPpn');

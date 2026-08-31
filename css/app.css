@@ -54,12 +54,105 @@
   --bayang-4: 0 8px 24px rgba(140,149,159,.2);
   --cincin:   0 0 0 3px rgba(9,105,218,.3);   /* lingkar fokus GitHub */
 
+  /* Warna yang dulu tertulis langsung di dalam aturan. Dijadikan token bukan
+     demi kerapian melainkan karena mode gelap: warna yang tidak punya nama
+     tidak bisa diganti, dan satu saja yang tertinggal terlihat seperti lubang
+     terang di tengah layar. */
+  --tombol-tekan:      #e6eaef;   /* .tombol:active */
+  --aksen-aktif:       #fd8c73;   /* penanda menu & tab aktif */
+  --tanda-tier-garis:  #abefc6;
+  --tanda-manual-garis:#fedf89;
+  /* Kotak logo 'SK' di sidebar. Dulu memakai --teks sebagai LATAR, dan di mode
+     gelap --teks nyaris putih: kotak putih berisi huruf putih, logonya hilang.
+     Token sendiri, karena peranannya memang bukan warna teks. */
+  --logo-bg:           #1f2328;
+
+  /* Palet grafik. Enam warna foreground Primer, dibaca grafik.js saat
+     menggambar — bukan disalin ke sana sebagai tetapan mati, supaya grafik
+     ikut berganti tema tanpa daftar warna kedua yang bisa berpisah jalan.
+     Urutannya menjaga jarak warna antar seri bersebelahan tetap lebar. */
+  --seri-1: #0969da;  --seri-2: #bc4c00;  --seri-3: #1a7f37;
+  --seri-4: #8250df;  --seri-5: #bf3989;  --seri-6: #59636e;
+  --kertas-grafik: #ffffff;   /* tepi penanda titik, harus warna latar kartu */
+
   --radius:    6px;   /* GitHub memakai 6px hampir di mana-mana */
   --radius-lg: 6px;
   --sela:      12px;
   --lebar-sisi: 236px;
   --lebar-sisi-lipat: 68px;
 }
+
+/* ============================================================
+   MODE GELAP
+   ------------------------------------------------------------
+   Satu sakelar milik pemilik, berlaku untuk seluruh perangkat. Nilainya hidup
+   di setelan `tema` dan disebar lewat tarik_master, jadi perangkat lain
+   mengikutinya pada sinkronisasi berikutnya — bukan seketika.
+
+   Yang berubah HANYA nilai token; tidak satu pun aturan di bawah ditulis dua
+   kali. Aturan yang punya versi gelapnya sendiri adalah aturan yang cepat atau
+   lambat akan berbeda dari versi terangnya, dan bedanya tidak akan pernah
+   terlihat sebagai satu kejadian.
+
+   Paletnya Primer dark, pasangan resmi dari palet terang di atas — bukan warna
+   terang yang dibalik. Membalik warna menghasilkan abu-abu berlumpur dan biru
+   yang menyala terlalu keras di ruangan gelap.
+   ============================================================ */
+html[data-tema="gelap"] {
+  --bg:        #0d1117;
+  --panel:     #161b22;
+  --panel-2:   #1c2128;
+  --panel-3:   #262c36;
+  --sisi-bg:   #0d1117;
+
+  --garis:       #30363d;
+  --garis-halus: #21262d;
+  --garis-kuat:  #484f58;
+  --garis-tombol: rgba(240,246,252,.1);
+
+  /* 14,7:1 · 10,4:1 · 6,2:1 di atas --bg. Ketiganya lulus AA untuk teks kecil;
+     ada uji yang MENGHITUNGnya, bukan menaksirnya. */
+  --teks:       #e6edf3;
+  --teks-2:     #c9d1d9;
+  --teks-redup: #9198a1;
+
+  --utama:         #4493f8;
+  --utama-gelap:   #316dca;
+  --utama-lembut:  #121d2f;
+  --sukses:        #3fb950;
+  --sukses-tombol: #238636;
+  --sukses-lembut: #12261e;
+  --peringatan:        #d29922;
+  --peringatan-lembut: #272115;
+  --bahaya:        #f85149;
+  --bahaya-lembut: #25171c;
+
+  /* Di layar gelap kedalaman datang dari GARIS, bukan bayangan — bayangan hitam
+     di atas latar hitam tidak terlihat sama sekali. Disisakan sangat tipis
+     supaya modal tetap terbaca terangkat. */
+  --bayang-1: 0 1px 0 rgba(1,4,9,.2);
+  --bayang-2: 0 1px 0 rgba(1,4,9,.2), 0 1px 3px rgba(1,4,9,.5);
+  --bayang-3: 0 3px 6px rgba(1,4,9,.5);
+  --bayang-4: 0 8px 24px rgba(1,4,9,.6);
+  --cincin:   0 0 0 3px rgba(68,147,248,.4);
+
+  --tombol-tekan:      #30363d;
+  --aksen-aktif:       #f78166;
+  --tanda-tier-garis:  #1b4721;
+  --tanda-manual-garis:#4a3a10;
+  /* Biru aksen, bukan putih: kotak putih 30px di sudut sidebar gelap terbaca
+     sebagai kerusakan, bukan sebagai logo. Putih di atasnya 5,0:1. */
+  --logo-bg:           #316dca;
+
+  --seri-1: #58a6ff;  --seri-2: #db6d28;  --seri-3: #3fb950;
+  --seri-4: #a371f7;  --seri-5: #db61a2;  --seri-6: #9198a1;
+  --kertas-grafik: #161b22;
+}
+
+/* Kotak isian, tanggal, dan gulir bawaan peramban tetap putih kalau tidak
+   diberi tahu. Satu baris ini yang membuat kalender dan panah select ikut
+   gelap — tanpa itu setiap kotak tanggal menyala putih di tengah formulir. */
+html[data-tema="gelap"] { color-scheme: dark; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -105,7 +198,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    adalah satu-satunya sisa gaya lama yang tertinggal di antarmuka baru. */
 .sisi-logo {
   width: 30px; height: 30px; border-radius: var(--radius); flex-shrink: 0;
-  background: var(--teks);
+  background: var(--logo-bg);
   color: #fff; display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 12.5px; letter-spacing: -.2px;
 }
@@ -138,7 +231,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-isi button.aktif { background: var(--panel-2); font-weight: 600; }
 .sisi-isi button.aktif::before {
   content: ''; position: absolute; left: -10px; top: 3px; bottom: 3px;
-  width: 3px; border-radius: 0 6px 6px 0; background: #fd8c73;   /* aksen "aktif" GitHub */
+  width: 3px; border-radius: 0 6px 6px 0; background: var(--aksen-aktif);   /* aksen "aktif" GitHub */
 }
 .sisi-isi button.aktif .ikon-svg { color: var(--teks); }
 
@@ -392,8 +485,8 @@ main { flex: 1; overflow: hidden; position: relative; }
   font-size: 10.5px; padding: 1px 6px; border-radius: 5px; font-weight: 650;
   border: 1px solid transparent;
 }
-.tanda-tier   { background: var(--sukses-lembut);     color: var(--sukses);     border-color: #abefc6; }
-.tanda-manual { background: var(--peringatan-lembut); color: var(--peringatan); border-color: #fedf89; }
+.tanda-tier   { background: var(--sukses-lembut);     color: var(--sukses);     border-color: var(--tanda-tier-garis); }
+.tanda-manual { background: var(--peringatan-lembut); color: var(--peringatan); border-color: var(--tanda-manual-garis); }
 
 .total-baris {
   display: flex; justify-content: space-between; padding: 3px 0;
@@ -416,7 +509,7 @@ main { flex: 1; overflow: hidden; position: relative; }
   box-shadow: var(--bayang-1); transition: background .08s, border-color .08s;
 }
 .tombol:hover { background: var(--panel-3); border-color: rgba(31,35,40,.15); }
-.tombol:active { background: #e6eaef; box-shadow: none; transition: none; }
+.tombol:active { background: var(--tombol-tekan); box-shadow: none; transition: none; }
 .tombol.utama  { background: var(--utama);        border-color: var(--garis-tombol); color: #fff; }
 .tombol.utama:hover  { background: var(--utama-gelap); }
 .tombol.sukses { background: var(--sukses-tombol); border-color: var(--garis-tombol); color: #fff; }
@@ -756,7 +849,7 @@ label.cek.kartu-cek {
   border-bottom: 2px solid transparent;
 }
 .tab-modal button:hover { color: var(--teks-2); }
-.tab-modal button.aktif { color: var(--teks); font-weight: 600; border-bottom-color: #fd8c73; }
+.tab-modal button.aktif { color: var(--teks); font-weight: 600; border-bottom-color: var(--aksen-aktif); }
 
 .baris-anak { display: flex; gap: 7px; margin-bottom: 7px; align-items: center; }
 .baris-anak input, .baris-anak select { flex: 1; min-width: 0; padding: 8px 10px; }

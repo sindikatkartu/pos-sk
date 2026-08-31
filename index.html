@@ -15,6 +15,23 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%232563eb'/%3E%3Ctext x='256' y='330' font-family='system-ui,sans-serif' font-size='200' font-weight='800' fill='white' text-anchor='middle'%3ESK%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/app.css">
+<!-- TEMA DIPASANG SEBELUM GAMBAR PERTAMA.
+     Setelan `tema` datang dari server dan disimpan di IndexedDB, yang asinkron:
+     halaman sudah tergambar terang sebelum temanya diketahui. Di toko bermode
+     gelap itu satu kilatan putih setiap kali aplikasi dibuka — beberapa puluh
+     kali sehari. localStorage sinkron, jadi bisa dibaca di sini, sebelum
+     badan halaman ada.
+
+     Dibungkus try: mode penyamaran dan peramban yang memblokir penyimpanan situs
+     membuat localStorage MELEMPAR, bukan mengembalikan null. Kasir tidak boleh
+     kehilangan aplikasinya karena sebuah kenyamanan tampilan — gagal di sini
+     berarti temanya terang sampai app.js memasangnya, tidak lebih. -->
+<script>
+  try {
+    var t = localStorage.getItem('possk_tema');
+    if (t === 'gelap') document.documentElement.dataset.tema = 'gelap';
+  } catch (e) { /* penyimpanan diblokir: tetap terang sampai app.js jalan */ }
+</script>
 </head>
 <body>
 
