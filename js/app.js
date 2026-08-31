@@ -22,7 +22,19 @@ const APP_STATE = {
 const $  = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const rp = (n) => CONFIG.MATA_UANG + ' ' + new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
-const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+/**
+ * Lolos-kan teks untuk HTML — termasuk kutip TUNGGAL.
+ *
+ * Kutip tunggal ditambahkan v1.63. Sebelumnya hanya & < > dan kutip ganda yang
+ * ditutup, sementara satu-satunya atribut berkutip tunggal di seluruh frontend
+ * justru diisi lewat sini: `data-params='${p}'` pada tombol ekspor (admin.js).
+ * Nilai yang masuk ke sana hari ini terbatas bentuknya — kode cabang dan
+ * `input[type=date]` — jadi belum bisa dieksploitasi. Tapi yang membuatnya aman
+ * bukan pembantunya, melainkan kebetulan; dan pembantu bernama `esc` akan
+ * dipakai orang berikutnya untuk atribut mana pun.
+ */
+const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g,
+  c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
 /**
  * Kasir sebagaimana ditampilkan: NAMA orangnya, dengan kodenya di belakang.

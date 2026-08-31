@@ -44,8 +44,31 @@ const API = (() => {
         redirect: 'follow'
       });
       if (!resp.ok) throw Object.assign(new Error('HTTP ' + resp.status), { kode: 'HTTP' });
-      const j = await resp.json();
-      if (!j.ok) {
+
+      /* Apps Script bisa menjawab HALAMAN HTML dengan status 200.
+         ------------------------------------------------------------------
+         Terjadi tepat sesudah deploy ulang, saat kuota eksekusi habis, atau saat
+         izin skripnya perlu disetujui ulang. Sampai v1.62 `resp.json()` dibiarkan
+         melempar apa adanya, dan yang sampai ke kasir adalah
+
+             Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+
+         Itu pesan pengurai JSON, bukan keterangan tentang apa yang terjadi. Yang
+         membacanya di lantai toko tidak punya satu pun petunjuk bahwa ini
+         keadaan sementara yang akan pulih sendiri — jadi ia menganggap
+         aplikasinya rusak, dan berhenti. */
+      let j;
+      try {
+        j = await resp.json();
+      } catch (x) {
+        throw Object.assign(
+          new Error('Server menjawab halaman, bukan data. Biasanya sementara — ' +
+                    'terjadi sesaat setelah pembaruan atau saat kuota Apps Script ' +
+                    'penuh. Tunggu sebentar lalu coba lagi.'),
+          { kode: 'SERVER_HTML' });
+      }
+      if (!j || !j.ok) {
+        if (!j) throw Object.assign(new Error('Server menjawab kosong.'), { kode: 'SERVER_HTML' });
         const e = new Error(j.pesan || 'Permintaan gagal');
         e.kode = j.kode; e.detail = j.detail;
         throw e;
