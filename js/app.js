@@ -2295,8 +2295,35 @@ async function cariNotaLama() {
  * terjadi saat kasir sedang melayani orang di depan meja, bukan saat jaringan
  * sedang bagus. Jejak yang menguap ketika internet mati bukan jejak.
  */
+/**
+ * Nama produk pada nota lokal disegarkan dari katalog sebelum dicetak ulang.
+ *
+ * Nota yang tersimpan di IndexedDB membawa nama yang berlaku saat nota dibuat.
+ * Sejak v1.69 seluruh layar menampilkan nama katalog yang berlaku sekarang; tanpa
+ * penyegaran di sini, satu nota yang sama tampil beda — nama baru di back office,
+ * nama lama di struk cetak ulang kasir — dan yang memegang keduanya adalah orang
+ * yang sedang melayani pelanggan.
+ *
+ * SKU yang sudah tidak ada di katalog lokal mempertahankan nama bekunya: itu
+ * supaya barisnya punya nama sama sekali, bukan supaya nama lamanya terlihat.
+ * Yang tersimpan di IndexedDB TIDAK diubah — hanya salinan untuk dicetak.
+ */
+async function segarkanNamaProduk(nota) {
+  if (!nota || !Array.isArray(nota.item)) return nota;
+  const item = [];
+  for (const it of nota.item) {
+    let nama = it.nama;
+    try {
+      const p = it.sku ? await DB.get('produk', it.sku) : null;
+      if (p && p.nama) nama = p.nama;
+    } catch (e) { /* katalog lokal belum ada: pakai nama beku */ }
+    item.push({ ...it, nama });
+  }
+  return { ...nota, item };
+}
+
 async function cetakUlangNota(uuid, luarShift) {
-  const n = await DB.get('penjualan', uuid);
+  const n = await segarkanNamaProduk(await DB.get('penjualan', uuid));
   if (!n) return;
   if (luarShift) {
     try {
