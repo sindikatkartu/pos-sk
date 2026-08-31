@@ -3009,6 +3009,8 @@ function pasangEvent() {
   document.addEventListener('sync:status', e => {
     const s = e.detail;
     const el = $('#lncSync');
+    const umur = Number(s.umur_jam) || 0;
+    let judulBasi = '';
     if (!API.online)          { el.textContent = 'Offline'; el.className = 'lencana merah'; }
     else if (s.mengirim)      { el.textContent = 'Mengirim…'; el.className = 'lencana kuning'; }
     /* Sinkronisasi yang DITOLAK server, bukan yang sedang menunggu jaringan.
@@ -3022,6 +3024,23 @@ function pasangEvent() {
     else if (s.galat)         { el.textContent = s.tertahan > 0 ? '⚠ ' + s.tertahan + ' gagal terkirim'
                                                                 : '⚠ Gagal sinkron';
                                 el.className = 'lencana merah'; }
+    /* DATA MASTER BASI. `CONFIG.PERINGATAN_UMUR_JAM` ada sejak lama dan sampai
+       v1.63 tidak pernah dibaca satu berkas pun — tetapan yang tidak pernah
+       dibaca bukan pengaturan, cuma angka di dalam berkas.
+
+       Yang diperingatkan bukan "kamu offline" (itu sudah punya lencananya
+       sendiri, dan kasir tahu) melainkan HARGA YANG DIPAKAI SUDAH LAMA. Perangkat
+       yang seminggu tidak menarik master berjualan dengan harga seminggu lalu,
+       dan pada aplikasi yang memang dirancang tetap jalan saat internet mati,
+       keadaan itu bukan pengecualian melainkan rancangan. */
+    else if (umur >= CONFIG.PERINGATAN_UMUR_JAM) {
+      const hari = umur / 24;
+      el.textContent = '⚠ Harga ' + (hari >= 1 ? Math.floor(hari) + ' hari' :
+                                     Math.floor(umur) + ' jam') + ' lalu';
+      el.className = 'lencana kuning';
+      judulBasi = 'Data master terakhir ditarik ' + umur.toFixed(1) +
+                  ' jam lalu. Sambungkan internet supaya harga dan produk ikut segar.';
+    }
     else if (s.tertahan > 0)  { el.textContent = s.tertahan + ' menunggu'; el.className = 'lencana kuning'; }
     else                      { el.textContent = 'Tersinkron'; el.className = 'lencana hijau'; }
     if (s.tertahan >= CONFIG.PERINGATAN_OUTBOX) {
@@ -3041,6 +3060,10 @@ function pasangEvent() {
          bisa dilaporkan sebagai "lencananya merah" — dan itu tidak cukup untuk
          menebak bahwa yang hilang adalah satu centang izin di layar Peran. */
       if (s.galat) el.title = s.galat;
+      /* `removeAttribute('title')` di atas ikut menghapus keterangan harga basi,
+         jadi peringatannya harus dipasang ulang di sini — kalau tidak, lencana
+         kuning itu muncul tanpa penjelasan apa pun saat ditunjuk. */
+      else if (judulBasi) el.title = judulBasi;
     }
   });
   $('#lncSync').addEventListener('click', () => { if (Sync.status.ditolak > 0) tampilkanDitolak(); });

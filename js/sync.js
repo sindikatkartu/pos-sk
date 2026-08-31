@@ -11,7 +11,12 @@ const Sync = (() => {
   let jalan = false;
   let timerOutbox = null, timerMaster = null;
 
-  const status = { mengirim: false, tertahan: 0, ditolak: 0, terakhir: null, galat: null };
+  /* `umur_jam` — umur data master dalam jam, disiarkan bersama status.
+     Lencana digambar oleh penangan yang SINKRON sedangkan umurnya dibaca dari
+     IndexedDB; menyelipkan pembacaan async di dalam penggambar berarti lencana
+     yang berkedip. Diangkut di sini, penggambarnya tetap sederhana. */
+  const status = { mengirim: false, tertahan: 0, ditolak: 0, terakhir: null,
+                   galat: null, umur_jam: 0 };
 
   function kabarkan() { document.dispatchEvent(new CustomEvent('sync:status', { detail: { ...status } })); }
 
@@ -49,6 +54,13 @@ const Sync = (() => {
     if (status.mengirim || !API.online || !API.getToken()) return;
     const antri = await DB.outboxAntri('PENDING');
     status.tertahan = antri.length;
+
+    /* Umur data DIHITUNG SEBELUM jalan keluar di bawah. Saat online outbox
+       hampir selalu kosong, jadi menghitungnya sesudah baris itu berarti
+       peringatan data basi tidak akan pernah muncul justru pada perangkat yang
+       paling membutuhkannya — jebakan yang sama persis dengan B1. */
+    status.umur_jam = await umurDataJam();
+
     if (!antri.length) { kabarkan(); return; }
 
     status.mengirim = true; status.galat = null; kabarkan();

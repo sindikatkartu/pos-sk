@@ -2741,7 +2741,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       ${d.status === 'POSTED'
         ? `<div class="pesan info">Sudah diposting ${esc(waktuTampil(d.waktu_posting))}
-             oleh ${esc(d.id_user_posting || '—')}. Untuk mengoreksi, buat opname baru.</div>`
+             oleh ${esc(d.nama_user_posting || d.id_user_posting || '—')}${
+               d.nama_user_posting && d.id_user_posting
+                 ? ` <span class="kode-redup">${esc(d.id_user_posting)}</span>` : ''
+             }. Untuk mengoreksi, buat opname baru.</div>`
         : (d.boleh_posting
             ? `<div class="grup" style="margin-top:12px"><label>Catatan posting</label>
                  <input type="text" id="opCatatanPosting" placeholder="mis. sudah dicek ulang bersama kepala cabang"></div>`
