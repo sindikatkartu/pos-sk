@@ -2259,15 +2259,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const LABEL_SETTING = {
     nama_usaha: 'Nama usaha (tercetak di struk)',
     alamat_usaha: 'Alamat usaha', telepon_usaha: 'Telepon usaha',
-    npwp: 'NPWP', pkp: 'Pengusaha Kena Pajak (PPN dihitung per nota)',
+    npwp: 'NPWP (tercetak di struk bila PKP menyala)',
+    pkp: 'Pengusaha Kena Pajak (PPN dihitung per nota)',
     tarif_ppn: 'Tarif PPN (%)',
     izinkan_stok_minus: 'Boleh menjual saat stok 0 (ditandai untuk opname)',
-    harga_per_cabang: 'Cabang boleh punya harga sendiri',
     metode_hpp: 'Metode HPP', footer_struk: 'Baris penutup struk',
     lebar_struk: 'Lebar kertas struk (mm)', mdr_qris: 'Potongan QRIS (%)',
     auto_jurnal: 'Posting jurnal otomatis'
   };
-  const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'harga_per_cabang', 'auto_jurnal'];
+  const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'auto_jurnal'];
+
+  /* SETELAN YANG DIBUANG. Membuangnya dari benih di 00_Config.gs saja tidak
+     cukup: barisnya SUDAH ada di sheet toko yang berjalan sejak Agustus, dan
+     tanpa penyaring ini ia justru muncul kembali di layar — kali ini sebagai
+     kotak isian bernama mentah `harga_per_cabang`, tanpa label, tepat di
+     sebelah setelan yang sungguhan. */
+  const SETTING_DIBUANG = ['harga_per_cabang'];
+
+  /* SETELAN BACA-SAJA. Mesin persediaan selalu FIFO dan tidak ada satu baris
+     pun yang membaca `metode_hpp`. Kotak isian yang menerima "RATA-RATA" lalu
+     tidak melakukan apa-apa adalah kebohongan yang paling mahal di layar ini:
+     yang mengisinya percaya HPP seluruh tokonya sudah berubah. Barisnya tetap
+     ditampilkan — pemiliknya berhak tahu metode apa yang dipakai — tapi sebagai
+     keterangan, bukan isian. */
+  const SETTING_BACA_SAJA = ['metode_hpp'];
 
   async function muatSistem() {
     memuat('#isiSistem');
@@ -2277,7 +2292,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          mentah berarti dua tempat mengubah satu hal, dan yang terakhir menyimpan
          menang tanpa ada yang tahu. */
       const rows = (await API.daftarSetting())
-        .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci));
+        .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
+        .filter(r => !SETTING_DIBUANG.includes(r.kunci));
       $('#isiSistem').innerHTML = `
         <div class="kartu">
           <h3>Pengaturan sistem</h3>
@@ -2285,6 +2301,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
             ${rows.map(r => {
               const label = LABEL_SETTING[r.kunci] || r.kunci;
+              /* Tanpa `data-setting` penyimpan di bawah tidak akan menyentuhnya —
+                 dan itu memang yang diinginkan: nilainya tidak boleh berubah dari
+                 sini. */
+              if (SETTING_BACA_SAJA.includes(r.kunci)) {
+                return `<div class="grup"><label>${esc(label)}</label>
+                  <p style="margin:4px 0 0"><span class="lencana hijau">${esc(r.nilai)}</span>
+                  <span class="petunjuk"> — ditetapkan mesin persediaan, tidak bisa diubah</span></p></div>`;
+              }
               if (SETTING_BOOL.includes(r.kunci)) {
                 return `<label class="cek kartu-cek">
                   <input type="checkbox" data-setting="${esc(r.kunci)}" ${String(r.nilai) === 'true' ? 'checked' : ''}>

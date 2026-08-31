@@ -94,6 +94,13 @@ const Struk = (() => {
     out.push(...tengah((s.nama_usaha || 'SINDIKAT KARTU').toUpperCase()));
     if (s.alamat_usaha) out.push(...tengah(s.alamat_usaha));
     if (s.telepon_usaha) out.push(...tengah(s.telepon_usaha));
+    /* NPWP. Setelan `npwp` duduk di layar Pengaturan sejak awal dan tidak pernah
+       dicetak di mana pun — toko yang mengisinya percaya struknya sudah memuatnya.
+       Hanya untuk toko PKP: struk non-PKP yang mencantumkan NPWP mengesankan PPN
+       yang tidak pernah dipungut. */
+    if (boolStruk(s.pkp) && String(s.npwp || '').trim()) {
+      out.push(...tengah('NPWP ' + String(s.npwp).trim()));
+    }
     out.push(...tengah(APP_STATE.namaCabang || APP_STATE.cabang));
     out.push(garis);
     out.push(...duaKolom('No', nota.no_nota));
@@ -236,6 +243,27 @@ const Struk = (() => {
     }
   }
 
+  /* Setelan datang dari sheet sebagai TEKS: 'true'/'false', bukan boolean. */
+  const boolStruk = (v) => v === true || String(v).toLowerCase() === 'true';
+
+  /**
+   * Perlukah laci uang ditendang untuk nota ini?
+   *
+   * `buka_laci` ada di editor peran sejak awal dengan NOL rujukan, dan
+   * `bukaLaci()` di bawah — lengkap dengan bita ESC/POS-nya — tidak pernah
+   * dipanggil satu baris pun. Laci uang tidak pernah dibuka aplikasi ini.
+   *
+   * Hanya nota yang ADA TUNAINYA. Laci yang terbuka sendiri pada setiap nota
+   * QRIS adalah laci yang dibiarkan terbuka, dan uang di dalamnya sudah tidak
+   * dijaga siapa pun. Bawaan flagnya `false`, kebalikan dari jual_stok_minus:
+   * yang satu menghentikan penjualan bila salah, yang ini cuma tidak membuka
+   * laci — dan membuka laci orang yang tidak berhak jauh lebih mahal.
+   */
+  function perluBukaLaci(nota, flag) {
+    if (!flag || flag.buka_laci !== true) return false;
+    return (nota && nota.bayar || []).some(b => String(b.metode).toLowerCase() === 'tunai');
+  }
+
   async function bukaLaci() {
     if (!karakteristik) return;
     await karakteristik.writeValue(new Uint8Array(ESC.LACI));
@@ -267,6 +295,13 @@ const Struk = (() => {
     try {
       if (karakteristik || (await DB.kvGet('printer_nama', null))) {
         await cetakBluetooth(nota);
+        /* Sesudah struk, bukan sebelumnya: laci yang terbuka sementara printer
+           masih menulis membuat kasir mengambil uang lebih dulu dan struknya
+           tertinggal di printer. Kegagalannya ditelan — laci yang tidak mau
+           terbuka bukan alasan untuk menggagalkan cetak struk. */
+        if (perluBukaLaci(nota, APP_STATE.flag)) {
+          try { await bukaLaci(); } catch (e) { console.warn('Laci gagal dibuka:', e.message); }
+        }
         return 'bluetooth';
       }
     } catch (e) {
@@ -276,7 +311,8 @@ const Struk = (() => {
     return 'html';
   }
 
-  return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, baris, rupiah,
+  return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
+           baris, rupiah,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };
 })();
 
