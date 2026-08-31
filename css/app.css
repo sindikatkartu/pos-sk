@@ -16,65 +16,77 @@
    kasir tetap besar. Yang diadopsi adalah WARNA, GARIS, RADIUS, dan BAYANGAN-nya —
    bukan kerapatannya. */
 :root {
-  /* --- permukaan (Primer: canvas) --- */
-  --bg:        #f6f8fa;   /* canvas.subtle — latar aplikasi */
-  --panel:     #ffffff;   /* canvas.default — kartu, panel, modal */
-  --panel-2:   #f6f8fa;   /* canvas.subtle — kepala tabel, isian lembut, hover */
-  --panel-3:   #eff2f5;   /* hover tombol */
-  --sisi-bg:   #ffffff;   /* GitHub memakai sidebar putih, dipisahkan garis */
+  /* --- permukaan --- */
+  --bg:        #faf9f5;   /* kanvas aplikasi (background tertiary) */
+  --panel:     #ffffff;   /* kartu, panel, modal (background primary) */
+  --panel-2:   #f5f4ed;   /* kepala tabel, isian lembut, hover (background secondary) */
+  --panel-3:   #ecebe0;   /* hover tombol — satu langkah lebih dalam dari panel-2 */
+  --sisi-bg:   #ffffff;
 
-  /* --- garis (Primer: border) --- */
-  --garis:       #d1d9e0;   /* border.default */
-  --garis-halus: #eaeef2;   /* border.muted — pemisah di dalam kartu */
-  --garis-kuat:  #d1d9e0;
-  --garis-tombol: rgba(31,35,40,.15);   /* tepi tombol khas GitHub */
+  /* --- garis --- */
+  --garis:       rgba(31,30,29,.30);
+  --garis-halus: rgba(31,30,29,.15);
+  --garis-kuat:  rgba(31,30,29,.45);
+  --garis-tombol: rgba(31,30,29,.30);
 
-  /* --- teks (Primer: fg) --- */
-  --teks:       #1f2328;   /* fg.default   — 15.8:1 di atas putih */
-  --teks-2:     #424a53;   /*              — 8.99:1 */
-  --teks-redup: #59636e;   /* fg.muted     — 6.11:1 */
-  /* fg.subtle (#818b98) SENGAJA tidak dipakai untuk teks: hanya 3.45:1, gagal AA. */
+  /* --- teks ---
+     18,4:1 · 10,9:1 · 5,0:1 di atas kanvas. Tersier digelapkan seujung kuku dari
+     #73726c: nilai aslinya 4,38:1 di atas --panel-2, tepat di bawah AA, dan label
+     kecil di kepala tabel justru duduk di permukaan itu. */
+  --teks:       #141413;
+  --teks-2:     #3d3d3a;
+  --teks-redup: #706f69;
 
-  /* --- warna arti (Primer: accent / success / attention / danger) --- */
-  --utama:         #0969da;
-  --utama-gelap:   #0550ae;
-  --utama-lembut:  #ddf4ff;
-  --sukses:        #1a7f37;
-  --sukses-tombol: #1f883d;   /* success.emphasis — warna tombol hijau GitHub */
-  --sukses-lembut: #dafbe1;
-  --peringatan:        #9a6700;
-  --peringatan-lembut: #fff8c5;
-  --bahaya:        #cf222e;
-  --bahaya-lembut: #ffebe9;
+  /* --- warna arti ---
+     Hue diambil dari palet; terang-gelapnya disesuaikan sampai lulus AA 4,5:1
+     di atas SETIAP permukaan yang memakainya, termasuk latar lencananya sendiri.
+     `-tombol` dipakai saat warnanya jadi LATAR bertulisan putih — di sana yang
+     harus 4,5:1 adalah putihnya, bukan warnanya. */
+  --utama:         #206fbd;
+  --utama-tombol:  #206fbd;
+  --utama-gelap:   #17538d;
+  --utama-lembut:  #e7f1fb;
+  --utama-garis:   #a8cdf0;
+  /* Tiga angka mentah, bukan warna jadi: cincin sorot memakai alpha yang
+     berbeda di tiap langkah animasi, dan `rgba()` tidak bisa mengambil alpha
+     dari warna yang sudah jadi. */
+  --utama-rgb:     32,111,189;
+  --sukses:        #547b1e;
+  --sukses-tombol: #547b1e;
+  --sukses-gelap:  #3f5c16;
+  --sukses-lembut: #f2fae8;
+  --sukses-garis:  #b6d493;
+  --peringatan:        #a06104;
+  --peringatan-lembut: #fbf3e7;
+  --peringatan-garis:  #e8c48c;
+  --bahaya:        #cf2222;
+  --bahaya-tombol: #cf2222;
+  --bahaya-lembut: #fbe7e7;
+  --bahaya-garis:  #f0a9a9;
 
-  /* --- bayangan Primer: sangat tipis. Kedalaman datang dari GARIS, bukan blur. --- */
-  --bayang-1: 0 1px 0 rgba(31,35,40,.04);
-  --bayang-2: 0 1px 0 rgba(31,35,40,.04), 0 1px 3px rgba(66,74,83,.12);
-  --bayang-3: 0 3px 6px rgba(140,149,159,.15);
-  --bayang-4: 0 8px 24px rgba(140,149,159,.2);
-  --cincin:   0 0 0 3px rgba(9,105,218,.3);   /* lingkar fokus GitHub */
+  /* --- bayangan: sangat tipis. Kedalaman datang dari GARIS, bukan blur. --- */
+  --bayang-1: 0 1px 0 rgba(31,30,29,.04);
+  --bayang-2: 0 1px 0 rgba(31,30,29,.04), 0 1px 3px rgba(31,30,29,.12);
+  --bayang-3: 0 3px 6px rgba(31,30,29,.15);
+  --bayang-4: 0 8px 24px rgba(31,30,29,.20);
+  --cincin:   0 0 0 3px rgba(32,111,189,.30);
 
-  /* Warna yang dulu tertulis langsung di dalam aturan. Dijadikan token bukan
-     demi kerapian melainkan karena mode gelap: warna yang tidak punya nama
-     tidak bisa diganti, dan satu saja yang tertinggal terlihat seperti lubang
-     terang di tengah layar. */
-  --tombol-tekan:      #e6eaef;   /* .tombol:active */
-  --aksen-aktif:       #fd8c73;   /* penanda menu & tab aktif */
-  --tanda-tier-garis:  #abefc6;
-  --tanda-manual-garis:#fedf89;
-  /* Kotak logo 'SK' di sidebar. Dulu memakai --teks sebagai LATAR, dan di mode
-     gelap --teks nyaris putih: kotak putih berisi huruf putih, logonya hilang.
-     Token sendiri, karena peranannya memang bukan warna teks. */
-  --logo-bg:           #1f2328;
+  --tirai:             rgba(20,20,19,.50);   /* tirai di belakang modal */
+  --tombol-tekan:      #e4e2d4;
+  --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
+  /* Kotak logo 'SK'. Pasangan inverted dari palet: latar gelap, tulisan terang —
+     dan terbalik di mode gelap. Punya tokennya sendiri karena perannya bukan
+     warna teks; versi lama memakai --teks sebagai latar, dan di mode gelap itu
+     jadi kotak putih berisi huruf putih. */
+  --logo-bg:           #141413;
+  --logo-teks:         #ffffff;
 
-  /* Palet grafik. Enam warna foreground Primer, dibaca grafik.js saat
-     menggambar — bukan disalin ke sana sebagai tetapan mati, supaya grafik
-     ikut berganti tema tanpa daftar warna kedua yang bisa berpisah jalan.
-     Urutannya menjaga jarak warna antar seri bersebelahan tetap lebar. */
-  --seri-1: #0969da;  --seri-2: #bc4c00;  --seri-3: #1a7f37;
-  --seri-4: #8250df;  --seri-5: #bf3989;  --seri-6: #59636e;
-  --kertas-grafik: #ffffff;   /* tepi penanda titik, harus warna latar kartu */
-
+  /* Palet grafik, dibaca grafik.js saat menggambar. Enam slot, tiap slot >= 3:1
+     di atas kartu DAN di atas isian lembut, pada KEDUA tema. Urutannya menjaga
+     jarak warna antar seri bersebelahan tetap lebar. */
+  --seri-1: #2c84db;  --seri-2: #ca7b05;  --seri-3: #6a9b26;
+  --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #706f69;
+  --kertas-grafik: #ffffff;
   --radius:    6px;   /* GitHub memakai 6px hampir di mana-mana */
   --radius-lg: 6px;
   --sela:      12px;
@@ -99,54 +111,60 @@
    yang menyala terlalu keras di ruangan gelap.
    ============================================================ */
 html[data-tema="gelap"] {
-  --bg:        #0d1117;
-  --panel:     #161b22;
-  --panel-2:   #1c2128;
-  --panel-3:   #262c36;
-  --sisi-bg:   #0d1117;
+  --bg:        #141413;
+  --panel:     #30302e;
+  --panel-2:   #262624;
+  --panel-3:   #3a3a37;
+  --sisi-bg:   #141413;
 
-  --garis:       #30363d;
-  --garis-halus: #21262d;
-  --garis-kuat:  #484f58;
-  --garis-tombol: rgba(240,246,252,.1);
+  --garis:       rgba(222,220,209,.30);
+  --garis-halus: rgba(222,220,209,.15);
+  --garis-kuat:  rgba(222,220,209,.45);
+  --garis-tombol: rgba(222,220,209,.20);
 
-  /* 14,7:1 · 10,4:1 · 6,2:1 di atas --bg. Ketiganya lulus AA untuk teks kecil;
-     ada uji yang MENGHITUNGnya, bukan menaksirnya. */
-  --teks:       #e6edf3;
-  --teks-2:     #c9d1d9;
-  --teks-redup: #9198a1;
+  /* 12,6:1 · 7,3:1 · 4,7:1 di atas kartu. Ada uji yang MENGHITUNGnya. */
+  --teks:       #faf9f5;
+  --teks-2:     #c2c0b6;
+  --teks-redup: #9c9a92;
 
-  --utama:         #4493f8;
-  --utama-gelap:   #316dca;
-  --utama-lembut:  #121d2f;
-  --sukses:        #3fb950;
-  --sukses-tombol: #238636;
-  --sukses-lembut: #12261e;
-  --peringatan:        #d29922;
-  --peringatan-lembut: #272115;
-  --bahaya:        #f85149;
-  --bahaya-lembut: #25171c;
+  /* Di layar gelap warna arti dipakai TERANG sebagai teks, dan tetap TUA sebagai
+     latar tombol — tulisan di atas tombol tetap putih di kedua tema, jadi
+     latarnya tidak boleh ikut menyala. Sampai v1.70 `--utama` dipakai apa adanya
+     untuk tombol Bayar dan toast: putih di atasnya cuma 2,9:1. */
+  --utama:         #539be2;
+  --utama-tombol:  #206fbd;
+  --utama-gelap:   #2378cc;
+  --utama-lembut:  #131b22;
+  --utama-garis:   #2f5478;
+  --utama-rgb:     83,155,226;
+  --sukses:        #76ad2a;
+  --sukses-tombol: #547b1e;
+  --sukses-gelap:  #3f5c16;
+  --sukses-lembut: #1c2213;
+  --sukses-garis:  #3f5c1e;
+  --peringatan:        #faa72a;
+  --peringatan-lembut: #221c13;
+  --peringatan-garis:  #5c4413;
+  --bahaya:        #e87474;
+  --bahaya-tombol: #cf2222;
+  --bahaya-lembut: #221313;
+  --bahaya-garis:  #5c2626;
 
-  /* Di layar gelap kedalaman datang dari GARIS, bukan bayangan — bayangan hitam
-     di atas latar hitam tidak terlihat sama sekali. Disisakan sangat tipis
-     supaya modal tetap terbaca terangkat. */
-  --bayang-1: 0 1px 0 rgba(1,4,9,.2);
-  --bayang-2: 0 1px 0 rgba(1,4,9,.2), 0 1px 3px rgba(1,4,9,.5);
-  --bayang-3: 0 3px 6px rgba(1,4,9,.5);
-  --bayang-4: 0 8px 24px rgba(1,4,9,.6);
-  --cincin:   0 0 0 3px rgba(68,147,248,.4);
+  --bayang-1: 0 1px 0 rgba(0,0,0,.24);
+  --bayang-2: 0 1px 0 rgba(0,0,0,.24), 0 1px 3px rgba(0,0,0,.5);
+  --bayang-3: 0 3px 6px rgba(0,0,0,.5);
+  --bayang-4: 0 8px 24px rgba(0,0,0,.6);
+  --cincin:   0 0 0 3px rgba(83,155,226,.40);
 
-  --tombol-tekan:      #30363d;
-  --aksen-aktif:       #f78166;
-  --tanda-tier-garis:  #1b4721;
-  --tanda-manual-garis:#4a3a10;
-  /* Biru aksen, bukan putih: kotak putih 30px di sudut sidebar gelap terbaca
-     sebagai kerusakan, bukan sebagai logo. Putih di atasnya 5,0:1. */
-  --logo-bg:           #316dca;
+  --tirai:             rgba(0,0,0,.65);
+  --tombol-tekan:      #45443f;
+  --aksen-aktif:       #d97757;
+  --logo-bg:           #faf9f5;
+  --logo-teks:         #141413;
 
-  --seri-1: #58a6ff;  --seri-2: #db6d28;  --seri-3: #3fb950;
-  --seri-4: #a371f7;  --seri-5: #db61a2;  --seri-6: #9198a1;
-  --kertas-grafik: #161b22;
+  --seri-1: #2c84db;  --seri-2: #faa72a;  --seri-3: #76ad2a;
+  --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #7a7972;
+  --kertas-grafik: #30302e;
 }
 
 /* Kotak isian, tanggal, dan gulir bawaan peramban tetap putih kalau tidak
@@ -199,7 +217,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-logo {
   width: 30px; height: 30px; border-radius: var(--radius); flex-shrink: 0;
   background: var(--logo-bg);
-  color: #fff; display: flex; align-items: center; justify-content: center;
+  color: var(--logo-teks); display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 12.5px; letter-spacing: -.2px;
 }
 .sisi-nama { display: flex; flex-direction: column; min-width: 0; }
@@ -324,9 +342,9 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .lencana.polos::before { display: none; }
 /* Lencana kosong jangan menyisakan titik melayang tanpa keterangan */
 .lencana:empty { display: none; }
-.lencana.hijau  { color: var(--sukses);     border-color: rgba(26,127,55,.35);  background: var(--sukses-lembut); }
-.lencana.kuning { color: var(--peringatan); border-color: rgba(154,103,0,.35);  background: var(--peringatan-lembut); }
-.lencana.merah  { color: var(--bahaya);     border-color: rgba(207,34,46,.35);  background: var(--bahaya-lembut); }
+.lencana.hijau  { color: var(--sukses);     border-color: var(--sukses-garis);  background: var(--sukses-lembut); }
+.lencana.kuning { color: var(--peringatan); border-color: var(--peringatan-garis);  background: var(--peringatan-lembut); }
+.lencana.merah  { color: var(--bahaya);     border-color: var(--bahaya-garis);  background: var(--bahaya-lembut); }
 
 /* Deret pecahan rupiah di layar pembayaran. Sasarannya jari, bukan kursor:
    tinggi 34px agar nyaman ditekan di layar sentuh, dan membungkus rapi. */
@@ -342,7 +360,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .pecahan .cip:active { background: var(--garis-halus); }
 .pecahan .cip:focus-visible { outline: none; box-shadow: var(--cincin); }
 .pecahan .cip.pas {
-  color: var(--utama); border-color: rgba(9,105,218,.4); background: var(--utama-lembut);
+  color: var(--utama); border-color: var(--utama-garis); background: var(--utama-lembut);
 }
 .pecahan .cip.kosong { min-width: 34px; color: var(--teks-redup); }
 
@@ -354,12 +372,12 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 
 /* Sorot sesaat pada kartu tujuan supaya mata langsung tahu yang mana. */
 @keyframes sorotKartu {
-  0%   { box-shadow: 0 0 0 3px rgba(9,105,218,.45); }
-  100% { box-shadow: 0 0 0 3px rgba(9,105,218,0); }
+  0%   { box-shadow: 0 0 0 3px rgba(var(--utama-rgb),.45); }
+  100% { box-shadow: 0 0 0 3px rgba(var(--utama-rgb),0); }
 }
 .kartu.sorot { animation: sorotKartu 1.6s ease-out 1; }
 @media (prefers-reduced-motion: reduce) {
-  .kartu.sorot { animation: none; box-shadow: 0 0 0 3px rgba(9,105,218,.45); }
+  .kartu.sorot { animation: none; box-shadow: 0 0 0 3px rgba(var(--utama-rgb),.45); }
 }
 
 main { flex: 1; overflow: hidden; position: relative; }
@@ -485,8 +503,8 @@ main { flex: 1; overflow: hidden; position: relative; }
   font-size: 10.5px; padding: 1px 6px; border-radius: 5px; font-weight: 650;
   border: 1px solid transparent;
 }
-.tanda-tier   { background: var(--sukses-lembut);     color: var(--sukses);     border-color: var(--tanda-tier-garis); }
-.tanda-manual { background: var(--peringatan-lembut); color: var(--peringatan); border-color: var(--tanda-manual-garis); }
+.tanda-tier   { background: var(--sukses-lembut);     color: var(--sukses);     border-color: var(--sukses-garis); }
+.tanda-manual { background: var(--peringatan-lembut); color: var(--peringatan); border-color: var(--peringatan-garis); }
 
 .total-baris {
   display: flex; justify-content: space-between; padding: 3px 0;
@@ -508,17 +526,17 @@ main { flex: 1; overflow: hidden; position: relative; }
   font-weight: 500; font-size: 14px; border: 1px solid var(--garis-tombol);
   box-shadow: var(--bayang-1); transition: background .08s, border-color .08s;
 }
-.tombol:hover { background: var(--panel-3); border-color: rgba(31,35,40,.15); }
+.tombol:hover { background: var(--panel-3); border-color: var(--garis-kuat); }
 .tombol:active { background: var(--tombol-tekan); box-shadow: none; transition: none; }
-.tombol.utama  { background: var(--utama);        border-color: var(--garis-tombol); color: #fff; }
+.tombol.utama  { background: var(--utama-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.utama:hover  { background: var(--utama-gelap); }
 .tombol.sukses { background: var(--sukses-tombol); border-color: var(--garis-tombol); color: #fff; }
-.tombol.sukses:hover { background: var(--sukses); }
+.tombol.sukses:hover { background: var(--sukses-gelap); }
 /* Tombol bahaya Primer: DIAM ia hanya tombol biasa berteks merah; baru berubah
    merah penuh saat disentuh. Deretan tombol "Hapus" jadi tidak berteriak-teriak
    di dalam formulir, tapi niatnya tetap terbaca jelas. */
 .tombol.bahaya { background: var(--panel-2); border-color: var(--garis-tombol); color: var(--bahaya); }
-.tombol.bahaya:hover { background: var(--bahaya); border-color: var(--garis-tombol); color: #fff; }
+.tombol.bahaya:hover { background: var(--bahaya-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.bahaya:hover .ikon-svg { color: #fff; }
 .tombol.utama:active, .tombol.sukses:active, .tombol.bahaya:active { filter: brightness(.95); }
 .tombol.besar  { padding: 14px; font-size: 16px; font-weight: 600; width: 100%; }
@@ -557,7 +575,7 @@ label {
 
 /* ==================== MODAL ==================== */
 .tirai {
-  position: fixed; inset: 0; background: rgba(16,24,40,.5); backdrop-filter: blur(2px);
+  position: fixed; inset: 0; background: var(--tirai); backdrop-filter: blur(2px);
   display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
 }
 .tirai.tampil { display: flex; }
@@ -792,10 +810,10 @@ tr.pisah td { border-top: 1px solid var(--garis); }
   padding: 11px 14px; border-radius: var(--radius); margin-bottom: 12px;
   font-size: 13.5px; border: 1px solid transparent;
 }
-.pesan.galat  { background: var(--bahaya-lembut);     color: var(--teks); border-color: rgba(207,34,46,.4); }
-.pesan.sukses { background: var(--sukses-lembut);     color: var(--teks); border-color: rgba(26,127,55,.4); }
-.pesan.info   { background: var(--utama-lembut);      color: var(--teks); border-color: rgba(9,105,218,.4); }
-.pesan.peringatan { background: var(--peringatan-lembut); color: var(--teks); border-color: rgba(154,103,0,.4); }
+.pesan.galat  { background: var(--bahaya-lembut);     color: var(--teks); border-color: var(--bahaya-garis); }
+.pesan.sukses { background: var(--sukses-lembut);     color: var(--teks); border-color: var(--sukses-garis); }
+.pesan.info   { background: var(--utama-lembut);      color: var(--teks); border-color: var(--utama-garis); }
+.pesan.peringatan { background: var(--peringatan-lembut); color: var(--teks); border-color: var(--peringatan-garis); }
 
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
@@ -872,8 +890,8 @@ label.cek.kartu-cek {
   transition: transform .24s cubic-bezier(.2,.8,.2,1); box-shadow: var(--bayang-4); max-width: 90vw;
 }
 #toast.tampil { transform: translate(-50%, 0); }
-#toast.sukses { background: var(--sukses); color: #fff; }
-#toast.galat  { background: var(--bahaya); color: #fff; }
+#toast.sukses { background: var(--sukses-tombol); color: #fff; }
+#toast.galat  { background: var(--bahaya-tombol); color: #fff; }
 
 input.sudah-hitung {
   border-color: var(--sukses); background: var(--sukses-lembut); font-weight: 700;
@@ -923,7 +941,7 @@ input.sudah-hitung {
    Sidebar berubah jadi laci geser. Isinya PERSIS sama — hanya cara munculnya
    yang berbeda, sehingga tidak ada menu yang perlu disembunyikan. */
 .tirai-sisi {
-  position: fixed; inset: 0; background: rgba(16,24,40,.45);
+  position: fixed; inset: 0; background: var(--tirai);
   opacity: 0; pointer-events: none; transition: opacity .18s ease; z-index: 80;
 }
 
@@ -959,14 +977,14 @@ input.sudah-hitung {
   .panel-keranjang {
     position: fixed; inset: auto 0 0 0; height: 64vh; border-left: none;
     border-top: 1px solid var(--garis); border-radius: 16px 16px 0 0;
-    box-shadow: 0 -8px 28px rgba(16,24,40,.14);
+    box-shadow: var(--bayang-4);
     transform: translateY(calc(100% - 62px)); transition: transform .24s cubic-bezier(.2,.8,.2,1);
     z-index: 50;
   }
   .panel-keranjang.buka { transform: translateY(0); }
   .pegangan {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 15px 16px; background: var(--utama); color: #fff; font-weight: 650;
+    padding: 15px 16px; background: var(--utama-tombol); color: #fff; font-weight: 650;
     cursor: pointer; border-radius: 16px 16px 0 0; font-variant-numeric: tabular-nums;
   }
 }
@@ -1191,7 +1209,7 @@ input.sudah-hitung {
   background: transparent; color: var(--teks); border: none; white-space: nowrap;
 }
 .ekspor-menu button span { color: var(--teks-redup); font-size: 12.5px; margin-left: auto; }
-.ekspor-menu button:hover { background: var(--utama); color: #fff; }
+.ekspor-menu button:hover { background: var(--utama-tombol); color: #fff; }
 .ekspor-menu button:hover span { color: rgba(255,255,255,.8); }
 
 /* Menu ekspor tetap rata KANAN di lebar berapa pun.
