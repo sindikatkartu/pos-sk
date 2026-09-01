@@ -806,8 +806,16 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    Diperkenalkan 28 Agu 2026. Kepadatannya datang dari JARAK dan UKURAN HURUF
    yang lebih kecil, bukan dari membuang isi: satu layar yang harus digulir tiga
    kali sama saja dengan tiga layar, dan bagian bawahnya tidak pernah dibaca. */
+/* `margin-bottom` DIMILIKI wadahnya sendiri. Irama antar blok di layar ini
+   sebetulnya datang dari `margin-bottom: 16px` milik `.kartu` — jadi setiap wadah
+   yang anaknya BUKAN kartu tidak menyumbang jarak apa pun, dan blok sesudahnya
+   menempel tanpa celah. `.petak` sudah diberi marginnya sendiri di blok 620px
+   karena alasan yang persis sama; `.petak-mini` tidak pernah — dan deretan enam
+   kotak ringkasan Dasbor menempel 0px pada kartu "Jam ramai" di SEMUA lebar.
+   Ditemukan pemilik toko, bukan oleh alat, 1 Sep 2026. */
 .petak-mini {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr)); gap: 8px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
+  gap: 8px; margin-bottom: 16px;
 }
 .mini {
   background: var(--panel); border: 1px solid var(--garis-halus);

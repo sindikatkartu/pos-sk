@@ -448,7 +448,10 @@ const Admin = (() => {
               st.jumlah_kritis ? '<span class="delta turun">perlu dipesan</span>'
                                : '<span class="delta naik">aman</span>')
           ].join(''))}
-          <div class="petak-2" style="margin-top:10px">
+          <!-- Jaraknya dari margin-bottom milik .petak-mini di atasnya, bukan dari
+               margin-top di sini: dua sumber jarak untuk satu celah selalu berakhir
+               jadi 26px yang tidak diputuskan siapa pun. -->
+          <div class="petak-2">
             <div>
               <div class="petunjuk">Stok menyentuh ambang minimum</div>
               ${tabel([
