@@ -858,7 +858,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    kosong sebesar setengah kartu, dan ruang kosong sebesar itu terbaca seperti
    ada isi yang gagal dimuat. */
 .petak-2 {
-  display: grid; grid-template-columns: 1fr 1fr; align-items: start;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start;
   column-gap: 12px; row-gap: var(--irama); margin-bottom: var(--irama);
 }
 @media (max-width: 780px) { .petak-2 { grid-template-columns: 1fr; } }
@@ -900,7 +900,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    Di dalam petak, jaraknya milik petak; kartunya tidak menyumbang apa pun.
    Aturan ini dulu hanya ada di blok 620px, jadi ketimpangannya cuma hilang di
    HP dan bertahan di semua lebar lain. */
-.petak > *, .petak-2 > *, .petak-mini > *, .petak-tunggal > * { margin-bottom: 0; }
+.petak > *, .petak-2 > *, .petak-mini > *, .petak-tunggal > * { margin-bottom: 0; min-width: 0; }
 .petak > .statistik { align-self: stretch; }
 /* Satu isi yang tersisa sendirian di baris terakhir petak — grafik enam bulan
    di Dasbor — tidak digambar selebar sepertiga baris dengan dua pertiga sisanya
@@ -918,7 +918,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .statistik .label { font-size: var(--fs-13); color: var(--teks-redup); font-weight: 400; }
 
 .pesan {
-  padding: 12px 14px; border-radius: var(--radius); margin-bottom: 12px;
+  padding: 12px 14px; border-radius: var(--radius); margin-bottom: var(--irama);
   font-size: var(--fs-14); border: 1px solid transparent;
 }
 .pesan.galat  { background: var(--bahaya-lembut);     color: var(--teks); border-color: var(--bahaya-garis); }
@@ -1391,7 +1391,12 @@ input.sudah-hitung {
    kartu tunggal selebar layar — tombol "Buka shift" jadi mengambang sendirian
    di ujung ruang kosong. Di sini lebarnya dibatasi supaya isinya tetap
    berdekatan dan terbaca sebagai satu kelompok. */
-.petak-tunggal { display: grid; row-gap: var(--irama); max-width: 460px; }
+/* `minmax(0, 1fr)`, bukan `1fr`. `1fr` berlantai `min-content`: satu tabel lebar
+   di dalamnya membuat lajurnya melar melewati `max-width` wadahnya, dan kartunya
+   keluar layar tanpa bisa digulir. Terjadi di layar Shift — kartu 570px di layar
+   390px, 1 Sep 2026. */
+.petak-tunggal { display: grid; grid-template-columns: minmax(0, 1fr);
+                 row-gap: var(--irama); margin-bottom: var(--irama); max-width: 460px; }
 
 /* ==================== PENANDA SEDANG MEMUAT ====================
    Keluhannya: setelah diklik tidak ada tanda apa-apa, jadi tombolnya

@@ -297,7 +297,13 @@
              ringkasan saat tutup shift — sesudah itu tidak ada pintunya sama
              sekali. Kasir hanya melihat shiftnya sendiri; penyaringnya di
              server, bukan di layar ini. -->
-        <div class="kartu" id="kartuRiwayatShift">
+      </div>
+
+      <!-- DI LUAR `.petak-tunggal`. Wadah itu membatasi lebar pada 460px supaya
+           formulir pendek tidak mengambang selebar layar — benar untuk kartu
+           "Shift kasir", salah untuk kartu yang isinya TABEL delapan kolom:
+           tabelnya tidak muat, dan di HP ia mendorong kartunya keluar layar. -->
+      <div class="kartu" id="kartuRiwayatShift">
           <h3>Laporan shift</h3>
           <div class="bar-alat">
             <input type="date" id="shiftDari" style="max-width:170px">
@@ -305,7 +311,6 @@
             <button class="tombol" id="btnMuatShift">Tampilkan</button>
           </div>
           <div id="isiRiwayatShift"></div>
-        </div>
       </div>
     </section>
 
@@ -343,11 +348,14 @@
           <button class="tombol utama" id="btnSimpanKas">Simpan catatan kas</button>
         </div>
 
-        <div class="kartu">
-          <h3>Tercatat di shift ini</h3>
-          <div id="ringkasKas" class="petunjuk"></div>
-          <div id="daftarKas"></div>
-        </div>
+      </div>
+
+      <!-- Alasannya sama dengan kartu "Laporan shift": isinya tabel, jadi ia
+           tidak boleh dibatasi 460px. -->
+      <div class="kartu">
+        <h3>Tercatat di shift ini</h3>
+        <div id="ringkasKas" class="petunjuk"></div>
+        <div id="daftarKas"></div>
       </div>
     </section>
 

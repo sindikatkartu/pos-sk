@@ -195,6 +195,80 @@ async function tampilkanDitolak() {
  * itulah yang memulainya — kunci tombolnya sampai semuanya selesai.
  * Tombol yang tidak memanggil server sama sekali tidak tersentuh.
  */
+/**
+ * SATU BENTUK TABEL untuk seluruh aplikasi.
+ *
+ * Tata letak kartu di HP (`@media (max-width: 620px)`) berdiri di atas dua hal:
+ * baris kepala berada di dalam `<thead>` supaya bisa disembunyikan, dan setiap
+ * sel membawa `data-l` supaya nama kolomnya bisa dicetak di depan nilainya.
+ * `Admin.tabel` selalu memenuhi keduanya. Sembilan belas tabel yang ditulis
+ * tangan — Riwayat, Laporan, Keuangan, Shift, Kas, Neraca, dan modal-modalnya —
+ * tidak satu pun memenuhinya.
+ *
+ * Akibatnya di HP tabel lebar tetap jadi tabel lebar. Dan karena `.gulir-x`
+ * sengaja dimatikan penggulingannya di lebar itu (isinya semestinya sudah jadi
+ * kartu), tabelnya tidak bisa digulir juga: ia MENDORONG kartunya keluar layar.
+ * Dilaporkan pemilik 1 Sep 2026 di layar "Laporan shift" — kartunya 570px di
+ * layar 390px, dan sisanya terpotong diam-diam.
+ *
+ * Diperbaiki di SATU tempat, bukan sembilan belas: setiap tabel yang masuk ke
+ * halaman dirapikan begitu digambar. Yang sudah benar dilewati, dan tabel yang
+ * ditulis besok ikut terjaga tanpa perlu diingat — alasan yang sama dengan
+ * `pasangPenandaSibuk()` di bawah ini.
+ */
+function rapikanTabel(akar) {
+  if (!akar || akar.nodeType !== 1) return;
+  const daftar = [];
+  if (akar.matches && akar.matches('table:not([data-rapi])')) daftar.push(akar);
+  if (akar.querySelectorAll) daftar.push(...akar.querySelectorAll('table:not([data-rapi])'));
+
+  for (const t of daftar) {
+    t.dataset.rapi = '1';
+
+    /* Baris kepala yang ditulis sebagai `<tr><th>` langsung di bawah tabelnya
+       masuk ke `<tbody>` menurut penguraian HTML, bukan ke `<thead>`. Ia jadi
+       baris biasa: tidak tersembunyi di HP, dan ikut terbawa saat tabelnya
+       diurutkan. Syaratnya SEMUA selnya `<th>` — satu `<td>` di antaranya
+       berarti itu baris data, bukan kepala. */
+    if (!t.tHead) {
+      const pertama = t.rows[0];
+      if (pertama && pertama.cells.length &&
+          [...pertama.cells].every(sel => sel.tagName === 'TH')) {
+        t.createTHead().appendChild(pertama);
+      }
+    }
+    if (!t.tHead || !t.tHead.rows[0]) continue;
+
+    const judul = [...t.tHead.rows[0].cells].map(sel => sel.textContent.trim());
+    for (const tb of t.tBodies) {
+      for (const baris of tb.rows) {
+        [...baris.cells].forEach((sel, i) => {
+          /* Sel ber-colspan adalah baris keadaan kosong ("Belum ada data"); ia
+             tidak sejajar dengan kolom mana pun dan sudah punya aturannya
+             sendiri di CSS. */
+          if (sel.hasAttribute('data-l') || sel.hasAttribute('colspan')) return;
+          sel.dataset.l = judul[i] || '';
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Pengawas yang menjalankan `rapikanTabel` pada apa pun yang baru digambar.
+ *
+ * Diletakkan di satu pengawas, bukan dipanggil di puluhan tempat `innerHTML`
+ * diisi: yang dipanggil di puluhan tempat selalu terlupa di tempat yang
+ * kedua puluh satu. Biayanya kecil — hanya simpul yang BARU ditambahkan yang
+ * disisir, dan tabel yang sudah dirapikan ditandai supaya tidak disentuh lagi.
+ */
+function pasangPengawasTabel() {
+  rapikanTabel(document.body);
+  new MutationObserver((daftarUbah) => {
+    for (const u of daftarUbah) for (const n of u.addedNodes) rapikanTabel(n);
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 function pasangPenandaSibuk() {
   const garis = $('#garisMuat');
   const terkunci = new Set();
@@ -3187,6 +3261,7 @@ function pasangEvent() {
   $('#keuPeriode').value = hariIni.substring(0, 7);
 
   pasangPenandaSibuk();
+  pasangPengawasTabel();
 
   // Coba lanjutkan sesi yang tersimpan (termasuk saat offline)
   const token = await DB.kvGet('token', null);

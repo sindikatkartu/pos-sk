@@ -159,17 +159,80 @@ const Struk = (() => {
 
   /* ---------- Jalur 1: Bluetooth ESC/POS ---------- */
 
+  const SVC_CETAK = '000018f0-0000-1000-8000-00805f9b34fb';
+  const KAR_CETAK = '00002af1-0000-1000-8000-00805f9b34fb';
+
+  /**
+   * Sambungkan GATT ke perangkat yang SUDAH dipilih.
+   *
+   * Dipisah dari `hubungkanBluetooth` karena keduanya butuh izin yang berbeda:
+   * `requestDevice` wajib dipanggil dari sentuhan pengguna, `gatt.connect()`
+   * pada perangkat yang izinnya sudah diberikan TIDAK. Itulah yang membuat
+   * penyambungan ulang otomatis mungkin sama sekali.
+   */
+  async function sambungGatt() {
+    const server = await perangkatBt.gatt.connect();
+    const svc = await server.getPrimaryService(SVC_CETAK);
+    karakteristik = await svc.getCharacteristic(KAR_CETAK);
+    return karakteristik;
+  }
+
   async function hubungkanBluetooth() {
     if (!navigator.bluetooth) throw new Error('Peramban ini tidak mendukung Web Bluetooth. Gunakan Chrome/Edge.');
     perangkatBt = await navigator.bluetooth.requestDevice({
-      filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb'] }],
-      optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+      filters: [{ services: [SVC_CETAK] }],
+      optionalServices: [SVC_CETAK]
     });
-    const server = await perangkatBt.gatt.connect();
-    const svc = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-    karakteristik = await svc.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+    /* Printer yang mati atau direbut aplikasi lain memutus GATT tanpa memberi
+       tahu siapa pun. Tanpa penanda ini `karakteristik` tetap terisi objek yang
+       sudah mati, dan cetak berikutnya melempar galat yang tidak bisa dibaca
+       ("GATT Server is disconnected") alih-alih menyambung ulang. */
+    perangkatBt.addEventListener('gattserverdisconnected', () => { karakteristik = null; });
+    await sambungGatt();
     await DB.kvSet('printer_nama', perangkatBt.name);
     return perangkatBt.name;
+  }
+
+  /**
+   * Pastikan printernya siap dipakai, menyambung ulang bila perlu.
+   *
+   * Belum pernah dipilih  -> minta pengguna memilih (butuh sentuhan).
+   * Sudah dipilih, putus  -> sambung sendiri, tanpa sentuhan, tanpa pairing ulang.
+   */
+  async function pastikanTersambung() {
+    if (!perangkatBt) return hubungkanBluetooth();
+    if (!karakteristik || !perangkatBt.gatt.connected) await sambungGatt();
+    return karakteristik;
+  }
+
+  /**
+   * Lepaskan printer supaya aplikasi lain bisa memakainya.
+   *
+   * Printer termal hanya menerima SATU koneksi. Tablet kasir toko ini memakai
+   * dua aplikasi transaksi — Accurate POS dan aplikasi ini — dan selama kita
+   * menahan GATT-nya sampai tab ditutup, Accurate tidak akan pernah bisa
+   * mengambilnya; yang terjadi rebutan, dan salah satunya harus pairing ulang.
+   * Dilaporkan pemilik 1 Sep 2026.
+   *
+   * Yang bisa kita atur cuma sisi kita: begitu tab ini tidak dilihat, printernya
+   * dilepas. Saat mau mencetak, `pastikanTersambung()` mengambilnya lagi sendiri.
+   * Sisi Accurate tidak bisa diatur dari sini — kalau ia yang sedang memegang,
+   * cetak dari sini tetap gagal sampai ia melepas.
+   */
+  function lepasPrinter() {
+    try {
+      if (perangkatBt && perangkatBt.gatt && perangkatBt.gatt.connected) perangkatBt.gatt.disconnect();
+    } catch (e) { console.warn('Lepas printer:', e.message); }
+    karakteristik = null;
+  }
+
+  /* Dipasang sekali, bukan per cetak. `visibilitychange` menyala saat tab
+     berpindah, aplikasi diminimalkan, atau layar tablet dimatikan — ketiganya
+     saat yang tepat untuk melepaskan printer. */
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) lepasPrinter();
+    });
   }
 
   /**
@@ -228,7 +291,7 @@ const Struk = (() => {
   }
 
   async function cetakBluetooth(nota) {
-    if (!karakteristik) await hubungkanBluetooth();
+    await pastikanTersambung();
     const ekor = await bacaEkor();
     /* Disusun SEKALI. Dulu `baris(nota)` dipanggil dua kali — sekali untuk kop,
        sekali untuk sisanya — jadi seluruh struk dirakit dua kali per cetak, dan
@@ -265,7 +328,8 @@ const Struk = (() => {
   }
 
   async function bukaLaci() {
-    if (!karakteristik) return;
+    if (!perangkatBt) return;
+    await pastikanTersambung();
     await karakteristik.writeValue(new Uint8Array(ESC.LACI));
   }
 
@@ -312,6 +376,7 @@ const Struk = (() => {
   }
 
   return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
+           pastikanTersambung, lepasPrinter,
            baris, rupiah,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };
 })();
