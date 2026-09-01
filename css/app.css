@@ -73,6 +73,13 @@
 
   --tirai:             rgba(20,20,19,.50);   /* tirai di belakang modal */
   --gulir-bayang:      rgba(0,0,0,.16);      /* tanda "masih ada isi" di tepi wadah bergulir */
+  /* SATU jarak vertikal antar kotak, di seluruh aplikasi. Sebelum 1 Sep 2026
+     nilainya tiga sekaligus — 8, 16, dan 28 — karena jaraknya lahir dari tiga
+     sumber yang saling menambah: `margin-bottom` milik `.kartu`, `gap` milik
+     petaknya, dan `margin` milik wadahnya. Dua kartu bersebelahan di dalam
+     petak berjarak 12+16=28px sementara dua kartu biasa berjarak 16px: hubungan
+     yang sama, jarak yang berbeda. Itu yang terbaca sebagai tidak rapi. */
+  --irama:             16px;
   --tombol-tekan:      #e4e2d4;
   --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
   /* Kotak logo 'SK'. Pasangan inverted dari palet: latar gelap, tulisan terang —
@@ -725,7 +732,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
   --tepi-x: 16px;
   --tepi-y: 16px;
   background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
-  padding: var(--tepi-y) var(--tepi-x); margin-bottom: 16px; box-shadow: none;
+  padding: var(--tepi-y) var(--tepi-x); margin-bottom: var(--irama); box-shadow: none;
 }
 .kartu h3 { margin: 0 0 14px; font-size: var(--fs-14); font-weight: 600; }
 /* Tabel menempel ke tepi kartu supaya bar kepala terbaca sebagai satu kesatuan.
@@ -815,7 +822,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    Ditemukan pemilik toko, bukan oleh alat, 1 Sep 2026. */
 .petak-mini {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
-  gap: 8px; margin-bottom: 16px;
+  column-gap: 8px; row-gap: var(--irama); margin-bottom: var(--irama);
 }
 .mini {
   background: var(--panel); border: 1px solid var(--garis-halus);
@@ -850,7 +857,10 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    tetangganya yang panjang. Tanpa ini kartu "Jam ramai" menyisakan ruang
    kosong sebesar setengah kartu, dan ruang kosong sebesar itu terbaca seperti
    ada isi yang gagal dimuat. */
-.petak-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.petak-2 {
+  display: grid; grid-template-columns: 1fr 1fr; align-items: start;
+  column-gap: 12px; row-gap: var(--irama); margin-bottom: var(--irama);
+}
 @media (max-width: 780px) { .petak-2 { grid-template-columns: 1fr; } }
 
 .kartu.rapat { --tepi-x: 14px; --tepi-y: 12px; }
@@ -883,8 +893,14 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    dengan memesan baris ekornya (lihat `.mini-ekor`). */
 .petak {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-  gap: 12px; align-items: start;
+  column-gap: 12px; row-gap: var(--irama); margin-bottom: var(--irama); align-items: start;
 }
+/* SATU sumber jarak. `margin-bottom` milik `.kartu` DITAMBAHKAN ke `row-gap`
+   petaknya — 12+16=28px — sementara dua kartu di luar petak berjarak 16px.
+   Di dalam petak, jaraknya milik petak; kartunya tidak menyumbang apa pun.
+   Aturan ini dulu hanya ada di blok 620px, jadi ketimpangannya cuma hilang di
+   HP dan bertahan di semua lebar lain. */
+.petak > *, .petak-2 > *, .petak-mini > *, .petak-tunggal > * { margin-bottom: 0; }
 .petak > .statistik { align-self: stretch; }
 /* Satu isi yang tersisa sendirian di baris terakhir petak — grafik enam bulan
    di Dasbor — tidak digambar selebar sepertiga baris dengan dua pertiga sisanya
@@ -1114,13 +1130,13 @@ input.sudah-hitung {
      Akibatnya empat angka ringkasan memakan satu layar penuh dan pengguna harus
      menggulir sebelum melihat data pertamanya. Di lebar ini jumlah kolomnya
      ditetapkan, bukan ditawar. */
-  .petak { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .petak { grid-template-columns: 1fr 1fr; column-gap: 8px; }
   /* `margin-bottom: 16px` bawaan `.kartu` DITAMBAHKAN ke `gap` di dalam grid:
      jarak antar baris jadi 24px sementara antar kolom 8px. Di layar lebar
      `.petak` hampir selalu satu baris jadi tidak terlihat; di HP ia selalu
      dua baris atau lebih, dan ketimpangan itu yang terbaca sebagai renggang
      tak beraturan. Jaraknya diserahkan sepenuhnya ke `gap`. */
-  .petak > .kartu { padding: 12px; margin-bottom: 0; }
+  .petak > .kartu { padding: 12px; }
   /* Jumlah kartu ganjil menyisakan satu yang separuh lebar sendirian di baris
      terakhir. Yang terakhir itu dilebarkan penuh. */
   .petak > :last-child:nth-child(odd) { grid-column: 1 / -1; }
@@ -1375,7 +1391,7 @@ input.sudah-hitung {
    kartu tunggal selebar layar — tombol "Buka shift" jadi mengambang sendirian
    di ujung ruang kosong. Di sini lebarnya dibatasi supaya isinya tetap
    berdekatan dan terbaca sebagai satu kelompok. */
-.petak-tunggal { display: grid; gap: 12px; max-width: 460px; }
+.petak-tunggal { display: grid; row-gap: var(--irama); max-width: 460px; }
 
 /* ==================== PENANDA SEDANG MEMUAT ====================
    Keluhannya: setelah diklik tidak ada tanda apa-apa, jadi tombolnya
