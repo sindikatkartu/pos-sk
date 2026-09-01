@@ -168,7 +168,7 @@
         <div class="keranjang-atas">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <strong>Keranjang</strong>
-            <button class="tombol" id="btnKosongkan" style="padding:6px 11px;font-size:13px">Kosongkan</button>
+            <button class="tombol" id="btnKosongkan" style="padding:6px 12px;font-size:var(--fs-13)">Kosongkan</button>
           </div>
         </div>
         <div class="keranjang-isi" id="isiKeranjang">
@@ -628,7 +628,7 @@
       <div class="petak">
         <div class="kartu">
           <h3>Printer</h3>
-          <p style="color:var(--teks-redup);font-size:13px" id="infoPrinter">Belum terhubung</p>
+          <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPrinter">Belum terhubung</p>
           <button class="tombol" id="btnHubungkanPrinter">Hubungkan printer Bluetooth</button>
           <button class="tombol" id="btnUjiCetak" style="margin-top:8px">Uji cetak</button>
 
@@ -639,15 +639,15 @@
                tetap memuntahkan 2-3 cm kertas kosong lalu tidak memotong apa pun.
                Lihat print.js, bagian EKOR_BAWAAN. -->
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">
-            <label style="display:flex;align-items:center;gap:8px;font-size:13px">
+            <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-13)">
               <input type="checkbox" id="setPrinterPotong" style="width:auto;margin:0">
               Printer ini punya pisau pemotong
             </label>
-            <p style="color:var(--teks-redup);font-size:12px;margin:6px 0 10px">
+            <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 10px">
               Matikan bila kertas keluar panjang dan kosong di bawah struk —
               itu tandanya printer ini tidak berpisau.
             </p>
-            <label style="font-size:13px;color:var(--teks-redup)">Baris kosong di ujung struk</label>
+            <label style="font-size:var(--fs-13);color:var(--teks-redup)">Baris kosong di ujung struk</label>
             <input type="number" id="setPrinterUmpan" min="0" max="6" step="1" style="max-width:90px">
           </div>
 
@@ -659,8 +659,8 @@
                keputusan) — dua tempat mengubah satu hal berarti yang terakhir menyimpan
                menang tanpa ada yang tahu. -->
           <div style="margin-top:14px">
-            <label style="font-size:13px;color:var(--teks-redup)">Pratinjau struk saat ini</label>
-            <div id="previewStruk" style="font-family:'Courier New',monospace;font-size:12.5px;
+            <label style="font-size:var(--fs-13);color:var(--teks-redup)">Pratinjau struk saat ini</label>
+            <div id="previewStruk" style="font-family:'Courier New',monospace;font-size:var(--fs-13);
                  white-space:pre-line;background:var(--panel-2);border:1px solid var(--garis-halus);
                  border-radius:var(--radius);padding:10px;margin-top:6px"></div>
             <button class="tombol" id="btnKeSettingStruk" style="margin-top:8px">Ubah di menu Setting</button>
@@ -669,14 +669,14 @@
 
         <div class="kartu">
           <h3>Data &amp; sinkronisasi</h3>
-          <p style="color:var(--teks-redup);font-size:13px" id="infoData"></p>
+          <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoData"></p>
           <button class="tombol" id="btnTarikMaster">Tarik ulang data master</button>
           <button class="tombol" id="btnKirimSekarang" style="margin-top:8px">Kirim antrian sekarang</button>
         </div>
 
         <div class="kartu">
           <h3>Perangkat ini</h3>
-          <p style="color:var(--teks-redup);font-size:13px" id="infoPerangkat"></p>
+          <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPerangkat"></p>
         </div>
 
       </div>
@@ -691,7 +691,7 @@
   <div class="modal" style="max-width:400px">
     <h3>Persetujuan diskon</h3>
     <div id="otRingkas"></div>
-    <p style="color:var(--teks-redup);font-size:13px;margin:10px 0 14px">
+    <p style="color:var(--teks-redup);font-size:var(--fs-13);margin:10px 0 14px">
       Minta atasan memasukkan sendiri username dan PIN-nya di perangkat ini.
       PIN tidak disimpan; yang tercatat hanya siapa yang menyetujui.
     </p>
@@ -733,7 +733,7 @@
     <div id="byrDaftarMetode"></div>
     <button class="tombol" id="btnTambahMetode" style="width:100%;margin-bottom:12px">+ Metode bayar lain (split)</button>
     <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
-    <div class="total-baris besar" style="font-size:20px"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
+    <div class="total-baris besar" style="font-size:var(--fs-21)"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
     <div class="grup sembunyi" id="grupJatuhTempo">
       <label>Jatuh tempo piutang</label>
       <input type="date" id="byrJatuhTempo">
@@ -758,7 +758,7 @@
       <div class="grup"><label>Harga satuan</label><input type="text" inputmode="numeric" class="uang" id="itmHarga"></div>
       <div class="grup"><label>Diskon (Rp)</label><input type="text" inputmode="numeric" class="uang" id="itmDiskon" value="0"></div>
     </div>
-    <p style="font-size:12px;color:var(--teks-redup)" id="itmInfo"></p>
+    <p style="font-size:var(--fs-12);color:var(--teks-redup)" id="itmInfo"></p>
     <!-- Pintu ke pembagian petugas untuk baris yang TIDAK bertanda butuh_pasang.
          Sejak v1.47 tombol "+ Pemasang" di keranjang hanya muncul di baris yang
          memang dipasang; membagi baris berpoin biasa tetap mungkin, tapi lewat

@@ -528,14 +528,14 @@ const Admin = (() => {
       const r = g.ringkas;
 
       w.innerHTML = `
-        <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">
+        <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));margin-bottom:16px">
           <div class="statistik"><div class="label">Omzet ${hari} hari</div><div class="nilai">${rp(r.omzet)}</div></div>
           <div class="statistik"><div class="label">Rata-rata per hari</div><div class="nilai">${rp(r.rata_per_hari)}</div></div>
           <div class="statistik"><div class="label">Rata-rata per nota</div><div class="nilai">${rp(r.rata_per_nota)}</div></div>
           ${r.margin !== undefined ? `<div class="statistik"><div class="label">Margin kotor</div><div class="nilai">${r.margin}%</div></div>` : ''}
         </div>
         <div id="gPenjualan"></div>
-        <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:22px">
+        <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));margin-top:22px">
           <div><h4 class="judul-grafik">Omzet per kategori</h4><div id="gKategori"></div></div>
           <div><h4 class="judul-grafik">Metode pembayaran</h4><div id="gMetode"></div></div>
           <div><h4 class="judul-grafik">10 produk teratas</h4><div id="gProduk"></div></div>
@@ -1458,7 +1458,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           metode <span class="lencana hijau">${esc(d.metode_hpp || 'FIFO')}</span></p>
 
         ${punyaLapisan ? `<div class="kartu" style="background:var(--bg)">
-          <h3 style="font-size:14px">Lapisan yang masih tersisa</h3>
+          <h3 style="font-size:var(--fs-14)">Lapisan yang masih tersisa</h3>
           <p class="petunjuk">Dengan FIFO, satu SKU bisa punya beberapa harga modal sekaligus.
             Lapisan paling atas yang akan terjual lebih dulu.</p>
           ${tabel([
@@ -1547,7 +1547,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Diskon dokumen</label><input type="text" inputmode="numeric" class="uang" id="beliDiskon" value="0"></div>
         <div class="grup"><label>PPN</label><input type="text" inputmode="numeric" class="uang" id="beliPpn" value="0"></div>
       </div>
-      <div class="total-baris besar" style="font-size:20px"><span>TOTAL</span><span id="beliTotal">Rp 0</span></div>
+      <div class="total-baris besar" style="font-size:var(--fs-21)"><span>TOTAL</span><span id="beliTotal">Rp 0</span></div>
       <div id="pesanBeli"></div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnSimpanPembelian">Simpan pembelian</button>`);
@@ -2327,7 +2327,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Pengaturan sistem</h3>
           <p class="petunjuk">Perubahan berlaku untuk seluruh cabang dan langsung ditarik perangkat kasir pada sinkronisasi berikutnya.</p>
-          <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+          <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))">
             ${rows.map(r => {
               const label = LABEL_SETTING[r.kunci] || r.kunci;
               /* Tanpa `data-setting` penyimpan di bawah tidak akan menyentuhnya —
@@ -2772,7 +2772,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const punyaNilai = d.nilai_selisih !== undefined;
 
     bukaModal(`Hasil opname — ${d.no_dokumen}`, `
-      <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+      <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(130px,100%),1fr))">
         <div class="kartu statistik"><div class="label">Dihitung</div><div class="nilai">${d.item.length}</div></div>
         <div class="kartu statistik"><div class="label">Cocok</div>
           <div class="nilai" style="color:var(--sukses)">${cocok}</div></div>
@@ -2963,7 +2963,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="kartu" style="background:var(--bg);margin-top:10px">
         <div class="total-baris"><span>Nilai barang kembali</span><span id="rtNilaiRetur">Rp 0</span></div>
         <div class="total-baris"><span>Nilai barang pengganti</span><span id="rtNilaiPengganti">Rp 0</span></div>
-        <div class="total-baris besar" style="font-size:20px">
+        <div class="total-baris besar" style="font-size:var(--fs-21)">
           <span id="rtLabelSelisih">Uang dikembalikan</span><span id="rtSelisih">Rp 0</span></div>
       </div>
       <div id="pesanRetur"></div>
@@ -3064,9 +3064,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <tr><td>Nilai barang kembali</td><td class="angka">${rp(d.nilai_retur)}</td></tr>
           ${d.nilai_pengganti ? `<tr><td>Nilai barang pengganti</td><td class="angka">${rp(d.nilai_pengganti)}</td></tr>` : ''}
           ${d.uang_dikembalikan ? `<tr class="tebal"><td>UANG DIKEMBALIKAN</td>
-            <td class="angka" style="font-size:20px;color:var(--bahaya)">${rp(d.uang_dikembalikan)}</td></tr>` : ''}
+            <td class="angka" style="font-size:var(--fs-21);color:var(--bahaya)">${rp(d.uang_dikembalikan)}</td></tr>` : ''}
           ${d.tambahan_bayar ? `<tr class="tebal"><td>PELANGGAN MENAMBAH BAYAR</td>
-            <td class="angka" style="font-size:20px;color:var(--sukses)">${rp(d.tambahan_bayar)}</td></tr>` : ''}
+            <td class="angka" style="font-size:var(--fs-21);color:var(--sukses)">${rp(d.tambahan_bayar)}</td></tr>` : ''}
         </table>`,
         '<button class="tombol utama" data-tutup="1" id="btnSelesaiRetur">Selesai</button>');
     } catch (e) {
@@ -3173,7 +3173,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <input type="text" id="rbAlasan" placeholder="mis. 12 pcs cacat produksi, disepakati diganti"></div>
 
       <div class="kartu" style="background:var(--bg)">
-        <div class="total-baris besar" style="font-size:19px;border:none;margin:0">
+        <div class="total-baris besar" style="font-size:var(--fs-19);border:none;margin:0">
           <span>Nilai klaim ke supplier</span><span id="rbTotal">Rp 0</span></div>
       </div>
       <div id="pesanReturBeli"></div>
@@ -3571,7 +3571,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <div class="pesan sukses">Catat kredensial ini sekarang — tidak akan ditampilkan lagi.</div>
               <table>
                 <tr><td>Username</td><td><strong>${esc(r.username)}</strong></td></tr>
-                <tr><td>PIN</td><td><strong style="font-size:20px">${esc(r.pin)}</strong></td></tr>
+                <tr><td>PIN</td><td><strong style="font-size:var(--fs-21)">${esc(r.pin)}</strong></td></tr>
                 <tr><td>Password</td><td><strong>${esc(r.password)}</strong></td></tr>
               </table>
               <p class="petunjuk">Pengguna wajib mengganti PIN saat pertama kali masuk.</p>`,
@@ -3593,7 +3593,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           bukaModal('PIN berhasil direset', `
             <div class="pesan sukses">Catat sekarang — tidak akan ditampilkan lagi.</div>
             <table>
-              <tr><td>PIN baru</td><td><strong style="font-size:20px">${esc(r.pin)}</strong></td></tr>
+              <tr><td>PIN baru</td><td><strong style="font-size:var(--fs-21)">${esc(r.pin)}</strong></td></tr>
               <tr><td>Password baru</td><td><strong>${esc(r.password)}</strong></td></tr>
             </table>`, '<button class="tombol utama" data-tutup="1">Sudah dicatat</button>');
         } catch (x) { toast(x.message, 'galat'); }

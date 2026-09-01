@@ -172,7 +172,7 @@ async function tampilkanDitolak() {
   if (!rows.length) return;
   const isi = rows.map(o => `<div class="pesan galat" style="margin-bottom:8px">
       <strong>${esc(o.dokumen?.no_nota || o.uuid)}</strong>
-      <div style="font-size:12.5px;margin-top:4px">${esc(o.pesan_galat || 'Tanpa keterangan')}</div>
+      <div style="font-size:var(--fs-13);margin-top:4px">${esc(o.pesan_galat || 'Tanpa keterangan')}</div>
       <div class="meta-kecil">Dicoba ${o.percobaan || 0}x · ${esc(waktuTampil(o.dibuat).substring(0, 14))}</div>
     </div>`).join('');
   Admin.modal('Nota ditolak server', `
@@ -743,7 +743,7 @@ async function gambarProduk(kueri) {
         <div class="stok ${qty !== null && qty <= 0 ? 'habis' : ''}">${qty === null ? 'stok ?' : 'stok ' + qty}</div>
         <button class="tombol kecil sunyi" data-stok-cabang="${esc(p.sku)}"
                 title="Lihat stok produk ini di seluruh cabang"
-                style="margin-top:5px">cabang lain</button>
+                style="margin-top:6px">cabang lain</button>
       </div>
     </div>`;
   }).join('') : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Tidak ada produk cocok</p>';
@@ -775,7 +775,7 @@ async function lihatStokCabangLain(sku, paksaSegar = false) {
           const sini = c === APP_STATE.cabang;
           return `<tr>
             <td>${esc(c)}${sini ? ' <span class="lencana">cabang ini</span>' : ''}</td>
-            <td class="angka" style="font-size:17px;font-weight:700;${q > 0 ? '' : 'color:var(--teks-redup)'}">${q}</td>
+            <td class="angka" style="font-size:var(--fs-17);font-weight:700;${q > 0 ? '' : 'color:var(--teks-redup)'}">${q}</td>
             <td>${q > 0 ? '<span class="lencana hijau">tersedia</span>' : '<span class="lencana">kosong</span>'}</td>
           </tr>`;
         }).join('')}</tbody>
@@ -1094,11 +1094,11 @@ function gambarRosterKlaim() {
     ? 'baris tanpa tim sendiri' : x).join(' · ');
 
   const baris = peta.map(p => `
-    <div style="display:flex;gap:8px;align-items:baseline;padding:3px 0">
+    <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0">
       <strong style="min-width:0">${esc(p.nama)}</strong>
       <span class="lencana ${p.peran === 'PEMASANG' ? 'kuning' : 'hijau'}">${
         p.peran === 'PEMASANG' ? 'memasang' : 'melayani'}</span>
-      <span style="color:var(--teks-redup);font-size:12px;flex:1;min-width:0">${esc(kerjaTeks(p.kerja))}</span>
+      <span style="color:var(--teks-redup);font-size:var(--fs-12);flex:1;min-width:0">${esc(kerjaTeks(p.kerja))}</span>
     </div>`).join('');
 
   /* Baris berpoin yang tidak dimiliki siapa pun disebut NAMANYA, bukan cuma
@@ -1121,7 +1121,7 @@ function gambarRosterKlaim() {
     : '';
 
   return `<div class="pesan info" style="text-align:left">
-      <div style="font-size:12px;color:var(--teks-redup);margin-bottom:4px">Poin nota ini masuk ke</div>
+      <div style="font-size:var(--fs-12);color:var(--teks-redup);margin-bottom:4px">Poin nota ini masuk ke</div>
       ${baris || '<em>belum ada</em>'}
     </div>${yatim}${notaTakDipakai}`;
 }
@@ -1249,7 +1249,7 @@ function gambarAnggotaTim() {
           <option value="">— pilih —</option>
           ${opsiSlot(i, a.kode)}
         </select></div>
-      ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : '<span></span>'}
+      ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:12px 12px">×</button>` : '<span></span>'}
     </div>`).join('');
 
   // Tombol tambah hanya berarti selama masih ada tempat.
@@ -1449,7 +1449,7 @@ function gambarMetode() {
       <div style="display:flex;gap:6px;align-items:end">
         <div style="flex:1"><label>Jumlah</label>
           <input type="text" inputmode="numeric" class="uang" data-i="${i}" data-f="jumlah" value="${ribuan(m.jumlah)}"></div>
-        ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:11px 12px">×</button>` : ''}
+        ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:12px 12px">×</button>` : ''}
       </div>
     </div>
     ${m.metode === 'tunai' ? `
@@ -1720,7 +1720,7 @@ async function muatDaftarShift() {
         <td class="angka">${r.tutup
           ? `<span class="${Math.abs(r.selisih) >= 1 ? 'bahaya' : ''}">${rp(r.selisih)}</span>` : '—'}</td>
         <td><button class="tombol" data-lapshift="${esc(r.id_shift)}"
-              style="padding:5px 10px;font-size:13px">Laporan</button></td>
+              style="padding:6px 10px;font-size:var(--fs-13)">Laporan</button></td>
       </tr>`).join('')}</table></div>
       ${d.boleh_semua ? '' : '<p class="petunjuk">Anda hanya melihat shift Anda sendiri.</p>'}`;
   } catch (e) { wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
@@ -2213,7 +2213,7 @@ async function tampilkanLabaRugi() {
       ${brs('Penjualan Bersih', d.penjualan_bersih, 'tebal pisah')}
       ${brs('(−) Harga Pokok Penjualan', -d.hpp)}
       ${brs('LABA KOTOR (' + d.margin_kotor_persen + '%)', d.laba_kotor, 'tebal pisah')}
-      <tr class="pisah"><td colspan="2" style="color:var(--teks-redup);font-size:12px">BEBAN OPERASIONAL</td></tr>
+      <tr class="pisah"><td colspan="2" style="color:var(--teks-redup);font-size:var(--fs-12)">BEBAN OPERASIONAL</td></tr>
       ${d.rincian_beban.map(b => brs('  ' + b.kode + ' ' + b.nama, -b.jumlah)).join('')}
       ${brs('Total Beban Operasional', -d.beban_operasional, 'tebal')}
       ${brs('LABA USAHA', d.laba_usaha, 'tebal pisah')}
@@ -2291,7 +2291,7 @@ async function gambarRiwayat() {
     ${rows.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
       <td class="angka">${rp(n.total)}</td>
       <td><span class="lencana ${n.status_sync === 'SYNCED' ? 'hijau' : 'kuning'}">${n.status_sync === 'SYNCED' ? 'terkirim' : 'menunggu'}</span></td>
-      <td><button class="tombol" data-cetak="${esc(n.uuid)}" style="padding:5px 10px;font-size:13px">Cetak ulang</button></td>
+      <td><button class="tombol" data-cetak="${esc(n.uuid)}" style="padding:6px 10px;font-size:var(--fs-13)">Cetak ulang</button></td>
     </tr>`).join('')}</table></div>` : '<p style="color:var(--teks-redup)">Belum ada nota di shift ini.</p>';
 }
 
@@ -2324,7 +2324,7 @@ async function cariNotaLama() {
     <tr><td>${esc(n.no_nota)}</td><td>${esc(tglTampil(n.tanggal))}</td><td>${esc(n.jam)}</td>
       <td class="angka">${rp(n.total)}</td>
       <td><button class="tombol" data-cetak="${esc(n.uuid)}" data-luar-shift="${lainShift ? '1' : ''}"
-        style="padding:5px 10px;font-size:13px">Cetak ulang</button></td></tr></table></div>
+        style="padding:6px 10px;font-size:var(--fs-13)">Cetak ulang</button></td></tr></table></div>
     ${lainShift ? '<p class="petunjuk">Nota ini dari shift lain — cetak ulangnya akan tercatat.</p>' : ''}`;
 }
 
