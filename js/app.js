@@ -2071,9 +2071,12 @@ async function tampilkanLaporan() {
     const r = d.ringkas;
     const l = d.lalu || {};
     const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
+    /* Baris ekor selalu digambar — alasannya sama dengan `kotakMini` di
+       admin.js: satu baris kartu angka tingginya disamakan, jadi kartu yang
+       tidak punya pembanding berlubang di dalam. */
     const kotak = (label, nilai, ekor) => `<div class="kartu statistik">
       <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div>
-      ${ekor ? `<div class="mini-ekor">${ekor}</div>` : ''}</div>`;
+      <div class="mini-ekor">${ekor || ''}</div></div>`;
     const tabel = (judul, kolom, baris, kosong) => `<div class="kartu"><h3>${esc(judul)}</h3>
       ${baris.length ? `<div class="gulir-x"><table>
         <tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr>

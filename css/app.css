@@ -72,6 +72,7 @@
   --cincin:   0 0 0 3px rgba(32,111,189,.30);
 
   --tirai:             rgba(20,20,19,.50);   /* tirai di belakang modal */
+  --gulir-bayang:      rgba(0,0,0,.16);      /* tanda "masih ada isi" di tepi wadah bergulir */
   --tombol-tekan:      #e4e2d4;
   --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
   /* Kotak logo 'SK'. Pasangan inverted dari palet: latar gelap, tulisan terang —
@@ -183,6 +184,7 @@ html[data-tema="gelap"] {
   --cincin:   0 0 0 3px rgba(83,155,226,.40);
 
   --tirai:             rgba(0,0,0,.65);
+  --gulir-bayang:      rgba(255,255,255,.13);
   --tombol-tekan:      #45443f;
   --aksen-aktif:       #d97757;
   --logo-bg:           #faf9f5;
@@ -259,6 +261,22 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
                   overflow: hidden; text-overflow: ellipsis; }
 
 .sisi-isi { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 10px 14px; }
+/* Tanda "masih ada isi di bawah". Menu OWNER lebih panjang dari layar laptop
+   dan terpotong tepat di tengah sebuah kelompok; tanpa tanda apa pun itu
+   terbaca sebagai menu yang HILANG, bukan menu yang tergulung — dan itulah
+   yang membuat orang mencari-cari menu yang sebenarnya ada.
+   Dua lapis pertama menempel pada ISI (`local`) dan menutupi bayangnya saat
+   sudah mentok; dua lapis terakhir menempel pada KOTAK (`scroll`) dan itulah
+   bayangnya. Hasilnya: bayang atas hanya muncul setelah digulir, bayang bawah
+   hilang begitu ujung daftar tercapai. Murni CSS — tidak ada penyimak gulir
+   yang harus dijalankan tiap frame. */
+.sisi-isi {
+  background:
+    linear-gradient(var(--sisi-bg) 30%, transparent)    top    / 100% 16px no-repeat local,
+    linear-gradient(transparent, var(--sisi-bg) 70%)    bottom / 100% 16px no-repeat local,
+    linear-gradient(var(--gulir-bayang), transparent)   top    / 100% 6px  no-repeat scroll,
+    linear-gradient(transparent, var(--gulir-bayang))   bottom / 100% 6px  no-repeat scroll;
+}
 .sisi-isi::-webkit-scrollbar { width: 6px; }
 .sisi-isi::-webkit-scrollbar-thumb { background: var(--garis-kuat); border-radius: 3px; }
 
@@ -803,7 +821,15 @@ tr.pisah td { border-top: 1px solid var(--garis); }
   font-variant-numeric: tabular-nums; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
-.mini-ekor { margin-top: 4px; }
+/* Tingginya dipesan walau isinya kosong. Enam kotak sebaris yang tiga di
+   antaranya tidak punya baris pembanding membuat separuh baris itu berlubang
+   28px di dalam kotaknya — dan ruang kosong di dalam kotak terbaca seperti
+   ada isi yang gagal dimuat. 14px = satu baris `--fs-11`. */
+/* `line-height` DITETAPKAN, bukan diwarisi. Baris kosong memakai strut induknya
+   (14px) sementara baris berisi lencana memakai tinggi barisnya sendiri (23px):
+   tinggi yang "dipesan" jadi 9px lebih pendek dari yang dipakai, dan lubangnya
+   kembali — lebih kecil, jadi lebih sulit dilihat. */
+.mini-ekor { margin-top: 4px; min-height: 16px; line-height: 16px; }
 .delta { font-size: var(--fs-11); font-weight: 600; white-space: nowrap; }
 .delta.naik  { color: var(--sukses); }
 .delta.turun { color: var(--bahaya); }
@@ -840,7 +866,27 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    digulir ke samping — jadi yang terjadi bukan gulir, melainkan isi yang
    terpotong diam-diam oleh kartu di atasnya. `min(Npx, 100%)` membuat lantainya
    menyerah pada lebar yang benar-benar tersedia. */
-.petak { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px; }
+/* `align-items: start` — kartu yang isinya pendek TIDAK diregangkan mengikuti
+   tetangga yang panjang. Di layar Perangkat kartu "Perangkat ini" berisi satu
+   baris tapi tingginya 473px karena kartu "Printer" di sebelahnya panjang:
+   385px ruang kosong di dalam satu kartu bergaris.
+   Kartu ANGKA dikecualikan: sederet angka harus terbaca sebagai satu deret,
+   jadi tingginya tetap disamakan — dan ruang kosongnya dicegah dari sisi lain,
+   dengan memesan baris ekornya (lihat `.mini-ekor`). */
+.petak {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 12px; align-items: start;
+}
+.petak > .statistik { align-self: stretch; }
+/* Satu isi yang tersisa sendirian di baris terakhir petak — grafik enam bulan
+   di Dasbor — tidak digambar selebar sepertiga baris dengan dua pertiga sisanya
+   kosong. */
+.petak > .lebar-penuh { grid-column: 1 / -1; }
+/* Petak isian: yang disejajarkan adalah DASAR kendalinya, bukan puncak selnya.
+   Di layar Setting satu sel berisi label + input dan sel di sebelahnya berisi
+   kotak centang tanpa label; diratakan di atas, kotak centangnya melayang 30px
+   di atas input yang sebaris dengannya. */
+.petak.petak-form { align-items: end; }
 .statistik .nilai {
   font-size: var(--fs-24); font-weight: 600; margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -942,7 +988,10 @@ input.sudah-hitung {
 
 /* ==================== GRAFIK ==================== */
 .grafik-svg { width: 100%; height: auto; display: block; overflow: visible; }
-.grafik-kosong { color: var(--teks-redup); text-align: center; padding: 40px 0; font-size: var(--fs-14); }
+/* 40px atas-bawah adalah tinggi sebuah GRAFIK, bukan tinggi sebuah kalimat.
+   Kartu "Jam ramai" yang belum punya data jadi setinggi 172px untuk memuat
+   satu baris teks. */
+.grafik-kosong { color: var(--teks-redup); text-align: center; padding: 18px 0; font-size: var(--fs-14); }
 
 .grafik-legenda { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: var(--fs-13); }
 .grafik-legenda .item { display: flex; align-items: center; gap: 8px; color: var(--teks-2); }
@@ -1071,6 +1120,10 @@ input.sudah-hitung {
   .statistik .label { font-size: var(--fs-12); line-height: 1.35; }
   /* Kartu yang isinya kalimat, bukan angka, tetap selebar penuh. */
   .petak > .kartu.penuh, .petak > .penuh { grid-column: 1 / -1; }
+  /* Dua kolom itu untuk kartu ANGKA. Kartu berisi tombol dan kalimat — layar
+     Perangkat — di 390px tinggal 187px per kolom, dan setiap tombolnya patah
+     jadi tiga baris. */
+  .petak > .kartu:not(.statistik) { grid-column: 1 / -1; }
 
   /* ---- Bar alat: satu kolom, sama lebar ----
      Dibiarkan `flex-wrap`, tiap kendali selebar isinya sendiri: "Semua kategori"

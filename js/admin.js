@@ -304,11 +304,35 @@ const Admin = (() => {
       Math.abs(persen).toFixed(persen >= 10 || persen <= -10 ? 0 : 1)}%</span>`;
   }
 
+  /**
+   * Selisih dalam POIN PERSENTASE, bukan persen dari persen.
+   *
+   * Margin 51% yang jadi 0% bukan "turun 100%" — margin sudah berupa persen,
+   * dan persentase dari persentase adalah angka yang tidak berarti apa pun.
+   * Yang benar selisih poinnya. Bentuknya SENGAJA sama dengan `lencanaSelisih`:
+   * panah lalu angka. Enam kotak sebaris yang lima memakai panah dan satu
+   * memakai kalimat "dulu 51.0%" terbaca seperti dua tabel yang tidak sengaja
+   * bersebelahan — itulah yang dilihat pemilik toko pada v1.74.0.
+   */
+  function lencanaPoin(kini, lalu) {
+    if (lalu === undefined || lalu === null) return '';
+    const d = (Number(kini) || 0) - (Number(lalu) || 0);
+    if (Math.abs(d) < 0.05) return '<span class="delta datar">tetap</span>';
+    return `<span class="delta ${d > 0 ? 'naik' : 'turun'}">${d > 0 ? '▲' : '▼'} ${
+      Math.abs(d).toFixed(1)} poin</span>`;
+  }
+
   const petakMini = (isi) => `<div class="petak-mini">${isi}</div>`;
+  /* Baris ekor SELALU digambar, walau kosong. Kotak yang punya pembanding
+     isinya 28px lebih tinggi daripada yang tidak, dan karena satu baris kotak
+     tingginya disamakan, yang tanpa pembanding berlubang di dalam — ruang
+     kosong di dalam kotak bergaris terbaca seperti isi yang gagal dimuat.
+     Tingginya dipesan di CSS (`.mini-ekor { min-height }`), bukan dengan
+     mengarang teks pengisi: tidak ada angka palsu yang bisa dikutip orang. */
   const kotakMini = (label, nilai, ekor) => `<div class="mini">
       <div class="mini-label">${esc(label)}</div>
       <div class="mini-nilai">${nilai}</div>
-      ${ekor ? `<div class="mini-ekor">${ekor}</div>` : ''}
+      <div class="mini-ekor">${ekor || ''}</div>
     </div>`;
 
   /** Tabel peringkat: ringkas, tanpa kepala tebal, angka rata kanan. */
@@ -361,7 +385,7 @@ const Admin = (() => {
           kotakMini('Rata-rata/nota', rp(k.rata_nota || 0), lencanaSelisih(k.rata_nota, l.rata_nota)),
           adaMargin ? kotakMini('Laba kotor', rp(k.laba_kotor), lencanaSelisih(k.laba_kotor, l.laba_kotor)) : '',
           adaMargin ? kotakMini('Margin', (k.margin || 0).toFixed(1) + '%',
-            l.margin !== undefined ? `<span class="delta datar">dulu ${(l.margin || 0).toFixed(1)}%</span>` : '') : '',
+            lencanaPoin(k.margin, l.margin)) : '',
           kotakMini('Piutang beredar', rp(pi.total || 0),
             (pi.d1_30 + pi.d30plus) > 0
               ? `<span class="delta turun">${rp(pi.d1_30 + pi.d30plus)} lewat tempo</span>` : '')
@@ -539,7 +563,7 @@ const Admin = (() => {
           <div><h4 class="judul-grafik">Omzet per kategori</h4><div id="gKategori"></div></div>
           <div><h4 class="judul-grafik">Metode pembayaran</h4><div id="gMetode"></div></div>
           <div><h4 class="judul-grafik">10 produk teratas</h4><div id="gProduk"></div></div>
-          ${g.tren_bulanan ? '<div><h4 class="judul-grafik">Laba kotor 6 bulan</h4><div id="gBulanan"></div></div>' : ''}
+          ${g.tren_bulanan ? '<div class="lebar-penuh"><h4 class="judul-grafik">Laba kotor 6 bulan</h4><div id="gBulanan"></div></div>' : ''}
         </div>`;
 
       grafikTerakhir = g;
@@ -2327,7 +2351,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Pengaturan sistem</h3>
           <p class="petunjuk">Perubahan berlaku untuk seluruh cabang dan langsung ditarik perangkat kasir pada sinkronisasi berikutnya.</p>
-          <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))">
+          <div class="petak petak-form" style="grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))">
             ${rows.map(r => {
               const label = LABEL_SETTING[r.kunci] || r.kunci;
               /* Tanpa `data-setting` penyimpan di bawah tidak akan menyentuhnya —
