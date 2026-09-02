@@ -675,44 +675,51 @@
           </div>
         </div>
 
-        <!-- Printer LABEL — perangkat kedua, bahasa kedua (TSPL, bukan ESC/POS).
-             Dipisah dari kartu Printer di atas karena memang printer yang berbeda:
-             satu mencetak struk di kertas gulung, satu mencetak barcode di stiker.
-             Menggabungkannya dalam satu kartu membuat "Hubungkan printer" jadi
-             pertanyaan yang tidak bisa dijawab. -->
+        <!-- Kertas LABEL — bukan "printer label".
+             Printer labelnya (SATO CG408TT) tidak dihubungkan dari sini sama
+             sekali: ia colok USB dan dikenali Windows sebagai printer biasa,
+             jadi yang memilih printernya adalah dialog cetak. Yang TIDAK
+             diketahui Windows adalah bentuk kertasnya — berapa lebar satu
+             stiker dan berapa stiker per baris — dan itulah yang diatur di sini.
+             Kartu ini pernah berisi tombol "Hubungkan printer label" untuk jalur
+             Bluetooth+TSPL; jalur itu dibuang di v1.81.0 karena CG408TT tidak
+             punya Bluetooth dan tidak berbahasa TSPL. -->
         <div class="kartu">
-          <h3>Printer label</h3>
-          <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPrinterLabel">Belum terhubung</p>
-          <button class="tombol" id="btnHubungkanLabel">Hubungkan printer label</button>
-          <button class="tombol" id="btnUjiLabel" style="margin-top:8px">Uji cetak label</button>
-          <!-- Printer yang service Bluetooth-nya tidak ada di daftar bawaan tidak
-               akan muncul di dialog pemilihan. Web Bluetooth tidak mengizinkan
-               menelusuri service yang tidak disebutkan lebih dulu, jadi tombol
-               ini bukan kemewahan melainkan satu-satunya jalan bagi printer di
-               luar daftar. -->
-          <button class="tombol sunyi" id="btnHubungkanLabelSemua" style="margin-top:8px">
-            Tidak muncul? Tampilkan semua perangkat</button>
+          <h3>Kertas label</h3>
+          <p style="color:var(--teks-redup);font-size:var(--fs-13)">
+            Label dicetak lewat dialog cetak ke driver printer label. Ukuran di
+            bawah harus sama dengan ukuran kertas di driver.</p>
+
+          <!-- Empat kolom berlabel, bukan satu baris `bar-alat`. Di HP `bar-alat`
+               runtuh jadi satu kolom dan barisnya berubah jadi tumpukan
+               33 / 15 / 2 / 3 — angka tanpa nama yang harus ditebak. -->
+          <div class="petak-mini" style="margin-top:6px">
+            <div class="grup" style="margin:0">
+              <label>Lebar (mm)</label>
+              <input type="number" id="setLabelLebar" min="10" max="100" step="1">
+            </div>
+            <div class="grup" style="margin:0">
+              <label>Tinggi (mm)</label>
+              <input type="number" id="setLabelTinggi" min="10" max="100" step="1">
+            </div>
+            <div class="grup" style="margin:0">
+              <label>Jarak (mm)</label>
+              <input type="number" id="setLabelJarak" min="0" max="10" step="1">
+            </div>
+            <div class="grup" style="margin:0">
+              <label>Per baris</label>
+              <input type="number" id="setLabelKolom" min="1" max="10" step="1">
+            </div>
+          </div>
+          <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0" id="infoLabelMuat"></p>
 
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">
-            <!-- Tiga kolom berlabel, bukan satu baris `bar-alat`. Di HP `bar-alat`
-                 runtuh jadi satu kolom dan barisnya berubah jadi tumpukan
-                 33 / × / 15 / jarak / 2 — angka tanpa nama yang harus ditebak. -->
-            <label style="font-size:var(--fs-13);color:var(--teks-redup)">Ukuran stiker (mm)</label>
-            <div class="petak-mini" style="margin-top:6px">
-              <div class="grup" style="margin:0">
-                <label>Lebar</label>
-                <input type="number" id="setLabelLebar" min="10" max="100" step="1">
-              </div>
-              <div class="grup" style="margin:0">
-                <label>Tinggi</label>
-                <input type="number" id="setLabelTinggi" min="10" max="100" step="1">
-              </div>
-              <div class="grup" style="margin:0">
-                <label>Jarak stiker</label>
-                <input type="number" id="setLabelJarak" min="0" max="10" step="1">
-              </div>
-            </div>
-            <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0" id="infoLabelMuat"></p>
+            <label style="font-size:var(--fs-13);color:var(--teks-redup)">Contoh hasil cetak</label>
+            <!-- Pratinjau dibungkus div biasa: `.pratinjau-label` itu
+                 inline-block (supaya kotaknya sepas gambarnya), dan tanpa
+                 pembungkus ini tombol di bawahnya naik ke sampingnya. -->
+            <div><div id="pratinjauLabelSetel" class="pratinjau-label" style="margin-top:6px"></div></div>
+            <button class="tombol sunyi" id="btnUjiLabel" style="margin-top:8px">Uji cetak satu baris</button>
           </div>
         </div>
 

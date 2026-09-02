@@ -760,6 +760,15 @@ async function gambarProduk(kueri) {
   const semuaProduk = await DB.all('produk');
   const stok = await DB.all('stok');
   const petaStok = Object.fromEntries(stok.map(s => [s.key, s.qty]));
+  /* BEDAKAN "belum tahu" dari "nol".
+     Daftar stok dari server hanya memuat SKU yang punya mutasi — barang yang
+     belum pernah masuk pembelian/opname tidak punya baris sama sekali. Dulu
+     keduanya sama-sama digambar "stok ?", sehingga barang yang stoknya memang
+     habis terlihat seperti data yang belum termuat, dan setelah dijual pun
+     tetap "?" alih-alih minus. Begitu stok pernah ditarik sekali, tidak adanya
+     baris ARTINYA nol; "?" disisakan hanya untuk keadaan yang benar-benar tidak
+     diketahui, yaitu belum pernah menarik stok sama sekali. */
+  const stokSiap = !!(await DB.kvGet('stok_diperbarui', null));
   const q = (kueri || '').toLowerCase().trim();
 
   isiKategoriKasir(semuaProduk);
@@ -801,7 +810,8 @@ async function gambarProduk(kueri) {
   });
 
   $('#daftarProduk').innerHTML = hasil.length ? hasil.map((p, i) => {
-    const qty = petaStok[p.sku + '|'] ?? null;
+    const mentah = petaStok[p.sku + '|'];
+    const qty = (mentah === undefined || mentah === null) ? (stokSiap ? 0 : null) : mentah;
     const harga = Harga.pilihLevel(p.harga, level);
     const diLain = petaLain[p.sku] || [];
     // Yang paling menolong kasir: saat barang habis di sini, langsung terlihat cabang mana yang punya
@@ -1741,8 +1751,14 @@ async function selesaikanTransaksi() {
 async function kurangiStokLokal(dok) {
   for (const it of dok.item) {
     const key = it.sku + '|' + (it.kode_varian || '');
-    const s = await DB.get('stok', key);
-    if (s) { s.qty -= it.qty * it.faktor; await DB.put('stok', s); }
+    /* Baris yang belum ada DIBUAT, bukan dilewati.
+       Barang yang belum pernah punya mutasi tidak punya baris stok; `if (s)`
+       membuat penjualannya tidak berbekas sama sekali di perangkat, sehingga
+       kartunya tetap menyebut nol padahal sudah keluar satu. Yang benar: mulai
+       dari nol lalu dikurangi, persis seperti yang nanti dihitung server. */
+    const s = (await DB.get('stok', key)) || { key, sku: it.sku, qty: 0 };
+    s.qty -= it.qty * it.faktor;
+    await DB.put('stok', s);
   }
 }
 
@@ -2493,23 +2509,35 @@ async function perbaruiInfoData() {
 }
 
 /**
- * Kartu "Printer label" di layar Perangkat.
+ * Kartu "Kertas label" di layar Perangkat.
  *
  * Dijaga terhadap label.js versi LAMA yang masih dilayani Service Worker —
  * alasannya sama dengan penjagaan `Struk.bacaEkor` di atas: cache di sini
  * cache-first dan pergantiannya butuh dua kali muat ulang, jadi "app.js baru
  * bertemu label.js lama" adalah keadaan yang PASTI terjadi sekali di tiap
- * perangkat setiap kali terbit.
+ * perangkat setiap kali terbit. `Label.svg` khusus diperiksa: ia baru ada sejak
+ * v1.81.0, dan tanpa penjagaan itu seluruh layar Perangkat melempar pada muat
+ * pertama setelah terbit.
  */
 async function perbaruiInfoLabel() {
-  if (typeof Label === 'undefined' || !$('#infoPrinterLabel')) return;
-  const ing = await Label.slot.diingat();
-  $('#infoPrinterLabel').textContent = (ing && ing.nama_perangkat)
-    ? 'Tersimpan: ' + ing.nama_perangkat : 'Belum terhubung';
+  if (typeof Label === 'undefined' || !$('#setLabelLebar')) return;
   const u = await Label.ukuran();
-  if ($('#setLabelLebar')) $('#setLabelLebar').value = u.lebar_mm;
+  $('#setLabelLebar').value = u.lebar_mm;
   if ($('#setLabelTinggi')) $('#setLabelTinggi').value = u.tinggi_mm;
   if ($('#setLabelJarak')) $('#setLabelJarak').value = u.jarak_mm;
+  if ($('#setLabelKolom')) $('#setLabelKolom').value = u.kolom;
+  /* Contoh hasil cetak digambar dari fungsi yang SAMA dengan yang mencetak.
+     Pratinjau yang punya penggambar sendiri adalah pratinjau yang suatu hari
+     akan berbeda dari kertasnya, dan hari itu tidak akan ada yang tahu mana
+     yang benar. */
+  if ($('#pratinjauLabelSetel') && typeof Label.svg === 'function') {
+    try {
+      $('#pratinjauLabelSetel').innerHTML = Label.svg({ kode: 'TG01030006' }, u);
+    } catch (e) {
+      $('#pratinjauLabelSetel').innerHTML =
+        `<p style="color:var(--bahaya);font-size:var(--fs-12);margin:0">${esc(e.message)}</p>`;
+    }
+  }
   /* Angkanya ditulis di layar, bukan disembunyikan di kode: pemilik toko yang
      memilih format kodenya perlu tahu berapa karakter yang muat SEBELUM ia
      terlanjur menamai seratus produk. */
@@ -3112,29 +3140,26 @@ function pasangEvent() {
     await DB.kvSet('printer_umpan', n);
     Admin.toast(`Ujung struk: ${n} baris kosong.`, 'sukses');
   });
-  const hubungkanLabel = async (tombol, semua) => {
-    const b = $(tombol);
-    b.classList.add('sibuk'); b.disabled = true;
-    try { const n = await Label.hubungkan({ semua }); alert('Printer label terhubung: ' + n); perbaruiInfoData(); }
-    catch (e) { alert('Gagal: ' + e.message); }
-    finally { b.classList.remove('sibuk'); b.disabled = false; }
-  };
-  $('#btnHubungkanLabel')?.addEventListener('click', () => hubungkanLabel('#btnHubungkanLabel', false));
-  $('#btnHubungkanLabelSemua')?.addEventListener('click', () => hubungkanLabel('#btnHubungkanLabelSemua', true));
   $('#btnUjiLabel')?.addEventListener('click', async () => {
-    try { await Label.cetak({ kode: 'UJI12345', nama: 'Uji cetak label', lembar: 1 }); }
-    catch (e) { alert('Gagal: ' + e.message); }
+    /* Satu BARIS penuh, bukan satu label. Yang paling sering salah pada kertas
+       3 line bukan isi labelnya melainkan penjajarannya antar kolom, dan itu
+       hanya kelihatan kalau ketiganya dicetak sekaligus. */
+    try {
+      const u = await Label.ukuran();
+      await Label.cetak([{ kode: 'UJI12345', nama: 'Uji cetak', lembar: u.kolom || 1 }]);
+    } catch (e) { alert('Gagal: ' + e.message); }
   });
   const simpanUkuranLabel = async () => {
     const u = await Label.simpanUkuran({
       lebar_mm: Number($('#setLabelLebar').value),
       tinggi_mm: Number($('#setLabelTinggi').value),
-      jarak_mm: Number($('#setLabelJarak').value)
+      jarak_mm: Number($('#setLabelJarak').value),
+      kolom: Number($('#setLabelKolom')?.value)
     });
     await perbaruiInfoLabel();
-    Admin.toast(`Ukuran stiker: ${u.lebar_mm} × ${u.tinggi_mm} mm.`, 'sukses');
+    Admin.toast(`Kertas label: ${u.lebar_mm} × ${u.tinggi_mm} mm, ${u.kolom} per baris.`, 'sukses');
   };
-  ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak']
+  ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak', '#setLabelKolom']
     .forEach(id => $(id)?.addEventListener('change', simpanUkuranLabel));
 
   $('#btnUjiCetak').addEventListener('click', () => {

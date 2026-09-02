@@ -926,6 +926,18 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .pesan.info   { background: var(--utama-lembut);      color: var(--teks); border-color: var(--utama-garis); }
 .pesan.peringatan { background: var(--peringatan-lembut); color: var(--teks); border-color: var(--peringatan-garis); }
 
+/* Pratinjau label barcode.
+   Latarnya SELALU putih dan batangnya SELALU hitam, juga di tema gelap: yang
+   ditunjukkan di sini bukan bagian dari antarmuka melainkan gambar kertas yang
+   akan keluar dari printer, dan stiker tidak ikut berubah warna. Pratinjau yang
+   menghitam di tema gelap juga menyembunyikan satu-satunya hal yang perlu
+   diperiksa mata: kontras batang terhadap kertas. */
+.pratinjau-label {
+  display: inline-block; background: #fff; border: 1px solid var(--garis);
+  border-radius: 4px; padding: 2px; line-height: 0; max-width: 100%; overflow: auto;
+}
+.pratinjau-label svg { display: block; }
+
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
 

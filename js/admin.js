@@ -645,9 +645,25 @@ const Admin = (() => {
     { id: 'satuan_dasar', judul: 'Satuan', render: r => esc(r.satuan_dasar || 'pcs') }
   ];
 
-  /** Penyaring baris. Kosong = semua, supaya selalu ada jalan kembali. */
+  /**
+   * Penyaring baris. Kosong = semua, supaya selalu ada jalan kembali.
+   *
+   * `urut` opsional: penyaring yang punya urutannya sendiri memakainya, sisanya
+   * mempertahankan urutan katalog. Dipasang di sini, bukan di penggambar, supaya
+   * "saring apa" dan "urut bagaimana" tinggal di satu baris yang sama —
+   * penyaring Terlaris yang mengurutkan menurut poin akan jadi kebingungan yang
+   * tidak bisa dibaca dari layar.
+   */
   const SARING_PRODUK = [
     { id: '', label: 'Semua produk', lolos: () => true },
+    /* Terlaris butuh data penjualan yang TIDAK ikut di daftar produk. Datanya
+       ditarik sekali saat pilihan ini dipakai, lalu disimpan selama layar ini
+       hidup — lihat `muatTerjual()`. */
+    { id: 'terlaris', label: 'Terlaris', butuhTerjual: true,
+      lolos: r => terjualProduk.qty[r.sku] > 0,
+      urut: (a, b) => (terjualProduk.qty[b.sku] || 0) - (terjualProduk.qty[a.sku] || 0) },
+    { id: 'tak_laku', label: 'Tidak laku', butuhTerjual: true,
+      lolos: r => !(terjualProduk.qty[r.sku] > 0) },
     { id: 'berpoin', label: 'Berpoin', lolos: r => Number(r.poin_satuan) > 0 },
     { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) }
     /* Pilihan "Nonaktif" dibuang: produk nonaktif sekarang punya tempatnya
@@ -655,10 +671,35 @@ const Admin = (() => {
        orang bertanya-tanya apakah keduanya menunjukkan isi yang berbeda. */
   ];
 
+  /* Rentang BAWAAN, bukan rentang tetap: pemiliknya memilih sendiri (2 Sep
+     2026), dan 30 hari cuma titik berangkatnya. */
+  const HARI_TERLARIS = 30;
+
+  /** Rentang bawaan: 30 hari terakhir sampai hari ini, dalam waktu LOKAL. */
+  function rentangBawaanTerjual() {
+    const kini = new Date();
+    /* tanggalLokal(), BUKAN toISOString(): yang kedua itu UTC, dan tengah malam
+       di WIB masih pukul 17:00 hari sebelumnya di UTC — rentangnya akan mundur
+       sehari. Kesalahan yang sama pernah terjadi di layar Poin. */
+    return { dari: tanggalLokal(new Date(kini.getTime() - (HARI_TERLARIS - 1) * 86400000)),
+             sampai: tanggalLokal(kini) };
+  }
+
   /* Pilihan layar, bukan pengaturan akun: hidup selama sesi ini saja dan tidak
      ikut tersimpan. Membuka aplikasi besok kembali ke Poin. */
   let kolomProduk = 'poin', saringProduk = '';
   let dataProduk = null, kueriProduk = '', kategoriProduk = '';
+  /* `qty` peta SKU → jumlah terjual; `kunci` menandai rentang MANA yang sudah
+     di tangan. Dulu penandanya cuma `siap` (benar/salah) — itu cukup selama
+     rentangnya tetap, tapi begitu rentangnya bisa diganti, peta 30 hari akan
+     tetap dipakai untuk rentang 7 hari tanpa satu pun tanda di layar.
+     Peta kosong yang sudah ditarik dan peta kosong yang belum ditarik terlihat
+     sama, jadi penandanya harus terpisah dari isinya — tanpa itu layar akan
+     menembak server berulang-ulang di toko yang memang belum menjual apa pun. */
+  let rentangTerjual = rentangBawaanTerjual();
+  let terjualProduk = { qty: {}, kunci: '', dari: '', sampai: '', hari: HARI_TERLARIS };
+  const kunciRentang = (r) => r.dari + '|' + r.sampai;
+  const terjualSiap = () => terjualProduk.kunci === kunciRentang(rentangTerjual);
 
   async function muatProduk(kueri = '', kategori = '') {
     memuat('#isiProduk');
@@ -670,6 +711,35 @@ const Admin = (() => {
       kategoriProduk = kategori;
       gambarProduk();
     } catch (e) { galat('#isiProduk', e); }
+  }
+
+  /**
+   * Tarik jumlah terjual 30 hari terakhir — SEKALI per pembukaan layar.
+   *
+   * Dipisah dari `muatProduk` dengan sengaja: `penjualan_item` tabel terbesar di
+   * sistem, dan daftar produk dibuka puluhan kali sehari untuk urusan yang tidak
+   * ada hubungannya dengan penjualan.
+   */
+  async function muatTerjual() {
+    if (terjualSiap()) return true;
+    const minta = { dari: rentangTerjual.dari, sampai: rentangTerjual.sampai };
+    try {
+      const d = await API.produkTerjual(minta);
+      const qty = {};
+      (d.terjual || []).forEach(x => { qty[x.sku] = Number(x.qty) || 0; });
+      /* Rentang yang DIJAWAB server yang dipakai, bukan yang diminta: server
+         membetulkan rentang terbalik dan menjepit yang kepanjangan, dan layar
+         yang tetap menulis angkanya sendiri akan menyebut rentang yang tidak
+         pernah dihitung siapa pun. */
+      rentangTerjual = { dari: d.dari || minta.dari, sampai: d.sampai || minta.sampai };
+      terjualProduk = { qty, kunci: kunciRentang(rentangTerjual),
+                        dari: rentangTerjual.dari, sampai: rentangTerjual.sampai,
+                        hari: d.hari || HARI_TERLARIS };
+      return true;
+    } catch (e) {
+      toast('Gagal menarik data terjual: ' + e.message, 'galat');
+      return false;
+    }
   }
 
   /**
@@ -690,8 +760,14 @@ const Admin = (() => {
     if (kolomProduk && !pilihan.some(k => k.id === kolomProduk)) kolomProduk = 'poin';
     const kolomAktif = pilihan.find(k => k.id === kolomProduk);
 
-    const saring = SARING_PRODUK.find(s => s.id === saringProduk) || SARING_PRODUK[0];
+    let saring = SARING_PRODUK.find(s => s.id === saringProduk) || SARING_PRODUK[0];
+    /* Penyaring yang butuh data penjualan tapi datanya belum ada dikembalikan ke
+       "Semua produk", bukan dijalankan atas peta kosong — kalau dijalankan, ia
+       menyembunyikan SELURUH katalog dan terlihat persis seperti daftar produk
+       yang hilang. */
+    if (saring.butuhTerjual && !terjualSiap()) { saring = SARING_PRODUK[0]; saringProduk = ''; }
     const baris = cacheProduk.filter(saring.lolos);
+    if (saring.urut) baris.sort(saring.urut);
     const hitung = baris.length === cacheProduk.length
       ? `${cacheProduk.length} produk`
       : `${baris.length} dari ${cacheProduk.length} produk`;
@@ -708,6 +784,17 @@ const Admin = (() => {
           <select id="saringProduk" style="max-width:160px" title="Saring baris">
             ${SARING_PRODUK.map(s => `<option value="${s.id}" ${s.id === saringProduk ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
           </select>
+          ${saring.butuhTerjual ? `
+            <!-- Kedua tanggal dibungkus SATU wadah supaya tidak pernah terpisah
+                 saat bar alat pindah baris. Kolom "dari" di ujung baris pertama
+                 dan "sampai" di awal baris kedua terbaca sebagai dua penyaring
+                 yang tidak ada hubungannya. -->
+            <span style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap"
+                  title="Rentang penjualan yang dihitung">
+              <input type="date" id="terjualDari" value="${esc(terjualProduk.dari)}" style="max-width:150px">
+              <span style="color:var(--teks-redup)">–</span>
+              <input type="date" id="terjualSampai" value="${esc(terjualProduk.sampai)}" style="max-width:150px">
+            </span>` : ''}
           <span class="jumlah-baris">${hitung}</span>
           <div class="kanan">
             ${tombolEkspor('produk')}
@@ -729,6 +816,14 @@ const Admin = (() => {
           { judul: 'Eceran', angka: true, render: r => rp(r.harga_eceran) },
           { judul: 'Grosir', angka: true, render: r => rp(r.harga_grosir) },
           { judul: 'Stok', angka: true, render: r => `<span class="${r.stok <= r.stok_min ? 'stok-kritis' : ''}">${r.stok ?? '-'}</span>` },
+          /* Kolom Terjual muncul SENDIRI saat penyaringnya dipakai, tanpa perlu
+             memilihnya lagi di dropdown kolom. Daftar yang diurut menurut angka
+             yang tidak kelihatan adalah daftar yang urutannya tidak bisa
+             dipercaya siapa pun. */
+          ...(saring.butuhTerjual ? [{
+            judul: 'Terjual', angka: true,
+            render: r => String(terjualProduk.qty[r.sku] || 0)
+          }] : []),
           ...(kolomAktif ? [kolomAktif] : []),
           { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` +
               /* Produk yang barcode pabriknya sudah tercetak di kemasan TIDAK diberi
@@ -762,7 +857,7 @@ const Admin = (() => {
 
     const u = await Label.ukuran();
     const cocok = Label.muat(kode, u);
-    const ing = await Label.slot.diingat();
+    const lebarHalaman = u.lebar_mm * u.kolom + (u.kolom - 1) * u.jarak_mm;
 
     bukaModal('Cetak label — ' + esc(p.nama), `
       <div class="petak-tunggal" style="max-width:none">
@@ -775,32 +870,57 @@ const Admin = (() => {
         ${cocok.muat ? '' : `<div class="pesan galat">Kode ini terlalu panjang untuk stiker ${
           u.lebar_mm} × ${u.tinggi_mm} mm. Butuh ${cocok.lebar.toFixed(1)}mm, tersedia ${
           cocok.tersedia.toFixed(0)}mm. Pakai stiker lebih lebar, atau perpendek kodenya.</div>`}
-        ${ing && ing.nama_perangkat ? '' :
-          '<div class="pesan info">Printer label belum dipilih. Buka menu <strong>Perangkat</strong> untuk menghubungkannya.</div>'}
+        <div class="grup">
+          <label>Pratinjau — ukuran sesungguhnya</label>
+          <div id="labPratinjau" class="pratinjau-label" style="margin-top:6px"></div>
+        </div>
         <label class="cek"><input type="checkbox" id="labNama"> Sertakan nama produk di label</label>
         <div class="grup">
           <label>Jumlah lembar</label>
-          <input type="number" id="labLembar" value="1" min="1" max="99" step="1" style="max-width:110px">
+          <input type="number" id="labLembar" value="1" min="1" max="999" step="1" style="max-width:110px">
         </div>
+        <p class="petunjuk" style="margin:0">Di dialog cetak: pilih printer label,
+          kertas ${lebarHalaman} × ${u.tinggi_mm} mm, margin <strong>None</strong>,
+          skala <strong>100%</strong>, header/footer dimatikan.</p>
       </div>`,
       (cocok.muat
         ? '<button class="tombol utama" id="btnCetakLabel">Cetak</button>'
         : '') + '<button class="tombol" data-tutup="1">Tutup</button>');
-    $('#modalUmum')._label = { kode, nama: p.nama };
+    $('#modalUmum')._label = { kode, nama: p.nama, ukuran: u };
+    gambarPratinjauLabel();
+    /* Pratinjaunya ikut berubah saat centang nama diklik. Kalau tidak, yang
+       dilihat sebelum menekan Cetak bukan yang akan keluar dari printer — dan
+       pratinjau semacam itu lebih buruk daripada tidak ada sama sekali. */
+    $('#labNama')?.addEventListener('change', gambarPratinjauLabel);
+  }
+
+  /** Gambar ulang pratinjau label dari pilihan yang sedang aktif di modal. */
+  function gambarPratinjauLabel() {
+    const el = $('#labPratinjau');
+    const d = $('#modalUmum') && $('#modalUmum')._label;
+    if (!el || !d) return;
+    try {
+      el.innerHTML = Label.svg(
+        { kode: d.kode, nama: $('#labNama') && $('#labNama').checked ? d.nama : '' },
+        d.ukuran);
+    } catch (e) {
+      el.innerHTML = `<p style="color:var(--bahaya);font-size:var(--fs-12);margin:0">${esc(e.message)}</p>`;
+    }
   }
 
   async function kirimLabel() {
     const d = $('#modalUmum')._label;
     if (!d) return;
+    const lembar = Number($('#labLembar').value) || 1;
     const isi = {
       kode: d.kode,
       nama: $('#labNama') && $('#labNama').checked ? d.nama : '',
-      lembar: Number($('#labLembar').value) || 1
+      lembar
     };
     try {
-      await Label.cetak(isi);
+      await Label.cetak([isi]);
       tutupModal();
-      toast(`${isi.lembar} label tercetak.`, 'sukses');
+      toast(`${lembar} label dikirim ke dialog cetak.`, 'sukses');
     } catch (e) { toast('Gagal mencetak: ' + e.message, 'galat'); }
   }
 
@@ -4165,7 +4285,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     /* --- pencarian & hitung ulang --- */
     let timer;
-    document.addEventListener('input', (e) => {
+    /* `async`: satu cabang di dalamnya (penyaring Terlaris) perlu menarik data
+       penjualan sekali sebelum menggambar ulang. */
+    document.addEventListener('input', async (e) => {
       if (e.target.id === 'cariProduk') {
         clearTimeout(timer);
         timer = setTimeout(() => muatProduk(e.target.value, $('#filterKategori')?.value || ''), 300);
@@ -4209,6 +4331,31 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const id = e.target.id;
         if (id === 'kolomProduk') kolomProduk = e.target.value;
         else saringProduk = e.target.value;
+        /* Penyaring yang butuh data penjualan menariknya SEKARANG. Penjaga
+           "jangan tarik dua kali" ada DI DALAM `muatTerjual()`, satu tempat
+           saja — penjaga kedua di sini akan membuat penjaga yang sebenarnya
+           tidak pernah teruji. Kalau penarikannya gagal, `gambarProduk()` yang
+           mengembalikan pilihannya ke "Semua produk". */
+        const s = SARING_PRODUK.find(x => x.id === saringProduk);
+        if (s && s.butuhTerjual) {
+          e.target.disabled = true;
+          await muatTerjual();
+          e.target.disabled = false;
+        }
+        gambarProduk();
+        $('#' + id)?.focus();
+        return;
+      }
+      if (e.target.id === 'terjualDari' || e.target.id === 'terjualSampai') {
+        /* Rentangnya diganti: petanya WAJIB ditarik ulang. `terjualSiap()`
+           membandingkan kunci rentang, jadi peta rentang lama tidak akan
+           terpakai diam-diam untuk rentang baru. */
+        const id = e.target.id;
+        rentangTerjual = { dari: $('#terjualDari').value || rentangTerjual.dari,
+                           sampai: $('#terjualSampai').value || rentangTerjual.sampai };
+        e.target.disabled = true;
+        await muatTerjual();
+        e.target.disabled = false;
         gambarProduk();
         $('#' + id)?.focus();
         return;
