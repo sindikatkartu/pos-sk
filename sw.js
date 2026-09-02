@@ -6,12 +6,17 @@
  *   - Berkas aplikasi (HTML/CSS/JS) : cache-first  -> aplikasi selalu membuka instan
  *   - Panggilan API                 : network-only -> tidak pernah di-cache, agar data tak basi
  */
-const CACHE = 'possk-v1.85.0';
+const CACHE = 'possk-v1.86.0';
 const BERKAS = [
   './', './index.html',
-  './css/app.css',
-  './js/config.js', './js/db.js', './js/api.js', './js/bt.js', './js/pos.js',
-  './js/sync.js', './js/print.js', './js/label.js', './js/grafik.js', './js/admin.js', './js/app.js',
+  './css/app.min.css',
+  /* Yang di-cache BUNDEL yang diunduh peramban, bukan sumbernya. Kalau daftar
+     ini menyebut sumbernya, perangkat offline akan mengambil berkas yang tidak
+     pernah dimuat halaman ini — dua salinan aplikasi di satu cache, dan yang
+     dipakai bukan yang diuji. */
+  './js/config.min.js', './js/db.min.js', './js/api.min.js', './js/bt.min.js', './js/pos.min.js',
+  './js/sync.min.js', './js/print.min.js', './js/label.min.js', './js/grafik.min.js',
+  './js/admin.min.js', './js/app.min.js',
   './manifest.webmanifest'
 ];
 
