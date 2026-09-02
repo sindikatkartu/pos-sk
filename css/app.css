@@ -79,6 +79,7 @@
      petaknya, dan `margin` milik wadahnya. Dua kartu bersebelahan di dalam
      petak berjarak 12+16=28px sementara dua kartu biasa berjarak 16px: hubungan
      yang sama, jarak yang berbeda. Itu yang terbaca sebagai tidak rapi. */
+  --tinggi-kepala:     58px;   /* SATU tinggi untuk kepala sidebar & bilah atas */
   --irama:             16px;
   --tombol-tekan:      #e4e2d4;
   --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
@@ -249,9 +250,18 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 #app.sisi-lipat .sisi { width: var(--lebar-sisi-lipat); }
 
+/* Tingginya DIKUNCI ke tinggi bilah atas, dan garis bawahnya sama.
+
+   Dulu kepala sidebar 65px sementara bilah atas 58px, dan hanya bilah atas yang
+   punya garis bawah. Akibatnya garis mendatar itu menyeberang layar lalu MATI
+   di tepi sidebar, 7px lebih tinggi dari tempat kepala sidebar berakhir — mata
+   membacanya sebagai garis yang patah, bukan sebagai dua panel yang berbeda.
+   Satu tinggi, satu garis, satu ketinggian: garisnya menyeberang penuh. */
 .sisi-atas {
   display: flex; align-items: center; gap: 10px; position: relative;
-  padding: 14px 14px 12px; flex-shrink: 0;
+  box-sizing: border-box; min-height: var(--tinggi-kepala);
+  padding: 0 14px; flex-shrink: 0;
+  border-bottom: 1px solid var(--garis);
 }
 /* Tanda merek gelap polos, seperti logo GitHub sendiri — gradien biru tadi
    adalah satu-satunya sisa gaya lama yang tertinggal di antarmuka baru. */
@@ -291,7 +301,10 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   font-size: var(--fs-11); font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
   color: var(--teks-redup); padding: 16px 10px 6px; white-space: nowrap;
 }
-.sisi-grup:first-child { padding-top: 6px; }
+/* 4px padding `.sisi-isi` + 14px = 18px di bawah garis — jarak yang SAMA dengan
+   kartu pertama di sisi kanan. Dua sisi yang mulai pada ketinggian berbeda
+   membuat garisnya terlihat miring walau lurus. */
+.sisi-grup:first-child { padding-top: 14px; }
 
 /* Item nav mengikuti sidebar pengaturan GitHub: hover abu muda, item aktif
    ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh. */
@@ -346,11 +359,11 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    dipaksakan, tombolnya meluber menimpa isi layar. Jadi keduanya ditumpuk di tempat
    yang sama: logo yang terlihat, tombol menggantikannya saat disentuh/di-hover.
    Tombolnya tetap bisa diklik sepanjang waktu, jadi perangkat sentuh tidak dirugikan. */
-#app.sisi-lipat .sisi-atas { justify-content: center; padding: 14px 0 12px; }
+#app.sisi-lipat .sisi-atas { justify-content: center; padding: 0; }
 #app.sisi-lipat .sisi-atas > div[style] { display: none; }   /* pengganjal flex:1 */
 #app.sisi-lipat .sisi-atas .sisi-logo { transition: opacity .12s; }
 #app.sisi-lipat #btnLipat {
-  position: absolute; inset: 14px 0 12px; margin: auto; width: 34px; height: 34px;
+  position: absolute; inset: 0; margin: auto; width: 34px; height: 34px;
   opacity: 0; transition: opacity .12s; background: var(--panel-2); color: var(--teks);
 }
 #app.sisi-lipat .sisi-atas:hover .sisi-logo { opacity: 0; }
@@ -370,7 +383,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 /* ---------- Bilah atas ---------- */
 .bar-atas {
   display: flex; align-items: center; gap: 10px;
-  padding: 0 18px; min-height: 58px; flex-shrink: 0;
+  padding: 0 18px; min-height: var(--tinggi-kepala); flex-shrink: 0;
   background: var(--panel); border-bottom: 1px solid var(--garis);
 }
 .bar-atas h1 {
@@ -1092,7 +1105,10 @@ input.sudah-hitung {
   #app.sisi-lipat .sisi-atas { justify-content: flex-start; padding: 14px 14px 12px; }
   #app.sisi-lipat .kartu-user { justify-content: flex-start; padding: 8px; }
 
-  .bar-atas { padding: 0 12px; min-height: 54px; }
+  /* Satu tetapan, dua panel — lihat .sisi-atas. Menurunkan tinggi bilah atas
+     saja akan mematahkan garisnya lagi, di lebar yang justru paling sempit. */
+  :root { --tinggi-kepala: 54px; }
+  .bar-atas { padding: 0 12px; }
   .layar { padding: 14px; }
   .panel-produk { padding: 14px; }
   #lncShift { display: none; }
