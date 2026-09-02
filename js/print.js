@@ -13,7 +13,6 @@
  */
 
 const Struk = (() => {
-  let perangkatBt = null, karakteristik = null;
 
   const ESC = { INIT: [0x1b, 0x40], TENGAH: [0x1b, 0x61, 0x01], KIRI: [0x1b, 0x61, 0x00],
                 KANAN: [0x1b, 0x61, 0x02], TEBAL_ON: [0x1b, 0x45, 0x01], TEBAL_OFF: [0x1b, 0x45, 0x00],
@@ -159,81 +158,36 @@ const Struk = (() => {
 
   /* ---------- Jalur 1: Bluetooth ESC/POS ---------- */
 
-  const SVC_CETAK = '000018f0-0000-1000-8000-00805f9b34fb';
-  const KAR_CETAK = '00002af1-0000-1000-8000-00805f9b34fb';
+  /* Jalur Bluetooth-nya MILIK `bt.js`, bukan berkas ini.
 
-  /**
-   * Sambungkan GATT ke perangkat yang SUDAH dipilih.
-   *
-   * Dipisah dari `hubungkanBluetooth` karena keduanya butuh izin yang berbeda:
-   * `requestDevice` wajib dipanggil dari sentuhan pengguna, `gatt.connect()`
-   * pada perangkat yang izinnya sudah diberikan TIDAK. Itulah yang membuat
-   * penyambungan ulang otomatis mungkin sama sekali.
-   */
-  async function sambungGatt() {
-    const server = await perangkatBt.gatt.connect();
-    const svc = await server.getPrimaryService(SVC_CETAK);
-    karakteristik = await svc.getCharacteristic(KAR_CETAK);
-    return karakteristik;
-  }
+     Sejak ada printer label, dua printer memakai urutan yang persis sama:
+     pilih perangkat, sambung GATT, cari characteristic yang bisa ditulis,
+     tulis per potongan, sambung ulang kalau putus, lepaskan saat tab tidak
+     dilihat. Menyalinnya ke label.js akan melahirkan dua salinan yang pasti
+     berpisah jalan — dan yang satu akan diperbaiki sementara yang lain tidak.
+     Penyimak `visibilitychange` juga tinggal di sana, satu untuk semua slot.
+
+     Yang tetap di sini cuma yang memang urusan STRUK: bahasanya (ESC/POS),
+     ekor kertasnya, dan laci uangnya. */
+  const slotStruk = BT.buat('struk');
 
   async function hubungkanBluetooth() {
-    if (!navigator.bluetooth) throw new Error('Peramban ini tidak mendukung Web Bluetooth. Gunakan Chrome/Edge.');
-    perangkatBt = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [SVC_CETAK] }],
-      optionalServices: [SVC_CETAK]
-    });
-    /* Printer yang mati atau direbut aplikasi lain memutus GATT tanpa memberi
-       tahu siapa pun. Tanpa penanda ini `karakteristik` tetap terisi objek yang
-       sudah mati, dan cetak berikutnya melempar galat yang tidak bisa dibaca
-       ("GATT Server is disconnected") alih-alih menyambung ulang. */
-    perangkatBt.addEventListener('gattserverdisconnected', () => { karakteristik = null; });
-    await sambungGatt();
-    await DB.kvSet('printer_nama', perangkatBt.name);
-    return perangkatBt.name;
+    const nama = await slotStruk.pilih();
+    /* `printer_nama` dipertahankan apa adanya: layar Perangkat dan Tentang
+       sudah membacanya sejak lama, dan mengganti nama kunci berarti nama
+       printer hilang dari layar setiap kasir tanpa satu pun galat. */
+    await DB.kvSet('printer_nama', nama);
+    return nama;
   }
 
-  /**
-   * Pastikan printernya siap dipakai, menyambung ulang bila perlu.
-   *
-   * Belum pernah dipilih  -> minta pengguna memilih (butuh sentuhan).
-   * Sudah dipilih, putus  -> sambung sendiri, tanpa sentuhan, tanpa pairing ulang.
-   */
+  /** Siap dipakai — memilih perangkat bila belum pernah, menyambung ulang bila putus. */
   async function pastikanTersambung() {
-    if (!perangkatBt) return hubungkanBluetooth();
-    if (!karakteristik || !perangkatBt.gatt.connected) await sambungGatt();
-    return karakteristik;
+    if (!slotStruk.terpilih) return hubungkanBluetooth();
+    return slotStruk.pastikan();
   }
 
-  /**
-   * Lepaskan printer supaya aplikasi lain bisa memakainya.
-   *
-   * Printer termal hanya menerima SATU koneksi. Tablet kasir toko ini memakai
-   * dua aplikasi transaksi — Accurate POS dan aplikasi ini — dan selama kita
-   * menahan GATT-nya sampai tab ditutup, Accurate tidak akan pernah bisa
-   * mengambilnya; yang terjadi rebutan, dan salah satunya harus pairing ulang.
-   * Dilaporkan pemilik 1 Sep 2026.
-   *
-   * Yang bisa kita atur cuma sisi kita: begitu tab ini tidak dilihat, printernya
-   * dilepas. Saat mau mencetak, `pastikanTersambung()` mengambilnya lagi sendiri.
-   * Sisi Accurate tidak bisa diatur dari sini — kalau ia yang sedang memegang,
-   * cetak dari sini tetap gagal sampai ia melepas.
-   */
-  function lepasPrinter() {
-    try {
-      if (perangkatBt && perangkatBt.gatt && perangkatBt.gatt.connected) perangkatBt.gatt.disconnect();
-    } catch (e) { console.warn('Lepas printer:', e.message); }
-    karakteristik = null;
-  }
-
-  /* Dipasang sekali, bukan per cetak. `visibilitychange` menyala saat tab
-     berpindah, aplikasi diminimalkan, atau layar tablet dimatikan — ketiganya
-     saat yang tepat untuk melepaskan printer. */
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) lepasPrinter();
-    });
-  }
+  /** Lepaskan printer struk supaya aplikasi lain bisa memakainya. */
+  function lepasPrinter() { slotStruk.lepas(); }
 
   /**
    * Ekor struk: berapa baris kosong, lalu potong atau tidak.
@@ -298,12 +252,7 @@ const Struk = (() => {
        kalau isinya sempat berubah di antara dua panggilan itu, kop dan badan
        struk berasal dari dua versi yang berbeda. */
     const data = bitaStruk(baris(nota), ekor);
-
-    // Kirim per 180 byte — banyak printer thermal punya buffer kecil
-    for (let i = 0; i < data.length; i += 180) {
-      await karakteristik.writeValue(data.slice(i, i + 180));
-      await new Promise(r => setTimeout(r, 40));
-    }
+    await slotStruk.tulis(data);
   }
 
   /* Setelan datang dari sheet sebagai TEKS: 'true'/'false', bukan boolean. */
@@ -328,9 +277,8 @@ const Struk = (() => {
   }
 
   async function bukaLaci() {
-    if (!perangkatBt) return;
-    await pastikanTersambung();
-    await karakteristik.writeValue(new Uint8Array(ESC.LACI));
+    if (!slotStruk.terpilih) return;
+    await slotStruk.tulis(new Uint8Array(ESC.LACI));
   }
 
   /* ---------- Jalur 2: HTML print (cadangan universal) ---------- */
@@ -357,7 +305,7 @@ const Struk = (() => {
   /** Cetak dengan jalur terbaik yang tersedia; tidak pernah menggagalkan transaksi. */
   async function cetak(nota) {
     try {
-      if (karakteristik || (await DB.kvGet('printer_nama', null))) {
+      if (slotStruk.terpilih || (await DB.kvGet('printer_nama', null))) {
         await cetakBluetooth(nota);
         /* Sesudah struk, bukan sebelumnya: laci yang terbuka sementara printer
            masih menulis membuat kasir mengambil uang lebih dulu dan struknya

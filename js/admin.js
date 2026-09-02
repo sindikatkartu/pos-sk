@@ -730,11 +730,78 @@ const Admin = (() => {
           { judul: 'Grosir', angka: true, render: r => rp(r.harga_grosir) },
           { judul: 'Stok', angka: true, render: r => `<span class="${r.stok <= r.stok_min ? 'stok-kritis' : ''}">${r.stok ?? '-'}</span>` },
           ...(kolomAktif ? [kolomAktif] : []),
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` }
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` +
+              /* Produk yang barcode pabriknya sudah tercetak di kemasan TIDAK diberi
+                 tombol label: barcode pabriknya sudah bisa discan, dan menempel
+                 barcode kedua di satu barang selalu berakhir dengan kasir men-scan
+                 yang salah. Tombolnya tidak dimatikan melainkan tidak ada — tombol
+                 mati yang tidak menjelaskan dirinya sama membingungkannya. */
+              (String(r.barcode || '').trim()
+                ? ''
+                : ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>`) }
         ], baris, { pisahNonaktif: true, kosong: (kueriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
             : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' })}
       </div>`;
+  }
+
+  /* ==================== CETAK LABEL BARCODE ====================
+     Diminta pemilik 1 Sep 2026. Aturannya diputuskan di sana dan ditulis di
+     `label.js`; layar ini cuma pintunya. Yang penting di sini: kalau kodenya
+     tidak muat di stikernya, tombolnya MENOLAK dan menyebut angkanya — barcode
+     terpotong terbaca sebagai barang lain, dan itu jauh lebih mahal daripada
+     label yang tidak jadi tercetak. */
+  async function cetakLabelProduk(sku) {
+    const p = cacheProduk.find(x => x.sku === sku);
+    if (!p) return toast('Produk tidak ditemukan.', 'galat');
+    if (typeof Label === 'undefined') {
+      return toast('Muat ulang aplikasi sekali lagi supaya modul label ikut terpasang.', 'galat');
+    }
+    const kode = Label.kodeProduk(p);
+    if (!kode) return toast('Produk ini sudah punya barcode pabrik di kemasannya.', 'galat');
+
+    const u = await Label.ukuran();
+    const cocok = Label.muat(kode, u);
+    const ing = await Label.slot.diingat();
+
+    bukaModal('Cetak label — ' + esc(p.nama), `
+      <div class="petak-tunggal" style="max-width:none">
+        <div class="grup">
+          <label>Kode yang dicetak</label>
+          <p style="margin:4px 0 0"><code>${esc(kode)}</code>
+            <span class="petunjuk"> · ${cocok.lebar.toFixed(1)}mm dari ${
+              cocok.tersedia.toFixed(0)}mm tersedia</span></p>
+        </div>
+        ${cocok.muat ? '' : `<div class="pesan galat">Kode ini terlalu panjang untuk stiker ${
+          u.lebar_mm} × ${u.tinggi_mm} mm. Butuh ${cocok.lebar.toFixed(1)}mm, tersedia ${
+          cocok.tersedia.toFixed(0)}mm. Pakai stiker lebih lebar, atau perpendek kodenya.</div>`}
+        ${ing && ing.nama_perangkat ? '' :
+          '<div class="pesan info">Printer label belum dipilih. Buka menu <strong>Perangkat</strong> untuk menghubungkannya.</div>'}
+        <label class="cek"><input type="checkbox" id="labNama"> Sertakan nama produk di label</label>
+        <div class="grup">
+          <label>Jumlah lembar</label>
+          <input type="number" id="labLembar" value="1" min="1" max="99" step="1" style="max-width:110px">
+        </div>
+      </div>`,
+      (cocok.muat
+        ? '<button class="tombol utama" id="btnCetakLabel">Cetak</button>'
+        : '') + '<button class="tombol" data-tutup="1">Tutup</button>');
+    $('#modalUmum')._label = { kode, nama: p.nama };
+  }
+
+  async function kirimLabel() {
+    const d = $('#modalUmum')._label;
+    if (!d) return;
+    const isi = {
+      kode: d.kode,
+      nama: $('#labNama') && $('#labNama').checked ? d.nama : '',
+      lembar: Number($('#labLembar').value) || 1
+    };
+    try {
+      await Label.cetak(isi);
+      tutupModal();
+      toast(`${isi.lembar} label tercetak.`, 'sukses');
+    } catch (e) { toast('Gagal mencetak: ' + e.message, 'galat'); }
   }
 
   function editorProduk(sku) {
@@ -3456,6 +3523,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- produk --- */
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
       if (d.editProduk)               return editorProduk(d.editProduk);
+      if (d.labelProduk)              return cetakLabelProduk(d.labelProduk);
+      if (t.id === 'btnCetakLabel')   return kirimLabel();
       if (t.id === 'btnTambahSatuan') return tambahBarisSatuan();
       if (t.id === 'btnTambahTier')   return tambahBarisTier();
       if (t.id === 'btnTambahVarian') return tambahBarisVarian();

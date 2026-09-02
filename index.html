@@ -675,16 +675,63 @@
           </div>
         </div>
 
+        <!-- Printer LABEL — perangkat kedua, bahasa kedua (TSPL, bukan ESC/POS).
+             Dipisah dari kartu Printer di atas karena memang printer yang berbeda:
+             satu mencetak struk di kertas gulung, satu mencetak barcode di stiker.
+             Menggabungkannya dalam satu kartu membuat "Hubungkan printer" jadi
+             pertanyaan yang tidak bisa dijawab. -->
+        <div class="kartu">
+          <h3>Printer label</h3>
+          <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPrinterLabel">Belum terhubung</p>
+          <button class="tombol" id="btnHubungkanLabel">Hubungkan printer label</button>
+          <button class="tombol" id="btnUjiLabel" style="margin-top:8px">Uji cetak label</button>
+          <!-- Printer yang service Bluetooth-nya tidak ada di daftar bawaan tidak
+               akan muncul di dialog pemilihan. Web Bluetooth tidak mengizinkan
+               menelusuri service yang tidak disebutkan lebih dulu, jadi tombol
+               ini bukan kemewahan melainkan satu-satunya jalan bagi printer di
+               luar daftar. -->
+          <button class="tombol sunyi" id="btnHubungkanLabelSemua" style="margin-top:8px">
+            Tidak muncul? Tampilkan semua perangkat</button>
+
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">
+            <!-- Tiga kolom berlabel, bukan satu baris `bar-alat`. Di HP `bar-alat`
+                 runtuh jadi satu kolom dan barisnya berubah jadi tumpukan
+                 33 / × / 15 / jarak / 2 — angka tanpa nama yang harus ditebak. -->
+            <label style="font-size:var(--fs-13);color:var(--teks-redup)">Ukuran stiker (mm)</label>
+            <div class="petak-mini" style="margin-top:6px">
+              <div class="grup" style="margin:0">
+                <label>Lebar</label>
+                <input type="number" id="setLabelLebar" min="10" max="100" step="1">
+              </div>
+              <div class="grup" style="margin:0">
+                <label>Tinggi</label>
+                <input type="number" id="setLabelTinggi" min="10" max="100" step="1">
+              </div>
+              <div class="grup" style="margin:0">
+                <label>Jarak stiker</label>
+                <input type="number" id="setLabelJarak" min="0" max="10" step="1">
+              </div>
+            </div>
+            <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0" id="infoLabelMuat"></p>
+          </div>
+        </div>
+
+        <!-- "Perangkat ini" DIGABUNG ke kartu ini, bukan berdiri sendiri.
+             Isinya satu baris — kode dan nama perangkat — dan sebagai kartu
+             keempat ia selalu turun sendirian ke baris kedua petak tiga kolom,
+             selebar sepertiga dengan dua pertiga kosong di sebelahnya. Tiga
+             kartu tidak pernah menyisakan satu yang sendirian di lebar mana pun.
+             Isinya memang sedomain: keterangan perangkat, di sebelah tombol
+             sinkronisasi perangkat itu. -->
         <div class="kartu">
           <h3>Data &amp; sinkronisasi</h3>
           <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoData"></p>
           <button class="tombol" id="btnTarikMaster">Tarik ulang data master</button>
           <button class="tombol" id="btnKirimSekarang" style="margin-top:8px">Kirim antrian sekarang</button>
-        </div>
-
-        <div class="kartu">
-          <h3>Perangkat ini</h3>
-          <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPerangkat"></p>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">
+            <label style="font-size:var(--fs-13);color:var(--teks-redup)">Perangkat ini</label>
+            <p style="color:var(--teks-redup);font-size:var(--fs-13);margin:4px 0 0" id="infoPerangkat"></p>
+          </div>
         </div>
 
       </div>
@@ -846,9 +893,11 @@
 <script src="js/config.js"></script>
 <script src="js/db.js"></script>
 <script src="js/api.js"></script>
+<script src="js/bt.js"></script>
 <script src="js/pos.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/print.js"></script>
+<script src="js/label.js"></script>
 <script src="js/grafik.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/app.js"></script>

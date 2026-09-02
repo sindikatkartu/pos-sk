@@ -6,12 +6,12 @@
  *   - Berkas aplikasi (HTML/CSS/JS) : cache-first  -> aplikasi selalu membuka instan
  *   - Panggilan API                 : network-only -> tidak pernah di-cache, agar data tak basi
  */
-const CACHE = 'possk-v1.79.0';
+const CACHE = 'possk-v1.80.0';
 const BERKAS = [
   './', './index.html',
   './css/app.css',
-  './js/config.js', './js/db.js', './js/api.js', './js/pos.js',
-  './js/sync.js', './js/print.js', './js/grafik.js', './js/admin.js', './js/app.js',
+  './js/config.js', './js/db.js', './js/api.js', './js/bt.js', './js/pos.js',
+  './js/sync.js', './js/print.js', './js/label.js', './js/grafik.js', './js/admin.js', './js/app.js',
   './manifest.webmanifest'
 ];
 

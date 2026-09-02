@@ -774,7 +774,16 @@ async function gambarProduk(kueri) {
        Sengaja dicari di SELURUH katalog, bukan cuma kategori yang sedang dipilih:
        saringan kategori adalah alat bantu melihat, dan tidak boleh membuat barang
        yang barcode-nya sudah discan jadi tidak ketemu. */
-    const persis = semuaProduk.filter(p => String(p.barcode) === q);
+    /* SKU ikut dicocokkan persis, bukan cuma barcode.
+       Sejak label barcode dicetak dari SKU (produk tanpa barcode pabrik),
+       men-scan label toko sendiri akan jatuh ke daftar hasil pencarian di bawah
+       alih-alih langsung masuk keranjang — fiturnya jalan tapi terasa rusak.
+       Barcode tetap didahulukan: kalau sebuah barcode pabrik kebetulan sama
+       dengan SKU produk lain, yang menang barang yang barcode-nya dipindai. */
+    const cocokBarcode = semuaProduk.filter(p => String(p.barcode).toLowerCase() === q);
+    const persis = cocokBarcode.length
+      ? cocokBarcode
+      : semuaProduk.filter(p => String(p.sku).toLowerCase() === q);
     if (persis.length === 1) { tambahKeKeranjang(persis[0]); $('#inpCari').value = ''; return gambarProduk(''); }
     hasil = semua.filter(p => p._cari.includes(q) || String(p.barcode).includes(q)).slice(0, 60);
   }
@@ -2479,7 +2488,54 @@ async function perbaruiInfoData() {
   const ekor = Struk.bacaEkor ? await Struk.bacaEkor() : { potong: true, umpan: 3 };
   if ($('#setPrinterPotong')) $('#setPrinterPotong').checked = ekor.potong;
   if ($('#setPrinterUmpan')) $('#setPrinterUmpan').value = ekor.umpan;
+  await perbaruiInfoLabel();
   gambarPreviewStruk();
+}
+
+/**
+ * Kartu "Printer label" di layar Perangkat.
+ *
+ * Dijaga terhadap label.js versi LAMA yang masih dilayani Service Worker —
+ * alasannya sama dengan penjagaan `Struk.bacaEkor` di atas: cache di sini
+ * cache-first dan pergantiannya butuh dua kali muat ulang, jadi "app.js baru
+ * bertemu label.js lama" adalah keadaan yang PASTI terjadi sekali di tiap
+ * perangkat setiap kali terbit.
+ */
+async function perbaruiInfoLabel() {
+  if (typeof Label === 'undefined' || !$('#infoPrinterLabel')) return;
+  const ing = await Label.slot.diingat();
+  $('#infoPrinterLabel').textContent = (ing && ing.nama_perangkat)
+    ? 'Tersimpan: ' + ing.nama_perangkat : 'Belum terhubung';
+  const u = await Label.ukuran();
+  if ($('#setLabelLebar')) $('#setLabelLebar').value = u.lebar_mm;
+  if ($('#setLabelTinggi')) $('#setLabelTinggi').value = u.tinggi_mm;
+  if ($('#setLabelJarak')) $('#setLabelJarak').value = u.jarak_mm;
+  /* Angkanya ditulis di layar, bukan disembunyikan di kode: pemilik toko yang
+     memilih format kodenya perlu tahu berapa karakter yang muat SEBELUM ia
+     terlanjur menamai seratus produk. */
+  if ($('#infoLabelMuat')) {
+    const tersedia = u.lebar_mm - 2 * Label.BAWAAN.margin_mm;
+    /* Tiga bentuk, bukan satu angka. CODE128 memuat DUA digit dalam satu simbol
+       tapi hanya satu huruf — jadi "maksimal 7 karakter" benar untuk kode yang
+       seluruhnya huruf dan salah jauh untuk kode seperti TG01030006 (10 karakter,
+       tetap muat). Satu angka di sini akan membuat pemilik toko menamai produknya
+       lebih pendek dari yang perlu, atau lebih panjang dari yang bisa dicetak. */
+    const s = simbolData(tersedia);
+    $('#infoLabelMuat').textContent =
+      `Ruang barcode ${tersedia.toFixed(0)}mm. Muat: ${s * 2} digit bila angka semua · ` +
+      `2 huruf + ${Math.max(0, (s - 3) * 2)} digit · ${s} karakter bila huruf semua.`;
+  }
+}
+
+/* Berapa simbol ISI yang muat, DIHITUNG dari lebar yang tersedia — bukan angka
+   hafalan yang akan meleset begitu ukuran stikernya diganti.
+   CODE128 memakai `11 × simbol + 13` modul, dan dari jumlah simbol itu DUA
+   dipakai simbol mulai dan simbol cek — bukan isi. Huruf memakai satu simbol per
+   karakter; angka dua digit per simbol; berpindah dari huruf ke angka memakan
+   satu simbol lagi. */
+function simbolData(tersediaMm) {
+  const modul = Math.floor(tersediaMm * Label.TITIK_PER_MM / Label.BAWAAN.sempit);
+  return Math.max(0, Math.floor((modul - 13) / 11) - 2);
 }
 
 /**
@@ -3056,6 +3112,31 @@ function pasangEvent() {
     await DB.kvSet('printer_umpan', n);
     Admin.toast(`Ujung struk: ${n} baris kosong.`, 'sukses');
   });
+  const hubungkanLabel = async (tombol, semua) => {
+    const b = $(tombol);
+    b.classList.add('sibuk'); b.disabled = true;
+    try { const n = await Label.hubungkan({ semua }); alert('Printer label terhubung: ' + n); perbaruiInfoData(); }
+    catch (e) { alert('Gagal: ' + e.message); }
+    finally { b.classList.remove('sibuk'); b.disabled = false; }
+  };
+  $('#btnHubungkanLabel')?.addEventListener('click', () => hubungkanLabel('#btnHubungkanLabel', false));
+  $('#btnHubungkanLabelSemua')?.addEventListener('click', () => hubungkanLabel('#btnHubungkanLabelSemua', true));
+  $('#btnUjiLabel')?.addEventListener('click', async () => {
+    try { await Label.cetak({ kode: 'UJI12345', nama: 'Uji cetak label', lembar: 1 }); }
+    catch (e) { alert('Gagal: ' + e.message); }
+  });
+  const simpanUkuranLabel = async () => {
+    const u = await Label.simpanUkuran({
+      lebar_mm: Number($('#setLabelLebar').value),
+      tinggi_mm: Number($('#setLabelTinggi').value),
+      jarak_mm: Number($('#setLabelJarak').value)
+    });
+    await perbaruiInfoLabel();
+    Admin.toast(`Ukuran stiker: ${u.lebar_mm} × ${u.tinggi_mm} mm.`, 'sukses');
+  };
+  ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak']
+    .forEach(id => $(id)?.addEventListener('change', simpanUkuranLabel));
+
   $('#btnUjiCetak').addEventListener('click', () => {
     Struk.cetak({
       no_nota: 'UJI-CETAK', tanggal: tanggalLokal(), jam: new Date().toTimeString().substring(0, 8),
