@@ -324,10 +324,23 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 .sisi-isi button.aktif .ikon-svg { color: var(--teks); }
 
-.sisi-bawah { padding: 10px; border-top: 1px solid var(--garis); flex-shrink: 0; }
+/* Kaki sidebar dikunci ke tinggi yang SAMA dengan kepalanya — `--tinggi-kepala`.
+
+   Dulu kepalanya 58px dan kakinya 74,5px: 10px padding luar + 8px padding kartu
+   di atas dan di bawah, menumpuk jadi 36px di sekeliling avatar yang tingginya
+   sama persis dengan logo di kepala. Dua ujung sidebar yang isinya sebangun
+   (bulatan 30px + dua baris teks) tapi tebalnya berbeda 16px terbaca sebagai
+   kaki yang menggemuk, bukan sebagai dua blok yang berbeda maksud.
+   Padding kartunya dipindah ke MENDATAR saja; jarak tegaknya datang dari
+   tinggi kotaknya, bukan dari padding yang bertumpuk. */
+.sisi-bawah {
+  box-sizing: border-box; min-height: var(--tinggi-kepala);
+  display: flex; align-items: center;
+  padding: 0 6px; border-top: 1px solid var(--garis); flex-shrink: 0;
+}
 .kartu-user {
-  display: flex; align-items: center; gap: 10px; padding: 8px 8px;
-  border-radius: var(--radius); min-width: 0;
+  display: flex; align-items: center; gap: 10px; padding: 0 8px;
+  border-radius: var(--radius); min-width: 0; width: 100%;
 }
 .avatar {
   width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
@@ -378,7 +391,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   border-top: 1px solid var(--garis); color: transparent;
 }
 #app.sisi-lipat .sisi-grup:first-child { border-top: none; margin-top: 0; padding-top: 0; height: 4px; }
-#app.sisi-lipat .kartu-user { justify-content: center; padding: 8px 0; }
+#app.sisi-lipat .kartu-user { justify-content: center; padding: 0; }
 
 /* ---------- Bilah atas ---------- */
 .bar-atas {
@@ -857,7 +870,18 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    (14px) sementara baris berisi lencana memakai tinggi barisnya sendiri (23px):
    tinggi yang "dipesan" jadi 9px lebih pendek dari yang dipakai, dan lubangnya
    kembali — lebih kecil, jadi lebih sulit dilihat. */
-.mini-ekor { margin-top: 4px; min-height: 16px; line-height: 16px; }
+/* Ekor kotak angka: SATU baris, selalu.
+
+   `min-height` sudah memesan tempatnya sejak v1.78 supaya kotak tanpa
+   pembanding tidak berlubang. Yang belum dijaga kebalikannya: ekor yang
+   PANJANG membungkus jadi dua baris, menaikkan tinggi seluruh barisnya, dan
+   kotak-kotak lain di baris itu — yang tingginya disamakan — berlubang 37px di
+   dalam. Ekornya keterangan sekilas, bukan isi; dipotong dengan elipsis, dan
+   kalimat utuhnya tetap ada di `title`. */
+.mini-ekor {
+  margin-top: 4px; min-height: 16px; line-height: 16px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .delta { font-size: var(--fs-11); font-weight: 600; white-space: nowrap; }
 .delta.naik  { color: var(--sukses); }
 .delta.turun { color: var(--bahaya); }
@@ -919,6 +943,21 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    di Dasbor — tidak digambar selebar sepertiga baris dengan dua pertiga sisanya
    kosong. */
 .petak > .lebar-penuh { grid-column: 1 / -1; }
+/* EMPAT kotak angka dalam satu baris.
+
+   `minmax(180px, 1fr)` hanya memuat tiga kolom di lebar tablet, jadi kotak
+   keempat turun sendirian dan melar setengah lebar layar — kotak tunggal
+   selebar itu terbaca sebagai kotak yang gagal berpasangan, bukan sebagai
+   kelompok. Ambangnya diturunkan supaya keempatnya tetap sebaris; isi kotak
+   angka memang pendek. Kekhususannya (0,2,0) MENGALAHKAN aturan dua kolom di
+   layar sempit, jadi aturan itu ditulis ulang untuk kelas ini di dalam blok
+   @media — bergantung pada urutan berkas di sini akan diam-diam salah. */
+.petak.petak-4 { grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); }
+/* Empat kolom berarti kotaknya sempit, dan "Rp 3.820.000" pada ukuran angka
+   penuh membungkus jadi dua baris — satu kotak menaikkan tinggi seluruh
+   barisnya, dan tiga kotak lain berlubang 37px di dalam. Angkanya diperkecil
+   satu tingkat DI SINI saja; kotak angka di baris tiga kolom tidak tersentuh. */
+.petak-4 .statistik .nilai { font-size: var(--fs-21); }
 /* Petak isian: yang disejajarkan adalah DASAR kendalinya, bukan puncak selnya.
    Di layar Setting satu sel berisi label + input dan sel di sebelahnya berisi
    kotak centang tanpa label; diratakan di atas, kotak centangnya melayang 30px
@@ -1103,7 +1142,7 @@ input.sudah-hitung {
     height: auto; padding: 16px 10px 6px; margin: 0; border-top: none; color: var(--teks-redup);
   }
   #app.sisi-lipat .sisi-atas { justify-content: flex-start; padding: 14px 14px 12px; }
-  #app.sisi-lipat .kartu-user { justify-content: flex-start; padding: 8px; }
+  #app.sisi-lipat .kartu-user { justify-content: flex-start; padding: 0 8px; }
 
   /* Satu tetapan, dua panel — lihat .sisi-atas. Menurunkan tinggi bilah atas
      saja akan mematahkan garisnya lagi, di lebar yang justru paling sempit. */
@@ -1159,6 +1198,9 @@ input.sudah-hitung {
      menggulir sebelum melihat data pertamanya. Di lebar ini jumlah kolomnya
      ditetapkan, bukan ditawar. */
   .petak { grid-template-columns: 1fr 1fr; column-gap: 8px; }
+  /* Ditulis ulang, bukan diwarisi: `.petak.petak-4` lebih khusus dan akan
+     menang tanpa baris ini — empat kotak berdesakan di layar 390px. */
+  .petak.petak-4 { grid-template-columns: 1fr 1fr; }
   /* `margin-bottom: 16px` bawaan `.kartu` DITAMBAHKAN ke `gap` di dalam grid:
      jarak antar baris jadi 24px sementara antar kolom 8px. Di layar lebar
      `.petak` hampir selalu satu baris jadi tidak terlihat; di HP ia selalu
@@ -1529,10 +1571,43 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
    (tinta yang mahal untuk abu-abu yang tidak berarti apa-apa di kertas), garis
    tabel ditegaskan, dan tabel dibiarkan melebar penuh karena di kertas tidak
    ada yang bisa digulir ke samping. */
+/* ---------- CETAK ----------
+
+   Dua kesalahan yang baru terlihat saat pemilik benar-benar mencetak
+   (2 Sep 2026), dan keduanya membuat kertasnya nyaris kosong:
+
+   1. Yang disembunyikan tertulis dengan nama kelas yang TIDAK ADA di berkas
+      mana pun — salah eja dari `.bar-atas`. Jadi bilah atas aplikasi ikut
+      tercetak di setiap halaman, lengkap dengan lencana shift dan tombolnya.
+   2. Latarnya dipaksa putih tapi WARNA TEKSNYA tidak. Di mode gelap `--teks`
+      nyaris putih — putih di atas putih. Seluruh laporan tercetak tak terbaca,
+      dan tidak ada satu pun tanda di layar bahwa itu akan terjadi.
+
+   Karena itu cetak sekarang MEMAKSA hitam-putih, bukan mewarisi tema: warna
+   tokennya ditulis ulang di sini supaya seluruh isi halaman ikut, termasuk
+   bagian yang belum ditulis hari ini. Tidak bergantung pada centang
+   "Background graphics" di dialog cetak Chrome — yang bawaannya mati. */
 @media print {
-  .sisi, .tirai-sisi, .bilah-atas, .bar-bawah, .tanpa-cetak,
+  :root, html[data-tema="gelap"], html[data-tema="terang"] {
+    --bg: #ffffff; --panel: #ffffff; --panel-2: #ffffff; --panel-3: #ffffff;
+    --sisi-bg: #ffffff;
+    --teks: #000000; --teks-2: #222222; --teks-redup: #555555;
+    --garis: #999999; --garis-halus: #cccccc; --garis-kuat: #666666;
+    --garis-tombol: #999999;
+    --utama: #000000; --utama-gelap: #000000; --utama-lembut: #ffffff;
+    --utama-garis: #999999; --aksen-aktif: #000000;
+    --sukses: #000000; --sukses-gelap: #000000; --sukses-lembut: #ffffff;
+    --sukses-garis: #999999;
+    --peringatan: #000000; --peringatan-lembut: #ffffff; --peringatan-garis: #999999;
+    --bahaya: #000000; --bahaya-lembut: #ffffff; --bahaya-garis: #999999;
+    --bayang-1: none; --bayang-2: none; --bayang-3: none; --bayang-4: none;
+    --cincin: none; --tirai: transparent; --gulir-bayang: transparent;
+    --tombol-tekan: #ffffff; --logo-bg: #000000; --logo-teks: #ffffff;
+    --kertas-grafik: #ffffff;
+  }
+  .sisi, .tirai-sisi, .bar-atas, .bar-bawah, .tanpa-cetak,
   .aksi-modal, .ekspor, #toast, #pegangan { display: none !important; }
-  body, #app, .isi { background: #fff !important; }
+  body, #app, .isi, .layar, .kartu { background: #fff !important; color: #000 !important; }
   .isi { margin: 0 !important; padding: 0 !important; }
   .kartu {
     box-shadow: none !important; border: 1px solid #999 !important;
@@ -1544,4 +1619,18 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
   /* Judul bagian tidak boleh tertinggal sendirian di ujung halaman. */
   h3, h4 { break-after: avoid; page-break-after: avoid; }
   a[href]::after { content: ""; }
+  /* Grafik SVG mewarnai dirinya lewat atribut, bukan lewat token — dipaksa di
+     sini juga, kalau tidak garisnya tetap terang di atas kertas putih. */
+  svg text { fill: #000 !important; }
+  svg line, svg path { stroke: #666 !important; }
+  svg circle, svg rect { fill: #000 !important; stroke: #000 !important; }
 }
+
+/* Bar penyaring cetak. Bukan tombol: ini daftar centang yang dibaca sekilas,
+   jadi bentuknya mengikuti label biasa dan bukan pil berwarna. */
+.pilih-cetak { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; min-width: 0; }
+.cip-cetak {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-13); color: var(--teks-2); white-space: nowrap; cursor: pointer;
+}
+.cip-cetak input { margin: 0; }

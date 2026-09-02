@@ -701,16 +701,48 @@ const Admin = (() => {
   const kunciRentang = (r) => r.dari + '|' + r.sampai;
   const terjualSiap = () => terjualProduk.kunci === kunciRentang(rentangTerjual);
 
-  async function muatProduk(kueri = '', kategori = '') {
+  /**
+   * Tarik SELURUH katalog — sekali per pembukaan layar, tanpa kata kunci.
+   *
+   * Dulu tiap ketikan di kolom cari menembak `daftar_produk` lagi, dan tiap
+   * jawabannya menimpa seluruh layar: kolom carinya IKUT dibuang dan dibuat
+   * baru, jadi fokus dan posisi kursor hilang di tengah orang mengetik.
+   * Mengetik "m5" bisa memutus dirinya sendiri.
+   *
+   * Sekarang saringannya di perangkat, persis seperti layar Kasir. Ini bukan
+   * penambahan beban: saat kolom carinya kosong — keadaan setiap kali layar
+   * dibuka — seluruh katalog memang sudah ditarik. Yang hilang justru
+   * panggilan-panggilan tambahan itu.
+   *
+   * Seluruh kolom yang dicari server (`deskripsi`, `kata_kunci`, `kompatibel`)
+   * ikut terkirim di dalam tiap baris, jadi saringan di sini menemukan barang
+   * yang SAMA — bukan versi yang lebih dangkal.
+   */
+  async function muatProduk() {
     memuat('#isiProduk');
     try {
-      const d = await API.daftarProduk({ cari: kueri, kategori, termasuk_nonaktif: true });
+      const d = await API.daftarProduk({ termasuk_nonaktif: true });
       cacheProduk = d.produk;
+      /* Teks pencarian disusun SEKALI per barang, bukan tiap ketikan. Pada 362
+         produk bedanya belum terasa; pada katalog yang tumbuh, menyusun ulang
+         empat larik kompatibel untuk tiap huruf yang diketik terasa. */
+      cacheProduk.forEach(r => {
+        r._cari = [r.sku, r.nama, r.kategori, r.merek, r.tipe_hp, r.barcode,
+                   r.deskripsi, r.kata_kunci,
+                   (r.kompatibel || []).map(k => k.merek + ' ' + k.tipe).join(' ')]
+          .join(' ').toLowerCase();
+      });
       dataProduk = d;
-      kueriProduk = kueri;
-      kategoriProduk = kategori;
       gambarProduk();
     } catch (e) { galat('#isiProduk', e); }
+  }
+
+  /** Saring katalog di perangkat: kata kunci + kategori. */
+  function saringKatalog() {
+    const q = kueriProduk.toLowerCase().trim();
+    return cacheProduk.filter(r =>
+      (!kategoriProduk || String(r.kategori || '').trim() === kategoriProduk) &&
+      (!q || r._cari.includes(q)));
   }
 
   /**
@@ -766,7 +798,8 @@ const Admin = (() => {
        menyembunyikan SELURUH katalog dan terlihat persis seperti daftar produk
        yang hilang. */
     if (saring.butuhTerjual && !terjualSiap()) { saring = SARING_PRODUK[0]; saringProduk = ''; }
-    const baris = cacheProduk.filter(saring.lolos);
+    const terlihat = saringKatalog();
+    const baris = terlihat.filter(saring.lolos);
     if (saring.urut) baris.sort(saring.urut);
     const hitung = baris.length === cacheProduk.length
       ? `${cacheProduk.length} produk`
@@ -807,8 +840,45 @@ const Admin = (() => {
           </div>
         </div>
       </div>
-      <div class="kartu">
-        ${tabel([
+      <div class="kartu" id="wadahTabelProduk">
+        ${tabelProduk(baris, modal, saring, kolomAktif)}
+      </div>`;
+  }
+
+  /**
+   * Hanya TABEL-nya yang digambar ulang saat orang mengetik di kolom cari.
+   *
+   * Menggambar ulang seluruh kartu berarti kolom carinya sendiri ikut dibuang
+   * dan dibuat baru — fokus lepas, kursor pindah ke ujung, dan halaman melompat
+   * ke atas. Itu yang membuat mengetik "m5" terasa seperti aplikasi merebut
+   * papan ketik. Bar alatnya hanya perlu digambar ulang kalau ISINYA yang
+   * berubah (kolom Terjual muncul, kolom tanggal muncul), dan itu bukan yang
+   * terjadi saat mengetik.
+   */
+  function gambarBarisProduk() {
+    const d = dataProduk;
+    if (!d || !$('#wadahTabelProduk')) return;
+    const modal = d.boleh_harga_modal;
+    const pilihan = KOLOM_PRODUK.filter(k => !k.butuhModal || modal);
+    const kolomAktif = pilihan.find(k => k.id === kolomProduk);
+    let saring = SARING_PRODUK.find(s => s.id === saringProduk) || SARING_PRODUK[0];
+    if (saring.butuhTerjual && !terjualSiap()) saring = SARING_PRODUK[0];
+
+    const terlihat = saringKatalog();
+    const baris = terlihat.filter(saring.lolos);
+    if (saring.urut) baris.sort(saring.urut);
+    $('#wadahTabelProduk').innerHTML = tabelProduk(baris, modal, saring, kolomAktif);
+    const hitung = $('.jumlah-baris');
+    if (hitung) {
+      hitung.textContent = baris.length === cacheProduk.length
+        ? `${cacheProduk.length} produk`
+        : `${baris.length} dari ${cacheProduk.length} produk`;
+    }
+  }
+
+  /** Bentuk tabel produk — SATU tempat, dipakai penggambaran penuh dan parsial. */
+  function tabelProduk(baris, modal, saring, kolomAktif) {
+    return tabel([
           { judul: 'SKU', kunci: 'sku' },
           { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
             <div class="meta-kecil">${esc([r.kategori, r.merek, r.tipe_hp].filter(Boolean).join(' · '))}</div>` },
@@ -834,10 +904,9 @@ const Admin = (() => {
               (String(r.barcode || '').trim()
                 ? ''
                 : ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>`) }
-        ], baris, { pisahNonaktif: true, kosong: (kueriProduk || saringProduk)
+        ], baris, { pisahNonaktif: true, kosong: (kueriProduk || kategoriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
-            : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' })}
-      </div>`;
+            : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' });
   }
 
   /* ==================== CETAK LABEL BARCODE ====================
@@ -3563,7 +3632,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     switch (layar) {
       case 'dashboard': return muatDashboard();
-      case 'produk':    return muatProduk($('#cariProduk')?.value || '', $('#filterKategori')?.value || '');
+      case 'produk':    return muatProduk();
       case 'stok':      return muatStok($('#stokKategori')?.value || '');
       case 'pembelian': return muatPembelian();
       case 'mitra':     return muatMitra();
@@ -4284,13 +4353,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
 
     /* --- pencarian & hitung ulang --- */
-    let timer;
     /* `async`: satu cabang di dalamnya (penyaring Terlaris) perlu menarik data
        penjualan sekali sebelum menggambar ulang. */
     document.addEventListener('input', async (e) => {
       if (e.target.id === 'cariProduk') {
-        clearTimeout(timer);
-        timer = setTimeout(() => muatProduk(e.target.value, $('#filterKategori')?.value || ''), 300);
+        /* Tanpa jeda, tanpa panggilan server, tanpa menggambar ulang kolomnya
+           sendiri. Katalognya sudah di tangan sejak layar dibuka; yang berubah
+           cuma baris mana yang ditampilkan. Jeda 300ms dulu ada karena tiap
+           ketikan menembak server — sekarang tidak ada yang perlu ditunggu, dan
+           menunda 300ms hanya membuat huruf terasa tertinggal. */
+        kueriProduk = e.target.value;
+        gambarBarisProduk();
+        return;
       }
       /* Kategori dimuat seketika, tanpa jeda: ini pilihan yang ditekan sekali,
          bukan ketikan beruntun. Pendengarnya WAJIB ada — tanpa ini dropdownnya
@@ -4305,13 +4379,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (e.target.id === 'filterKategori') {
-        clearTimeout(timer);
-        /* Fokus dikembalikan setelah layar digambar ulang. Tanpa ini, pengguna
-           papan ketik terkunci di kategori pertama: satu ArrowDown memicu muat
-           ulang, elemen select-nya diganti yang baru, dan panah berikutnya jatuh
-           ke elemen yang sudah tidak ada. */
-        return muatProduk($('#cariProduk')?.value || '', e.target.value)
-          .then(() => $('#filterKategori')?.focus());
+        /* Ikut disaring di perangkat. Fokus tidak perlu dikembalikan lagi karena
+           elemennya tidak diganti — dulu ia harus, dan pengguna papan ketik
+           terkunci di kategori pertama setiap kali lupa. */
+        kategoriProduk = e.target.value;
+        gambarBarisProduk();
+        return;
       }
       /* Kolom dan penyaring digambar ulang dari data yang sudah ada — tidak
          menembak API. Fokus dikembalikan dengan alasan yang sama seperti
@@ -4329,6 +4402,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (e.target.id === 'kolomProduk' || e.target.id === 'saringProduk') {
         const id = e.target.id;
+        /* Keduanya MENGUBAH BENTUK bar alat — kolom Terjual dan sepasang kolom
+           tanggal muncul atau hilang — jadi di sini memang harus digambar penuh,
+           dan fokusnya dikembalikan. Beda dengan mengetik di kolom cari, yang
+           tidak mengubah bentuk apa pun. */
         if (id === 'kolomProduk') kolomProduk = e.target.value;
         else saringProduk = e.target.value;
         /* Penyaring yang butuh data penjualan menariknya SEKARANG. Penjaga

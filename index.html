@@ -254,7 +254,33 @@
           <button class="tombol utama" id="btnLaporan">Tampilkan</button>
           <button class="tombol" id="btnCetakLaporan">Cetak</button>
         </div>
+
+        <!-- TAB. Tiap tab menarik datanya SENDIRI saat pertama dibuka, bukan
+             semuanya sekaligus: riwayat nota sebulan ramai ratusan baris, dan
+             orang yang cuma ingin melihat omzet tidak boleh ikut menunggunya.
+             Yang sudah pernah dibuka tidak ditarik lagi selama rentangnya sama. -->
+        <div class="tab-modal" id="tabLaporan" style="margin-top:16px;margin-bottom:0">
+          <button data-tab-lap="ringkas" class="aktif">Ringkasan</button>
+          <button data-tab-lap="nota">Riwayat transaksi</button>
+          <button data-tab-lap="shift">Per shift</button>
+          <button data-tab-lap="petugas">Per petugas</button>
+          <button data-tab-lap="void">Void</button>
+        </div>
       </div>
+
+      <!-- Penyaring cetak: laporan sebulan bisa sepuluh halaman, dan yang
+           dibutuhkan biasanya dua tabel. Dibangun ulang tiap kali tab digambar. -->
+      <div class="kartu tanpa-cetak sembunyi" id="kartuPilihCetak">
+        <div class="bar-alat">
+          <strong>Yang ikut dicetak</strong>
+          <div id="pilihCetak" class="pilih-cetak"></div>
+          <div class="kanan">
+            <button class="tombol kecil" id="btnCetakSemua">Pilih semua</button>
+            <button class="tombol kecil" id="btnCetakTakSatu">Kosongkan</button>
+          </div>
+        </div>
+      </div>
+
       <div id="hasilLaporan"></div>
     </section>
 

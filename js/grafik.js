@@ -329,7 +329,9 @@ const Grafik = (() => {
   function tombolTabel(buatTabel) {
     const bungkus = document.createElement('div');
     const btn = document.createElement('button');
-    btn.className = 'tombol kecil';
+    /* `tanpa-cetak`: ini alat baca layar, bukan isi laporan. Tanpa kelas itu
+       tombolnya ikut tercetak di bawah tiap grafik — tombol di atas kertas. */
+    btn.className = 'tombol kecil tanpa-cetak';
     btn.style.marginTop = '8px';
     btn.textContent = 'Lihat sebagai tabel';
     const isi = document.createElement('div');

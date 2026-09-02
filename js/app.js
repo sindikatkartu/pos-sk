@@ -174,12 +174,75 @@ async function tampilkanDitolak() {
       <strong>${esc(o.dokumen?.no_nota || o.uuid)}</strong>
       <div style="font-size:var(--fs-13);margin-top:4px">${esc(o.pesan_galat || 'Tanpa keterangan')}</div>
       <div class="meta-kecil">Dicoba ${o.percobaan || 0}x · ${esc(waktuTampil(o.dibuat).substring(0, 14))}</div>
+      <button class="tombol kecil" data-kirim-ulang="${esc(o.uuid)}"
+              style="margin-top:8px">Kirim ulang</button>
     </div>`).join('');
   Admin.modal('Nota ditolak server', `
     <p>Nota berikut sudah tercatat di perangkat ini tapi <strong>ditolak server</strong>,
        jadi belum masuk pembukuan. Tunjukkan daftar ini ke pemilik — sebagian butuh
        tindakan di sisi server dulu (mis. periode yang sudah ditutup).</p>
+    <p class="petunjuk"><strong>Sesudah sebabnya dibereskan, kirim ulang dari sini —
+       jangan diketik ulang di kasir.</strong> Kiriman ulang membawa nomor nota, jam,
+       shift, dan pembayaran yang ASLI; nota baru membawa nomor dan jam hari ini,
+       sehingga struk yang sudah di tangan pelanggan tidak lagi cocok dengan
+       pembukuan. Server menolak uuid yang sama dua kali, jadi menekan tombol ini
+       tidak bisa menggandakan notanya.</p>
     ${isi}`);
+}
+
+/**
+ * Kembalikan satu nota yang DITOLAK ke antrean kirim.
+ *
+ * Penolakan yang sebabnya di sisi server — periode terkunci, izin peran yang
+ * lupa dicentang, setelan `izinkan_stok_minus` yang mati — akan berulang persis
+ * sama sampai ada manusia yang mengubah sesuatu. Itulah kenapa jatah
+ * percobaannya habis dan statusnya jadi DITOLAK. Begitu manusianya mengubahnya,
+ * satu-satunya jalan yang tersisa sampai sekarang adalah mengetik ulang notanya
+ * di kasir — dan itu melahirkan nota kedua dengan nomor dan jam yang berbeda,
+ * sementara nota aslinya tetap hilang dari pembukuan.
+ *
+ * Aman diulang: `apiKirimPenjualan` mengenali uuid yang sudah ada dan
+ * memasukkannya ke daftar `duplikat`, bukan menulisnya dua kali.
+ */
+async function kirimUlangDitolak(uuid) {
+  const o = await DB.get('outbox', uuid);
+  if (!o) return Admin.toast('Nota itu sudah tidak ada di antrean perangkat ini.', 'galat');
+  o.status = 'PENDING';
+  o.percobaan = 0;
+  /* `pesan_galat` SENGAJA tidak dikosongkan di sini. Setiap jalan yang membuat
+     notanya tetap tertolak — penolakan per dokumen maupun penolakan setingkat
+     paket — sudah menimpanya dengan alasan yang baru di sync.js, dan jalan yang
+     TIDAK menimpanya (jaringan mati) juga tidak menampilkannya di mana pun
+     karena notanya keluar dari daftar DITOLAK. Baris pengosongan di sini pernah
+     ada dan terbukti tidak bisa dibuat merah oleh mutasi mana pun: kode yang
+     tidak bisa gagal bukan penjagaan, ia hiasan. */
+  await DB.put('outbox', o);
+  await Sync.kirim();
+
+  const lagi = await DB.get('outbox', uuid);
+  if (lagi && lagi.status === 'SYNCED') {
+    Admin.toast('Nota ' + (o.dokumen?.no_nota || uuid) + ' masuk pembukuan.', 'sukses');
+  } else if (lagi && lagi.pesan_galat) {
+    /* Ditolak lagi → LANGSUNG kembali ke DITOLAK, tidak menunggu jatah tiga
+       percobaan habis.
+       Tiga percobaan itu untuk antrean yang berjalan sendiri: penolakan pertama
+       bisa saja gara-gara keadaan yang lewat sendiri. Percobaan yang diminta
+       MANUSIA bukan itu — manusianya sudah membetulkan sesuatu lalu menekan
+       tombol, dan jawabannya sudah didapat. Membiarkannya PENDING berarti
+       lencana kembali KUNING "1 menunggu" selama satu menit berikutnya: rupanya
+       persis sama dengan antrean sehat, padahal tidak ada yang berubah. Diam
+       adalah kegagalan terburuk di sistem kasir. */
+    lagi.status = 'DITOLAK';
+    await DB.put('outbox', lagi);
+    Admin.toast('Masih ditolak: ' + lagi.pesan_galat, 'galat');
+  } else {
+    /* Tidak terkirim DAN tidak ditolak — jaringannya yang mati. Ini justru
+       keadaan yang jatah percobaannya memang untuk itu: biarkan PENDING. */
+    Admin.toast('Nota dikembalikan ke antrean kirim.');
+  }
+  const sisa = await DB.outboxDitolak();
+  if (sisa.length) return tampilkanDitolak();
+  Admin.tutupModal();
 }
 
 /* ==================== PENANDA SEDANG MEMUAT ====================
@@ -2161,32 +2224,101 @@ function selisihLaporan(kini, lalu) {
     Math.abs(persen).toFixed(Math.abs(persen) >= 10 ? 0 : 1)}%</span>`;
 }
 
+/* ==================== LAYAR LAPORAN, BERTAB ====================
+ *
+ * Diminta pemilik 2 Sep 2026: riwayat transaksi lengkap, per shift, per
+ * petugas, dan rincian void — "cari solusi supaya tidak berat, misal dengan
+ * tab ketika masuk ke tab baru proses menampilan data".
+ *
+ * Itulah aturannya di sini: SATU tab, SATU panggilan, dan hanya saat tabnya
+ * benar-benar dibuka. Menarik kelimanya sekaligus berarti orang yang cuma ingin
+ * melihat omzet hari ini ikut menunggu empat ratus baris riwayat dibaca dari
+ * sheet terbesar di sistem.
+ *
+ * Yang sudah ditarik DISIMPAN selama rentangnya tidak berubah: bolak-balik
+ * antar tab tidak boleh menembak server lagi. Mengganti rentang membuang
+ * semuanya — data satu rentang yang dipakai untuk rentang lain adalah angka
+ * yang terlihat masuk akal dan sepenuhnya keliru.
+ */
+const LAP = { dari: '', sampai: '', tab: 'ringkas', data: {} };
+
+/** Satu tab, satu cara menariknya. */
+const LAP_TARIK = {
+  ringkas: (par) => API.laporanPenjualan(par),
+  nota:    (par) => API.laporanNota({ ...par, status: 'AKTIF' }),
+  shift:   (par) => API.daftarShift({ ...par, cabang: '*' }),
+  petugas: (par) => API.laporanPoin({ ...par }),
+  void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' })
+};
+
 async function tampilkanLaporan() {
+  LAP.dari = $('#lapDari').value;
+  LAP.sampai = $('#lapSampai').value;
+  LAP.data = {};                 // rentang baru: seluruh tab basi
+  return gambarTabLaporan(LAP.tab);
+}
+
+async function gambarTabLaporan(tab) {
+  if (!LAP_TARIK[tab]) return;
+  LAP.tab = tab;
+  $$('#tabLaporan button').forEach(b => b.classList.toggle('aktif', b.dataset.tabLap === tab));
   const w = $('#hasilLaporan');
-  w.innerHTML = '<div class="kartu">Memuat…</div>';
-  try {
-    const par = { dari: $('#lapDari').value, sampai: $('#lapSampai').value };
-    const d = await API.laporanPenjualan(par);
+  if (!LAP.dari || !LAP.sampai) {
+    w.innerHTML = '<div class="kartu"><p class="petunjuk">Pilih rentang tanggal lalu tekan Tampilkan.</p></div>';
+    $('#kartuPilihCetak').classList.add('sembunyi');
+    return;
+  }
+  if (!LAP.data[tab]) {
+    w.innerHTML = '<div class="kartu">Memuat…</div>';
+    try {
+      LAP.data[tab] = await LAP_TARIK[tab]({ dari: LAP.dari, sampai: LAP.sampai });
+    } catch (e) {
+      w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
+      $('#kartuPilihCetak').classList.add('sembunyi');
+      return;
+    }
+  }
+  const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
+                   petugas: gambarLapPetugas, void: gambarLapVoid }[tab];
+  gambar(w, LAP.data[tab]);
+  pasangPilihCetak();
+}
+
+/* Kotak dan tabel dipakai kelima tab — satu bentuk, bukan lima yang mirip. */
+const lapKotak = (label, nilai, ekor) => `<div class="kartu statistik">
+  <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div>
+  <div class="mini-ekor" title="${esc(String(ekor || '').replace(/<[^>]*>/g, ''))}">${ekor || ''}</div></div>`;
+
+/**
+ * Satu kartu tabel laporan.
+ *
+ * `data-cetak` adalah kunci penyaring cetak: tiap kartu yang punya atribut ini
+ * muncul sebagai satu centang di bar "Yang ikut dicetak". Judulnya dipakai apa
+ * adanya sebagai label centangnya, jadi tidak ada daftar kedua yang harus
+ * diingat manusia setiap kali ada tabel baru.
+ */
+const lapTabel = (judul, kolom, baris, kosong) => `<div class="kartu" data-cetak="${esc(judul)}">
+  <h3>${esc(judul)}</h3>
+  ${baris.length ? `<div class="gulir-x"><table>
+    <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
+    <tbody>${baris.map(b => `<tr>${kolom.map(k =>
+      `<td class="${k.angka ? 'angka' : ''}" data-l="${esc(k.judul)}">${k.render(b)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>` : `<p class="petunjuk">${esc(kosong)}</p>`}</div>`;
+
+function gambarLapRingkas(w, d) {
+  {
     const r = d.ringkas;
     const l = d.lalu || {};
     const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
     /* Baris ekor selalu digambar — alasannya sama dengan `kotakMini` di
        admin.js: satu baris kartu angka tingginya disamakan, jadi kartu yang
        tidak punya pembanding berlubang di dalam. */
-    const kotak = (label, nilai, ekor) => `<div class="kartu statistik">
-      <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div>
-      <div class="mini-ekor">${ekor || ''}</div></div>`;
-    const tabel = (judul, kolom, baris, kosong) => `<div class="kartu"><h3>${esc(judul)}</h3>
-      ${baris.length ? `<div class="gulir-x"><table>
-        <tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr>
-        ${baris.map(b => `<tr>${kolom.map(k =>
-          `<td class="${k.angka ? 'angka' : ''}">${k.render(b)}</td>`).join('')}</tr>`).join('')}
-      </table></div>` : `<p class="petunjuk">${esc(kosong)}</p>`}</div>`;
+    const kotak = lapKotak, tabel = lapTabel;
 
     w.innerHTML = `
       <div class="kartu tanpa-cetak"><div class="bar-alat"><strong>Unduh laporan ini</strong>
         <div style="flex:1"></div>
-        ${Admin.tombolEkspor('penjualan', par)}
+        ${Admin.tombolEkspor('penjualan', { dari: LAP.dari, sampai: LAP.sampai })}
       </div></div>
 
       <div class="kartu">
@@ -2195,7 +2327,7 @@ async function tampilkanLaporan() {
           esc(tglTampil(d.rentang_lalu.dari))} – ${esc(tglTampil(d.rentang_lalu.sampai))}</p>
       </div>
 
-      <div class="petak">
+      <div class="petak" data-cetak="Angka ringkas">
         ${kotak('Jumlah nota', r.jumlah_nota, selisihLaporan(r.jumlah_nota, l.jumlah_nota))}
         ${kotak('Omzet kotor', rp(r.total), selisihLaporan(r.total, l.total))}
         ${kotak('Retur', '−' + rp(r.retur_nilai),
@@ -2209,7 +2341,7 @@ async function tampilkanLaporan() {
                 pi.sisa ? `<span class="delta turun">${rp(pi.sisa)} belum lunas</span>` : 'lunas semua')}
       </div>
 
-      <div class="kartu"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
+      <div class="kartu" data-cetak="Tren harian"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
 
       ${tabel('Per hari', [
         { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
@@ -2285,9 +2417,253 @@ async function tampilkanLaporan() {
     } else {
       $('#wadahLapTren').innerHTML = '<p class="grafik-kosong">Belum ada penjualan pada rentang ini</p>';
     }
-  } catch (e) {
-    w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
   }
+}
+
+/* ---------- Tab: riwayat transaksi ---------- */
+
+/**
+ * Satu baris per nota, terbaru di atas.
+ *
+ * Kolom shift dan cabang ikut supaya tabel ini menjawab tiga pertanyaan yang
+ * selama ini butuh tiga layar berbeda: apa yang terjual, siapa yang melayani,
+ * dan di shift mana. Penyaring di atasnya bekerja DI PERANGKAT — datanya sudah
+ * di tangan, dan menembak server lagi hanya untuk menyempitkan daftar yang
+ * sudah ada adalah menunggu yang tidak perlu ada.
+ */
+function gambarLapNota(w, d) {
+  const r = d.ringkas || {};
+  w.innerHTML = `
+    <div class="petak petak-4" data-cetak="Angka riwayat">
+      ${lapKotak('Nota', r.nota || 0, d.terpotong ? 'daftar dipotong' : '')}
+      ${lapKotak('Barang keluar', r.item || 0)}
+      ${lapKotak('Omzet', rp(r.total || 0), r.diskon ? 'diskon ' + rp(r.diskon) : '')}
+      ${lapKotak('Nota batal', r.batal || 0, r.batal ? rp(r.nilai_batal) : 'tidak ada')}
+    </div>
+    ${d.terpotong ? `<div class="pesan peringatan">Daftarnya dipotong pada
+       ${d.batas} baris dari ${d.jumlah_cocok} nota yang cocok. Persempit
+       rentang tanggalnya untuk melihat sisanya.</div>` : ''}
+    <div class="kartu tanpa-cetak">
+      <div class="bar-alat">
+        <input type="text" id="lapNotaCari" placeholder="Cari no nota / kasir / pelanggan…"
+               style="max-width:280px">
+        <select id="lapNotaShift" style="max-width:230px"></select>
+        <select id="lapNotaKasir" style="max-width:200px"></select>
+        <span class="jumlah-baris" id="lapNotaHitung"></span>
+      </div>
+    </div>
+    <div id="lapNotaTabel"></div>`;
+
+  /* Pilihan penyaring dibangun DARI DATA yang ada, bukan dari daftar master:
+     shift dan kasir yang tidak punya nota di rentang ini tidak perlu muncul,
+     dan memilihnya hanya menghasilkan tabel kosong yang membingungkan. */
+  const unik = (ambil, label) => {
+    const peta = {};
+    (d.nota || []).forEach(n => { const k = ambil(n); if (k) peta[k] = label(n); });
+    return Object.keys(peta).sort().map(k => ({ id: k, label: peta[k] }));
+  };
+  const isi = (sel, daftar, semua) => {
+    $(sel).innerHTML = `<option value="">${semua}</option>` +
+      daftar.map(x => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('');
+  };
+  isi('#lapNotaShift', unik(n => n.id_shift, n => n.id_shift), 'Semua shift');
+  isi('#lapNotaKasir', unik(n => n.id_user, n => n.nama_kasir), 'Semua kasir');
+
+  gambarLapNotaTabel(d);
+}
+
+function gambarLapNotaTabel(d) {
+  const q = ($('#lapNotaCari')?.value || '').toLowerCase().trim();
+  const sh = $('#lapNotaShift')?.value || '';
+  const ks = $('#lapNotaKasir')?.value || '';
+  const baris = (d.nota || []).filter(n =>
+    (!sh || n.id_shift === sh) && (!ks || n.id_user === ks) &&
+    (!q || (n.no_nota + ' ' + n.nama_kasir + ' ' + n.kode_pelanggan).toLowerCase().includes(q)));
+
+  const adaLaba = (d.nota || []).some(n => n.laba_kotor !== undefined);
+  $('#lapNotaTabel').innerHTML = lapTabel('Riwayat transaksi', [
+    { judul: 'No nota', render: x => esc(x.no_nota) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Jam', render: x => esc(x.jam) },
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Kasir', render: x => esc(x.nama_kasir) },
+    { judul: 'Shift', render: x => esc(x.id_shift || '—') },
+    { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan || 'umum') },
+    { judul: 'Item', angka: true, render: x => x.baris_item + ' / ' + x.qty_item },
+    { judul: 'Diskon', angka: true, render: x => rp(x.diskon) },
+    { judul: 'Total', angka: true, render: x => rp(x.total) },
+    ...(adaLaba ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor || 0) }] : []),
+    { judul: 'Bayar', render: x => esc((x.metode || x.tipe_bayar || '—').toUpperCase()) }
+  ], baris, 'Tidak ada nota pada rentang ini.');
+
+  const h = $('#lapNotaHitung');
+  if (h) {
+    h.textContent = baris.length === (d.nota || []).length
+      ? `${baris.length} nota`
+      : `${baris.length} dari ${(d.nota || []).length} nota`;
+  }
+  pasangPilihCetak();
+}
+
+/* ---------- Tab: per shift ---------- */
+
+function gambarLapShift(w, d) {
+  const rows = d.shift || [];
+  const jml = (f) => rows.reduce((a, b) => a + (Number(b[f]) || 0), 0);
+  const selisihAda = rows.filter(x => Math.abs(Number(x.selisih) || 0) > 0.5);
+  w.innerHTML = `
+    <div class="petak petak-4" data-cetak="Angka shift">
+      ${lapKotak('Shift', rows.length,
+                 rows.filter(x => x.status === 'BUKA').length + ' masih buka')}
+      ${lapKotak('Nota', jml('jumlah_nota'))}
+      ${lapKotak('Penjualan', rp(jml('total_penjualan')))}
+      ${lapKotak('Selisih kas', rp(jml('selisih')),
+                 selisihAda.length ? selisihAda.length + ' shift tidak pas' : 'semua pas')}
+    </div>
+    ${lapTabel('Per shift', [
+      { judul: 'Shift', render: x => esc(x.id_shift) },
+      { judul: 'Cabang', render: x => esc(x.cabang || '—') },
+      { judul: 'Petugas', render: x => esc(x.nama) },
+      { judul: 'Buka', render: x => esc(String(x.buka || '').replace('T', ' ').substring(0, 16)) },
+      { judul: 'Tutup', render: x => esc(x.tutup ? String(x.tutup).replace('T', ' ').substring(0, 16) : '—') },
+      { judul: 'Nota', angka: true, render: x => x.jumlah_nota },
+      { judul: 'Penjualan', angka: true, render: x => rp(x.total_penjualan) },
+      { judul: 'Kas awal', angka: true, render: x => rp(x.kas_awal) },
+      { judul: 'Kas sistem', angka: true, render: x => rp(x.kas_sistem) },
+      { judul: 'Kas fisik', angka: true, render: x => rp(x.kas_fisik) },
+      /* Selisih diberi warna karena inilah satu-satunya kolom yang dicari orang
+         saat membuka tabel ini. Nol tidak diwarnai — warna yang selalu menyala
+         berhenti berarti apa-apa. */
+      { judul: 'Selisih', angka: true, render: x => {
+          const v = Number(x.selisih) || 0;
+          if (Math.abs(v) < 0.5) return rp(0);
+          return `<span class="${v < 0 ? 'bahaya' : 'peringatan'}">${rp(v)}</span>`;
+        } },
+      { judul: 'Status', render: x => x.status === 'BUKA'
+          ? '<span class="lencana kuning">BUKA</span>' : esc(x.status) }
+    ], rows, 'Tidak ada shift pada rentang ini.')}`;
+}
+
+/* ---------- Tab: per petugas ---------- */
+
+function gambarLapPetugas(w, d) {
+  const rk = d.ringkas || {};
+  const petugas = d.petugas || [];
+  const bobot = d.bobot || {};
+  w.innerHTML = `
+    <div class="petak petak-4" data-cetak="Angka petugas">
+      ${lapKotak('Petugas', rk.petugas || petugas.length)}
+      ${lapKotak('Klaim', rk.klaim || 0, (rk.nota || 0) + ' nota diklaim')}
+      ${lapKotak('Poin', rk.poin || 0)}
+      ${lapKotak('Omzet diklaim', rp(rk.omzet || 0),
+                 rk.laba !== undefined ? 'laba ' + rp(rk.laba) : '')}
+    </div>
+    <div class="kartu" data-cetak="Bobot peran">
+      <h3>Bobot peran</h3>
+      <p class="petunjuk">${Object.keys(bobot).length
+        ? Object.keys(bobot).map(k => esc(k) + ' ' + bobot[k] + '%').join(' · ')
+        : 'Belum diatur.'}</p>
+    </div>
+    ${lapTabel('Per petugas', [
+      { judul: 'Kode', render: x => esc(x.kode) },
+      { judul: 'Nama', render: x => esc(x.nama) },
+      { judul: 'Peran', render: x => esc((x.per_peran || [])
+          .map(p => p.peran + ' ' + p.poin).join(' · ') || '—') },
+      { judul: 'Klaim', angka: true, render: x => x.klaim },
+      { judul: 'Nota', angka: true, render: x => x.nota },
+      { judul: 'Poin', angka: true, render: x => x.poin },
+      { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+      ...(petugas.some(x => x.laba !== undefined)
+        ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba || 0) }] : [])
+    ], petugas, 'Belum ada klaim petugas pada rentang ini.')}
+    ${lapTabel('Per cabang', [
+      { judul: 'Cabang', render: x => esc(x.cabang) },
+      { judul: 'Nota', angka: true, render: x => x.nota },
+      { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+      { judul: 'Omzet diklaim', angka: true, render: x => rp(x.omzet_klaim) },
+      { judul: 'Poin', angka: true, render: x => x.poin },
+      { judul: 'Petugas', angka: true, render: x => x.petugas }
+    ], d.per_cabang || [], 'Tidak ada data.')}`;
+}
+
+/* ---------- Tab: void ---------- */
+
+/**
+ * Nota yang dibatalkan, BESERTA barangnya.
+ *
+ * Yang dicari orang saat membuka daftar void bukan berapa nilainya melainkan
+ * siapa yang membatalkan dan barang apa yang keluar-masuk lagi. Dua hal itu
+ * yang dulu tidak ada di layar mana pun.
+ */
+function gambarLapVoid(w, d) {
+  const rows = d.nota || [];
+  const nilai = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
+  const perOrang = {};
+  rows.forEach(n => {
+    const k = n.dibatalkan_oleh || '(tidak tercatat)';
+    perOrang[k] = (perOrang[k] || 0) + 1;
+  });
+  w.innerHTML = `
+    <div class="petak petak-4" data-cetak="Angka void">
+      ${lapKotak('Nota dibatalkan', rows.length)}
+      ${lapKotak('Nilai', rp(nilai))}
+      ${lapKotak('Barang kembali', rows.reduce((a, b) => a + (b.item || []).length, 0), 'baris nota')}
+      ${lapKotak('Pembatal', Object.keys(perOrang).length,
+                 Object.keys(perOrang).slice(0, 2).map(k => esc(k) + ' ' + perOrang[k] + 'x').join(' · '))}
+    </div>
+    ${lapTabel('Riwayat void', [
+      { judul: 'No nota', render: x => esc(x.no_nota) },
+      { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+      { judul: 'Jam', render: x => esc(x.jam) },
+      { judul: 'Cabang', render: x => esc(x.cabang) },
+      { judul: 'Kasir', render: x => esc(x.nama_kasir) },
+      { judul: 'Shift', render: x => esc(x.id_shift || '—') },
+      { judul: 'Nilai', angka: true, render: x => rp(x.total) },
+      { judul: 'Dibatalkan oleh', render: x => esc(x.dibatalkan_oleh || '—') },
+      { judul: 'Waktu batal', render: x => esc(x.dibatalkan_pada || '—') },
+      { judul: 'Alasan', render: x => esc(x.alasan_batal || '—') }
+    ], rows, 'Tidak ada nota yang dibatalkan pada rentang ini.')}
+    ${lapTabel('Barang pada nota yang dibatalkan', [
+      { judul: 'No nota', render: x => esc(x.no_nota) },
+      { judul: 'SKU', render: x => esc(x.sku) },
+      { judul: 'Nama', render: x => esc(x.nama) },
+      { judul: 'Qty', angka: true, render: x => x.qty + ' ' + esc(x.satuan || '') },
+      { judul: 'Harga', angka: true, render: x => rp(x.harga) },
+      { judul: 'Subtotal', angka: true, render: x => rp(x.subtotal) }
+    ], rows.flatMap(n => (n.item || []).map(i => ({ ...i, no_nota: n.no_nota }))),
+       'Tidak ada rincian barang.')}`;
+}
+
+/* ---------- Penyaring cetak ----------
+ *
+ * Laporan sebulan bisa sepuluh halaman sementara yang dibutuhkan dua tabel.
+ * Daftarnya dibangun DARI HALAMAN — tiap blok ber-`data-cetak` jadi satu
+ * centang, judulnya jadi labelnya. Tidak ada daftar kedua yang harus diingat
+ * setiap kali ada tabel baru; tabel yang lupa didaftarkan tidak bisa terjadi.
+ *
+ * Pilihannya diingat per nama blok, jadi berpindah tab tidak menyalakan lagi
+ * tabel yang barusan dimatikan.
+ */
+const CETAK_MATI = new Set();
+
+function pasangPilihCetak() {
+  const blok = $$('#hasilLaporan [data-cetak]');
+  const bar = $('#pilihCetak');
+  const kartu = $('#kartuPilihCetak');
+  if (!bar || !kartu) return;
+  kartu.classList.toggle('sembunyi', blok.length === 0);
+  bar.innerHTML = blok.map(b => {
+    const nama = b.dataset.cetak;
+    return `<label class="cip-cetak"><input type="checkbox" data-cetak-pilih="${esc(nama)}"
+      ${CETAK_MATI.has(nama) ? '' : 'checked'}> ${esc(nama)}</label>`;
+  }).join('');
+  terapkanPilihCetak();
+}
+
+function terapkanPilihCetak() {
+  $$('#hasilLaporan [data-cetak]').forEach(b => {
+    b.classList.toggle('tanpa-cetak', CETAK_MATI.has(b.dataset.cetak));
+  });
 }
 
 /**
@@ -2833,6 +3209,18 @@ function pasangEvent() {
     if (e.target.id === 'btnTimNota' || e.target.id === 'btnTimNotaBayar') bukaTim('#NOTA');
   });
 
+  /* Tombol ini hidup di dalam modal yang dibuka `tampilkanDitolak()`. Modalnya
+     milik Admin, jadi delegasinya harus dipasang di sini — penangan klik Admin
+     tidak tahu apa-apa tentang outbox. */
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-kirim-ulang]');
+    if (!b) return;
+    b.disabled = true;
+    kirimUlangDitolak(b.dataset.kirimUlang)
+      .catch(x => Admin.toast(x && x.message ? x.message : 'Kirim ulang gagal.', 'galat'))
+      .finally(() => { b.disabled = false; });
+  });
+
   $('#btnBatalTim').addEventListener('click', () => {
     $('#tiraiTim').classList.remove('tampil');
     APP_STATE.timBaris = null;
@@ -3218,6 +3606,34 @@ function pasangEvent() {
      bagian mana yang ikut. Membuat PDF sendiri berarti tata letak kedua yang
      harus dijaga agar tidak berbeda dari yang pertama. */
   $('#btnCetakLaporan').addEventListener('click', () => window.print());
+
+  /* Tab laporan. Datanya ditarik di `gambarTabLaporan`, sekali per tab per
+     rentang — lihat komentar di sana. */
+  $('#tabLaporan').addEventListener('click', e => {
+    const t = e.target.closest('[data-tab-lap]');
+    if (t) gambarTabLaporan(t.dataset.tabLap);
+  });
+
+  /* Penyaring cetak + penyaring di dalam tab riwayat. Keduanya delegasi di sini
+     karena isinya digambar ulang terus-menerus. */
+  document.addEventListener('input', e => {
+    if (e.target.dataset && e.target.dataset.cetakPilih !== undefined) {
+      const nama = e.target.dataset.cetakPilih;
+      if (e.target.checked) CETAK_MATI.delete(nama); else CETAK_MATI.add(nama);
+      return terapkanPilihCetak();
+    }
+    if (['lapNotaCari', 'lapNotaShift', 'lapNotaKasir'].includes(e.target.id)) {
+      const d = LAP.data[LAP.tab];
+      if (d) gambarLapNotaTabel(d);
+    }
+  });
+  $('#btnCetakSemua').addEventListener('click', () => {
+    CETAK_MATI.clear(); pasangPilihCetak();
+  });
+  $('#btnCetakTakSatu').addEventListener('click', () => {
+    $$('#hasilLaporan [data-cetak]').forEach(b => CETAK_MATI.add(b.dataset.cetak));
+    pasangPilihCetak();
+  });
   $('#btnLabaRugi').addEventListener('click', tampilkanLabaRugi);
   $('#btnNeraca').addEventListener('click', tampilkanNeraca);
   $('#btnUji').addEventListener('click', tampilkanUji);

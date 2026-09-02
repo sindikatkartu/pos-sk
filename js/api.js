@@ -174,6 +174,9 @@ const API = (() => {
     daftarKas:       (d) => panggil('daftar_kas', d),
 
     laporanPenjualan:(d) => panggil('laporan_penjualan', d, { timeout: 60000 }),
+    /* Riwayat nota dibaca per rentang dan bisa ratusan baris; batas waktunya
+       disamakan dengan laporan penjualan, bukan dengan panggilan kecil. */
+    laporanNota:     (d) => panggil('laporan_nota', d, { timeout: 90000 }),
     laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
     otorisasiDiskon: (d) => panggil('otorisasi_diskon', d),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
