@@ -80,6 +80,15 @@
      petak berjarak 12+16=28px sementara dua kartu biasa berjarak 16px: hubungan
      yang sama, jarak yang berbeda. Itu yang terbaca sebagai tidak rapi. */
   --tinggi-kepala:     58px;   /* SATU tinggi untuk kepala sidebar & bilah atas */
+  /* Garis RANGKA — sidebar, bilah atas, kaki sidebar.
+
+     Dipisah dari `--garis` (garis kartu & tabel) atas permintaan pemilik
+     2 Sep 2026: "per tipis garis2 sidebar". Rangka aplikasi dilihat sepanjang
+     hari dan tidak pernah dibaca — ia cuma perlu memberi tahu di mana satu
+     panel berakhir. Setebal garis kartu, ia menarik perhatian yang seharusnya
+     jatuh ke isinya. Garis kartu TIDAK ikut ditipiskan: di sana garisnya justru
+     yang memisahkan satu angka dari angka berikutnya. */
+  --garis-rangka:      rgba(31,30,29,.16);
   --irama:             16px;
   --tombol-tekan:      #e4e2d4;
   --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
@@ -192,6 +201,7 @@ html[data-tema="gelap"] {
   --cincin:   0 0 0 3px rgba(83,155,226,.40);
 
   --tirai:             rgba(0,0,0,.65);
+  --garis-rangka:      rgba(222,220,209,.14);
   --gulir-bayang:      rgba(255,255,255,.13);
   --tombol-tekan:      #45443f;
   --aksen-aktif:       #d97757;
@@ -244,7 +254,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 /* ---------- Sidebar ---------- */
 .sisi {
   width: var(--lebar-sisi); flex-shrink: 0;
-  background: var(--sisi-bg); border-right: 1px solid var(--garis);
+  background: var(--sisi-bg); border-right: 1px solid var(--garis-rangka);
   display: flex; flex-direction: column; height: 100%;
   transition: width .18s ease;
 }
@@ -261,7 +271,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   display: flex; align-items: center; gap: 10px; position: relative;
   box-sizing: border-box; min-height: var(--tinggi-kepala);
   padding: 0 14px; flex-shrink: 0;
-  border-bottom: 1px solid var(--garis);
+  border-bottom: 1px solid var(--garis-rangka);
 }
 /* Tanda merek gelap polos, seperti logo GitHub sendiri — gradien biru tadi
    adalah satu-satunya sisa gaya lama yang tertinggal di antarmuka baru. */
@@ -336,7 +346,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-bawah {
   box-sizing: border-box; min-height: var(--tinggi-kepala);
   display: flex; align-items: center;
-  padding: 0 6px; border-top: 1px solid var(--garis); flex-shrink: 0;
+  padding: 0 6px; border-top: 1px solid var(--garis-rangka); flex-shrink: 0;
 }
 .kartu-user {
   display: flex; align-items: center; gap: 10px; padding: 0 8px;
@@ -388,7 +398,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat .sisi-grup {
   /* Judul kelompok diganti garis pemisah — tetap ada jeda visual, tanpa teks terpotong */
   height: 1px; padding: 10px 0 0; margin: 6px 8px 6px; overflow: hidden;
-  border-top: 1px solid var(--garis); color: transparent;
+  border-top: 1px solid var(--garis-rangka); color: transparent;
 }
 #app.sisi-lipat .sisi-grup:first-child { border-top: none; margin-top: 0; padding-top: 0; height: 4px; }
 #app.sisi-lipat .kartu-user { justify-content: center; padding: 0; }
@@ -397,7 +407,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .bar-atas {
   display: flex; align-items: center; gap: 10px;
   padding: 0 18px; min-height: var(--tinggi-kepala); flex-shrink: 0;
-  background: var(--panel); border-bottom: 1px solid var(--garis);
+  background: var(--panel); border-bottom: 1px solid var(--garis-rangka);
 }
 .bar-atas h1 {
   margin: 0; font-size: var(--fs-17); font-weight: 650; letter-spacing: -.25px;
@@ -646,6 +656,35 @@ input[type=month], input[type=tel], input[type=search], textarea {
 textarea { min-height: 72px; }
 select:focus, input:focus, textarea:focus { outline: none; border-color: var(--utama); box-shadow: var(--cincin); }
 input[type=number], input.uang, td .angka { font-variant-numeric: tabular-nums; }
+
+/* ---------- KOLOM TANGGAL DD/MM/YYYY ----------
+   Rangkanya dipasang `rapikanTanggal()` di app.js; alasannya panjang dan ada
+   di sana. Di sini cuma rupanya: kotak teks yang mengisi seluruh pembungkus,
+   dan tombol kalender yang duduk di ujung kanannya seperti tombol bawaan
+   Chrome — supaya kolom yang diganti tidak terlihat berbeda dari kolom yang
+   tidak diganti. Kolom `type=date` aslinya tetap ada, tapi tidak terlihat. */
+.kolom-tgl { position: relative; display: block; width: 100%; }
+.kolom-tgl > input[type=date] {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  width: 100%; height: 100%; padding: 0; border: 0; min-height: 0;
+}
+.kolom-tgl > .tgl-rupa { padding-right: 34px; font-variant-numeric: tabular-nums; }
+.kolom-tgl > .tgl-rupa.tgl-salah { border-color: var(--bahaya); }
+.tgl-pilih {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--radius);
+  background: transparent; color: var(--teks-redup); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.tgl-pilih:hover { background: var(--panel-2); color: var(--teks); }
+/* Ikon kalender digambar dengan CSS, bukan SVG: satu elemen, tidak ada berkas
+   tambahan yang harus ikut masuk cache Service Worker. */
+.tgl-pilih::before {
+  content: ''; width: 14px; height: 13px;
+  border: 1.5px solid currentColor; border-radius: 2px;
+  border-top-width: 4px; box-sizing: border-box;
+}
+
 /* Kolom uang bertipe text (type=number menolak titik ribuan). Angkanya
    diratakan kanan supaya kelompok ribuannya berbaris lurus antar baris —
    itulah gunanya titik itu dipasang. */
@@ -1035,11 +1074,22 @@ label.cek.kartu-cek {
   padding: 12px 14px; margin: 0; box-shadow: var(--bayang-1);
 }
 
-.tab-modal { display: flex; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--garis); }
+/* Baris tab. Di layar sempit ia MENGGULIR MENDATAR, tidak memampatkan diri:
+   lima tab yang dipaksa muat di 390px membuat judulnya patah dua baris dan tab
+   terakhir terpotong di tengah huruf — terbaca sebagai tab yang rusak, bukan
+   tab yang bisa digeser. Ditemukan pada layar Laporan, 2 Sep 2026. */
+.tab-modal {
+  display: flex; gap: 2px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--garis);
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tab-modal::-webkit-scrollbar { height: 0; }
 .tab-modal button {
   background: transparent; color: var(--teks-redup); padding: 10px 14px;
   font-weight: 600; font-size: var(--fs-14); border-radius: 0; margin-bottom: -2px;
   border-bottom: 2px solid transparent;
+  white-space: nowrap; flex: 0 0 auto;
 }
 .tab-modal button:hover { color: var(--teks-2); }
 .tab-modal button.aktif { color: var(--teks); font-weight: 600; border-bottom-color: var(--aksen-aktif); }
