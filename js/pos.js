@@ -412,7 +412,14 @@ function tanggalTambahHari(tglYmd, hari) {
  */
 
 /**
- * `yyyy-MM-dd` (atau ISO lengkap) -> `dd/mm/yy`. Untuk DILIHAT, bukan disimpan.
+ * `yyyy-MM-dd` (atau ISO lengkap) -> `DD/MM/YYYY`. Untuk DILIHAT, bukan disimpan.
+ *
+ * TAHUNNYA EMPAT ANGKA, dan itu keputusan pemilik (2 Sep 2026): "semua bagian
+ * yang berkaitan dengan tanggal harus DD/MM/YYYY". Sebelumnya dua angka —
+ * `25/08/26`. Dua angka menghemat tiga karakter dan membeli satu keraguan:
+ * pada dokumen yang dicetak dan disimpan bertahun-tahun, `03/04/26` bisa
+ * dibaca sebagai 2026 atau 1926, dan tidak ada apa pun di kertas itu yang
+ * menjawabnya.
  *
  * Nilai yang tidak berbentuk tanggal harian dikembalikan APA ADANYA, tidak
  * dipaksa: `yyyy-MM` (periode bulanan) tetap utuh, dan data rusak tampil rusak
@@ -422,16 +429,37 @@ function tglTampil(v) {
   const s = String(v == null ? '' : v).trim();
   if (!s) return '—';
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  return m ? `${m[3]}/${m[2]}/${m[1].slice(-2)}` : s;
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
 }
 
-/** `yyyy-MM-ddTHH:mm:ss` (atau berspasi) -> `dd/mm/yy HH:mm:ss`. */
+/**
+ * `yyyy-MM-ddTHH:mm:ss` (atau berspasi) -> `DD/MM/YYYY HH:mm:ss`.
+ *
+ * Detiknya ikut kalau ada di sumbernya; yang dipotong hanya milidetik dan zona
+ * waktu, karena keduanya tidak pernah dibaca manusia dan hanya memanjangkan
+ * lajur tabel.
+ */
 function waktuTampil(v) {
   const s = String(v == null ? '' : v).trim();
   if (!s) return '—';
-  const jam = s.length > 10 ? ' ' + s.substring(11) : '';
+  const jam = s.length > 10 ? ' ' + s.substring(11, 19) : '';
   const tgl = tglTampil(s);
   return tgl === s ? s : tgl + jam;
+}
+
+/**
+ * Bagian JAM saja, `HH:mm:ss`. Untuk kalimat yang tanggalnya sudah jelas dari
+ * kalimatnya sendiri ("dikunci pada 14:30:05" — hari ini, baru saja).
+ *
+ * Ada di sini, bukan dipotong di tempat pemakaian: tiap pemotongan sendiri
+ * adalah satu tempat lagi yang bisa berbeda dari yang lain, dan itulah yang
+ * membuat tiga tempat menggambar ISO mentah sampai 2 Sep 2026.
+ */
+function jamTampil(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '—';
+  const m = /(\d{2}:\d{2}(?::\d{2})?)/.exec(s.length > 10 ? s.substring(10) : s);
+  return m ? m[1] : s;
 }
 
 /** Penomoran nota yang aman offline: prefix cabang + kode perangkat + urutan lokal. */
@@ -879,7 +907,7 @@ function resolvePenjualPemasang(nota, daftarPetugas) {
 
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil,
+  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil, jamTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,

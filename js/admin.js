@@ -2659,7 +2659,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                Ini catatan forensik: nilainya harus bisa dicocokkan huruf per
                huruf dengan isi sheet mentah saat menelusuri kejadian, dan tahun
                dua digit menghilangkan abad pada arsip lama. */
-            { judul: 'Waktu', render: r => esc(String(r.waktu).replace('T', ' ')) },
+            { judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) },
             { judul: 'User', kunci: 'id_user' },
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Aksi', render: r => `<span class="lencana ${
@@ -4155,7 +4155,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           $('#opProgres').textContent = `${r.total_dihitung} dihitung`;
           $$('[data-hitung]').forEach(i => { if (String(i.value).trim() !== '') i.classList.add('sudah-hitung'); });
           toast(`${r.tersimpan} hitungan tersimpan. Stok sistem dikunci pada ${
-            String(r.waktu_kunci).replace('T', ' ').substring(11, 19)}.`);
+            jamTampil(r.waktu_kunci)}.`);
         } catch (x) { toast(x.message, 'galat'); }
         t.disabled = false;
         return;

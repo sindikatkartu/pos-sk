@@ -2524,8 +2524,11 @@ function gambarLapShift(w, d) {
       { judul: 'Shift', render: x => esc(x.id_shift) },
       { judul: 'Cabang', render: x => esc(x.cabang || '—') },
       { judul: 'Petugas', render: x => esc(x.nama) },
-      { judul: 'Buka', render: x => esc(String(x.buka || '').replace('T', ' ').substring(0, 16)) },
-      { judul: 'Tutup', render: x => esc(x.tutup ? String(x.tutup).replace('T', ' ').substring(0, 16) : '—') },
+      /* Lewat `waktuTampil`, bukan dipotong sendiri: `substring(0,16)` di sini
+         menampilkan `2026-08-24 20:10` — ISO mentah, satu-satunya bentuk
+         tanggal yang berbeda dari seluruh aplikasi. */
+      { judul: 'Buka', render: x => esc(waktuTampil(x.buka)) },
+      { judul: 'Tutup', render: x => esc(x.tutup ? waktuTampil(x.tutup) : '—') },
       { judul: 'Nota', angka: true, render: x => x.jumlah_nota },
       { judul: 'Penjualan', angka: true, render: x => rp(x.total_penjualan) },
       { judul: 'Kas awal', angka: true, render: x => rp(x.kas_awal) },
@@ -2620,7 +2623,9 @@ function gambarLapVoid(w, d) {
       { judul: 'Shift', render: x => esc(x.id_shift || '—') },
       { judul: 'Nilai', angka: true, render: x => rp(x.total) },
       { judul: 'Dibatalkan oleh', render: x => esc(x.dibatalkan_oleh || '—') },
-      { judul: 'Waktu batal', render: x => esc(x.dibatalkan_pada || '—') },
+      /* Server mengirim `yyyy-MM-dd HH:mm:ss`; yang tampil harus DD/MM/YYYY
+         seperti seluruh aplikasi. */
+      { judul: 'Waktu batal', render: x => esc(x.dibatalkan_pada ? waktuTampil(x.dibatalkan_pada) : '—') },
       { judul: 'Alasan', render: x => esc(x.alasan_batal || '—') }
     ], rows, 'Tidak ada nota yang dibatalkan pada rentang ini.')}
     ${lapTabel('Barang pada nota yang dibatalkan', [
