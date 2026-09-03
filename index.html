@@ -514,6 +514,7 @@
           <h3>A8. Kas masuk / keluar laci</h3>
           <p>Menu <strong>Kas</strong> untuk uang yang bergerak di laci <strong>di luar penjualan</strong>: bayar ongkos kirim, beli galon, setor ke bank. Isi <strong>Jenis</strong> (kas keluar / kas masuk), <strong>Akun lawan</strong>, <strong>Jumlah</strong>, dan <strong>Keterangan</strong>.</p>
           <p><strong>Kenapa ini wajib:</strong> tanpa dicatat di sini, setiap pengeluaran nyata akan muncul sebagai "selisih kas" saat tutup shift dan dibukukan sebagai beban yang tidak pernah terjadi. Angka serah terima laci jadi tidak bisa dipercaya.</p>
+          <p><strong>Keterangan wajib diisi</strong> dan layar menolak menyimpan tanpanya — itu satu-satunya penjelasan uang yang keluar, dan tiga bulan lagi tidak ada yang mengingatnya lagi.</p>
           <p class="petunjuk">Catatan kas hanya bisa disimpan saat <strong>shift terbuka</strong>, dan tidak lewat antrean offline seperti nota. Kalau internet mati, catat di kertas dulu lalu masukkan begitu tersambung — <strong>selagi masih di shift yang sama</strong>.</p>
         </div>
 
@@ -544,6 +545,7 @@
           <h3>A11. Printer struk</h3>
           <p>Sambungkan printer thermal Bluetooth sekali di menu <strong>Perangkat</strong> — tombol "Hubungkan printer Bluetooth", lalu "Uji cetak" untuk memastikan. Kalau Bluetooth gagal atau belum disambungkan, aplikasi otomatis mencetak lewat jendela print biasa (perlu izin pop-up peramban).</p>
           <p class="petunjuk">Susunan &amp; isi struk (nama usaha, alamat, footer, lebar kertas) diatur pemilik di menu Setting — bukan di sini, karena berlaku untuk semua cabang sekaligus.</p>
+          <p class="petunjuk"><strong>Yang bukan struk tidak lewat printer thermal.</strong> Label barcode, laporan, dan bukti transfer antar cabang dicetak lewat <strong>jendela print peramban</strong> ke printer biasa — masing-masing dengan ukuran kertasnya sendiri (label memakai ukuran yang disetel di Perangkat, laporan &amp; transfer memakai A4). Pop-up harus diizinkan untuk situs ini, kalau tidak jendelanya tidak pernah muncul.</p>
         </div>
 
         <div class="kartu">
@@ -560,7 +562,8 @@
           <h3>A13. Kalau ada yang tidak beres</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Struk tidak keluar</strong> — cek menu Perangkat &gt; Printer, coba "Uji cetak". Nota tetap tersimpan walau cetaknya gagal.</li>
-            <li><strong>Lencana merah "nota ditolak"</strong> — klik untuk melihat daftarnya. Penyebab paling sering: tanggal notanya jatuh di <strong>periode yang sudah ditutup buku</strong>. Tunjukkan ke pemilik; koreksinya lewat periode berjalan, bukan dari perangkat kasir.</li>
+            <li><strong>Lencana merah "nota ditolak"</strong> — klik untuk melihat daftarnya beserta alasan penolakan tiap nota. Nota itu <strong>sudah tercetak di perangkat tapi belum masuk pembukuan</strong>. Tiga penyebab yang paling sering: tanggal notanya jatuh di <strong>periode yang sudah ditutup buku</strong>, izin peran yang belum dicentang, dan <strong>penjualan melebihi stok saat setelan "izinkan stok minus" sedang mati</strong>. Semuanya harus dibereskan di sisi server dulu — tunjukkan ke pemilik.</li>
+            <li><strong>Sesudah sebabnya dibereskan, tekan "Kirim ulang" di daftar itu — jangan diketik ulang di kasir.</strong> Kiriman ulang membawa nomor nota, jam, shift, dan pembayaran yang ASLI, jadi struk yang sudah di tangan pelanggan tetap cocok dengan pembukuan; nota yang diketik ulang membawa nomor dan jam hari ini dan tidak akan pernah cocok. Menekannya berkali-kali tidak menggandakan nota — server menolak uuid yang sama dua kali. Kalau ditolak lagi, notanya <strong>langsung</strong> kembali ke daftar merah beserta alasan barunya, tidak menggantung sebagai "menunggu".</li>
             <li><strong>Menu yang biasanya ada hilang</strong> — kemungkinan hak akses peran berubah; keluar lalu masuk lagi supaya izin terbaru terbaca.</li>
             <li><strong>Aplikasi terasa versi lama sesudah pembaruan</strong> — tekan Ctrl+Shift+R. Kalau masih lama, muat ulang sekali lagi: versi baru memasang diri di muat pertama dan baru berkuasa di muat kedua.</li>
             <li>Untuk hal lain di luar daftar ini, hubungi pemilik/pengelola toko.</li>
@@ -568,11 +571,26 @@
         </div>
 
         <div class="kartu">
+          <h3>A14. Mengisi kolom tanggal</h3>
+          <p><strong>Seluruh tanggal di aplikasi ini ditulis DD/MM/YYYY</strong> — tanggal dulu, baru bulan, baru tahun. Itu berlaku di mana pun: kolom isian, tabel, laporan, struk, dan hasil cetak.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Kolom tanggal <strong>diketik langsung angkanya</strong>: <em>25 12 2026</em> menjadi <em>25/12/2026</em>. Garis miringnya muncul sendiri — tidak perlu diketik.</li>
+            <li>Tombol kalender di ujung kanan kolom membuka pemilih tanggal, untuk yang lebih suka menunjuk daripada mengetik.</li>
+            <li>Tanggal yang tidak ada — <em>31/02/2026</em> — <strong>ditolak</strong>, bukan dibetulkan diam-diam jadi 3 Maret.</li>
+          </ul>
+          <p class="petunjuk">Kolomnya sengaja dibuat sendiri, tidak memakai kotak tanggal bawaan peramban. Chrome menuliskan tanggal menurut <strong>bahasa peramban</strong>, bukan bahasa halaman: di Chrome berbahasa Inggris kotak bawaannya keluar sebagai mm/dd/yyyy dan tidak ada satu pun setelan di aplikasi yang bisa mengubahnya. Karena urutan itu tidak boleh berbeda dari satu perangkat ke perangkat lain, kolomnya diganti kolom yang urutannya selalu sama.</p>
+        </div>
+
+        <div class="kartu">
           <h3>B1. Produk, poin, &amp; impor massal</h3>
           <p>Editor produk punya enam tab: <strong>Umum</strong>, <strong>Kecocokan &amp; pencarian</strong>, <strong>Satuan bertingkat</strong>, <strong>Tier harga</strong>, <strong>Varian</strong>, dan <strong>Tim &amp; poin</strong>.</p>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Tim &amp; poin</strong> hanya berisi <strong>Poin per satuan dasar</strong>. Nilainya dikalikan qty dasar: 12 pcs × 3 poin = 36 poin. Boleh pecahan (0,5). <strong>Mengisi poin otomatis memunculkan tombol + Pemasang</strong> di layar kasir — tidak ada yang perlu dicentang. Poin 0 berarti produk ini tidak berpoin; omzetnya tetap tercatat atas nama petugasnya.</li>
-            <li>Di daftar produk, dropdown <strong>Tampilkan</strong> memilih satu kolom tambahan — Poin (bawaan), Margin, Turunan, Stok min, Barcode, atau Satuan. Dropdown di sebelahnya menyaring: <strong>Berpoin</strong>, <strong>Tanpa poin</strong>, atau <strong>Nonaktif</strong>. Pakai "Tanpa poin" untuk memeriksa produk mana yang poinnya belum disetel.</li>
+            <li>Di daftar produk, dropdown <strong>Tampilkan</strong> memilih satu kolom tambahan — Poin (bawaan), Margin, Turunan, Stok min, Barcode, atau Satuan. Margin hanya muncul untuk peran yang boleh melihat harga modal.</li>
+            <li>Dropdown di sebelahnya <strong>menyaring baris</strong>: Semua produk, <strong>Terlaris</strong>, <strong>Tidak laku</strong>, <strong>Berpoin</strong>, dan <strong>Tanpa poin</strong>. Pakai "Tanpa poin" untuk memeriksa produk mana yang poinnya belum disetel.</li>
+            <li><strong>Terlaris</strong> dan <strong>Tidak laku</strong> memunculkan <strong>dua kolom tanggal</strong> di sebelahnya — rentang penjualan yang dihitung, bawaannya 30 hari terakhir. Gantilah rentangnya sesuai yang ingin dilihat; angka terjualnya ditarik ulang untuk rentang yang baru. "Tidak laku" berarti tidak terjual satu pun <em>di rentang itu</em>, bukan tidak pernah terjual.</li>
+            <li><strong>Produk nonaktif tidak lagi ada di dropdown penyaring.</strong> Tempatnya sekarang blok <strong>Nonaktif</strong> yang bisa dibuka-tutup di bawah daftar — selalu ada, tanpa perlu mengganti penyaring.</li>
+            <li>Kolom pencarian <strong>menyaring di perangkat</strong>, bukan menembak server tiap huruf. Karena itu hasilnya muncul seketika dan kursor tidak pernah lepas di tengah orang mengetik.</li>
             <li><strong>Impor massal</strong> bisa mengisi Produk, Pelanggan, Supplier, dan Stok awal — termasuk kolom <strong>poin_satuan</strong>, jadi poin ratusan produk bisa disetel dari berkas. Unduh templatenya dulu, lalu tekan <strong>Pratinjau</strong> sebelum menjalankan.</li>
           </ul>
           <p class="petunjuk">Impor bersifat <strong>semua-atau-tidak sama sekali</strong>: satu baris bermasalah membatalkan seluruh berkas. Impor hanya <strong>menambah produk baru</strong> — SKU yang sudah ada ditolak, jadi mengubah poin produk lama tetap lewat layar.</p>
@@ -590,6 +608,7 @@
           <h3>B3. Transfer antar cabang</h3>
           <p>Dua langkah dan dua orang: cabang asal menekan <strong>+ Kirim barang</strong>, cabang tujuan menekan <strong>Terima barang</strong>. Statusnya <strong>DIKIRIM</strong> → <strong>DITERIMA</strong>.</p>
           <p>Kalau jumlah yang diterima kurang dari yang dikirim, dokumennya berstatus <strong>SELISIH</strong> dan kekurangannya otomatis dibukukan sebagai barang hilang <strong>di cabang pengirim</strong>. Barang yang hilang di jalan tidak bisa lolos diam-diam.</p>
+          <p><strong>Mencetak buktinya.</strong> Tombol <strong>Detail</strong> pada baris riwayat membuka rinciannya, dan di situ ada tombol <strong>Cetak</strong> — keluar satu lembar <strong>A4</strong> lewat jendela print peramban (perlu izin pop-up), untuk arsip fisik. Isinya nomor dokumen, status, cabang asal &amp; tujuan, siapa yang mengirim dan menerima beserta jamnya, catatan kedua belah pihak, dan rincian barangnya. Kolom <strong>Diterima</strong> dan <strong>Selisih</strong> hanya ikut tercetak kalau barangnya memang sudah diterima — dokumen yang baru dikirim tidak mencetak kolom kosong. <strong>Harga modal tidak pernah ikut tercetak</strong>, walau peran Anda boleh melihatnya di layar.</p>
           <p class="petunjuk">Membatalkan hanya bisa di cabang asal, hanya selagi berstatus DIKIRIM, dan hanya oleh peran yang berizin. Yang sudah diterima tidak bisa dibatalkan.</p>
         </div>
 
@@ -623,18 +642,20 @@
           <h3>B7. Laporan, Performa, Keuangan, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Dashboard</strong> — nota &amp; omzet hari ini, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis.</li>
-            <li><strong>Laporan</strong> — penjualan per rentang tanggal: per metode bayar (termasuk biaya MDR), per cabang, dan produk terlaris.</li>
+            <li><strong>Laporan</strong> — satu rentang tanggal, <strong>lima tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Tombol rentang cepat — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu — ada di atas kolom tanggalnya.</li>
+            <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti rentang lalu menekan <strong>Tampilkan</strong> membuat semuanya segar kembali.</li>
             <li><strong>Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
             <li><strong>Keuangan</strong> — Laba Rugi, Neraca, <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis), dan Tutup buku.</li>
             <li><strong>Diskon</strong> — berapa banyak diskon diberikan, oleh kasir siapa, dan mana yang lewat batas sehingga butuh persetujuan.</li>
           </ul>
+          <p><strong>Mencetak laporan.</strong> Tombol <strong>Cetak</strong> mencetak apa yang sedang terlihat di layar — jadi pilih dulu tabnya, baru cetak. Di atas hasilnya ada baris <strong>Yang ikut dicetak</strong>: centang tabel mana saja yang perlu, karena laporan sebulan bisa sepuluh halaman sementara yang dibutuhkan biasanya dua tabel. <strong>Pilih semua</strong> dan <strong>Kosongkan</strong> ada di ujung kanannya. Hasil cetaknya selalu <strong>hitam-putih</strong>, juga ketika aplikasi sedang bertema gelap.</p>
           <p class="petunjuk">Di Performa, <strong>omzet petugas adalah porsinya</strong>, bukan nilai nota penuh: nota 100.000 yang dikerjakan berdua terbagi menurut bobot peran. Bila ada nota yang terjual tanpa petugas, layar itu menuliskan sendiri berapa omzet yang belum terklaim.</p>
         </div>
 
         <div class="kartu">
           <h3>B8. Tutup buku &amp; periode terkunci</h3>
           <p>Di menu <strong>Keuangan</strong>, pilih periode lalu tekan <strong>Tutup buku</strong>. Sesudah dikunci, <strong>tidak ada dokumen bertanggal periode itu yang bisa masuk</strong> — nota, kas, retur, pembelian, opname, maupun void. Koreksi harus lewat periode berjalan.</p>
-          <p>Jalankan <strong>Uji kebenaran</strong> lebih dulu. Kalau pemeriksaannya gagal, penguncian ditolak beserta daftar apa yang belum cocok.</p>
+          <p>Uji kebenaran <strong>dijalankan server sendiri</strong> setiap kali tutup buku ditekan: kalau ada pemeriksaan yang belum lulus, penguncian <strong>ditolak</strong> beserta daftar apa saja yang belum cocok. Tidak ada tombol di aplikasi ini yang bisa menerobosnya. Menjalankannya lebih dulu lewat tombol <strong>Uji kebenaran</strong> tetap berguna — supaya daftar itu sudah Anda lihat sebelum menutup, bukan sesudah ditolak.</p>
           <p class="petunjuk">Efeknya di kasir: notanya tetap tersimpan dan tercetak di perangkat, tapi ditolak server dan muncul sebagai lencana merah. Jangan menutup buku bulan berjalan sebelum semua perangkat kasir tersinkron.</p>
         </div>
 

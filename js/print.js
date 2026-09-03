@@ -302,6 +302,56 @@ const Struk = (() => {
     setTimeout(() => { w.print(); }, 250);
   }
 
+  /**
+   * Cetak DOKUMEN A4 lewat jendela peramban. Bukan struk.
+   *
+   * Tidak ada ESC/POS, tidak ada printer Bluetooth, tidak ada lebar kertas dari
+   * setelan. Yang lewat sini dokumen arsip — bukti, rekap, surat — yang masuk
+   * map admin, bukan kertas yang diserahkan ke pembeli. Menumpangkannya pada
+   * `cetakHtml` akan memaksa dokumen A4 memakai `@page 58mm` dan font monospasi
+   * struk; tabel apa pun akan patah di kolom ketiga.
+   *
+   * Penanganan pop-up yang diblokir SAMA dengan jalur struk, dan disengaja:
+   * tanpa itu `w.document` melempar TypeError yang tersamar jadi "gagal cetak"
+   * tanpa sebab yang bisa dibaca.
+   *
+   * `isiHtml` dipasang APA ADANYA — penyusunnya yang wajib meloloskan setiap
+   * nilai lewat `esc()`. Nama produk di toko ini memuat `"` (`TG Bening 6.1"`)
+   * dan `&`; satu saja yang lolos mentah akan memotong tabelnya di tengah.
+   */
+  function cetakDokumen(judul, isiHtml) {
+    const j = String(judul == null ? '' : judul)
+      .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const w = window.open('', '_blank', 'width=860,height=900');
+    if (!w) throw new Error('Jendela cetak diblokir peramban — izinkan pop-up untuk situs ini.');
+    w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${j}</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm; }
+  * { box-sizing: border-box; }
+  /* Dokumen arsip dicetak HITAM-PUTIH: latar abu judul tabel ikut tercetak hanya
+     kalau peramban diberi izin ini, dan tanpa latarnya baris judul menyatu
+     dengan baris data. */
+  body { margin: 0; color: #000; background: #fff; line-height: 1.35;
+         font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  h1 { font-size: 15pt; margin: 0; }
+  h2 { font-size: 12pt; margin: 12px 0 8px; padding-top: 8px; border-top: 2px solid #000; }
+  .sub { margin: 2px 0 0; font-size: 9pt; }
+  table { width: 100%; border-collapse: collapse; }
+  table.info td { padding: 2px 8px 2px 0; vertical-align: top; }
+  table.info td.k { width: 92px; }
+  table.isi { margin-top: 10px; }
+  table.isi th, table.isi td { border: 1px solid #000; padding: 4px 6px; font-size: 9.5pt; }
+  table.isi th { background: #e8e8e8; text-align: left; }
+  table.isi td.n, table.isi th.n { text-align: right; white-space: nowrap; }
+  table.isi tfoot td { font-weight: bold; }
+  .kaki { margin-top: 14px; padding-top: 5px; border-top: 1px solid #000; font-size: 8.5pt; }
+</style></head><body>${isiHtml}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { w.print(); }, 250);
+  }
+
   /** Cetak dengan jalur terbaik yang tersedia; tidak pernah menggagalkan transaksi. */
   async function cetak(nota) {
     try {
@@ -323,7 +373,7 @@ const Struk = (() => {
     return 'html';
   }
 
-  return { cetak, cetakHtml, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
+  return { cetak, cetakHtml, cetakDokumen, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
            pastikanTersambung, lepasPrinter,
            baris, rupiah,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };

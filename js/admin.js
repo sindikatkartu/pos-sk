@@ -2879,7 +2879,105 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         { judul: 'Dikirim', kunci: 'qty_kirim', angka: true },
         { judul: 'Diterima', angka: true, render: i => i.qty_terima === null ? '—' : i.qty_terima },
         { judul: 'Selisih', angka: true, render: i => i.selisih ? `<span class="stok-kritis">${i.selisih}</span>` : '—' }
-      ], t.item)}`);
+      ], t.item)}`,
+      `<button class="tombol" data-tutup="1">Tutup</button>
+       <button class="tombol utama" data-cetak-transfer="${esc(uuid)}">Cetak</button>`);
+  }
+
+  /**
+   * Susun dokumen A4 satu transfer. Fungsi MURNI: hanya membaca `t` dan
+   * `konteks`, tidak menyentuh DOM dan tidak mencetak — supaya isinya bisa
+   * diperiksa uji apa adanya, bukan lewat tangkapan layar.
+   *
+   * Ini dokumen ARSIP, bukan surat jalan yang dibawa kurir. Karena itu:
+   *
+   *   - **Harga modal TIDAK PERNAH ikut.** `apiDaftarTransfer` menyertakan
+   *     `nilai_hpp` untuk peran ber-flag `lihat_harga_modal`, dan kertas yang
+   *     keluar dari sini bisa berpindah tangan ke siapa saja di toko. Nilainya
+   *     ada di layar bagi yang berhak; di kertas tidak.
+   *   - **Kolom Diterima & Selisih hanya muncul kalau barangnya memang sudah
+   *     diterima.** Mencetak dua kolom kosong pada dokumen yang baru dikirim
+   *     membuat pembacanya mengira ada isian yang terlewat.
+   *
+   * Setiap nilai diloloskan `esc()`: yang menerima hasil fungsi ini
+   * (`Struk.cetakDokumen`) memasangnya apa adanya ke dalam halaman.
+   */
+  function dokumenTransfer(t, konteks) {
+    const k = konteks || {};
+    const s = k.setting || {};
+    const item = t.item || [];
+    const sudahTerima = item.some(i => i.qty_terima !== null && i.qty_terima !== undefined);
+    const jum = (kunci) => item.reduce((a, i) => a + (Number(i[kunci]) || 0), 0);
+
+    const infoBaris = (kiri, kanan) =>
+      `<tr><td class="k">${esc(kiri)}</td><td>${kanan}</td></tr>`;
+
+    const kepalaKolom = ['<th>SKU</th>', '<th>Nama produk</th>', '<th class="n">Dikirim</th>']
+      .concat(sudahTerima ? ['<th class="n">Diterima</th>', '<th class="n">Selisih</th>'] : []);
+
+    const badan = item.length
+      ? item.map(i => '<tr>' +
+          `<td>${esc(i.sku)}</td><td>${esc(i.nama_produk)}</td>` +
+          `<td class="n">${esc(i.qty_kirim)}</td>` +
+          (sudahTerima
+            ? `<td class="n">${i.qty_terima === null || i.qty_terima === undefined ? '—' : esc(i.qty_terima)}</td>` +
+              `<td class="n">${i.selisih ? esc(i.selisih) : '—'}</td>`
+            : '') +
+        '</tr>').join('')
+      : `<tr><td colspan="${kepalaKolom.length}">Tidak ada rincian barang.</td></tr>`;
+
+    const kaki = item.length
+      ? '<tfoot><tr>' +
+          `<td colspan="2">${item.length} baris</td>` +
+          `<td class="n">${esc(jum('qty_kirim'))}</td>` +
+          (sudahTerima ? `<td class="n">${esc(jum('qty_terima'))}</td><td class="n">${esc(jum('selisih'))}</td>` : '') +
+        '</tr></tfoot>'
+      : '';
+
+    return `<h1>${esc(String(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase())}</h1>` +
+      (s.alamat_usaha ? `<p class="sub">${esc(s.alamat_usaha)}</p>` : '') +
+      (s.telepon_usaha ? `<p class="sub">${esc(s.telepon_usaha)}</p>` : '') +
+      `<h2>BUKTI TRANSFER ANTAR CABANG</h2>
+      <table class="info">
+        ${infoBaris('No dokumen', `<strong>${esc(t.no_dokumen)}</strong>`)}
+        ${infoBaris('Status', esc(t.status))}
+        ${infoBaris('Dari', esc(t.cabang_asal) + ' &rarr; ' + esc(t.cabang_tujuan))}
+        ${infoBaris('Dikirim', esc(waktuTampil(t.tanggal_kirim)) + ' oleh ' + esc(t.user_kirim))}
+        ${t.tanggal_terima
+            ? infoBaris('Diterima', esc(waktuTampil(t.tanggal_terima)) + ' oleh ' + esc(t.user_terima))
+            : ''}
+        ${t.catatan ? infoBaris('Catatan kirim', esc(t.catatan)) : ''}
+        ${t.catatan_terima ? infoBaris('Catatan terima', esc(t.catatan_terima)) : ''}
+      </table>
+      <table class="isi">
+        <thead><tr>${kepalaKolom.join('')}</tr></thead>
+        <tbody>${badan}</tbody>
+        ${kaki}
+      </table>
+      <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
+        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
+  }
+
+  function cetakTransfer(uuid) {
+    const t = ($('#isiTransfer')._rows || []).find(x => x.uuid === uuid);
+    if (!t) return;
+    /* Waktu cetak diambil di sini, bukan di dalam penyusunnya: fungsi yang
+       memanggil `new Date()` sendiri tidak bisa diuji tanpa memalsukan jam.
+
+       Jamnya dirakit dari komponen LOKAL, bukan `toISOString()` — persis alasan
+       yang sudah tertulis di `tanggalLokal()`: toISOString itu UTC, dan di WIB
+       (UTC+7) setiap cetakan sebelum pukul 07.00 akan tertanggal SEHARI
+       SEBELUMNYA. Pada dokumen arsip, tanggal yang meleset sehari adalah
+       satu-satunya isi yang benar-benar dipakai orang untuk mencarinya. */
+    const kini = new Date();
+    const isi = dokumenTransfer(t, {
+      setting: APP_STATE.setting || {},
+      user: (APP_STATE.user && APP_STATE.user.nama) || '',
+      versi: CONFIG.VERSI,
+      waktu: tanggalLokal(kini) + 'T' + kini.toTimeString().substring(0, 8)
+    });
+    try { Struk.cetakDokumen('Transfer ' + t.no_dokumen, isi); }
+    catch (e) { toast(e.message); }
   }
 
   /* ==================== STOK OPNAME ==================== */
@@ -3942,6 +4040,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnTransferBaru')   return formKirimTransfer();
       if (t.id === 'btnTambahBarisTf')  return tambahBarisTf();
       if (d.detailTransfer)             return detailTransfer(d.detailTransfer);
+      if (d.cetakTransfer)              return cetakTransfer(d.cetakTransfer);
       if (d.terimaTransfer)             return dialogTerimaTransfer(d.terimaTransfer);
       if (t.id === 'btnSimpanTransfer') {
         const item = kumpulkanAnak('tf').filter(i => i.sku && Number(i.qty) > 0)
