@@ -885,9 +885,25 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    karena alasan yang persis sama; `.petak-mini` tidak pernah — dan deretan enam
    kotak ringkasan Dasbor menempel 0px pada kartu "Jam ramai" di SEMUA lebar.
    Ditemukan pemilik toko, bukan oleh alat, 1 Sep 2026. */
+/* Jarak MENDATAR dan MENURUN sama besar.
+
+   Dulu 8px mendatar melawan 16px menurun — tepat dua kali lipat. Mata membaca
+   selisih itu sebagai pengelompokan: kotak yang bersebelahan tampak satu
+   kelompok, kotak di bawahnya tampak kelompok lain, padahal keenamnya setara.
+   Di HP, tempat petaknya jatuh jadi dua kolom tiga baris, kesan itu paling
+   kuat — dan di situlah pemilik toko melihatnya, 4 Sep 2026.
+
+   Naik ke 16px, bukan turun ke 8px: `--irama` yang memberi jarak antar kartu di
+   seluruh aplikasi, dan `margin-bottom` petak ini sendiri sudah memakainya.
+   Menyamakan ke bawah akan membuat petak ini satu-satunya blok yang berirama
+   lain dari sekitarnya.
+
+   Kolomnya TIDAK ikut menyempit: ambangnya 132px, jadi di layar 360px dua kolom
+   masih muat (132 x 2 + 16 = 280 < 328 yang tersedia). Diukur di uji, bukan
+   dikira. */
 .petak-mini {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
-  column-gap: 8px; row-gap: var(--irama); margin-bottom: var(--irama);
+  gap: var(--irama); margin-bottom: var(--irama);
 }
 .mini {
   background: var(--panel); border: 1px solid var(--garis-halus);
