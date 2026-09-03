@@ -951,7 +951,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    ada isi yang gagal dimuat. */
 .petak-2 {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start;
-  column-gap: 12px; row-gap: var(--irama); margin-bottom: var(--irama);
+  gap: var(--irama); margin-bottom: var(--irama);
 }
 @media (max-width: 780px) { .petak-2 { grid-template-columns: 1fr; } }
 
@@ -985,7 +985,7 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    dengan memesan baris ekornya (lihat `.mini-ekor`). */
 .petak {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-  column-gap: 12px; row-gap: var(--irama); margin-bottom: var(--irama); align-items: start;
+  gap: var(--irama); margin-bottom: var(--irama); align-items: start;
 }
 /* SATU sumber jarak. `margin-bottom` milik `.kartu` DITAMBAHKAN ke `row-gap`
    petaknya — 12+16=28px — sementara dua kartu di luar petak berjarak 16px.
@@ -1263,7 +1263,13 @@ input.sudah-hitung {
      Akibatnya empat angka ringkasan memakan satu layar penuh dan pengguna harus
      menggulir sebelum melihat data pertamanya. Di lebar ini jumlah kolomnya
      ditetapkan, bukan ditawar. */
-  .petak { grid-template-columns: 1fr 1fr; column-gap: 8px; }
+  /* `column-gap: 8px` DICABUT 4 Sep 2026. Ia melawan `row-gap` 16px — tepat
+     dua kali lipat — dan di HP `.petak` SELALU dua baris atau lebih, jadi
+     ketimpangan itu selalu terlihat: dua kotak bersebelahan terbaca sepasang,
+     kotak di bawahnya terbaca kelompok lain, padahal semuanya setara.
+     Ongkosnya 8px lebar per kartu, dan sudah diukur: di 360px kartunya masih
+     156px dan tidak ada isi yang tumpah. */
+  .petak { grid-template-columns: 1fr 1fr; }
   /* Ditulis ulang, bukan diwarisi: `.petak.petak-4` lebih khusus dan akan
      menang tanpa baris ini — empat kotak berdesakan di layar 390px. */
   .petak.petak-4 { grid-template-columns: 1fr 1fr; }
