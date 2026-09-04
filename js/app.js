@@ -1934,8 +1934,22 @@ async function selesaikanTransaksi() {
     });
 
     // 1) Simpan lokal  2) antre kirim  3) cetak. Kasir tidak menunggu server.
+    /* `_diterima` — uang yang BENAR-BENAR diserahkan pelanggan, sebelum
+       kembalian dipotong. `bayar` di atas sengaja sudah dipotong: itu angka
+       PEMBUKUAN (kas bersih), dan mengubahnya akan merusak jurnal kas. Yang
+       dibutuhkan STRUK justru angka sebelum potong — tanpa ini struk mencetak
+       "TUNAI 5.000 / KEMBALI 15.000" untuk uang 20.000, dan pelanggan memegang
+       bukti yang menyebut kembalian lebih besar daripada uang yang ia serahkan
+       (nota SK01-SLW/2609/00071, dilaporkan 4 Sep 2026).
+
+       Hanya di ARSIP LOKAL, tidak ikut `dok` ke server: pembukuan tidak boleh
+       melihat angka ini sama sekali. */
     const arsip = { ...dok, status_sync: 'PENDING', _total: t,
-                    _kembali: kembali, _nama_pelanggan: Keranjang.pelanggan?.nama || '' };
+                    _kembali: kembali,
+                    _diterima: APP_STATE.metodeBayar
+                      .map(m => ({ metode: m.metode, jumlah: Math.round(Number(m.jumlah) || 0) }))
+                      .filter(m => m.jumlah > 0),
+                    _nama_pelanggan: Keranjang.pelanggan?.nama || '' };
     await DB.put('penjualan', arsip);
     await Sync.antrikanPenjualan(dok);
 

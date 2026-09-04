@@ -21,6 +21,47 @@ const Struk = (() => {
 
   const rupiah = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
 
+  /**
+   * Pembayaran seperti yang dilihat PELANGGAN: uang yang benar-benar diserahkan.
+   *
+   * `nota.bayar` BUKAN itu, dan memang tidak boleh jadi itu. app.js sengaja
+   * memotong kembalian dari baris tunai sebelum menyimpan, karena yang dijurnal
+   * adalah kas bersih: nota 5.000 yang dibayar 20.000 masuk pembukuan sebagai
+   * tunai 5.000, dan itu benar — kalau 20.000 yang dijurnal, kas dan neraca
+   * ikut salah. Yang keliru adalah mencetak angka pembukuan itu di kertas
+   * pelanggan. Struk SK01-SLW/2609/00071 (4 Sep 2026) berbunyi
+   * "TUNAI 5.000 / KEMBALI 15.000" — kembalian lebih besar daripada uang yang
+   * katanya diterima, dan tidak ada satu pun angka di kertas itu yang
+   * menjelaskannya.
+   *
+   * Sumber utamanya `_diterima`, disimpan app.js di ARSIP LOKAL apa adanya.
+   * Nota yang tersimpan SEBELUM perbaikan ini tidak punya — dan nota itulah
+   * yang paling mungkin dicetak ulang minggu ini. Untuk mereka kembaliannya
+   * dikembalikan ke baris tunai: kebalikan persis dari pemotongannya, bukan
+   * tebakan. HANYA baris tunai — metode lain tidak pernah dipotong, dan
+   * menambahinya akan mencetak setoran EDC yang tidak pernah terjadi.
+   */
+  function barisBayar(nota) {
+    const rapikan = (d) => (d || [])
+      .map(b => ({ metode: b.metode, jumlah: Math.round(Number(b.jumlah) || 0) }))
+      .filter(b => b.jumlah > 0);
+
+    const diterima = rapikan(nota && nota._diterima);
+    if (diterima.length) return diterima;
+
+    const out = rapikan(nota && nota.bayar);
+    const kembali = Math.round(Number(nota && nota._kembali) || 0);
+    if (kembali <= 0) return out;
+
+    const i = out.findIndex(b => String(b.metode).toLowerCase() === 'tunai');
+    /* Tidak ada baris tunai sama sekali padahal ada kembalian: barisnya jatuh
+       ke nol saat dipotong lalu dibuang `filter(m => m.jumlah > 0)`. Uangnya
+       tetap pernah berpindah tangan, jadi barisnya dimunculkan kembali. */
+    if (i === -1) out.push({ metode: 'tunai', jumlah: kembali });
+    else out[i] = { metode: out[i].metode, jumlah: out[i].jumlah + kembali };
+    return out;
+  }
+
   /** Susun baris teks struk (dipakai kedua jalur cetak). */
   function baris(nota, opsi = {}) {
     const L = Number(opsi.lebar || APP_STATE.setting.lebar_struk || 58) === 80 ? 42 : 32;
@@ -140,8 +181,8 @@ const Struk = (() => {
     out.push(...duaKolom('TOTAL', rupiah(nota.total)));
     out.push(garis);
 
-    (nota.bayar || []).forEach(b => {
-      out.push(...duaKolom(b.metode.toUpperCase(), rupiah(b.jumlah)));
+    barisBayar(nota).forEach(b => {
+      out.push(...duaKolom(String(b.metode).toUpperCase(), rupiah(b.jumlah)));
     });
     if (nota._kembali > 0) out.push(...duaKolom('KEMBALI', rupiah(nota._kembali)));
     if (nota.jatuh_tempo) out.push(...duaKolom('Jatuh tempo', tglTampil(nota.jatuh_tempo)));
@@ -273,7 +314,10 @@ const Struk = (() => {
    */
   function perluBukaLaci(nota, flag) {
     if (!flag || flag.buka_laci !== true) return false;
-    return (nota && nota.bayar || []).some(b => String(b.metode).toLowerCase() === 'tunai');
+    /* Sumbernya sama dengan yang tercetak: baris tunai yang habis terpotong
+       sudah dibuang dari `bayar`, dan laci justru tidak terbuka pada nota
+       yang uang tunainya benar-benar berpindah tangan. */
+    return barisBayar(nota).some(b => String(b.metode).toLowerCase() === 'tunai');
   }
 
   async function bukaLaci() {
