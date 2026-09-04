@@ -637,6 +637,11 @@ main { flex: 1; overflow: hidden; position: relative; }
 .tombol.utama:active, .tombol.sukses:active, .tombol.bahaya:active { filter: brightness(.95); }
 .tombol.besar  { padding: 14px; font-size: var(--fs-17); font-weight: 600; width: 100%; }
 .tombol.kecil  { padding: 4px 10px; font-size: var(--fs-13); }
+/* Tombol yang isinya CUMA ikon. Padding mendatarnya dipersempit supaya
+   kotaknya mendekati bujur sangkar — dengan 10px, tiga ikon berjejer di satu
+   baris tabel terlihat lebih lebar daripada tinggi dan barisnya jadi renggang
+   sendiri. Namanya tidak hilang, ia pindah ke `title` + `aria-label`. */
+.tombol.kecil.ikon-saja { padding: 4px 6px; }
 .tombol.sunyi  { background: transparent; border-color: transparent; box-shadow: none; color: var(--utama); }
 .tombol.sunyi:hover { background: var(--panel-3); text-decoration: none; }
 .tombol:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }

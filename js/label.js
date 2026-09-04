@@ -344,10 +344,28 @@ const Label = (() => {
     return bersih;
   }
 
-  /** Kode yang dicetak untuk sebuah produk — null bila tidak perlu dilabeli. */
+  /**
+   * Kode yang dicetak untuk sebuah produk. `null` hanya bila keduanya kosong.
+   *
+   * Kalau produknya punya BARCODE PABRIK, yang dicetak barcode itu — bukan SKU.
+   *
+   * Sampai v1.90 fungsi ini mengembalikan `null` untuk produk berbarcode, dan
+   * layar Produk memakainya untuk MENYEMBUNYIKAN tombol Label sama sekali.
+   * Kekhawatirannya waktu itu benar: dua barcode berbeda di satu barang berakhir
+   * dengan kasir men-scan yang salah.
+   *
+   * Yang keliru jalan keluarnya. Menyembunyikan tombol menghilangkan gejalanya,
+   * bukan bahayanya — sekaligus menghilangkan satu-satunya cara mencetak stiker
+   * untuk barang yang stiker pabriknya sobek, pudar, atau tertutup label harga.
+   * Dilaporkan pemilik 4 Sep 2026: "ada salah satu produk yang tidak ada tombol
+   * label" (SKU CS01040075).
+   *
+   * Mencetak barcode pabriknya menutup bahayanya SUNGGUHAN: kedua stiker
+   * memindai ke kode yang sama, jadi tidak ada lagi "yang salah" untuk discan.
+   */
   function kodeProduk(p) {
     const bc = String((p && p.barcode) || '').trim();
-    if (bc) return null;                       // sudah ada barcode pabrik di kemasan
+    if (bc) return bc;
     return String((p && p.sku) || '').trim() || null;
   }
 

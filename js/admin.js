@@ -895,15 +895,18 @@ const Admin = (() => {
             render: r => String(terjualProduk.qty[r.sku] || 0)
           }] : []),
           ...(kolomAktif ? [kolomAktif] : []),
+          /* Tombol Label ada di SETIAP baris.
+             Sampai v1.90 ia disembunyikan pada produk yang punya barcode pabrik,
+             supaya tidak ada dua barcode berbeda di satu barang. Kekhawatirannya
+             benar, jalan keluarnya keliru: yang hilang bukan bahayanya melainkan
+             satu-satunya cara mencetak stiker untuk barang yang stiker pabriknya
+             sobek atau pudar — dan pemiliknya melaporkannya sebagai kerusakan
+             (4 Sep 2026), karena baris yang tombolnya hilang tidak menjelaskan
+             apa pun tentang dirinya. Sekarang `Label.kodeProduk` mencetak
+             barcode PABRIKNYA untuk produk itu, jadi kedua stiker memindai ke
+             kode yang sama dan tidak ada lagi "yang salah" untuk discan. */
           { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` +
-              /* Produk yang barcode pabriknya sudah tercetak di kemasan TIDAK diberi
-                 tombol label: barcode pabriknya sudah bisa discan, dan menempel
-                 barcode kedua di satu barang selalu berakhir dengan kasir men-scan
-                 yang salah. Tombolnya tidak dimatikan melainkan tidak ada — tombol
-                 mati yang tidak menjelaskan dirinya sama membingungkannya. */
-              (String(r.barcode || '').trim()
-                ? ''
-                : ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>`) }
+              ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>` }
         ], baris, { pisahNonaktif: true, kosong: (kueriProduk || kategoriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
             : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' });
@@ -922,7 +925,11 @@ const Admin = (() => {
       return toast('Muat ulang aplikasi sekali lagi supaya modul label ikut terpasang.', 'galat');
     }
     const kode = Label.kodeProduk(p);
-    if (!kode) return toast('Produk ini sudah punya barcode pabrik di kemasannya.', 'galat');
+    if (!kode) return toast('Produk ini tidak punya SKU maupun barcode untuk dicetak.', 'galat');
+    /* Produk berbarcode pabrik mencetak barcode ITU, bukan SKU-nya. Dikatakan di
+       layar, bukan dibiarkan ditebak: kode yang tercetak berbeda dari SKU yang
+       barusan diklik adalah persis hal yang membuat orang mengira salah tombol. */
+    const dariPabrik = String(p.barcode || '').trim() && kode === String(p.barcode).trim();
 
     const u = await Label.ukuran();
     const cocok = Label.muat(kode, u);
@@ -935,6 +942,9 @@ const Admin = (() => {
           <p style="margin:4px 0 0"><code>${esc(kode)}</code>
             <span class="petunjuk"> · ${cocok.lebar.toFixed(1)}mm dari ${
               cocok.tersedia.toFixed(0)}mm tersedia</span></p>
+          ${dariPabrik ? `<p class="petunjuk" style="margin:4px 0 0">Ini <strong>barcode pabrik</strong>
+            produk ini, bukan SKU-nya (${esc(p.sku)}) — supaya stiker cetakan dan
+            stiker kemasan memindai ke kode yang sama.</p>` : ''}
         </div>
         ${cocok.muat ? '' : `<div class="pesan galat">Kode ini terlalu panjang untuk stiker ${
           u.lebar_mm} × ${u.tinggi_mm} mm. Butuh ${cocok.lebar.toFixed(1)}mm, tersedia ${
@@ -1679,21 +1689,63 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         API.daftarProduk({})
       ]);
       const nama = Object.fromEntries(prod.produk.map(p => [p.sku, p]));
-      const rows = stok.stok.map(s => ({
+      const bergerak = stok.stok.map(s => ({
         ...s, nama: nama[s.sku]?.nama || s.sku, stok_min: nama[s.sku]?.stok_min || 0,
         kategori: nama[s.sku]?.kategori || ''
-      })).sort((a, b) => a.qty - b.qty);
+      }));
+
+      /**
+       * Produk yang BELUM PERNAH bergerak ikut ditampilkan, stok 0.
+       *
+       * `apiStokTerkini` mengembalikan isi `petaStok`, dan peta itu dibangun dari
+       * snapshot + mutasi. Produk yang belum pernah dibeli, diopname, atau
+       * ditransfer tidak punya satu pun mutasi — jadi ia tidak ada di peta, dan
+       * layar Stok tidak pernah menyebutnya sama sekali. Master produknya ada,
+       * layar Produk menampilkannya, layar Stok bilang tidak ada. Dilaporkan
+       * pemilik 4 Sep 2026 (SKU CS01090043); di sheet produksi hari itu 362 SKU
+       * punya baris stok sementara master produknya jauh lebih banyak.
+       *
+       * "Tidak ada mutasi" BUKAN "tidak ada barangnya" — artinya stoknya nol.
+       * Dan justru nol itulah yang paling perlu terlihat: barang yang belum
+       * pernah masuk gudang adalah barang yang tidak bisa dijual, dan ia harus
+       * ikut terhitung di "Di bawah minimum".
+       *
+       * Hanya SKU: varian yang belum pernah bergerak tidak dikarang di sini —
+       * yang tahu daftar varian adalah master produk, dan menebaknya berarti
+       * menampilkan baris untuk kombinasi yang mungkin tidak pernah ada.
+       */
+      const adaStok = new Set(bergerak.map(s => s.sku));
+      const diam = prod.produk
+        .filter(p => !adaStok.has(p.sku))
+        .map(p => ({ sku: p.sku, kode_varian: '', qty: 0, nama: p.nama,
+                     stok_min: p.stok_min || 0, kategori: p.kategori || '', _diam: true }));
+
+      const rows = bergerak.concat(diam).sort((a, b) => a.qty - b.qty);
 
       const totalNilai = rows.reduce((a, r) => a + (r.nilai || 0), 0);
-      const punyaNilai = rows[0]?.nilai !== undefined;
+      /* Diperiksa pada baris yang BERGERAK, bukan `rows[0]`: sesudah pengurutan,
+         baris teratas bisa saja produk diam yang memang tidak punya `nilai`, dan
+         kolom Nilai lenyap dari layar peran yang berhak melihatnya. */
+      const punyaNilai = bergerak[0]?.nilai !== undefined;
       /* Tabelnya HARUS ikut disaring. Dropdown yang menampilkan "Casing" di atas
          tabel berisi seluruh kategori lebih buruk daripada saringan yang tereset:
          yang satu jujur mengaku lupa, yang satu berbohong. */
       const tampil = katStok ? rows.filter(r => r.kategori === katStok) : rows;
 
       $('#isiStok').innerHTML = `
-        <div class="petak">
-          <div class="kartu statistik"><div class="label">SKU bergerak</div><div class="nilai">${rows.length}</div></div>
+        ${/* `petak-4` — ambang kolomnya 160px, bukan 180px. Sejak kartu "Belum
+              pernah bergerak" ikut digambar, jumlahnya jadi EMPAT, dan di lebar
+              tablet petak biasa hanya memuat tiga: yang keempat turun sendirian
+              dan melar setengah baris. Kotak tunggal selebar itu terbaca sebagai
+              kotak yang gagal berpasangan. */''}
+        <div class="petak petak-4">
+          ${/* Tetap `bergerak.length`, BUKAN `rows.length`. Sejak produk yang
+                belum pernah bergerak ikut ditampilkan, `rows` berisi seluruh
+                katalog — dan angka di bawah judul "SKU bergerak" akan berhenti
+                berarti apa pun. Yang belum bergerak dihitung terpisah. */''}
+          <div class="kartu statistik"><div class="label">SKU bergerak</div><div class="nilai">${bergerak.length}</div></div>
+          ${diam.length ? `<div class="kartu statistik"><div class="label">Belum pernah bergerak</div>
+            <div class="nilai">${diam.length}</div></div>` : ''}
           ${punyaNilai ? `<div class="kartu statistik"><div class="label">Nilai persediaan</div><div class="nilai">${rp(totalNilai)}</div></div>` : ''}
           <div class="kartu statistik"><div class="label">Di bawah minimum</div>
             <div class="nilai">${rows.filter(r => r.qty <= r.stok_min).length}</div></div>
@@ -2355,6 +2407,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== USER & HAK AKSES ==================== */
 
+  /* Ikon aksi baris perangkat. Diminta pemilik 4 Sep 2026: tiga tombol berteks
+     ("Setujui", "Blokir", "Hapus") membuat kolom terakhir selebar tiga kolom
+     data, dan di HP barisnya patah. Bentuknya mengikuti `IKON` di app.js —
+     viewBox 24, garis saja, tanpa isian. */
+  const IKON_AKSI = {
+    setujui: '<path d="m5 13 4 4L19 7"/>',
+    blokir : '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
+    hapus  : '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/>' +
+             '<path d="M6 7h12l-.9 12.1a1.5 1.5 0 0 1-1.5 1.4H8.4a1.5 1.5 0 0 1-1.5-1.4Z"/>' +
+             '<path d="M9.5 7V4.8A.8.8 0 0 1 10.3 4h3.4a.8.8 0 0 1 .8.8V7"/>'
+  };
+
+  /**
+   * Tombol yang isinya CUMA ikon.
+   *
+   * `title` DAN `aria-label` keduanya wajib, dan itu bukan pengulangan: yang
+   * pertama untuk mata yang menunggu di atas tombol, yang kedua untuk pembaca
+   * layar yang tidak pernah melihat `title`. Ikon tanpa keduanya adalah tombol
+   * yang tidak menyebutkan namanya kepada siapa pun.
+   */
+  const tombolIkon = (gaya, judul, jalur, atribut) =>
+    `<button class="tombol kecil ikon-saja ${gaya}" title="${esc(judul)}" aria-label="${esc(judul)}" ${atribut}>` +
+    `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:15px;height:15px">${jalur}</svg></button>`;
+
   /**
    * Kolom "Pemilik" satu baris perangkat.
    *
@@ -2442,14 +2518,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Sinkron terakhir', render: r => esc(waktuTampil(r.terakhir_sinkron)) },
             { judul: '', render: r => `
               ${bolehIzin('user', 'setujui') ? `
-                ${r.status !== 'DISETUJUI' ? `<button class="tombol kecil sukses" data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI">Setujui</button>` : ''}
-                ${r.status !== 'DIBLOKIR' ? `<button class="tombol kecil bahaya" data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR">Blokir</button>` : ''}` : ''}
+                ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON_AKSI.setujui,
+                    `data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI"`) : ''}
+                ${r.status !== 'DIBLOKIR' ? tombolIkon('bahaya', 'Blokir perangkat', IKON_AKSI.blokir,
+                    `data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR"`) : ''}` : ''}
               ${/* Hapus TIDAK muncul untuk yang DISETUJUI — server pun menolaknya.
                     Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
                     jebakan, bukan tombol; yang masih hidup diblokir dulu, dan
                     langkah itulah yang memutus aksesnya. */
                  bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI'
-                ? `<button class="tombol kecil bahaya" data-hapus-perangkat="${esc(r.id_perangkat)}">Hapus</button>` : ''}` }
+                ? tombolIkon('bahaya', 'Hapus perangkat', IKON_AKSI.hapus,
+                    `data-hapus-perangkat="${esc(r.id_perangkat)}"`) : ''}` }
           ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true,
                nonaktif: r => r.status === 'DIBLOKIR' })}
         </div>`;
