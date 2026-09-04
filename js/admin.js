@@ -1850,14 +1850,40 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Supplier', kunci: 'nama_supplier' },
             { judul: 'Bayar', render: r => `<span class="lencana">${esc(r.tipe_bayar)}</span>` },
-            { judul: 'Total', angka: true, render: r => rp(r.total) }
+            { judul: 'Total', angka: true, render: r => rp(r.total) },
+            /* Status ditampilkan sejak v1.94: kolomnya sudah ada di sheet sejak awal
+               tapi tidak pernah tergambar, jadi dokumen yang dibatalkan terlihat
+               persis seperti yang masih berlaku. */
+            { judul: 'Status', render: r => r.status === 'DIBATALKAN'
+                ? '<span class="lencana merah">DIBATALKAN</span>'
+                : '<span class="lencana hijau">AKTIF</span>' },
+            { judul: '', render: r => r.status !== 'DIBATALKAN' && bolehIzin('pembelian', 'hapus')
+                ? `<button class="tombol kecil bahaya" data-batal-pembelian="${esc(r.uuid)}">Batal</button>` : '' }
           ], rows, { kosong: 'Belum ada pembelian tercatat' })}
         </div>`;
     } catch (e) { galat('#isiPembelian', e); }
   }
 
+  /**
+   * uuid dokumen pembelian yang sedang diketik.
+   *
+   * DIBUAT SAAT FORM DIBUKA, bukan saat tombol Simpan ditekan — dan itu seluruh
+   * perbaikan dari kejadian 5 Sep 2026. Dulu `crypto.randomUUID()` dipanggil di
+   * dalam panggilan API, jadi setiap penekanan tombol melahirkan uuid BARU.
+   * Akibatnya penjaga idempoten di `apiSimpanPembelian`
+   * (`if (cari(cabang,'pembelian','uuid',p.uuid)) return duplikat`) tidak akan
+   * pernah bisa menyala untuk percobaan ulang: kiriman kedua tampak seperti
+   * dokumen yang benar-benar lain. Nota 101 baris masuk dua kali karena itu.
+   *
+   * Dengan uuid yang bertahan selama form terbuka, menekan Simpan berkali-kali
+   * setelah gagal adalah tindakan yang AMAN — persis seperti outbox kasir, yang
+   * memang mengulang dengan uuid yang sama dan tidak pernah dobel.
+   */
+  let uuidPembelian = null;
+
   async function formPembelian() {
     const [sup, prod] = await Promise.all([API.daftarSupplier(), API.daftarProduk({})]);
+    uuidPembelian = crypto.randomUUID ? crypto.randomUUID() : 'B' + Date.now();
     bukaModal('Pembelian baru', `
       <div class="baris3">
         <div class="grup"><label>Tanggal</label><input type="date" id="beliTanggal" value="${tanggalLokal()}"></div>
@@ -1915,8 +1941,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const btn = $('#btnSimpanPembelian');
     btn.disabled = true;
     try {
-      await API.simpanPembelian({
-        uuid: crypto.randomUUID ? crypto.randomUUID() : 'B' + Date.now(),
+      const r = await API.simpanPembelian({
+        uuid: uuidPembelian,
         cabang: APP_STATE.cabang,
         tanggal: nilai('beliTanggal'), no_dokumen: nilai('beliNo'),
         kode_supplier: nilai('beliSupplier'), tipe_bayar: nilai('beliTipe'),
@@ -1929,9 +1955,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       });
       await Sync.tarikMaster(true);
       await Sync.tarikStok();
-      await sukses('Pembelian tersimpan, stok & HPP diperbarui.', 'pembelian');
+      await sukses(r?.duplikat
+        ? 'Pembelian ini SUDAH tersimpan sebelumnya — kiriman ulang dikenali, tidak dobel.'
+        : 'Pembelian tersimpan, stok & HPP diperbarui.', 'pembelian');
     } catch (e) {
-      $('#pesanBeli').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
+      /* Kalimat kedua itu yang mencegah dokumen dobel berikutnya. Yang paling
+         mungkin gagal di sini adalah waktu habis pada nota panjang — dan waktu
+         habis TIDAK berarti servernya gagal. Tanpa kalimat ini orangnya
+         mengetik ulang seluruh notanya, dan itulah cara dobel lahir. */
+      $('#pesanBeli').innerHTML = `<div class="pesan galat">${esc(e.message)}
+        <div style="margin-top:8px">Tekan <strong>Simpan pembelian</strong> sekali lagi —
+        jangan mengetik ulang notanya. Kiriman kedua dikenali sebagai dokumen yang sama
+        dan tidak akan masuk dua kali.</div></div>`;
       btn.disabled = false;
     }
   }
@@ -4420,6 +4455,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await Sync.tarikStok();
           await sukses('Transfer dibatalkan, barang kembali ke cabang asal.', 'transfer');
         } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
+      if (d.batalPembelian) {
+        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
+        if (!alasan || alasan.trim().length < 5) return;
+        try {
+          const r = await API.batalPembelian({ uuid: d.batalPembelian, cabang: APP_STATE.cabang, alasan });
+          await Sync.tarikStok();
+          await sukses(`Pembelian dibatalkan — ${rp(r.total)}, ${r.item} baris. Stok & jurnalnya sudah dibalik.`,
+                       'pembelian');
+        } catch (x) {
+          /* Rinciannya ditampilkan, bukan cuma kalimat utamanya: kalau ditolak
+             karena barangnya sudah bergerak, yang orang butuhkan justru daftar
+             SKU mana yang sudah bergerak. */
+          toast(x.message, 'galat');
+          if (x.detail) {
+            bukaModal('Tidak bisa dibatalkan', `<div class="pesan galat">${esc(x.message)}
+              <ul style="margin:8px 0 0 16px">${x.detail.map(g => `<li>${esc(g)}</li>`).join('')}</ul></div>`);
+          }
+        }
         return;
       }
 

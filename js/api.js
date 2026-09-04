@@ -169,7 +169,16 @@ const API = (() => {
 
     stokTerkini:     (d) => panggil('stok_terkini', d, { timeout: 60000 }),
     kartuStok:       (d) => panggil('kartu_stok', d),
-    simpanPembelian: (d) => panggil('simpan_pembelian', d),
+    /* 120 detik, bukan 30 detik bawaan. Satu pembelian menulis dokumen + satu
+       baris item + satu mutasi stok + satu lapisan FIFO PER BARIS, lalu jurnalnya.
+       Nota 101 baris menembus 30 detik dengan mudah — dan yang terjadi waktu itu
+       bukan gagal: peramban memutus sambungan sementara SERVERNYA SELESAI. Dari
+       layar itu terbaca "gagal", orangnya menyimpan lagi, dan pembelian masuk dua
+       kali (5 Sep 2026, nota 101 baris senilai Rp 2.743.000). Batas waktu yang
+       terlalu pendek pada tulisan yang panjang bukan kehati-hatian; ia pabrik
+       dokumen dobel. */
+    simpanPembelian: (d) => panggil('simpan_pembelian', d, { timeout: 120000 }),
+    batalPembelian:  (d) => panggil('batal_pembelian', d, { timeout: 90000 }),
     simpanKas:       (d) => panggil('simpan_kas', d),
     daftarKas:       (d) => panggil('daftar_kas', d),
 
