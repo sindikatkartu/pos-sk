@@ -220,6 +220,7 @@
     <section class="layar" id="layarProduk"><div id="isiProduk"></div></section>
     <section class="layar" id="layarStok"><div id="isiStok"></div></section>
     <section class="layar" id="layarTransfer"><div id="isiTransfer"></div></section>
+    <section class="layar" id="layarPermintaan"><div id="isiPermintaan"></div></section>
     <section class="layar" id="layarOpname"><div id="isiOpname"></div></section>
     <section class="layar" id="layarReturbeli"><div id="isiReturbeli"></div></section>
     <section class="layar" id="layarArsip"><div id="isiArsip"></div></section>
@@ -613,7 +614,16 @@
         </div>
 
         <div class="kartu">
-          <h3>B4. Opname (hitung fisik)</h3>
+          <h3>B4. Permintaan barang ke gudang</h3>
+          <p>Menu <strong>Permintaan</strong> adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi. Pemilik, manajer, atau kepala cabang menekan <strong>+ Minta barang</strong>, memilih <strong>gudang asal</strong> dan <strong>cabang tujuan</strong>, lalu menuliskan barang yang dibutuhkan. Membuatnya <strong>tidak</strong> menggerakkan stok dan tidak membuat jurnal apa pun.</p>
+          <p>Admin gudang membuka menu yang sama dan melihat kartu <strong>Menunggu disiapkan gudang Anda</strong>. Tombol <strong>Siapkan</strong> membuka daftar barangnya beserta kolom <strong>Sisa</strong>; isi jumlah yang <em>benar-benar disiapkan</em> — boleh kurang dari yang diminta. Menekan <strong>Siapkan &amp; kirim</strong> langsung membuat dokumen <strong>Transfer</strong> (B3), lengkap dengan FIFO dan jurnalnya, dan cabang tujuan tetap harus menekan <strong>Terima barang</strong> di menu Transfer.</p>
+          <p><strong>Memantau pekerjaannya.</strong> Kolom <strong>Kemajuan</strong> menulis "sudah / diminta" dalam pcs, dan statusnya salah satu dari: <strong>MENUNGGU</strong> (gudang belum menyiapkan apa pun), <strong>SEBAGIAN</strong> (sudah dikirim sebagian, sisanya masih ditunggu), <strong>SELESAI</strong> (setiap baris sudah terpenuhi), <strong>DIBATALKAN</strong>. Tombol <strong>Detail</strong> menunjukkan dokumen transfer mana saja yang memenuhinya.</p>
+          <p class="petunjuk">Statusnya <strong>dihitung dari dokumen transfernya</strong>, bukan disimpan. Karena itu transfer yang dibatalkan membuat permintaannya kembali menunggu dengan sendirinya — barangnya memang kembali ke gudang. Konsekuensi lain: <strong>SELESAI</strong> menuntut SETIAP baris terpenuhi; kelebihan pada satu barang tidak menutupi barang lain yang belum dikirim.</p>
+          <p class="petunjuk">Permintaan hanya bisa <strong>dibatalkan selagi belum disentuh gudang</strong>. Begitu satu transfer dibuat, stoknya sudah bergerak — yang perlu dibatalkan adalah dokumen transfernya, di menu Transfer. Satu SKU cukup satu baris per permintaan; qty yang sama ditulis dua baris akan ditolak.</p>
+          <p class="petunjuk">Yang <strong>meminta</strong> dan yang <strong>menyiapkan</strong> sengaja dipisah: Staf Gudang bisa memproses tapi tidak bisa membuat permintaan, dan Kepala Cabang sebaliknya. Kalau menu ini tidak muncul untuk peran selain Owner, izin modul <strong>permintaan</strong> belum ditambahkan ke peran itu di menu Pengguna → Peran.</p>
+        </div>
+        <div class="kartu">
+          <h3>B5. Opname (hitung fisik)</h3>
           <p>Tiga tahap: <strong>DRAFT</strong> (mengisi hitungan fisik) → <strong>REVIEW</strong> (selisih baru boleh dilihat) → <strong>POSTED</strong> (stok disesuaikan). Cakupannya bisa parsial per kategori/merek, penuh, atau spot check beberapa SKU.</p>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Toko boleh terus berjualan selama opname.</strong> Stok sistem dikunci pada detik barang itu dihitung, bukan saat diposting.</li>
@@ -625,21 +635,21 @@
         </div>
 
         <div class="kartu">
-          <h3>B5. Pelanggan &amp; Piutang</h3>
+          <h3>B6. Pelanggan &amp; Piutang</h3>
           <p>Pelanggan punya <strong>Level harga</strong> (eceran/grosir) yang otomatis dipakai kasir begitu pelanggan itu dipilih, serta <strong>Limit kredit</strong> dan <strong>Termin</strong> sebagai catatan.</p>
           <p>Menu <strong>Piutang</strong> mengelompokkan tagihan menurut umurnya: belum jatuh tempo, telat 1–30, 31–60, 61–90, dan lebih dari 90 hari. Tombol <strong>Terima bayar</strong> menerima pelunasan maupun cicilan — jumlahnya boleh diubah.</p>
           <p class="petunjuk"><strong>Limit kredit saat ini hanya angka acuan</strong> — sistem tidak menolak penjualan piutang yang melebihinya. Pemeriksaannya masih di tangan Anda.</p>
         </div>
 
         <div class="kartu">
-          <h3>B6. Petugas &amp; bobot peran</h3>
+          <h3>B7. Petugas &amp; bobot peran</h3>
           <p>Menu <strong>Petugas</strong> berbeda dari Pengguna: pramuniaga tidak perlu punya akun login. Isinya nama, peran utama (Penjual/Pemasang), cabang, dan telepon.</p>
           <p><strong>Bobot peran</strong> (bawaan 60 : 40) membagi poin, omzet, dan laba antara penjual dan pemasang bila satu pekerjaan dikerjakan berdua. <strong>Tidak ada tarif per orang</strong> — nilai pekerjaan melekat pada produknya, supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>
           <p class="petunjuk">Peran utama hanya jadi <em>bawaan</em>; peran sesungguhnya pada sebuah nota ditentukan urutan pemilihan kasir. Petugas yang berhenti cukup <strong>dinonaktifkan</strong>, jangan dihapus — klaim lama masih menunjuk ke namanya.</p>
         </div>
 
         <div class="kartu">
-          <h3>B7. Laporan, Performa, Keuangan, Diskon</h3>
+          <h3>B8. Laporan, Performa, Keuangan, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Dashboard</strong> — nota &amp; omzet hari ini, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis.</li>
             <li><strong>Laporan</strong> — satu rentang tanggal, <strong>lima tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Tombol rentang cepat — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu — ada di atas kolom tanggalnya.</li>
@@ -653,14 +663,14 @@
         </div>
 
         <div class="kartu">
-          <h3>B8. Tutup buku &amp; periode terkunci</h3>
+          <h3>B9. Tutup buku &amp; periode terkunci</h3>
           <p>Di menu <strong>Keuangan</strong>, pilih periode lalu tekan <strong>Tutup buku</strong>. Sesudah dikunci, <strong>tidak ada dokumen bertanggal periode itu yang bisa masuk</strong> — nota, kas, retur, pembelian, opname, maupun void. Koreksi harus lewat periode berjalan.</p>
           <p>Uji kebenaran <strong>dijalankan server sendiri</strong> setiap kali tutup buku ditekan: kalau ada pemeriksaan yang belum lulus, penguncian <strong>ditolak</strong> beserta daftar apa saja yang belum cocok. Tidak ada tombol di aplikasi ini yang bisa menerobosnya. Menjalankannya lebih dulu lewat tombol <strong>Uji kebenaran</strong> tetap berguna — supaya daftar itu sudah Anda lihat sebelum menutup, bukan sesudah ditolak.</p>
           <p class="petunjuk">Efeknya di kasir: notanya tetap tersimpan dan tercetak di perangkat, tapi ditolak server dan muncul sebagai lencana merah. Jangan menutup buku bulan berjalan sebelum semua perangkat kasir tersinkron.</p>
         </div>
 
         <div class="kartu">
-          <h3>B9. Pengguna, Cabang, Setting, Audit, Arsip</h3>
+          <h3>B10. Pengguna, Cabang, Setting, Audit, Arsip</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Pengguna</strong> — akun login, peran &amp; hak aksesnya, dan pendaftaran perangkat kasir. Perubahan izin baru terbaca setelah orangnya keluar lalu masuk lagi.</li>
             <li><strong>Cabang</strong> — setiap cabang punya berkas database sendiri; itulah sebabnya kasir cabang A tidak pernah menunggu cabang B.</li>
@@ -672,7 +682,7 @@
         </div>
 
         <div class="kartu">
-          <h3>B10. Akun saya, Perangkat, Tentang</h3>
+          <h3>B11. Akun saya, Perangkat, Tentang</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Akun saya</strong> — ganti PIN sendiri (6 digit). Selalu tersedia untuk semua peran.</li>
             <li><strong>Perangkat</strong> — printer, umur data master, jumlah antrean kirim, dan tombol tarik/kirim manual.</li>

@@ -3101,6 +3101,190 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     catch (e) { toast(e.message); }
   }
 
+  /* ==================== PERMINTAAN BARANG ==================== */
+
+  /* Warna lencana mengikuti ARTI, bukan urutan: kuning = ada pekerjaan yang
+     belum selesai, hijau = tuntas, abu = tidak ada lagi yang perlu dikerjakan.
+     MENUNGGU dan SEBAGIAN sama-sama kuning dengan sengaja — bagi admin gudang
+     keduanya berarti hal yang sama persis: masih ada yang harus disiapkan. */
+  const LENCANA_PERMINTAAN = {
+    MENUNGGU: 'kuning', SEBAGIAN: 'kuning', SELESAI: 'hijau', DIBATALKAN: ''
+  };
+
+  const _totalMinta  = (t) => t.item.reduce((a, i) => a + i.qty_minta, 0);
+  const _totalProses = (t) => t.item.reduce((a, i) => a + Math.min(i.qty_proses, i.qty_minta), 0);
+
+  async function muatPermintaan() {
+    memuat('#isiPermintaan');
+    try {
+      const rows = await API.daftarPermintaan({});
+      /* Antrean gudang: yang HARUS dikerjakan orang yang sedang membuka layar
+         ini. Disaring dengan `bisa_diproses` dari server — bukan dengan
+         menghitung status di sini — supaya aturan siapa-boleh-apa hanya tinggal
+         di satu tempat. */
+      const antre = bolehIzin('permintaan', 'setujui') ? rows.filter(r => r.bisa_diproses) : [];
+
+      $('#isiPermintaan').innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat">
+            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${antre.length ? `<span class="lencana kuning">${antre.length} menunggu disiapkan</span>` : ''}
+            <div style="flex:1"></div>
+            ${bolehIzin('permintaan', 'buat')
+              ? '<button class="tombol utama" id="btnPermintaanBaru">+ Minta barang</button>' : ''}
+          </div>
+          <p class="petunjuk">Permintaan barang adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi:
+            membuatnya tidak menggerakkan stok dan tidak membuat jurnal. Saat gudang menekan <strong>Siapkan</strong>,
+            jumlah yang benar-benar disiapkan langsung menjadi dokumen <strong>Transfer</strong> — lengkap dengan FIFO
+            dan jurnalnya — dan cabang tujuan tetap harus mengonfirmasi penerimaan di menu Transfer.
+            Sisanya boleh disiapkan menyusul; statusnya menjadi <em>Sebagian</em> sampai seluruh baris terpenuhi.</p>
+        </div>
+
+        ${antre.length ? `<div class="kartu">
+          <h3>Menunggu disiapkan gudang Anda</h3>
+          ${tabel([
+            { judul: 'No dokumen', kunci: 'no_dokumen' },
+            { judul: 'Untuk', kunci: 'cabang_tujuan' },
+            { judul: 'Diminta', tgl: true, kunci: 'tanggal' },
+            { judul: 'Kemajuan', render: r => `${_totalProses(r)} / ${_totalMinta(r)} pcs` },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(r.status)}</span>` },
+            { judul: '', render: r => `<button class="tombol kecil sukses" data-proses-permintaan="${esc(r.uuid)}">Siapkan</button>` }
+          ], antre)}
+        </div>` : ''}
+
+        <div class="kartu">
+          <h3>Semua permintaan</h3>
+          ${tabel([
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+            { judul: 'No dokumen', kunci: 'no_dokumen' },
+            { judul: 'Rute', render: r => `${esc(r.cabang_asal)} &rarr; ${esc(r.cabang_tujuan)}` },
+            { judul: 'Peminta', kunci: 'nama_peminta' },
+            { judul: 'Kemajuan', render: r => `${_totalProses(r)} / ${_totalMinta(r)} pcs
+              <div class="meta-kecil">${r.item.length} baris${r.transfer.length ? ' &middot; ' + r.transfer.length + ' transfer' : ''}</div>` },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(r.status)}</span>` },
+            { judul: '', render: r => `
+              <button class="tombol kecil" data-detail-permintaan="${esc(r.uuid)}">Detail</button>
+              ${r.bisa_dibatalkan && bolehIzin('permintaan', 'hapus')
+                ? `<button class="tombol kecil bahaya" data-batal-permintaan="${esc(r.uuid)}">Batal</button>` : ''}` }
+          ], rows, { kosong: 'Belum ada permintaan barang' })}
+        </div>`;
+      $('#isiPermintaan')._rows = rows;
+    } catch (e) { galat('#isiPermintaan', e); }
+  }
+
+  async function formPermintaanBaru() {
+    /* `daftarCabangAdmin` menuntut izin `cabang.lihat`, dan Staf Gudang tidak
+       punya itu. Ditangkap lalu jatuh ke daftar yang sudah ada di memori —
+       pola yang sama persis dipakai formKirimTransfer, dan alasannya sama:
+       layar yang mati total karena satu daftar hiasan tidak bisa dibaca. */
+    const [prod, cab] = await Promise.all([
+      API.daftarProduk({}), API.daftarCabangAdmin().catch(() => [])
+    ]);
+    const semua = (cab.length ? cab.filter(c => c.aktif).map(c => c.kode_cabang)
+                              : APP_STATE.daftarCabangSemua).slice().sort(urutNama);
+    /* Yang dikunci cabang TUJUAN, bukan asal — sama dengan yang dijaga server.
+       Kepala cabang meminta untuk cabangnya sendiri; pemilik dan manajer, yang
+       berbendera akses lintas cabang, bebas memilih untuk cabang mana pun. */
+    const lintas = !!APP_STATE.flag?.akses_lintas_cabang;
+    const tujuanBoleh = lintas ? semua : [APP_STATE.cabang];
+    const asalBoleh = semua.filter(k => k !== (lintas ? '' : APP_STATE.cabang));
+
+    if (!asalBoleh.length) {
+      return bukaModal('Minta barang',
+        '<div class="pesan info">Belum ada cabang lain sebagai gudang asal. Tambahkan cabang dulu di menu Cabang.</div>');
+    }
+
+    bukaModal('Minta barang ke gudang', `
+      <div class="baris3">
+        <div class="grup"><label>Diminta ke gudang *</label><select id="pmAsal">
+          ${asalBoleh.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></div>
+        <div class="grup"><label>Untuk cabang *</label><select id="pmTujuan"${lintas ? '' : ' disabled'}>
+          ${tujuanBoleh.map(k => `<option value="${esc(k)}"${k === APP_STATE.cabang ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
+        <div class="grup"><label>Tanggal</label><input type="date" id="pmTanggal" value="${tanggalLokal()}"></div>
+      </div>
+      <label>Barang yang diminta</label>
+      <p class="petunjuk">Stok gudang <strong>tidak</strong> diperiksa di sini — yang tahu isi rak adalah gudang, saat
+        menyiapkannya. Satu SKU cukup satu baris: gabungkan qty-nya, jangan menulisnya dua kali.</p>
+      <div id="barisPm"></div>
+      <button class="tombol" id="btnTambahBarisPm">+ Tambah baris</button>
+      <div class="grup" style="margin-top:14px"><label>Catatan</label>
+        <input type="text" id="pmCatatan" placeholder="mis. stok etalase habis, butuh sebelum akhir pekan"></div>
+      <div id="pesanPm"></div>`,
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol utama" id="btnSimpanPermintaan">Kirim permintaan</button>`);
+    daftarPilihProduk = prod.produk;
+    tambahBarisPm();
+  }
+
+  function tambahBarisPm() {
+    $('#barisPm').insertAdjacentHTML('beforeend', `
+      <div class="baris-anak" data-anak="pm">
+        ${barisPilihProduk(3)}
+        <input type="text" data-f="kode_varian" placeholder="varian (opsional)" style="flex:2">
+        <input type="number" data-f="qty" placeholder="qty" value="1">
+        ${barisHapus}
+      </div>`);
+  }
+
+  function dialogProsesPermintaan(uuid) {
+    const t = ($('#isiPermintaan')._rows || []).find(x => x.uuid === uuid);
+    if (!t) return;
+    /* Baris yang sisanya sudah nol tetap DITAMPILKAN, hanya tidak bisa diisi.
+       Menyembunyikannya membuat dokumen di layar tidak lagi sama dengan dokumen
+       yang diminta cabang, dan orang yang membandingkannya dengan kertas akan
+       mengira ada baris yang hilang. */
+    bukaModal(`Siapkan barang &mdash; ${esc(t.no_dokumen)}`, `
+      <p class="petunjuk">Untuk <strong>${esc(t.cabang_tujuan)}</strong>, diminta ${esc(tglTampil(t.tanggal))}
+        oleh ${esc(t.nama_peminta)}. Isi jumlah yang <em>benar-benar disiapkan</em> &mdash; boleh kurang dari yang
+        diminta, sisanya bisa menyusul. Menekan tombol di bawah <strong>langsung membuat dokumen transfer</strong>
+        dan mengeluarkan stok dari gudang ${esc(t.cabang_asal)}.</p>
+      ${t.catatan ? `<p class="petunjuk">Catatan peminta: ${esc(t.catatan)}</p>` : ''}
+      <div class="gulir-x"><table>
+        <thead><tr><th>Produk</th><th class="angka">Diminta</th><th class="angka">Sudah</th>
+          <th class="angka">Sisa</th><th class="angka" style="width:120px">Disiapkan</th></tr></thead>
+        <tbody>${t.item.map(i => `<tr>
+          <td>${esc(i.nama_produk)}<div class="meta-kecil">${esc(i.sku)}${i.kode_varian ? ' &middot; ' + esc(i.kode_varian) : ''}</div></td>
+          <td class="angka">${i.qty_minta}</td>
+          <td class="angka">${i.qty_proses}</td>
+          <td class="angka">${i.qty_sisa}</td>
+          <td><input type="number" data-siap-baris="${i.baris}" value="${i.qty_sisa}"
+                     min="0" max="${i.qty_sisa}"${i.qty_sisa ? '' : ' disabled'}></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="grup" style="margin-top:12px"><label>Catatan pengiriman</label>
+        <input type="text" id="pmCatatanProses" placeholder="mis. dikirim lewat kurir X"></div>
+      <div id="pesanProses"></div>`,
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol sukses" id="btnKonfirmasiProses" data-uuid="${esc(uuid)}">Siapkan &amp; kirim</button>`);
+  }
+
+  function detailPermintaan(uuid) {
+    const t = ($('#isiPermintaan')._rows || []).find(x => x.uuid === uuid);
+    if (!t) return;
+    bukaModal(`Permintaan ${t.no_dokumen}`, `
+      <p class="petunjuk">${esc(t.cabang_asal)} &rarr; ${esc(t.cabang_tujuan)} &middot;
+        <span class="lencana ${LENCANA_PERMINTAAN[t.status] || ''}">${esc(t.status)}</span><br>
+        Diminta ${esc(tglTampil(t.tanggal))} oleh ${esc(t.nama_peminta)}
+        ${t.catatan ? `<br>Catatan: ${esc(t.catatan)}` : ''}
+        ${t.status === 'DIBATALKAN' ? `<br>Dibatalkan ${esc(waktuTampil(t.tanggal_batal))} &mdash; ${esc(t.alasan_batal)}` : ''}</p>
+      ${tabel([
+        { judul: 'SKU', kunci: 'sku' },
+        { judul: 'Nama', kunci: 'nama_produk' },
+        { judul: 'Diminta', kunci: 'qty_minta', angka: true },
+        { judul: 'Disiapkan', kunci: 'qty_proses', angka: true },
+        { judul: 'Sisa', angka: true, render: i => i.qty_sisa
+            ? `<span class="stok-kritis">${i.qty_sisa}</span>` : '&mdash;' }
+      ], t.item)}
+      <h3 style="margin-top:18px">Dokumen transfer yang memenuhinya</h3>
+      <p class="petunjuk">Inilah yang menghitung kemajuan permintaan ini. Transfer yang dibatalkan tidak ikut
+        dihitung &mdash; barangnya kembali ke gudang, jadi permintaannya kembali menunggu.</p>
+      ${tabel([
+        { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+        { judul: 'No dokumen', kunci: 'no_dokumen' },
+        { judul: 'Status transfer', kunci: 'status' }
+      ], t.transfer, { kosong: 'Belum ada satu pun kiriman' })}`);
+  }
+
   /* ==================== STOK OPNAME ==================== */
 
   const LENCANA_OPNAME = { DRAFT: 'kuning', REVIEW: 'kuning', POSTED: 'hijau', DIBATALKAN: '' };
@@ -3840,6 +4024,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       piutang: '#isiPiutang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
+                      permintaan: '#isiPermintaan',
                       diskon: '#isiDiskon',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
@@ -3864,6 +4049,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'audit':     return muatAudit();
       case 'diskon':    return muatDiskon();
       case 'transfer':  return muatTransfer();
+      case 'permintaan': return muatPermintaan();
       case 'opname':    return muatOpname();
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
@@ -4233,6 +4419,67 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await API.batalTransfer({ uuid: d.batalTransfer, alasan });
           await Sync.tarikStok();
           await sukses('Transfer dibatalkan, barang kembali ke cabang asal.', 'transfer');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
+      /* --- permintaan barang --- */
+      if (t.id === 'btnPermintaanBaru')  return formPermintaanBaru();
+      if (t.id === 'btnTambahBarisPm')   return tambahBarisPm();
+      if (d.detailPermintaan)            return detailPermintaan(d.detailPermintaan);
+      if (d.prosesPermintaan)            return dialogProsesPermintaan(d.prosesPermintaan);
+      if (t.id === 'btnSimpanPermintaan') {
+        const item = kumpulkanAnak('pm').filter(i => i.sku && Number(i.qty) > 0)
+          .map(i => ({ sku: i.sku, kode_varian: i.kode_varian || '', qty: Number(i.qty) }));
+        if (!item.length) return toast('Minimal satu barang.', 'galat');
+        t.disabled = true;
+        try {
+          const r = await API.buatPermintaan({
+            uuid: crypto.randomUUID ? crypto.randomUUID() : 'P' + Date.now(),
+            cabang_asal: nilai('pmAsal'), cabang_tujuan: nilai('pmTujuan'),
+            tanggal: nilai('pmTanggal'), catatan: nilai('pmCatatan'), item
+          });
+          await sukses('Permintaan ' + r.no_dokumen + ' terkirim ke gudang.', 'permintaan');
+        } catch (x) {
+          $('#pesanPm').innerHTML = `<div class="pesan galat">${esc(x.message)}
+            ${x.detail ? `<ul style="margin:8px 0 0 16px">${x.detail.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
+          t.disabled = false;
+        }
+        return;
+      }
+      if (t.id === 'btnKonfirmasiProses') {
+        /* uuid transfernya dibuat SEKALI di sini, bukan di server. Jaringan yang
+           putus sesudah server selesai membuat transfernya membuat orang menekan
+           tombol ini lagi; dengan uuid yang sama, kiriman kedua dikenali sebagai
+           duplikat dan stok tidak keluar dua kali. */
+        const uuidTf = crypto.randomUUID ? crypto.randomUUID() : 'T' + Date.now();
+        t.disabled = true;
+        const item = $$('[data-siap-baris]').map(i => ({
+          baris: Number(i.dataset.siapBaris), qty_siap: Number(i.value || 0)
+        }));
+        try {
+          const r = await API.prosesPermintaan({
+            uuid: d.uuid, uuid_transfer: uuidTf, item, catatan: nilai('pmCatatanProses')
+          });
+          await Sync.tarikStok();
+          await Sync.tarikStokSemuaCabang();
+          await sukses(r.status === 'SELESAI'
+            ? `Permintaan SELESAI &mdash; transfer ${r.no_dokumen_transfer} dibuat, menunggu konfirmasi cabang tujuan.`
+            : `Sebagian disiapkan &mdash; transfer ${r.no_dokumen_transfer} dibuat. Sisanya masih menunggu.`,
+            'permintaan');
+        } catch (x) {
+          $('#pesanProses').innerHTML = `<div class="pesan galat">${esc(x.message)}
+            ${x.detail ? `<ul style="margin:8px 0 0 16px">${x.detail.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
+          t.disabled = false;
+        }
+        return;
+      }
+      if (d.batalPermintaan) {
+        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
+        if (!alasan || alasan.trim().length < 5) return;
+        try {
+          await API.batalPermintaan({ uuid: d.batalPermintaan, alasan });
+          await sukses('Permintaan dibatalkan.', 'permintaan');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }

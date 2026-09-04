@@ -224,6 +224,16 @@ const API = (() => {
     terimaTransfer:  (d) => panggil('terima_transfer', d, { timeout: 90000 }),
     batalTransfer:   (d) => panggil('batal_transfer', d, { timeout: 90000 }),
     daftarTransfer:  (d) => panggil('daftar_transfer', d, { timeout: 60000 }),
+
+    /* --- permintaan barang --- */
+    buatPermintaan:   (d) => panggil('buat_permintaan', d, { timeout: 60000 }),
+    daftarPermintaan: (d) => panggil('daftar_permintaan', d, { timeout: 60000 }),
+    /* Timeout sepanjang kirimTransfer, dan itu memang harus: memproses
+       permintaan MENJALANKAN kirim transfer — FIFO, mutasi stok, dan jurnalnya
+       sekaligus. Timeout yang lebih pendek akan memutus sambungan di tengah
+       pekerjaan yang tetap berlanjut di server. */
+    prosesPermintaan: (d) => panggil('proses_permintaan', d, { timeout: 90000 }),
+    batalPermintaan:  (d) => panggil('batal_permintaan', d, { timeout: 60000 }),
     stokSemuaCabang: (d) => panggil('stok_semua_cabang', d, { timeout: 60000 }),
     // Menghitung ulang satu SKU di semua cabang — sengaja diberi tenggang panjang
     cekStokTerkini:  (d) => panggil('cek_stok_terkini', d, { timeout: 120000 }),

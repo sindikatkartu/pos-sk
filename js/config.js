@@ -7,7 +7,7 @@ window.CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyRxkGDwxskyO9FOHP4H-XUj0yH3cWSeL8TmQSmxza81Bw8oq--SRYT-CnGD8m_g34/exec',
 
   APP_NAMA: 'POS Sindikat Kartu',
-  VERSI: '1.92.0',
+  VERSI: '1.93.0',
 
   // Nama & versi database lokal (IndexedDB)
   DB_NAMA: 'possk',

@@ -107,6 +107,10 @@ const MENU = [
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
   { id: 'transfer',   label: 'Transfer',   grup: 'Persediaan', izin: ['transfer', 'lihat'],          admin: true, backoffice: true },
+  // Permintaan digantung pada `permintaan.lihat`, bukan `.buat`: admin gudang
+  // MEMPROSES permintaan tanpa pernah boleh membuatnya, dan menu yang digantung
+  // pada `.buat` akan menyembunyikan seluruh daftar pekerjaannya.
+  { id: 'permintaan', label: 'Permintaan', grup: 'Persediaan', izin: ['permintaan', 'lihat'],        admin: true, backoffice: true },
   { id: 'opname',     label: 'Opname',     grup: 'Persediaan', izin: ['opname', 'buat'],             admin: true, backoffice: true },
   { id: 'pembelian',  label: 'Pembelian',  grup: 'Persediaan', izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
   { id: 'returbeli',  label: 'Retur Beli', grup: 'Persediaan', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
@@ -579,6 +583,10 @@ const IKON = {
   produk    : '<path d="M20.5 7.3 12 12l-8.5-4.7"/><path d="M12 12v9.5"/><path d="M20.5 7.6v8.8a1.5 1.5 0 0 1-.78 1.32l-7 3.9a1.5 1.5 0 0 1-1.44 0l-7-3.9A1.5 1.5 0 0 1 3.5 16.4V7.6a1.5 1.5 0 0 1 .78-1.32l7-3.9a1.5 1.5 0 0 1 1.44 0l7 3.9A1.5 1.5 0 0 1 20.5 7.6Z"/><path d="m7.6 4.6 8.6 4.8"/>',
   stok      : '<path d="m12 2.8 9 4.6-9 4.6-9-4.6 9-4.6Z"/><path d="m3 12.4 9 4.6 9-4.6"/><path d="m3 17 9 4.6 9-4.6"/>',
   transfer  : '<path d="M7.5 4 4 7.5 7.5 11"/><path d="M4 7.5h15"/><path d="M16.5 13 20 16.5 16.5 20"/><path d="M20 16.5H5"/>',
+  // Permintaan: lembar dokumen bersudut terlipat. SENGAJA bukan papan jepit
+  // (itu Opname) dan bukan panah (itu Transfer) — di 18px ketiganya harus bisa
+  // dibedakan sekali lihat, karena ketiganya duduk berurutan di grup yang sama.
+  permintaan: '<path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8Z"/><path d="M14 2.5V8h5.5"/><path d="M8.5 12.5h6"/><path d="M8.5 16.5h3.5"/>',
   opname    : '<rect x="8" y="2.5" width="8" height="4" rx="1.4"/><path d="M16 4.5h2A2 2 0 0 1 20 6.5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h2"/><path d="m9 13.5 2 2 4-4"/>',
   pembelian : '<path d="M13.5 17.5V7a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 7v9a1.5 1.5 0 0 0 1.5 1.5H5"/><path d="M13.5 9.5H17l4 4v4a1.5 1.5 0 0 1-1.5 1.5H19"/><path d="M9 17.5h5.5"/><circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
   // Retur Beli sengaja TIDAK memakai kotak seperti Produk/Retur Beli lain — di ukuran
