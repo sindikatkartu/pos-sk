@@ -185,6 +185,7 @@ const API = (() => {
 
     daftarPerangkat: ()  => panggil('daftar_perangkat'),
     setujuiPerangkat:(d) => panggil('setujui_perangkat', d),
+    hapusPerangkat:  (d) => panggil('hapus_perangkat', d),
 
     /* --- back office --- */
     dashboard:         (d) => panggil('ringkasan_dashboard', d, { timeout: 90000 }),

@@ -2355,6 +2355,36 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== USER & HAK AKSES ==================== */
 
+  /**
+   * Kolom "Pemilik" satu baris perangkat.
+   *
+   * Diminta pemilik 4 Sep 2026: kolom `nama` dirakit peramban dari platform dan
+   * ukuran layar ("Win32 · 1920x1080"), jadi memutuskan mana yang harus diblokir
+   * selalu jadi tebak-tebakan.
+   *
+   * Server mengirim `user_terakhir` sebagai **id_user**, dan namanya dipetakan
+   * DI SINI dari daftar user yang sudah ditarik permintaan yang sama. Mengirim
+   * namanya dari server berarti satu pembacaan sheet `user` tambahan untuk data
+   * yang sudah ada di tangan layar ini.
+   *
+   * Kosong bukan kegagalan. Baris perangkat lahir sebelum ada yang terbukti tahu
+   * PIN, jadi perangkat MENUNGGU memang belum pernah dimasuki siapa pun — dan
+   * itu justru keterangan yang dicari orang yang sedang menimbang mau memblokir.
+   * Karena itu ditulis dengan kalimat, bukan dengan tanda hubung yang bisa
+   * dikira data yang gagal dimuat.
+   */
+  function pemilikPerangkat(r, daftarUser) {
+    const id = String(r.user_terakhir || '');
+    if (!id) return '<span class="petunjuk">belum pernah dipakai</span>';
+    const u = (daftarUser || []).find(x => String(x.id_user) === id);
+    /* Pengguna yang barisnya sudah dihapus tetap ditampilkan id-nya, bukan
+       dikosongkan: "pernah dipakai orang yang sekarang tidak ada" adalah
+       keterangan yang berbeda dari "belum pernah dipakai", dan justru yang
+       kedua itu yang mencurigakan. */
+    const nama = u ? u.nama : id;
+    return `${esc(nama)}<br><span class="meta-kecil">${esc(waktuTampil(r.login_terakhir))}</span>`;
+  }
+
   async function muatPengguna() {
     memuat('#isiPengguna');
     try {
@@ -2405,17 +2435,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${tabel([
             { judul: 'Kode', kunci: 'kode' },
             { judul: 'Nama perangkat', kunci: 'nama' },
+            { judul: 'Pemilik', render: r => pemilikPerangkat(r, user) },
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Status', render: r => `<span class="lencana ${
                 r.status === 'DISETUJUI' ? 'hijau' : (r.status === 'DIBLOKIR' ? 'merah' : 'kuning')}">${esc(r.status)}</span>` },
             { judul: 'Sinkron terakhir', render: r => esc(waktuTampil(r.terakhir_sinkron)) },
-            { judul: '', render: r => bolehIzin('user', 'setujui') ? `
-              ${r.status !== 'DISETUJUI' ? `<button class="tombol kecil sukses" data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI">Setujui</button>` : ''}
-              ${r.status !== 'DIBLOKIR' ? `<button class="tombol kecil bahaya" data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR">Blokir</button>` : ''}` : '' }
+            { judul: '', render: r => `
+              ${bolehIzin('user', 'setujui') ? `
+                ${r.status !== 'DISETUJUI' ? `<button class="tombol kecil sukses" data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI">Setujui</button>` : ''}
+                ${r.status !== 'DIBLOKIR' ? `<button class="tombol kecil bahaya" data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR">Blokir</button>` : ''}` : ''}
+              ${/* Hapus TIDAK muncul untuk yang DISETUJUI — server pun menolaknya.
+                    Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
+                    jebakan, bukan tombol; yang masih hidup diblokir dulu, dan
+                    langkah itulah yang memutus aksesnya. */
+                 bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI'
+                ? `<button class="tombol kecil bahaya" data-hapus-perangkat="${esc(r.id_perangkat)}">Hapus</button>` : ''}` }
           ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true,
                nonaktif: r => r.status === 'DIBLOKIR' })}
         </div>`;
       $('#isiPengguna')._user = user;
+      /* Disimpan supaya dialog konfirmasi Hapus bisa menyebut perangkat yang
+         MANA — kode, nama, cabang — tanpa menembak server lagi hanya untuk
+         mengulang data yang barusan digambar. */
+      $('#isiPengguna')._perangkat = perangkat;
     } catch (e) { galat('#isiPengguna', e); }
   }
 
@@ -4007,6 +4049,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await API.setujuiPerangkat({ id_perangkat: d.perangkat, status: d.status, cabang: APP_STATE.cabang });
           await muat('pengguna');
           toast('Perangkat ' + d.status.toLowerCase() + '.');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+      if (d.hapusPerangkat) {
+        const r = ($('#isiPengguna')._perangkat || [])
+          .find(x => String(x.id_perangkat) === String(d.hapusPerangkat));
+        /* Konfirmasinya menyebut perangkat yang MANA. "Hapus perangkat ini?"
+           tidak bisa dijawab siapa pun yang baru saja menggeser daftar sepuluh
+           baris — dan penghapusan ini tidak bisa diurungkan. */
+        const ket = r
+          ? `${r.kode} · ${r.nama}\nCabang ${r.cabang || '—'} · status ${r.status}` +
+            `\nPemilik terakhir: ${String(r.user_terakhir || '') ? (
+                ($('#isiPengguna')._user || []).find(u => String(u.id_user) === String(r.user_terakhir))?.nama
+                || r.user_terakhir) : 'belum pernah dipakai'}`
+          : d.hapusPerangkat;
+        if (!confirm('Hapus perangkat berikut dari daftar?\n\n' + ket +
+                     '\n\nRiwayat nota & shiftnya TIDAK ikut terhapus. Kalau perangkat ' +
+                     'ini dipakai lagi, ia akan muncul kembali sebagai MENUNGGU.')) return;
+        try {
+          const h = await API.hapusPerangkat({ id_perangkat: d.hapusPerangkat });
+          await muat('pengguna');
+          toast('Perangkat ' + (h.kode || '') + ' dihapus' +
+                (h.sesi_dicabut ? ' — ' + h.sesi_dicabut + ' sesi ikut dicabut.' : '.'));
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
