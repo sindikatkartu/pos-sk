@@ -1590,6 +1590,22 @@ button.utama.sibuk::after, button.sukses.sibuk::after { color: #fff; }
    penandanya jalan, cuma tak kasatmata. Pakai warna tulisannya sendiri. */
 button.bahaya.sibuk::after { color: var(--bahaya); }
 @keyframes putar { to { transform: rotate(360deg); } }
+
+/* Selama satu TINDAKAN ORANG berjalan, hanya tombol yang sedang bekerja yang
+   menerima klik. Menu ikut ditahan: pindah layar di tengah penyimpanan adalah
+   cara paling mudah membuat prosesnya kacau.
+
+   Kolom isian sengaja TIDAK dikunci — orang boleh terus mengetik sambil
+   menunggu, dan menahannya hanya membuang apa yang sudah diketiknya.
+
+   Dipasang `pasangPenandaSibuk()` di app.js, dan HANYA dari klik orang.
+   Sinkronisasi latar tidak pernah menyalakannya. */
+body.tunggu { cursor: progress; }
+body.tunggu button:not(.sibuk) {
+  pointer-events: none;
+  opacity: .45;
+  transition: opacity .15s ease;
+}
 @media (prefers-reduced-motion: reduce) {
   button.sibuk::after { animation-duration: 2.4s; }
 }

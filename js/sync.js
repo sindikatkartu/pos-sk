@@ -95,7 +95,7 @@ const Sync = (() => {
         const hasil = await API.kirimPenjualan({
           cabang: APP_STATE.cabang,
           dokumen: penjualan.map(o => o.dokumen)
-        });
+        }, { latar: true });
         sedangDikirim = [];   // paketnya selamat; yang gagal sesudah ini bukan salahnya
 
         // Diterima maupun duplikat sama-sama berarti "sudah aman di server"
@@ -172,7 +172,7 @@ const Sync = (() => {
   }
 
   /** Tarik master data bila versinya berubah di server. */
-  async function tarikMaster(paksa = false) {
+  async function tarikMaster(paksa = false, latar = false) {
     if (!API.online) return { perubahan: false, offline: true };
 
     /* Dibungkus API.tugas, bukan dibiarkan pada penghitung `panggil()` saja.
@@ -182,7 +182,7 @@ const Sync = (() => {
        beberapa detik kemudian baru muncul notifikasi". */
     return API.tugas(async () => {
       const versi = await DB.kvGet('versi_master', '0');
-      const d = await API.tarikMaster({ versi, paksa });
+      const d = await API.tarikMaster({ versi, paksa }, { latar });
       if (!d.perubahan) {
         await DB.kvSet('master_diperbarui', new Date().toISOString());
         return d;
@@ -231,10 +231,10 @@ const Sync = (() => {
   }
 
   /** Tarik stok terkini (perkiraan yang dipakai saat offline). */
-  async function tarikStok() {
+  async function tarikStok(latar = false) {
     if (!API.online) return;
     try {
-      const d = await API.stokTerkini({ cabang: APP_STATE.cabang });
+      const d = await API.stokTerkini({ cabang: APP_STATE.cabang }, { latar });
       await DB.kosongkan('stok');
       await DB.putBanyak('stok', d.stok.map(s => ({
         key: s.sku + '|' + (s.kode_varian || ''), sku: s.sku, qty: s.qty
@@ -252,10 +252,10 @@ const Sync = (() => {
    * bahkan saat offline. Angkanya bisa tertinggal beberapa menit — untuk memastikan,
    * kasir menekan "cek terkini" yang memanggil API.cekStokTerkini().
    */
-  async function tarikStokSemuaCabang() {
+  async function tarikStokSemuaCabang(latar = false) {
     if (!API.online) return;
     try {
-      const d = await API.stokSemuaCabang({});
+      const d = await API.stokSemuaCabang({}, { latar });
       await DB.kosongkan('stok_cabang');
       await DB.putBanyak('stok_cabang', d.stok.map(s => ({
         key: s.cabang + '|' + s.sku + '|' + (s.kode_varian || ''),
@@ -279,9 +279,12 @@ const Sync = (() => {
   function mulai() {
     if (jalan) return;
     jalan = true;
+    /* Ketiganya LATAR — lihat _sibukOrang di api.js. Tanpa penanda itu layar
+       mengunci dirinya sendiri tiap 5 dan 10 menit, tanpa ada yang menekan
+       apa pun. */
     timerOutbox = setInterval(kirim, CONFIG.SYNC_INTERVAL_MS);
-    timerMaster = setInterval(() => tarikMaster().catch(() => {}), CONFIG.MASTER_POLL_MS);
-    timerStokCabang = setInterval(() => tarikStokSemuaCabang(), CONFIG.STOK_CABANG_POLL_MS);
+    timerMaster = setInterval(() => tarikMaster(false, true).catch(() => {}), CONFIG.MASTER_POLL_MS);
+    timerStokCabang = setInterval(() => tarikStokSemuaCabang(true), CONFIG.STOK_CABANG_POLL_MS);
     document.addEventListener('koneksi:berubah', () => { if (API.online) kirim(); });
     kirim();
   }

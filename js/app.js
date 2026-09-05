@@ -555,8 +555,76 @@ function pasangPenandaSibuk() {
       b.classList.add('sibuk');
       if (!b.disabled) { b.disabled = true; b.dataset.kunciOtomatis = '1'; }
       terkunci.add(b);
+      pasangTunggu();
     }, 0);
   }, true);
+
+  /* ---------- Kunci konteks selama satu TINDAKAN ORANG berjalan ----------
+   *
+   * Kunci per-tombol di atas hanya menutup tombol yang ditekan. Yang belum
+   * dijaga: tombol LAIN dan menu. Petugas menekan Simpan, lalu selagi menunggu
+   * pindah menu atau membuka dokumen kedua — dan prosesnya jadi kacau tanpa
+   * satu pun galat.
+   *
+   * DIPAKAI PENGHITUNG ORANG, BUKAN PENGHITUNG SELURUH PERMINTAAN. `tarikMaster`
+   * jalan tiap 5 menit dan `tarikStokSemuaCabang` tiap 10 menit; mengikuti
+   * penghitung total berarti layar mengunci dirinya sendiri secara berkala
+   * tanpa ada yang menekan apa pun. Yang melihatnya menyimpulkan aplikasinya
+   * rusak. Lihat _sibukOrang di api.js.
+   *
+   * Ditunda 350 ms. Tindakan yang selesai dalam sekejap tidak boleh membuat
+   * seluruh layar berkedip gelap — kedipan itu terbaca sebagai kerusakan,
+   * pelajaran yang sama dengan JEDA_PADAM di atas.
+   *
+   * Ada batas waktu keras, dan itu bukan kehati-hatian berlebihan: layar yang
+   * terkunci SELAMANYA jauh lebih buruk daripada masalah yang diobatinya —
+   * peringatan yang sudah tertulis di `tugas()` pada api.js.
+   */
+  const TUNDA_TUNGGU = 350;
+  const BATAS_TUNGGU = 150000;      // permintaan terlama di aplikasi ini 120 detik
+  let tundaTunggu = null, batasTunggu = null, padamTunggu = null;
+
+  /* Dibaca dengan tegas, dan jatuh kembali ke penghitung total kalau versinya
+     belum mengenal `sibukOrang` — api.js lama yang masih tersisa di cache tidak
+     boleh membuat penguncian ini mati diam-diam. */
+  const orangSibuk = () => {
+    const o = API && API.sibukOrang;
+    return Number(o === undefined ? jumlahSibuk() : o) || 0;
+  };
+
+  function lepasTunggu() {
+    clearTimeout(tundaTunggu); tundaTunggu = null;
+    clearTimeout(batasTunggu); batasTunggu = null;
+    document.body.classList.remove('tunggu');
+  }
+
+  function pasangTunggu() {
+    if (tundaTunggu || document.body.classList.contains('tunggu')) return;
+    tundaTunggu = setTimeout(() => {
+      tundaTunggu = null;
+      if (orangSibuk() <= 0) return;     // sudah selesai sebelum 350 ms — tidak perlu dikunci
+      document.body.classList.add('tunggu');
+      batasTunggu = setTimeout(() => {
+        batasTunggu = null;
+        /* Layarnya dibuka kembali, TOMBOLNYA TIDAK. Permintaannya masih
+           berjalan di suatu tempat, dan menekan tombol yang sama persis di
+           detik itu adalah cara paling mudah melahirkan dokumen kembar —
+           persis kejadian pembelian dobel 5 Sep 2026. Tombolnya dilepas
+           `lepas()` di atas, saat permintaannya benar-benar selesai. */
+        document.body.classList.remove('tunggu');
+      }, BATAS_TUNGGU);
+    }, TUNDA_TUNGGU);
+  }
+
+  /* Pendengar TERPISAH dari yang menyalakan garis muat. Garis mengikuti seluruh
+     permintaan (sinkronisasi latar pun berhak terlihat); kunci hanya mengikuti
+     tindakan orang. Menggabungkan keduanya berarti salah satu ikut salah. */
+  document.addEventListener('api:sibuk', (e) => {
+    const orang = e.detail.orang === undefined ? e.detail.jumlah : e.detail.orang;
+    clearTimeout(padamTunggu); padamTunggu = null;
+    if (Number(orang) > 0) return;
+    padamTunggu = setTimeout(lepasTunggu, JEDA_PADAM);
+  });
 }
 
 /** Isi layar Tentang. Versi adalah pertanyaan pertama saat ada laporan masalah:

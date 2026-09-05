@@ -25,8 +25,26 @@ const API = (() => {
    * setiap permintaan otomatis ikut terhitung, termasuk yang ditulis nanti.
    */
   let _sibuk = 0;
+  /**
+   * Berapa permintaan yang lahir dari TINDAKAN ORANG — bukan dari timer.
+   *
+   * Dihitung terpisah karena keduanya menuntut perlakuan yang berlawanan.
+   * `_sibuk` menyalakan garis muat di puncak layar, dan garis itu memang harus
+   * ikut menyala untuk sinkronisasi latar: pemakainya berhak tahu ada yang
+   * sedang berjalan. Tapi KUNCI layar tidak boleh mengikutinya —
+   * `tarikMaster` jalan tiap 5 menit dan `tarikStokSemuaCabang` tiap 10 menit,
+   * jadi layar akan mengunci dirinya sendiri secara berkala tanpa ada yang
+   * menekan apa pun. Yang melihatnya menyimpulkan aplikasinya rusak, dan dia
+   * benar.
+   *
+   * Bawaannya "dari orang". Yang latar sedikit dan namanya diketahui
+   * (`sync.js`), sedangkan endpoint yang ditulis nanti hampir pasti lahir dari
+   * tombol — jadi yang harus diingat penulisnya adalah pengecualiannya, bukan
+   * kelazimannya.
+   */
+  let _sibukOrang = 0;
   const _kabar = () => document.dispatchEvent(
-    new CustomEvent('api:sibuk', { detail: { jumlah: _sibuk } }));
+    new CustomEvent('api:sibuk', { detail: { jumlah: _sibuk, orang: _sibukOrang } }));
 
   async function panggil(aksi, data = {}, opsi = {}) {
     if (!_online && !opsi.paksa) {
@@ -34,7 +52,8 @@ const API = (() => {
     }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), opsi.timeout || 30000);
-    _sibuk++; _kabar();
+    const latar = opsi.latar === true;
+    _sibuk++; if (!latar) _sibukOrang++; _kabar();
     try {
       const resp = await fetch(CONFIG.API_URL, {
         method: 'POST',
@@ -100,7 +119,7 @@ const API = (() => {
       throw e;
     } finally {
       clearTimeout(timer);
-      _sibuk--; _kabar();
+      _sibuk--; if (!latar) _sibukOrang--; _kabar();
     }
   }
 
@@ -119,10 +138,11 @@ const API = (() => {
    * Penurunannya di `finally` — kalau tidak, satu galat membuat aplikasi terkunci
    * "sibuk" selamanya, dan itu jauh lebih buruk daripada masalah yang diobati.
    */
-  async function tugas(fn) {
-    _sibuk++; _kabar();
+  async function tugas(fn, opsi = {}) {
+    const latar = opsi.latar === true;
+    _sibuk++; if (!latar) _sibukOrang++; _kabar();
     try { return await fn(); }
-    finally { _sibuk--; _kabar(); }
+    finally { _sibuk--; if (!latar) _sibukOrang--; _kabar(); }
   }
 
   /** Coba ulang dengan jeda menaik — dipakai sinkronisasi latar belakang. */
@@ -142,6 +162,7 @@ const API = (() => {
   return {
     get online() { return _online; },
     get sibuk()  { return _sibuk; },
+    get sibukOrang() { return _sibukOrang; },
     setToken(t) { _token = t; },
     getToken()  { return _token; },
     tugas,
@@ -152,7 +173,10 @@ const API = (() => {
     catatKeluarPaksa:(d) => panggil('catat_keluar_paksa', d),
     gantiPin:        (d) => panggil('ganti_pin', d),
 
-    tarikMaster:     (d) => panggil('tarik_master', d, { timeout: 60000 }),
+    /* Empat endpoint di bawah dipakai DUA cara: dari tombol, dan dari timer
+       sinkronisasi. Karena itu mereka meneruskan `o` — `sync.js` mengisinya
+       `{ latar: true }` saat yang memanggil timer. Lihat _sibukOrang di atas. */
+    tarikMaster:     (d, o) => panggil('tarik_master', d, { timeout: 60000, ...o }),
     simpanProduk:    (d) => panggil('simpan_produk', d),
     imporProduk:     (d) => panggil('impor_produk', d, { timeout: 120000 }),
     simpanPelanggan: (d) => panggil('simpan_pelanggan', d),
@@ -164,10 +188,10 @@ const API = (() => {
     laporanShift:    (d) => panggil('laporan_shift', d, { timeout: 90000 }),
     catatCetakUlang: (d) => panggil('catat_cetak_ulang', d),
 
-    kirimPenjualan:  (d) => ulang(() => panggil('kirim_penjualan', d, { timeout: 60000 })),
+    kirimPenjualan:  (d, o) => ulang(() => panggil('kirim_penjualan', d, { timeout: 60000, ...o })),
     voidPenjualan:   (d) => panggil('void_penjualan', d),
 
-    stokTerkini:     (d) => panggil('stok_terkini', d, { timeout: 60000 }),
+    stokTerkini:     (d, o) => panggil('stok_terkini', d, { timeout: 60000, ...o }),
     kartuStok:       (d) => panggil('kartu_stok', d),
     /* 120 detik, bukan 30 detik bawaan. Satu pembelian menulis dokumen + satu
        baris item + satu mutasi stok + satu lapisan FIFO PER BARIS, lalu jurnalnya.
@@ -245,7 +269,7 @@ const API = (() => {
        pekerjaan yang tetap berlanjut di server. */
     prosesPermintaan: (d) => panggil('proses_permintaan', d, { timeout: 90000 }),
     batalPermintaan:  (d) => panggil('batal_permintaan', d, { timeout: 60000 }),
-    stokSemuaCabang: (d) => panggil('stok_semua_cabang', d, { timeout: 60000 }),
+    stokSemuaCabang: (d, o) => panggil('stok_semua_cabang', d, { timeout: 60000, ...o }),
     // Menghitung ulang satu SKU di semua cabang — sengaja diberi tenggang panjang
     cekStokTerkini:  (d) => panggil('cek_stok_terkini', d, { timeout: 120000 }),
 
