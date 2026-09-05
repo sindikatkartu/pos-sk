@@ -1769,8 +1769,9 @@ function gambarMetode() {
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:end">
-        <div style="flex:1"><label>Jumlah</label>
-          <input type="text" inputmode="numeric" class="uang" data-i="${i}" data-f="jumlah" value="${ribuan(m.jumlah)}"></div>
+        <div style="flex:1"><label>Jumlah${m.metode === 'piutang' ? ' <span style="color:var(--teks-redup);font-weight:400">(sisa, dihitung)</span>' : ''}</label>
+          <input type="text" inputmode="numeric" class="uang" data-i="${i}" data-f="jumlah"
+                 value="${ribuan(m.jumlah)}"${m.metode === 'piutang' ? ' readonly' : ''}></div>
         ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:12px 12px">×</button>` : ''}
       </div>
     </div>
@@ -1789,16 +1790,42 @@ function gambarRingkasBayar() {
   const t = Keranjang.total();
   $('#byrTotal').textContent = rp(t.total);
 
+  /* Baris PIUTANG dihitung, tidak diketik: nilainya adalah sisa yang belum
+     tertutup metode lain. Itu definisi utang, bukan pilihan — dan server
+     menghitungnya dengan cara yang sama persis (lihat _susunPenjualan di
+     07_Sales.gs). Kalau layar membiarkannya diketik, angka di struk yang
+     tercetak di sini akan berbeda dari yang masuk pembukuan. */
+  const iPiutang = APP_STATE.metodeBayar.findIndex(m => m.metode === 'piutang');
+  if (iPiutang >= 0) {
+    const lain = APP_STATE.metodeBayar.reduce((a, m, j) => j === iPiutang ? a : a + Number(m.jumlah || 0), 0);
+    APP_STATE.metodeBayar[iPiutang].jumlah = Math.max(0, t.total - lain);
+    const inp = $(`#byrDaftarMetode input[data-f=jumlah][data-i="${iPiutang}"]`);
+    if (inp) inp.value = ribuan(APP_STATE.metodeBayar[iPiutang].jumlah);
+  }
+
   const dibayar = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);
   const selisih = dibayar - t.total;
-  const adaPiutang = APP_STATE.metodeBayar.some(m => m.metode === 'piutang');
+  const adaPiutang = iPiutang >= 0;
 
   $('#byrDibayar').textContent = rp(dibayar);
   $('#byrLabelSisa').textContent = selisih >= 0 ? 'Kembali' : 'Kurang';
   $('#byrSisa').textContent = rp(Math.abs(selisih));
   $('#byrSisa').style.color = selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)';
   $('#grupJatuhTempo').classList.toggle('sembunyi', !adaPiutang);
-  $('#btnSelesaikan').disabled = !adaPiutang && selisih < 0;
+  /* Tidak ada lagi pengecualian untuk nota bon. Dulu `!adaPiutang && selisih < 0`
+     membiarkan kurang bayar lewat justru pada nota yang paling mudah salah —
+     cermin dari lubang yang sama di server. Sekarang barisnya sudah dihitung,
+     jadi selisihnya memang tidak akan pernah negatif; penjagaannya tetap ada
+     supaya perubahan berikutnya tidak diam-diam membukanya lagi. */
+  $('#btnSelesaikan').disabled = selisih < 0;
+  if (adaPiutang && APP_STATE.metodeBayar[iPiutang].jumlah <= 0) {
+    pesan('#pesanBayar', 'Nota ini sudah lunas dari metode lain — hapus baris piutangnya.', 'galat');
+    $('#btnSelesaikan').disabled = true;
+  }
+  if (APP_STATE.metodeBayar.filter(m => m.metode === 'piutang').length > 1) {
+    pesan('#pesanBayar', 'Satu nota hanya boleh punya satu baris piutang.', 'galat');
+    $('#btnSelesaikan').disabled = true;
+  }
 
   if (!gambarJagaDiskon()) $('#btnSelesaikan').disabled = true;
   if (!gambarJagaKlaim())  $('#btnSelesaikan').disabled = true;
