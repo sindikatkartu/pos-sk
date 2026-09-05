@@ -1117,7 +1117,14 @@ const Admin = (() => {
           tercatat atas nama petugasnya, hanya poinnya nol.<br>
           Poin dibagi ke petugas menurut bobot peran, yang diatur di menu
           <strong>Petugas</strong>. Kasir tidak dapat mengubah angkanya.</p>
-      </div>`,
+      </div>
+
+      <!-- Cap waktu salinan YANG SEDANG DISUNTING, dikirim balik saat menyimpan.
+           Server menolak kalau capnya sudah berbeda — tanpa itu dua orang di
+           layar ini saling menimpa tanpa satu pun galat. Lihat _konflikProduk()
+           di 11_Admin.gs. -->
+      <input type="hidden" id="pDiubah" value="${esc(p?.diubah || '')}">
+      <div id="pesanProduk"></div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        ${!baru && bolehIzin('produk', 'hapus') ? '<button class="tombol bahaya" id="btnNonaktifProduk">Nonaktifkan</button>' : ''}
        <button class="tombol utama" id="btnSimpanProduk">Simpan</button>`);
@@ -1426,9 +1433,15 @@ const Admin = (() => {
       // layar bayar BERTANYA siapa pemasangnya.
       butuh_pasang: centang('pButuhPasang'),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
-      varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel')
+      varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel'),
+      /* Cap waktu salinan yang dibuka layar ini. Server membandingkannya dengan
+         yang tersimpan, dan menolak kalau sudah berbeda — lihat _konflikProduk()
+         di 11_Admin.gs. Kosong untuk produk baru, dan itu memang benar. */
+      diubah: nilai('pDiubah')
     };
     if (!body.sku || !body.nama) return toast('SKU dan nama wajib diisi.', 'galat');
+    const kotakPesan = $('#pesanProduk');
+    if (kotakPesan) kotakPesan.innerHTML = '';
     try {
       /* Tiga langkah, satu tugas. Tanpa pembungkus ini penghitung sibuk turun ke
          nol dua kali di tengah jalan, dan tombol Simpan sempat terbuka kembali
@@ -1438,7 +1451,15 @@ const Admin = (() => {
         await Sync.tarikMaster(true);
         await sukses('Produk tersimpan.', 'produk');
       });
-    } catch (e) { toast(e.message, 'galat'); }
+    } catch (e) {
+      /* Ditampilkan MENETAP di dalam modalnya, bukan lewat toast yang hilang
+         sendiri. Pesan bentroknya panjang, ia menyuruh melakukan sesuatu, dan
+         suntingan yang sudah diketik masih utuh di layar — orang harus sempat
+         membacanya sampai habis, lalu memutuskan. Toast hanya dipakai kalau
+         kotaknya tidak ada, mis. saat modalnya sudah tertutup. */
+      if (kotakPesan) kotakPesan.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
+      else toast(e.message, 'galat');
+    }
   }
 
   /* ==================== IMPOR PRODUK ==================== */
