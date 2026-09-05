@@ -229,6 +229,7 @@
     <section class="layar" id="layarPetugas"><div id="isiPetugas"></div></section>
     <section class="layar" id="layarPoin"><div id="isiPoin"></div></section>
     <section class="layar" id="layarPiutang"><div id="isiPiutang"></div></section>
+    <section class="layar" id="layarUtang"><div id="isiUtang"></div></section>
     <section class="layar" id="layarPengguna"><div id="isiPengguna"></div></section>
     <section class="layar" id="layarCabang"><div id="isiCabang"></div></section>
     <section class="layar" id="layarSistem"><div id="isiSistem"></div></section>
@@ -643,6 +644,16 @@
           <p>Pelanggan punya <strong>Level harga</strong> (eceran/grosir) yang otomatis dipakai kasir begitu pelanggan itu dipilih, serta <strong>Limit kredit</strong> dan <strong>Termin</strong> sebagai catatan.</p>
           <p>Menu <strong>Piutang</strong> mengelompokkan tagihan menurut umurnya: belum jatuh tempo, telat 1–30, 31–60, 61–90, dan lebih dari 90 hari. Tombol <strong>Terima bayar</strong> menerima pelunasan maupun cicilan — jumlahnya boleh diubah.</p>
           <p class="petunjuk"><strong>Limit kredit saat ini hanya angka acuan</strong> — sistem tidak menolak penjualan piutang yang melebihinya. Pemeriksaannya masih di tangan Anda.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B6b. Utang ke supplier</h3>
+          <p>Kebalikan dari Piutang: di sini <strong>toko yang membayar</strong>. Yang masuk daftar ini hanya pembelian yang cara bayarnya <strong>Kredit (utang)</strong>. Pembelian yang dibayar <strong>Tunai</strong> atau <strong>Transfer</strong> sudah lunas pada detik dicatat dan tidak pernah muncul di sini.</p>
+          <p>Menu <strong>Utang</strong> mengelompokkan tagihan menurut umurnya, sama seperti Piutang. Tombol <strong>Bayar</strong> menerima pelunasan maupun cicilan; pilih metodenya — <strong>Transfer bank</strong>, Tunai, atau QRIS — dan isi nomor bukti transfernya di kolom Referensi.</p>
+          <p>Jurnalnya <strong>Utang Usaha (D) / Bank atau Kas (K)</strong>. Pembayaran <strong>tunai</strong> ikut mengurangi isi laci dan terlihat saat tutup shift; transfer tidak, karena uangnya memang tidak lewat laci.</p>
+          <p class="petunjuk">Retur pembelian dengan penyelesaian <strong>Potong utang</strong> otomatis mengurangi sisa utang faktur itu. Karena itu penyelesaian tersebut <strong>ditolak</strong> untuk pembelian yang dibayar tunai atau yang utangnya sudah lunas — pakai <strong>Uang kembali</strong>.</p>
+          <p class="petunjuk">Pembelian kredit yang <strong>utangnya sudah dibayar sebagian tidak bisa dibatalkan</strong>: uangnya sudah benar-benar keluar. Batalkan pembayarannya dulu, atau pakai retur pembelian.</p>
+          <p class="petunjuk">Keuangan → <strong>Uji kebenaran</strong> membandingkan saldo akun 2-1100 Utang Usaha dengan daftar ini. Kalau baris itu merah, ada utang yang bergerak tanpa jurnal — atau sebaliknya.</p>
         </div>
 
         <div class="kartu">

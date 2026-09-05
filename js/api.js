@@ -218,6 +218,8 @@ const API = (() => {
     simpanSetting:     (d) => panggil('simpan_setting', d),
     daftarPiutang:     (d) => panggil('daftar_piutang', d, { timeout: 60000 }),
     bayarPiutang:      (d) => panggil('bayar_piutang', d),
+    daftarUtang:       (d) => panggil('daftar_utang', d, { timeout: 60000 }),
+    bayarUtang:        (d) => panggil('bayar_utang', d),
     logAudit:          (d) => panggil('log_audit', d, { timeout: 60000 }),
     daftarPembelian:   (d) => panggil('daftar_pembelian', d),
 

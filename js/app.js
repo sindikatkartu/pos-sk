@@ -125,6 +125,10 @@ const MENU = [
   // membuka master petugas. Pola yang sama dipakai menu Produk.
   { id: 'petugas',    label: 'Petugas',    grup: 'Relasi',     izin: ['petugas', 'buat'],            admin: true, backoffice: true },
   { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
+  // Utang ke supplier — pasangan Piutang, ditambahkan 5 Sep 2026. Sebelumnya
+  // pembelian kredit menaikkan saldo Utang Usaha tanpa satu pun layar untuk
+  // melunasinya.
+  { id: 'utang',      label: 'Utang',      grup: 'Relasi',     izin: ['utang', 'lihat'],             admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
   // Label 'Performa', id tetap 'poin'. Isinya bukan poin saja lagi — ada omzet,
   // nota, dan peringkat cabang. Id, kunci izin `laporan_poin`, wadah #isiPoin
@@ -602,6 +606,10 @@ const IKON = {
   // koin, karena poin memang bukan uang.
   poin      : '<circle cx="16.5" cy="6.5" r="4"/><path d="M16.5 4.8v3.4"/><path d="M2.5 14v6.5"/><path d="M6 20.5h7.6a3 3 0 0 0 2.1-.86l4-3.9a1.55 1.55 0 0 0-2.14-2.24l-2.5 2.1"/><path d="M6 15.4h4.4a1.65 1.65 0 0 1 0 3.3H8.2"/>',
   piutang   : '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
+  /* Utang: dompet dengan panah KELUAR — pasangan `piutang` yang berbentuk nota.
+     Sengaja dibedakan bentuknya, bukan cuma dibalik arahnya: dua ikon yang
+     nyaris sama di daftar menu yang sama justru membuat orang salah pilih. */
+  utang     : '<path d="M3 7.5h15a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 7.5 15.5 4l1 3.5"/><path d="M16 13.5h1.5"/>',
   laporan   : '<path d="M3.5 3v17.5H21"/><path d="M7.5 16.5v-4"/><path d="M12 16.5v-8"/><path d="M16.5 16.5v-5.5"/>',
   keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
   // Label diskon: tanda persen dalam kotak — dibedakan dari ikon laporan lain

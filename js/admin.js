@@ -2499,6 +2499,71 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">Simpan pembayaran</button>`);
   }
 
+  /* ==================== UTANG SUPPLIER ====================
+   *
+   * Cermin dari layar Piutang di atas, dan sengaja dibaca sebagai pasangannya.
+   * Bedanya cuma arah uangnya: di sini toko yang membayar. Ditambahkan
+   * 5 Sep 2026 — sebelumnya pembelian kredit menaikkan saldo Utang Usaha tanpa
+   * satu pun layar untuk melihat atau melunasinya.
+   */
+  async function muatUtang() {
+    memuat('#isiUtang');
+    try {
+      const d = await API.daftarUtang({});
+      const a = d.aging;
+      $('#isiUtang').innerHTML = `
+        <div class="petak">
+          <div class="kartu statistik"><div class="label">Belum jatuh tempo</div><div class="nilai">${rp(a.lancar)}</div></div>
+          <div class="kartu statistik"><div class="label">Telat 1–30 hari</div><div class="nilai">${rp(a.h30)}</div></div>
+          <div class="kartu statistik"><div class="label">Telat 31–60</div><div class="nilai">${rp(a.h60)}</div></div>
+          <div class="kartu statistik"><div class="label">Telat 61–90</div><div class="nilai">${rp(a.h90)}</div></div>
+          <div class="kartu statistik"><div class="label">Telat &gt; 90 hari</div>
+            <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
+        </div>
+        <div class="kartu">
+          <div class="bar-alat"><h3 style="margin:0">Utang ke supplier — total ${rp(d.total)}</h3>
+            <div style="flex:1"></div>${tombolEkspor('utang')}</div>
+          <p class="petunjuk">Hanya pembelian bertipe <strong>Kredit (utang)</strong> yang muncul di sini.
+             Pembelian yang dibayar Tunai atau Transfer sudah lunas saat dicatat.</p>
+          ${tabel([
+            { judul: 'Cabang', kunci: 'cabang' },
+            { judul: 'Supplier', kunci: 'nama_supplier' },
+            { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+            { judul: 'Jatuh tempo', render: r => esc(tglTampil(r.jatuh_tempo)) },
+            { judul: 'Telat', render: r => r.hari_telat > 0
+                ? `<span class="lencana ${r.hari_telat > 60 ? 'merah' : 'kuning'}">${r.hari_telat} hari</span>`
+                : '<span class="lencana hijau">lancar</span>' },
+            { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
+            { judul: '', render: r => bolehIzin('utang', 'buat')
+                ? `<button class="tombol kecil utama" data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">Bayar</button>` : '' }
+          ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
+        </div>`;
+      $('#isiUtang')._rows = d.utang;
+    } catch (e) { galat('#isiUtang', e); }
+  }
+
+  function dialogBayarUtang(uuid, cabang) {
+    lepasUuidDokumen('bayar_utang');         // dokumen BARU — lihat uuidDokumen()
+    const u = ($('#isiUtang')._rows || []).find(x => x.uuid === uuid);
+    if (!u) return;
+    bukaModal('Bayar utang supplier', `
+      <p class="petunjuk">${esc(u.nama_supplier)} · faktur ${esc(tglTampil(u.tanggal))} · sisa <strong>${rp(u.sisa)}</strong></p>
+      <div class="baris2">
+        <div class="grup"><label>Tanggal</label><input type="date" id="buTanggal" value="${tanggalLokal()}"></div>
+        <div class="grup"><label>Jumlah bayar</label><input type="text" inputmode="numeric" class="uang" id="buJumlah" value="${ribuan(u.sisa)}"></div>
+      </div>
+      <div class="baris2">
+        <div class="grup"><label>Metode</label><select id="buMetode">
+          <option value="transfer">Transfer bank</option><option value="tunai">Tunai</option>
+          <option value="qris">QRIS</option></select></div>
+        <div class="grup"><label>Referensi / no. bukti transfer</label><input type="text" id="buRef"></div>
+      </div>
+      <div id="pesanBayarUtang"></div>`,
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol sukses" id="btnKonfirmasiBayarUtang"
+         data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">Simpan pembayaran</button>`);
+  }
+
   /* ==================== USER & HAK AKSES ==================== */
 
   /* Ikon aksi baris perangkat. Diminta pemilik 4 Sep 2026: tiga tombol berteks
@@ -4121,7 +4186,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!API.online) {
       const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian',
                       mitra: '#isiMitra', petugas: '#isiPetugas', poin: '#isiPoin',
-                      piutang: '#isiPiutang', pengguna: '#isiPengguna',
+                      piutang: '#isiPiutang', utang: '#isiUtang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
                       permintaan: '#isiPermintaan',
@@ -4143,6 +4208,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'petugas':   return muatPetugas();
       case 'poin':      return muatPoin();
       case 'piutang':   return muatPiutang();
+      case 'utang':     return muatUtang();
       case 'pengguna':  return muatPengguna();
       case 'cabang':    return muatCabang();
       case 'sistem':    return muatSistem();
@@ -4322,6 +4388,28 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await sukses('Supplier tersimpan.', 'mitra');
         } catch (x) { toast(x.message, 'galat'); }
         return;
+      }
+
+      /* --- utang supplier --- */
+      if (d.bayarUtang) return dialogBayarUtang(d.bayarUtang, d.cabang);
+      if (t.id === 'btnKonfirmasiBayarUtang') {
+        t.disabled = true;
+        try {
+          const r = await API.bayarUtang({
+            uuid: uuidDokumen('bayar_utang'),
+            uuid_utang: d.uuid, cabang: d.cabang, tanggal: nilai('buTanggal'),
+            jumlah: angka('buJumlah'), metode: nilai('buMetode'), referensi: nilai('buRef')
+          });
+          lepasUuidDokumen('bayar_utang');
+          tutupModal();
+          toast(r.lunas ? 'Utang LUNAS.' : 'Pembayaran tersimpan — sisa ' + rp(r.sisa));
+          return muat('utang');
+        } catch (e) {
+          t.disabled = false;
+          return pesan('#pesanBayarUtang',
+            e.message + ' — tekan Simpan pembayaran sekali lagi, jumlahnya tidak akan tercatat dua kali.',
+            'galat');
+        }
       }
 
       /* --- piutang --- */
