@@ -1684,9 +1684,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatStok(katStok = '') {
     memuat('#isiStok');
     try {
+      /* AKUNTING punya `stok` tapi tidak punya `produk`; tanpa `.catch` di sini
+         seluruh layar Stok jadi kotak merah untuknya, padahal stok_terkini-nya
+         sendiri berhasil. Nama produk yang hilang diganti SKU-nya — lihat
+         `nama[s.sku]?.nama || s.sku` di bawah, yang memang sudah menyiapkan
+         keadaan itu. Audit 5 Sep 2026. */
       const [stok, prod] = await Promise.all([
         API.stokTerkini({ cabang: APP_STATE.cabang }),
-        API.daftarProduk({})
+        API.daftarProduk({}).catch(e => {
+          toast('Nama produk tidak bisa dimuat — ' + (e.message || e) +
+                '. Daftarnya tetap tampil dengan SKU.', 'galat');
+          return { produk: [] };
+        })
       ]);
       const nama = Object.fromEntries(prod.produk.map(p => [p.sku, p]));
       const bergerak = stok.stok.map(s => ({
@@ -1881,8 +1890,57 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   let uuidPembelian = null;
 
+  /**
+   * uuid untuk SETIAP jenis dokumen lain, dengan aturan yang sama persis.
+   *
+   * Audit 5 September 2026: perbaikan `uuidPembelian` di atas tidak pernah
+   * disalin ke tujuh formulir lain — retur, bayar piutang, transfer,
+   * permintaan, proses permintaan, retur beli, opname. Semuanya memanggil
+   * `crypto.randomUUID()` DI DALAM penangan tombolnya, jadi penjaga duplikat di
+   * server tidak akan pernah menyala untuk percobaan ulang. Untuk transfer
+   * akibatnya paling parah: tidak ada penjaga isi sama sekali, sehingga stok
+   * benar-benar keluar DUA KALI dari gudang.
+   *
+   * Aturannya satu kalimat: uuid lahir saat FORMULIRNYA dibuka, bukan saat
+   * tombolnya ditekan. `lepasUuidDokumen()` di pembuka formulir memastikan
+   * dokumen berikutnya mendapat uuid yang baru — tanpa itu, dokumen kedua akan
+   * dijawab "duplikat" dan tidak pernah tersimpan.
+   */
+  const _uuidDok = {};
+  function uuidDokumen(nama) {
+    if (!_uuidDok[nama]) {
+      _uuidDok[nama] = crypto.randomUUID
+        ? crypto.randomUUID()
+        : nama + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    }
+    return _uuidDok[nama];
+  }
+  function lepasUuidDokumen(nama) {
+    delete _uuidDok[nama];
+  }
+
   async function formPembelian() {
-    const [sup, prod] = await Promise.all([API.daftarSupplier(), API.daftarProduk({})]);
+    /* `.catch` di TIAP janji, bukan satu untuk semuanya. Promise.all gagal
+       seluruhnya begitu satu ditolak — dan KEPALA_CABANG punya
+       `pembelian:['lihat','buat']` tanpa modul `supplier` sama sekali, jadi
+       sampai audit 5 Sep 2026 ia tidak bisa mencatat SATU PUN pembelian:
+       tombolnya ada, modalnya tidak pernah muncul. Pelajaran yang sama sudah
+       tertulis di 00_Config.gs dan sudah diperbaiki sekali di muatMitra.
+       Daftar kosong lebih baik daripada layar yang tidak bisa dibuka: nomor
+       faktur dan barangnya tetap bisa dicatat, suppliernya menyusul. */
+    const [sup, prod] = await Promise.all([
+      /* Ditangkap DAN dikatakan. Menelan galatnya diam-diam sama buruknya
+         dengan menjatuhkan layarnya: dropdown supplier yang kosong tanpa sebab
+         terbaca sebagai data yang hilang. Pesan aslinya dari server ikut
+         ditampilkan, supaya yang terbaca "Anda tidak berhak (supplier.lihat)",
+         bukan "entah kenapa kosong". */
+      API.daftarSupplier().catch(e => {
+        toast('Daftar supplier tidak bisa dimuat — ' + (e.message || e) +
+              '. Pembeliannya tetap bisa dicatat tanpa memilih supplier.', 'galat');
+        return [];
+      }),
+      API.daftarProduk({})
+    ]);
     uuidPembelian = crypto.randomUUID ? crypto.randomUUID() : 'B' + Date.now();
     bukaModal('Pembelian baru', `
       <div class="baris3">
@@ -2420,6 +2478,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function dialogBayarPiutang(uuid, cabang) {
+    lepasUuidDokumen('bayar_piutang');       // dokumen BARU — lihat uuidDokumen()
     const p = ($('#isiPiutang')._rows || []).find(x => x.uuid === uuid);
     if (!p) return;
     bukaModal('Terima pembayaran piutang', `
@@ -2961,6 +3020,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function formKirimTransfer() {
+    lepasUuidDokumen('transfer');            // dokumen BARU — lihat uuidDokumen()
     const [prod, cab] = await Promise.all([API.daftarProduk({}), API.daftarCabangAdmin().catch(() => [])]);
     const tujuan = (cab.length ? cab.filter(c => c.aktif).map(c => c.kode_cabang) : APP_STATE.daftarCabangSemua)
       .filter(k => k !== APP_STATE.cabang);
@@ -3208,6 +3268,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function formPermintaanBaru() {
+    lepasUuidDokumen('permintaan');          // dokumen BARU — lihat uuidDokumen()
     /* `daftarCabangAdmin` menuntut izin `cabang.lihat`, dan Staf Gudang tidak
        punya itu. Ditangkap lalu jatuh ke daftar yang sudah ada di memori —
        pola yang sama persis dipakai formKirimTransfer, dan alasannya sama:
@@ -3262,6 +3323,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function dialogProsesPermintaan(uuid) {
+    lepasUuidDokumen('proses_permintaan');   // dokumen BARU — lihat uuidDokumen()
     const t = ($('#isiPermintaan')._rows || []).find(x => x.uuid === uuid);
     if (!t) return;
     /* Baris yang sisanya sudah nol tetap DITAMPILKAN, hanya tidak bisa diisi.
@@ -3371,6 +3433,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function wizardOpname() {
+    lepasUuidDokumen('opname');              // dokumen BARU — lihat uuidDokumen()
     let f = { kategori: [], merek: [] };
     try { f = await API.filterOpname(); } catch (e) {}
 
@@ -3608,6 +3671,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function formRetur() {
+    lepasUuidDokumen('retur');       // dokumen BARU — lihat uuidDokumen()
     notaTerpilih = null;
     bukaModal('Retur baru', `
       <div class="grup">
@@ -3771,7 +3835,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     btn.disabled = true;
     try {
       const d = await API.buatRetur({
-        uuid: crypto.randomUUID ? crypto.randomUUID() : 'R' + Date.now(),
+        uuid: uuidDokumen('retur'),
         cabang: APP_STATE.cabang,
         uuid_penjualan: notaTerpilih ? notaTerpilih.uuid : '',
         jenis, item_retur: itemRetur, item_pengganti: itemPengganti,
@@ -3838,6 +3902,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function formReturBeli() {
+    lepasUuidDokumen('retur_beli');  // dokumen BARU — lihat uuidDokumen()
     beliTerpilih = null;
     bukaModal('Retur ke supplier', `
       <div class="grup">
@@ -4265,7 +4330,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         try {
           const r = await API.bayarPiutang({
-            uuid: crypto.randomUUID ? crypto.randomUUID() : 'P' + Date.now(),
+            uuid: uuidDokumen('bayar_piutang'),
             uuid_piutang: d.uuid, cabang: d.cabang, tanggal: nilai('bpTanggal'),
             jumlah: angka('bpJumlah'), metode: nilai('bpMetode'), referensi: nilai('bpRef')
           });
@@ -4414,7 +4479,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         try {
           const r = await API.kirimTransfer({
-            uuid: crypto.randomUUID ? crypto.randomUUID() : 'T' + Date.now(),
+            uuid: uuidDokumen('transfer'),
             cabang_asal: APP_STATE.cabang, cabang_tujuan: nilai('tfTujuan'),
             tanggal: nilai('tfTanggal'), catatan: nilai('tfCatatan'), item
           });
@@ -4491,7 +4556,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         try {
           const r = await API.buatPermintaan({
-            uuid: crypto.randomUUID ? crypto.randomUUID() : 'P' + Date.now(),
+            uuid: uuidDokumen('permintaan'),
             cabang_asal: nilai('pmAsal'), cabang_tujuan: nilai('pmTujuan'),
             tanggal: nilai('pmTanggal'), catatan: nilai('pmCatatan'), item
           });
@@ -4508,7 +4573,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            putus sesudah server selesai membuat transfernya membuat orang menekan
            tombol ini lagi; dengan uuid yang sama, kiriman kedua dikenali sebagai
            duplikat dan stok tidak keluar dua kali. */
-        const uuidTf = crypto.randomUUID ? crypto.randomUUID() : 'T' + Date.now();
+        const uuidTf = uuidDokumen('proses_permintaan');
         t.disabled = true;
         const item = $$('[data-siap-baris]').map(i => ({
           baris: Number(i.dataset.siapBaris), qty_siap: Number(i.value || 0)
@@ -4592,7 +4657,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         try {
           const r = await API.buatReturBeli({
-            uuid: crypto.randomUUID ? crypto.randomUUID() : 'RB' + Date.now(),
+            uuid: uuidDokumen('retur_beli'),
             cabang: APP_STATE.cabang,
             uuid_pembelian: beliTerpilih ? beliTerpilih.uuid : '',
             kode_supplier: beliTerpilih ? beliTerpilih.kode_supplier : '',
@@ -4665,7 +4730,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         try {
           const r = await API.buatOpname({
-            uuid: crypto.randomUUID ? crypto.randomUUID() : 'O' + Date.now(),
+            uuid: uuidDokumen('opname'),
             cabang: APP_STATE.cabang, cakupan, filter,
             buta: centang('opButa'), catatan: nilai('opCatatan')
           });

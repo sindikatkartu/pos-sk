@@ -1022,7 +1022,15 @@ async function gambarProduk(kueri) {
     const persis = cocokBarcode.length
       ? cocokBarcode
       : semuaProduk.filter(p => String(p.sku).toLowerCase() === q);
-    if (persis.length === 1) { tambahKeKeranjang(persis[0]); $('#inpCari').value = ''; return gambarProduk(''); }
+    if (persis.length === 1) {
+      /* DITANDAI, supaya Enter yang datang sesudah ini tahu bahwa kolomnya
+         dikosongkan PROGRAM, bukan memang kosong. Tanpa penanda ini, jari yang
+         menekan Enter sesudah barcode masuk sendiri akan menambahkan
+         `produkTampil[0]` — produk pertama katalog, barang yang sama sekali
+         lain. Audit 5 Sep 2026. */
+      APP_STATE.baruAutoTambah = true;
+      tambahKeKeranjang(persis[0]); $('#inpCari').value = ''; return gambarProduk('');
+    }
     hasil = semua.filter(p => p._cari.includes(q) || String(p.barcode).includes(q)).slice(0, 60);
   }
 
@@ -1818,6 +1826,24 @@ function gambarRingkasBayar() {
      jadi selisihnya memang tidak akan pernah negatif; penjagaannya tetap ada
      supaya perubahan berikutnya tidak diam-diam membukanya lagi. */
   $('#btnSelesaikan').disabled = selisih < 0;
+  /* KELEBIHAN BAYAR HANYA MASUK AKAL UNTUK TUNAI.
+     Uang kembalian diambil dari laci; ia tidak bisa diberikan dari transfer,
+     QRIS, atau kartu. `selesaikanTransaksi()` memang hanya memotong kelebihan
+     dari baris TUNAI — dan itu benar. Yang salah adalah layarnya: sampai audit
+     5 Sep 2026 ia tetap menampilkan "Kembali" berwarna hijau dan membiarkan
+     Selesaikan ditekan. Struk tercetak, uang diserahkan, lalu SERVER yang
+     menolak notanya karena jumlah bayar tidak sama dengan total. Uang keluar,
+     nota tidak pernah masuk pembukuan. Salah ketik satu nol pada kolom transfer
+     sudah cukup. */
+  const tunai = APP_STATE.metodeBayar
+    .filter(m => m.metode === 'tunai')
+    .reduce((a, m) => a + Number(m.jumlah || 0), 0);
+  if (selisih > 0 && selisih > tunai + 0.5) {
+    pesan('#pesanBayar',
+      `Kelebihan ${rp(selisih - tunai)} ada di metode non-tunai — kembalian tidak bisa ` +
+      'diberikan dari transfer/QRIS/kartu. Betulkan jumlahnya.', 'galat');
+    $('#btnSelesaikan').disabled = true;
+  }
   if (adaPiutang && APP_STATE.metodeBayar[iPiutang].jumlah <= 0) {
     pesan('#pesanBayar', 'Nota ini sudah lunas dari metode lain — hapus baris piutangnya.', 'galat');
     $('#btnSelesaikan').disabled = true;
@@ -2298,6 +2324,21 @@ async function gambarDaftarKas() {
   }
 }
 
+/**
+ * uuid catatan kas yang sedang diketik — satu per CATATAN, bukan per klik.
+ *
+ * Dilepas hanya sesudah servernya benar-benar menjawab berhasil. Sampai saat
+ * itu, menekan Simpan berkali-kali adalah tindakan yang aman: kiriman kedua
+ * membawa uuid yang sama dan dikenali server sebagai duplikat.
+ */
+let _uuidKas = null;
+function uuidKas() {
+  if (!_uuidKas) {
+    _uuidKas = 'KAS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  }
+  return _uuidKas;
+}
+
 async function simpanKasBaru() {
   if (!APP_STATE.idShift) return Admin.toast('Buka shift dulu sebelum mencatat kas.', 'galat');
   const akun = $('#kasAkun').value;
@@ -2313,16 +2354,23 @@ async function simpanKasBaru() {
   try {
     await API.simpanKas({
       cabang: APP_STATE.cabang,
-      // uuid dibuat di sini: kalau jawaban server hilang di tengah jalan dan kasir
-      // menekan Simpan lagi, server mengenalinya sebagai duplikat — bukan mencatat
-      // pengeluaran yang sama dua kali.
-      uuid: 'KAS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      /* uuid bertahan sampai catatannya BERHASIL tersimpan — bukan dibuat ulang
+         tiap penekanan tombol. Komentar lama di sini menjelaskan dengan benar
+         kenapa uuid itu penting ("server mengenalinya sebagai duplikat"), lalu
+         membuatnya di tempat yang membuat penjelasan itu tidak berlaku: setiap
+         klik melahirkan uuid baru, jadi penjaga duplikat di server tidak pernah
+         menyala dan pengeluaran yang sama tercatat dua kali. Audit 5 Sep 2026 —
+         cacat yang sama dengan pembelian dobel. */
+      uuid: uuidKas(),
       id_shift: APP_STATE.idShift,
       tipe: $('#kasTipe').value,
       kode_akun: akun,
       jumlah: jumlah,
       keterangan: ket
     });
+    // Tersimpan — catatan BERIKUTNYA harus punya uuid sendiri, kalau tidak
+    // server akan menjawabnya "duplikat" dan ia tidak pernah masuk.
+    _uuidKas = null;
     $('#kasJumlah').value = '';
     $('#kasKeterangan').value = '';
     Admin.toast('Catatan kas tersimpan.');
@@ -3334,6 +3382,9 @@ function pasangEvent() {
   /* --- pencarian & produk --- */
   let timerCari;
   $('#inpCari').addEventListener('input', e => {
+    // Mengetik lagi berarti Enter berikutnya memang milik orangnya — alur
+    // panah-lalu-Enter tidak boleh ikut tertelan penanda ini.
+    APP_STATE.baruAutoTambah = false;
     clearTimeout(timerCari);
     timerCari = setTimeout(() => gambarProduk(e.target.value), 120);
   });
@@ -3350,6 +3401,13 @@ function pasangEvent() {
          sama sekali lain. Jadi: batalkan jeda, saring dulu, baru ambil. */
       clearTimeout(timerCari);
       const kueri = e.target.value;
+      /* Kolom kosong DAN barusan dikosongkan program = barangnya sudah masuk
+         keranjang lewat jeda 120 ms. Tidak ada yang perlu ditambahkan lagi.
+         Kolom kosong tanpa penanda tetap dilayani: itu alur panah-lalu-Enter
+         yang memang disengaja. */
+      const barusanOtomatis = APP_STATE.baruAutoTambah;
+      APP_STATE.baruAutoTambah = false;
+      if (!kueri.trim() && barusanOtomatis) return;
       if (kueri.trim()) await gambarProduk(kueri);
       // gambarProduk mengosongkan kolom sendiri bila barcode-nya cocok persis
       // dan barangnya sudah masuk keranjang — tidak perlu ditambah dua kali.
