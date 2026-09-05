@@ -56,18 +56,77 @@ const DB = (() => {
     req.onerror = () => rej(req.error);
   });
 
+  /* ==================== CACHE BACA ====================
+   *
+   * KENAPA ADA. `gambarProduk()` di app.js memanggil `all('produk')` DAN
+   * `all('stok')` pada SETIAP ketikan di kotak cari — dijeda 120 ms, jadi
+   * mengetik "tempered" menembak tujuh kali. Sesudah impor 1.162 produk
+   * (5 Sep 2026) satu siklusnya diukur 22 ms di mesin cepat, dan 95%-nya habis
+   * di PEMBACAAN, bukan penyaringan; penyaringannya sendiri 0,4 ms. Di tablet
+   * kasir yang 4–6× lebih lambat itu ±90–130 ms per ketikan — persis yang
+   * terasa sebagai "kasirnya jadi berat sejak impor".
+   *
+   * KENAPA DI SINI, BUKAN DI app.js. Cache di app.js akan basi diam-diam pada
+   * penulis berikutnya yang ditambahkan orang lain — dan penulisnya tersebar di
+   * sync.js maupun app.js. Di sini baca dan tulis lewat pintu yang sama, jadi
+   * tidak ada yang bisa lupa membuangnya.
+   *
+   * KENAPA HANYA STORE INI. Yang boleh di-cache hanya store yang DIGANTI UTUH
+   * oleh tarik master dan tidak pernah disunting di tempat. `outbox` dan
+   * `penjualan` justru sebaliknya — sync.js mengubah objeknya (`nota.status_sync
+   * = 'SYNCED'`) lalu menulisnya kembali; berbagi objek dengan cache di sana
+   * akan membocorkan identitas dan menuliskan keadaan lama. `kv` juga tidak,
+   * karena `naikkan()` menulis lewat transaksinya sendiri.
+   *
+   * YANG DIKEMBALIKAN adalah larik BARU berisi objek yang sama. Menyalin
+   * lariknya murah (ribuan penunjuk, hitungan mikrodetik) dan menutup cacat yang
+   * paling mudah terjadi: satu pemanggil yang `sort()` di tempat akan mengubah
+   * urutan bagi seluruh layar lain, dan bug itu muncul jauh dari penyebabnya.
+   */
+  const CACHEABLE = { produk: 1, pelanggan: 1, petugas: 1, stok: 1, stok_cabang: 1 };
+  const _cache = {};
+
+  /* Aplikasi ini memang dipakai di lebih dari satu tab — lihat catatan
+     `naikkan()` di bawah, yang lahir dari dua nota bernomor sama. Sebelum ada
+     cache, tab kedua selalu membaca IndexedDB yang sudah diperbarui tab
+     pertama. Tanpa siaran ini, cache akan menghilangkan sifat itu diam-diam:
+     tab kedua memegang katalog basi tanpa satu pun tanda. */
+  let _siaran = null;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      _siaran = new BroadcastChannel('possk-db');
+      _siaran.onmessage = (e) => { if (e.data && e.data.store) delete _cache[e.data.store]; };
+    }
+  } catch (e) { _siaran = null; }        // peramban lama / konteks tanpa izin
+
+  function _buangCache(store) {
+    delete _cache[store];
+    try { if (_siaran) _siaran.postMessage({ store: store }); } catch (e) { /* tab tutup */ }
+  }
+
   return {
     buka,
 
     async get(store, key)  { return bungkus((await tx(store, 'readonly')).get(key)); },
-    async all(store)       { return bungkus((await tx(store, 'readonly')).getAll()); },
-    async put(store, obj)  { return bungkus((await tx(store, 'readwrite')).put(obj)); },
-    async del(store, key)  { return bungkus((await tx(store, 'readwrite')).delete(key)); },
-    async kosongkan(store) { return bungkus((await tx(store, 'readwrite')).clear()); },
+    async all(store) {
+      if (!CACHEABLE[store]) return bungkus((await tx(store, 'readonly')).getAll());
+      if (!_cache[store]) _cache[store] = await bungkus((await tx(store, 'readonly')).getAll());
+      return _cache[store].slice();
+    },
+    async put(store, obj)  { _buangCache(store); return bungkus((await tx(store, 'readwrite')).put(obj)); },
+    async del(store, key)  { _buangCache(store); return bungkus((await tx(store, 'readwrite')).delete(key)); },
+    async kosongkan(store) { _buangCache(store); return bungkus((await tx(store, 'readwrite')).clear()); },
     async jumlah(store)    { return bungkus((await tx(store, 'readonly')).count()); },
+
+    /** Buang cache baca satu store — atau semuanya bila tanpa argumen. */
+    lupakan(store) {
+      if (store) return _buangCache(store);
+      Object.keys(_cache).forEach(_buangCache);
+    },
 
     /** Tulis banyak sekaligus dalam satu transaksi — jauh lebih cepat saat tarik master. */
     async putBanyak(store, objs) {
+      _buangCache(store);
       const db = await buka();
       return new Promise((res, rej) => {
         const t = db.transaction(store, 'readwrite');
