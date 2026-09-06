@@ -774,8 +774,24 @@ th.bisa-urut::after {
 th.bisa-urut[data-arah="naik"]::after  { content: '\25B2'; color: var(--teks); }
 th.bisa-urut[data-arah="turun"]::after { content: '\25BC'; color: var(--teks); }
 /* Kolom angka rata kanan: panahnya ikut ke KIRI judul, supaya angka tetap
-   menempel di tepi kolomnya dan tidak terdorong panah. */
-th.angka.bisa-urut::after { float: left; text-align: left; }
+   menempel di tepi kolomnya dan tidak terdorong panah.
+
+   DULU `float: left`, dan itu MENINGGIKAN kepala tabelnya. Float yang datang
+   sesudah teks pada baris yang sama tidak bisa naik menyamainya — ia turun ke
+   baris berikutnya, dan tinggi kepalanya bertambah satu baris. Selama panahnya
+   kosong tingginya nol sehingga tidak terlihat; begitu kolomnya diklik dan
+   panahnya terisi, seluruh kepala tabel melonjak. Dilaporkan pemilik
+   6 Sep 2026 dengan tangkapan layar.
+
+   Sekarang panahnya dipindah ke `::before` — tetap di KIRI judul, tapi tetap
+   dalam alur baris yang sama, jadi tingginya tidak pernah berubah. */
+th.angka.bisa-urut::after { content: none; }
+th.angka.bisa-urut::before {
+  content: ''; display: inline-block; width: 12px; text-align: left;
+  color: var(--teks-redup); font-size: var(--fs-11);
+}
+th.angka.bisa-urut[data-arah="naik"]::before  { content: '\25B2'; color: var(--teks); }
+th.angka.bisa-urut[data-arah="turun"]::before { content: '\25BC'; color: var(--teks); }
 
 tbody tr:hover td { background: var(--panel-2); }
 tbody tr:last-child td { border-bottom: none; }
@@ -1049,6 +1065,21 @@ tr.pisah td { border-top: 1px solid var(--garis); }
   border-radius: 4px; padding: 2px; line-height: 0; max-width: 100%; overflow: auto;
 }
 .pratinjau-label svg { display: block; }
+
+/* Pratinjau SATU BARIS kertas — seluruh kolomnya, termasuk yang dilewati.
+   Yang dilewati digambar sebagai kotak putus-putus seukuran stikernya, bukan
+   dihilangkan: yang perlu dilihat orang justru posisi stikernya di baris itu. */
+.baris-pratinjau {
+  display: inline-flex; background: #fff; border: 1px solid var(--garis);
+  border-radius: 4px; padding: 2px; line-height: 0; max-width: 100%; overflow: auto;
+}
+.sel-pratinjau svg { display: block; }
+.sel-pratinjau.kosong {
+  /* Abu-abu netral, bukan warna bertoken: kotak ini digambar di atas kertas
+     yang dipaksa putih, jadi `--garis` versi tema gelap tidak akan terlihat
+     sama sekali di sana. */
+  border: 1px dashed rgba(0, 0, 0, .35); box-sizing: border-box; flex: none;
+}
 
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }

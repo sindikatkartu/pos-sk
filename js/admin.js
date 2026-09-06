@@ -932,6 +932,7 @@ const Admin = (() => {
     const dariPabrik = String(p.barcode || '').trim() && kode === String(p.barcode).trim();
 
     const u = await Label.ukuran();
+    u.kolom = Label.jumlahKolom(u);
     const cocok = Label.muat(kode, u);
     const lebarHalaman = u.lebar_mm * u.kolom + (u.kolom - 1) * u.jarak_mm;
 
@@ -950,8 +951,18 @@ const Admin = (() => {
           u.lebar_mm} × ${u.tinggi_mm} mm. Butuh ${cocok.lebar.toFixed(1)}mm, tersedia ${
           cocok.tersedia.toFixed(0)}mm. Pakai stiker lebih lebar, atau perpendek kodenya.</div>`}
         <div class="grup">
-          <label>Pratinjau — ukuran sesungguhnya</label>
-          <div id="labPratinjau" class="pratinjau-label" style="margin-top:6px"></div>
+          <label>Kolom yang dicetak</label>
+          <div class="bar-alat" style="gap:14px;margin-top:4px">
+            ${Array.from({ length: u.kolom }, (_, i) => `<label class="cek" style="margin:0">
+              <input type="checkbox" class="labSlot" data-slot="${i + 1}" checked> Kolom ${i + 1}</label>`).join('')}
+          </div>
+          <p class="petunjuk" style="margin:4px 0 0">Baris kertas yang tinggal separuh tidak
+            perlu dibuang: matikan kolom yang stikernya sudah terpakai, dan cetakan berikutnya
+            mulai dari kolom yang masih kosong.</p>
+        </div>
+        <div class="grup">
+          <label>Pratinjau satu baris — ukuran sesungguhnya</label>
+          <div id="labPratinjau" style="margin-top:6px"></div>
         </div>
         <label class="cek"><input type="checkbox" id="labNama"> Sertakan nama produk di label</label>
         <div class="grup">
@@ -971,7 +982,12 @@ const Admin = (() => {
        dilihat sebelum menekan Cetak bukan yang akan keluar dari printer — dan
        pratinjau semacam itu lebih buruk daripada tidak ada sama sekali. */
     $('#labNama')?.addEventListener('change', gambarPratinjauLabel);
+    $$('.labSlot').forEach(c => c.addEventListener('change', gambarPratinjauLabel));
   }
+
+  /** Nomor kolom yang dicentang, 1-basis dan urut. */
+  const slotLabelTerpilih = () =>
+    $$('.labSlot').filter(c => c.checked).map(c => Number(c.dataset.slot));
 
   /** Gambar ulang pratinjau label dari pilihan yang sedang aktif di modal. */
   function gambarPratinjauLabel() {
@@ -979,9 +995,11 @@ const Admin = (() => {
     const d = $('#modalUmum') && $('#modalUmum')._label;
     if (!el || !d) return;
     try {
-      el.innerHTML = Label.svg(
+      /* SATU BARIS penuh, bukan satu stiker: yang perlu dilihat orang justru
+         POSISI stikernya di antara kolom yang dilewati. */
+      el.innerHTML = Label.barisPratinjau(
         { kode: d.kode, nama: $('#labNama') && $('#labNama').checked ? d.nama : '' },
-        d.ukuran);
+        Object.assign({}, d.ukuran, { slot: slotLabelTerpilih() }));
     } catch (e) {
       el.innerHTML = `<p style="color:var(--bahaya);font-size:var(--fs-12);margin:0">${esc(e.message)}</p>`;
     }
@@ -996,10 +1014,12 @@ const Admin = (() => {
       nama: $('#labNama') && $('#labNama').checked ? d.nama : '',
       lembar
     };
+    const slot = slotLabelTerpilih();
     try {
-      await Label.cetak([isi]);
+      await Label.cetak([isi], { slot });
       tutupModal();
-      toast(`${lembar} label dikirim ke dialog cetak.`, 'sukses');
+      toast(`${lembar} label dikirim ke dialog cetak` +
+            (slot.length < 3 ? ` (kolom ${slot.join(' & ')}).` : '.'), 'sukses');
     } catch (e) { toast('Gagal mencetak: ' + e.message, 'galat'); }
   }
 

@@ -498,6 +498,37 @@ function rapikanTanggal(akar) {
   }
 }
 
+/**
+ * Roda tetikus tidak boleh mengubah isi kolom angka.
+ *
+ * Peramban memperlakukan `<input type="number">` yang sedang FOKUS sebagai
+ * pengatur: menggulir halaman dengan penunjuk di atasnya menaik-turunkan
+ * angkanya, terus-menerus, tanpa satu pun tanda bahwa nilainya berubah.
+ * Dilaporkan pemilik 6 Sep 2026: "number steppernya suka ngaco angkanya jalan
+ * terus".
+ *
+ * Akibatnya bukan cuma menjengkelkan. Kolom `isi` pada baris pembelian
+ * menentukan berapa satuan dasar per satuan beli; angka yang bergeser diam-diam
+ * di sana MENGALIKAN stok yang masuk dan MEMBAGI harga modalnya.
+ *
+ * Yang dilakukan MELEPAS FOKUS, bukan `preventDefault()`. Menahan kejadiannya
+ * ikut menahan gulir halamannya — orang lalu mengira layarnya macet, dan itu
+ * menukar satu masalah dengan masalah lain. Dengan melepas fokus, halaman tetap
+ * bergulir seperti biasa dan angkanya berhenti berubah.
+ *
+ * Pendengarnya `passive`: ia memang tidak pernah membatalkan apa pun, dan
+ * memberitahukannya membuat peramban tidak perlu menunggu keputusan kita
+ * sebelum menggulir.
+ */
+function pasangPenjagaRoda() {
+  document.addEventListener('wheel', (e) => {
+    const el = e.target;
+    if (el && el.tagName === 'INPUT' && el.type === 'number' && el === document.activeElement) {
+      el.blur();
+    }
+  }, { passive: true });
+}
+
 function pasangPenandaSibuk() {
   const garis = $('#garisMuat');
   const terkunci = new Set();
@@ -4145,6 +4176,7 @@ function pasangEvent() {
   $('#keuPeriode').value = hariIni.substring(0, 7);
 
   pasangPenandaSibuk();
+  pasangPenjagaRoda();
   pasangPengawasTabel();
 
   // Coba lanjutkan sesi yang tersimpan (termasuk saat offline)

@@ -334,6 +334,43 @@ const Label = (() => {
     return out;
   }
 
+  /** Berapa label bersebelahan dalam satu baris kertas. Maksimal 3 — roll yang
+      dipakai toko ini "3 line", dan lebih dari itu tidak pernah ada. */
+  function jumlahKolom(o) {
+    return Math.max(1, Math.min(3, Math.round(Number(o.kolom) || 1)));
+  }
+
+  /**
+   * Kolom mana saja yang benar-benar dicetak, sebagai nomor 1-basis yang urut.
+   *
+   * Diminta pemilik 6 Sep 2026: "terkadang print ganjil menyisakan kertas label
+   * kosong". Roll 3 line yang barisnya tinggal separuh terpakai tidak bisa
+   * dipakai habis kalau pencetakannya selalu mulai dari kolom 1 — sisa kolom 2
+   * dan 3 terbuang setiap kali.
+   *
+   * `slot` yang tidak disebut berarti SELURUH kolom, jadi pemanggil lama tidak
+   * berubah perilakunya sedikit pun. Nomor di luar jangkauan dibuang, kembarnya
+   * dibuang, dan urutannya ditegakkan — "3,1" dan "1,3" sama saja bagi kertas,
+   * dan mengizinkan urutan bebas hanya melahirkan cara baru untuk salah.
+   */
+  function slotDipakai(o) {
+    const kolom = jumlahKolom(o);
+    if (!Array.isArray(o.slot)) {
+      const semua = [];
+      for (let k = 1; k <= kolom; k++) semua.push(k);
+      return semua;
+    }
+    const bersih = [];
+    o.slot.map(n => Math.round(Number(n)))
+      .filter(n => n >= 1 && n <= kolom)
+      .sort((a, b) => a - b)
+      .forEach(n => { if (bersih.indexOf(n) === -1) bersih.push(n); });
+    if (!bersih.length) {
+      throw new Error('Tidak ada kolom yang dipilih — centang minimal satu kolom.');
+    }
+    return bersih;
+  }
+
   /**
    * Susun halaman cetak lengkap.
    *
@@ -345,15 +382,25 @@ const Label = (() => {
    */
   function halaman(daftar, opsi = {}) {
     const o = Object.assign({}, BAWAAN, opsi);
-    const kolom = Math.max(1, Math.min(10, Math.round(Number(o.kolom) || 1)));
+    const kolom = jumlahKolom(o);
+    const slot = slotDipakai(o);
     const semua = sebar(daftar);
     const lebarHalaman = bulat(kolom * o.lebar_mm + (kolom - 1) * o.jarak_mm);
 
+    /* Barisnya SELALU selebar seluruh kolom, walau yang dicetak cuma kolom 2.
+       Kertasnya tetap maju satu baris penuh, dan sel yang dilewati harus tetap
+       memakan tempatnya — kalau tidak, stiker kolom 2 tercetak di posisi kolom
+       1 dan seluruh baris melenceng. */
     const baris = [];
-    for (let i = 0; i < semua.length; i += kolom) {
-      const sel = semua.slice(i, i + kolom)
-        .map(l => `<div class="sel">${svg(l, o)}</div>`).join('');
-      baris.push(`<div class="baris">${sel}</div>`);
+    const langkah = Math.max(1, slot.length);
+    for (let i = 0; i < semua.length; i += langkah) {
+      const potong = semua.slice(i, i + langkah);
+      const sel = [];
+      for (let k = 1; k <= kolom; k++) {
+        const ke = slot.indexOf(k);
+        sel.push(`<div class="sel">${ke >= 0 && potong[ke] ? svg(potong[ke], o) : ''}</div>`);
+      }
+      baris.push(`<div class="baris">${sel.join('')}</div>`);
     }
 
     return `<!doctype html><html lang="id"><head><meta charset="utf-8">
@@ -369,6 +416,32 @@ const Label = (() => {
 </style></head><body>${baris.join('')}</body></html>`;
   }
 
+  /**
+   * Satu BARIS kertas sebagai HTML pratinjau — SELURUH kolomnya, termasuk yang
+   * dilewati.
+   *
+   * Digambar di sini, bukan di layar yang memanggilnya, dengan alasan yang sama
+   * seperti contoh di layar Setelan: pratinjau yang punya penggambar sendiri
+   * suatu hari akan berbeda dari kertasnya, dan hari itu tidak akan ada yang
+   * tahu mana yang benar.
+   *
+   * Yang dilewati digambar sebagai kotak bergaris putus-putus seukuran
+   * stikernya — bukan dihilangkan. Yang perlu dilihat orang justru POSISINYA:
+   * "stiker saya akan keluar di kolom kedua, kolom pertama dibiarkan kosong".
+   */
+  function barisPratinjau(isi, opsi = {}) {
+    const o = Object.assign({}, BAWAAN, opsi);
+    const kolom = jumlahKolom(o);
+    const slot = slotDipakai(o);
+    const sel = [];
+    for (let k = 1; k <= kolom; k++) {
+      sel.push(slot.indexOf(k) >= 0
+        ? `<div class="sel-pratinjau">${svg(isi, o)}</div>`
+        : `<div class="sel-pratinjau kosong" style="width:${o.lebar_mm}mm;height:${o.tinggi_mm}mm"></div>`);
+    }
+    return `<div class="baris-pratinjau" style="gap:${o.jarak_mm}mm">${sel.join('')}</div>`;
+  }
+
   /* ---------- Pengaturan ---------- */
 
   /** Ukuran label disimpan PER PERANGKAT: satu toko bisa punya dua roll. */
@@ -378,20 +451,28 @@ const Label = (() => {
       return Object.assign({}, BAWAAN, u || {});
     } catch (e) { return Object.assign({}, BAWAAN); }
   }
+  /** Bulatkan ke satu angka di belakang koma — lihat simpanUkuran(). */
+  const _satuDesimal = (n) => Math.round(n * 10) / 10;
+
   async function simpanUkuran(u) {
     const bersih = {
       lebar_mm: Math.max(10, Math.min(100, Number(u.lebar_mm) || BAWAAN.lebar_mm)),
       tinggi_mm: Math.max(10, Math.min(100, Number(u.tinggi_mm) || BAWAAN.tinggi_mm)),
       jarak_mm: Math.max(0, Math.min(10, Number(u.jarak_mm) || 0)),
-      kolom: Math.max(1, Math.min(10, Math.round(Number(u.kolom) || BAWAAN.kolom))),
+      /* Maksimal 3, bukan 10: roll yang dipakai toko ini "3 line". Diminta
+         pemilik 6 Sep 2026, dan angka yang sama dipakai jumlahKolom(). */
+      kolom: Math.max(1, Math.min(3, Math.round(Number(u.kolom) || BAWAAN.kolom))),
       /* Dijepit DI SINI, bukan hanya lewat atribut min/max di layar: `type=number`
          tidak menghalangi angka yang diketik langsung, dan huruf 40mm pada stiker
          15mm menghasilkan stiker yang isinya cuma satu huruf raksasa. Sama
          persis alasannya dengan `printer_umpan` di app.js. */
-      huruf_kode_mm: Math.max(1.2, Math.min(8, Number(u.huruf_kode_mm) || BAWAAN.huruf_kode_mm)),
-      huruf_nama_mm: Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm)),
+      /* Dibulatkan ke satu desimal. Stepper `step="0.1"` pada sebagian peramban
+         menghasilkan 2.7000000000000006, dan angka sepanjang itu muncul apa
+         adanya di kolomnya — terbaca sebagai aplikasi yang mengarang angka. */
+      huruf_kode_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_kode_mm) || BAWAAN.huruf_kode_mm))),
+      huruf_nama_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm))),
       /* Nol DIPERTAHANKAN — ia berarti "otomatis", bukan "kosong". */
-      tinggi_bar_mm: Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))
+      tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0)))
     };
     await DB.kvSet('label_ukuran', bersih);
     return bersih;
@@ -444,7 +525,7 @@ const Label = (() => {
   }
 
   return { sandi128, pola, lebarMm, muat, svg, halaman, sebar, kodeProduk,
-           ukuran, simpanUkuran, cetak,
+           ukuran, simpanUkuran, cetak, barisPratinjau, slotDipakai, jumlahKolom,
            BAWAAN, HURUF, POLA, TITIK_PER_MM, mmKeTitik };
 })();
 
