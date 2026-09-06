@@ -944,6 +944,7 @@ async function mulaiSesi(d) {
 
   await terapkanLipat(await DB.kvGet('sisi_lipat', false), false);
   bangunNav();
+  pasangPemilihCabang();
   $('#btnTutupBuku').classList.toggle('sembunyi', !APP_STATE.flag.tutup_buku);
 
   await muatMaster();
@@ -1034,6 +1035,79 @@ function bacaSettingKeState() {
     bersih[k] = v; jml += v;
   });
   APP_STATE.bobotPeran = (sah && jml > 0) ? bersih : { PENJUAL: 60, PEMASANG: 40 };
+}
+
+/**
+ * Pemilih cabang di header — ganti cabang aktif TANPA login ulang.
+ *
+ * Diminta pemilik 6 Sep 2026: "owner & manager tidak terkunci disatu cabang,
+ * karena owner cakupan akses tidak terbatas". Sampai hari itu cabang aktif
+ * ditentukan sekali saat login, dan satu-satunya cara pindah adalah keluar
+ * lalu masuk lagi.
+ *
+ * MUNCUL hanya kalau dua-duanya benar: perannya ber-flag `akses_lintas_cabang`
+ * DAN akunnya memang punya lebih dari satu cabang. Dropdown berisi satu pilihan
+ * bukan pilihan, ia hiasan yang mengundang klik yang tidak menghasilkan apa-apa.
+ * Servernya tetap memeriksa keduanya sendiri (apiGantiCabang) — yang di sini
+ * cuma kenyamanan, bukan pengamanan.
+ *
+ * SELURUH HALAMAN DIMUAT ULANG sesudah berhasil, dan itu disengaja. Cabang
+ * menyentuh hampir semua yang ada di memori: katalog stok, shift yang sedang
+ * terbuka, kas, daftar transfer, nomor nota. Menyegarkan satu per satu berarti
+ * mendaftar semuanya dan melupakan satu — dan yang terlupa akan menampilkan
+ * angka cabang lama tanpa menyebut dirinya lama.
+ */
+function pasangPemilihCabang() {
+  const el = $('#selCabangAktif');
+  if (!el) return;
+  const daftar = (APP_STATE.daftarCabang || []).slice().sort(urutNama);
+  if (!APP_STATE.flag.akses_lintas_cabang || daftar.length < 2) return;   // tetap tersembunyi
+
+  el.innerHTML = daftar.map(c =>
+    `<option value="${esc(c)}"${c === APP_STATE.cabang ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  el.classList.remove('sembunyi');
+
+  el.addEventListener('change', async () => {
+    const tujuan = el.value;
+    const semula = APP_STATE.cabang;
+    if (tujuan === semula) return;
+
+    /* NOTA YANG BELUM TERKIRIM MENGUNCI PERPINDAHAN, dan ini bukan kehati-hatian
+       berlebihan. `Sync.kirim()` mengirim antrean dengan `cabang:
+       APP_STATE.cabang` — cabang SAAT MENGIRIM, bukan cabang saat notanya
+       dibuat. Pindah cabang sementara antreannya masih berisi akan
+       membukukan penjualan cabang lama ke cabang baru, tanpa satu pun galat.
+       Sampai antreannya diubah menyimpan cabangnya sendiri per baris,
+       jawabannya adalah menolak — kerusakan yang diam jauh lebih mahal
+       daripada menunggu satu sinkron. */
+    let antre = 0;
+    try { antre = await DB.outboxJumlah(); } catch (e) { antre = 0; }
+    if (antre) {
+      el.value = semula;
+      return Admin.toast(`Masih ada ${antre} nota yang belum terkirim ke server. ` +
+        'Tunggu sampai lencana sinkron hijau, baru ganti cabang.', 'galat');
+    }
+
+    if (Keranjang.baris.length &&
+        !confirm('Keranjang kasir yang belum dibayar akan hilang saat pindah cabang.\n\nLanjutkan?')) {
+      el.value = semula;
+      return;
+    }
+
+    el.disabled = true;
+    try {
+      await API.gantiCabang({ cabang: tujuan });
+      /* Ditulis SESUDAH server menerima: kalau ditulis lebih dulu lalu
+         servernya menolak, login berikutnya dari perangkat ini akan mencoba
+         cabang yang memang tidak boleh. */
+      await DB.kvSet('cabang_terakhir', tujuan);
+      location.reload();
+    } catch (e) {
+      el.value = semula;
+      el.disabled = false;
+      Admin.toast('Gagal pindah cabang: ' + (e.message || e), 'galat');
+    }
+  });
 }
 
 async function muatMaster() {

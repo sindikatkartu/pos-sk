@@ -46,7 +46,7 @@ const Admin = (() => {
      bisa diurutkan dari kolom tombol, dan judul kosong yang bisa diklik hanya
      membuat orang mengira ada yang rusak. */
   const tabelPolos = (kolom, baris, opsi = {}) => `
-    <div class="gulir-x">
+    <div class="gulir-x${opsi.kelasWadah ? ' ' + opsi.kelasWadah : ''}">
     <table>
       <thead><tr>${kolom.map((k, i) => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}${
         k.judul ? ' bisa-urut' : ''}"${k.judul ? ` data-urut-kol="${i}"` : ''}>${esc(k.judul)}</th>`).join('')}</tr></thead>
@@ -114,9 +114,24 @@ const Admin = (() => {
    * Jalan tengahnya: keluar dari daftar utama, tetap SATU KLIK jauhnya, dengan
    * jumlahnya tertulis supaya tidak perlu dibuka hanya untuk memastikan kosong.
    * Dipasang di penggambar bersama ini, bukan disalin ke enam layar.
+   *
+   * BLOKNYA DI ATAS TABEL, bukan di bawahnya — diminta pemilik 6 Sep 2026:
+   * "memindah daftar nonaktif-block produk/petugas/perangkat ke bagian atas
+   * supaya mudah dijangkau, karena sku produk semakin banyak semakin sulit
+   * dijangkau jika dibawah". Ia benar: di bawah, letaknya bergantung panjang
+   * daftar utama, jadi satu-satunya jalan ke sana adalah menggulir seluruh
+   * katalog. Di atas, letaknya TETAP — selalu satu tempat yang sama, berapa pun
+   * isinya. Terlipat, jadi ia tidak mendorong daftar utama turun.
    */
   const tabel = (kolom, baris, opsi = {}) => {
-    if (!opsi.pisahNonaktif) return tabelPolos(kolom, baris, opsi);
+    /* Penanda `daftar-utama` dipasang di SEMUA tabel yang lahir dari sini,
+       bukan cuma yang berblok nonaktif. Tabel Stok, Pembelian dan Transfer
+       tidak memakai `pisahNonaktif`; kalau penandanya hanya menempel pada yang
+       memakainya, "daftar utama layar ini" jadi istilah yang kadang ada kadang
+       tidak — dan pemilih yang bekerja di satu layar diam-diam gagal di layar
+       lain. */
+    const utama = Object.assign({}, opsi, { kelasWadah: 'daftar-utama' });
+    if (!opsi.pisahNonaktif) return tabelPolos(kolom, baris, utama);
     const rows = baris || [];
     // `aktif !== false`, bukan `aktif === true`: baris lama yang kolomnya belum
     // pernah diisi bernilai undefined, dan itu bukan alasan menyembunyikannya.
@@ -125,17 +140,41 @@ const Admin = (() => {
     const mati_p = opsi.nonaktif || ((r) => r.aktif === false);
     const hidup = rows.filter(r => !mati_p(r));
     const mati = rows.filter(mati_p);
-    return tabelPolos(kolom, hidup, opsi) + (mati.length ? `
+    return (mati.length ? `
       <details class="blok-nonaktif">
         <summary>Nonaktif <span class="lencana">${mati.length}</span></summary>
         ${tabelPolos(kolom, mati, opsi)}
-      </details>` : '');
+      </details>` : '') +
+      /* Daftar utamanya DITANDAI, dan itu bukan kerapian. Sejak bloknya pindah
+         ke atas, "tabel pertama di dalam layar ini" bukan lagi daftar utamanya —
+         `#isiProduk tbody tr` sekarang mengembalikan baris NONAKTIF lebih dulu.
+         Siapa pun yang menulis pemilih berdasarkan urutan akan membaca tabel
+         yang salah tanpa satu pun galat; penandanya membuat pertanyaan "yang
+         mana daftar utamanya" punya jawaban yang tidak bergantung urutan. */
+      tabelPolos(kolom, hidup, utama);
   };
 
   const memuat = (el) => { $(el).innerHTML = '<div class="kartu">Memuat…</div>'; };
   const galat = (el, e) => { $(el).innerHTML = `<div class="pesan galat">${esc(e.message || e)}</div>`; };
 
+  /**
+   * Stok dua cabang yang ikut ditulis di tiap baris hasil pencarian produk.
+   *
+   * Diminta pemilik 6 Sep 2026 untuk layar Permintaan: "ketika dari cabang mana
+   * ke cabang tujuan dipilih, maka dropdown menu disertakan juga stok cabang
+   * tujuan ... misal: stok A : 6 - Stok B : 10". Dua angka inilah yang
+   * menentukan keputusannya: gudangnya punya atau tidak, dan cabang yang
+   * meminta sudah punya berapa.
+   *
+   * null = dropdown biasa, tanpa tambahan. Dikosongkan di `bukaModal` supaya
+   * satu formulir tidak pernah mewarisi setelan formulir sebelumnya — tujuh
+   * layar lain memakai pemilih produk yang sama, dan angka cabang yang
+   * nyangkut di sana akan berbunyi seperti fakta.
+   */
+  let stokDuaCabang = null;
+
   function bukaModal(judul, isi, aksi) {
+    stokDuaCabang = null;
     $('#modalUmum').innerHTML = `<h3>${esc(judul)}</h3>${isi}
       <div class="aksi-modal">${aksi || '<button class="tombol" data-tutup="1">Tutup</button>'}</div>`;
     $('#tiraiUmum').classList.add('tampil');
@@ -1435,6 +1474,25 @@ const Admin = (() => {
 
   const _produkSku = (sku) => daftarPilihProduk.find(p => String(p.sku) === String(sku));
 
+  /**
+   * "SK01: 6 · SK02: 10" — asal dulu, tujuan sesudahnya.
+   *
+   * Fungsi MURNI atas `stokDuaCabang`: tidak menyentuh DOM, tidak membaca
+   * IndexedDB, jadi urutan dan bentuknya bisa dibuktikan uji apa adanya.
+   * Angka nol DITULIS, bukan dilewati — "SK01: 0" adalah jawaban yang paling
+   * penting di layar ini, dan baris yang diam soal gudang kosong akan membuat
+   * orang mengirim permintaan yang tidak mungkin dipenuhi.
+   */
+  function teksStokDuaCabang(sku) {
+    const d = stokDuaCabang;
+    if (!d) return '';
+    const q = (cab) => Number((d.peta || {})[String(cab) + '|' + String(sku)] || 0);
+    /* Asal dan tujuan yang SAMA disebut sekali. Bisa terjadi sesaat sementara
+       orang masih menggeser kedua dropdownnya. */
+    const cab = d.asal === d.tujuan ? [d.asal] : [d.asal, d.tujuan];
+    return cab.filter(Boolean).map(c => esc(c) + ': ' + q(c)).join(' · ');
+  }
+
   function gambarHasilProduk(kotak) {
     const wadah = kotak.parentElement.querySelector('.hasil-prd');
     if (!wadah) return;
@@ -1442,7 +1500,11 @@ const Admin = (() => {
     wadah.innerHTML = hasil.length ? hasil.map((p, i) => {
       const tipe = String(p.tipe_hp || (p.kompatibel || []).map(k => k.tipe).join(' / ') || '');
       const ekor = [esc(p.sku),
-        p.stok === undefined || p.stok === null ? '' : 'stok ' + p.stok,
+        /* Stok DUA CABANG menggantikan "stok" tunggal saat layarnya memintanya:
+           di layar Permintaan, angka tanpa nama cabang tidak bisa dibaca
+           siapa pun — "stok 6" itu di gudang atau di cabang yang meminta? */
+        stokDuaCabang ? teksStokDuaCabang(p.sku)
+          : (p.stok === undefined || p.stok === null ? '' : 'stok ' + p.stok),
         p.harga_beli_terakhir ? 'beli ' + rp(p.harga_beli_terakhir) : ''
       ].filter(Boolean).join(' · ');
       return `<div class="baris-prd${i === 0 ? ' aktif' : ''}" data-sku="${esc(p.sku)}">
@@ -1910,7 +1972,121 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== STOK ==================== */
 
+  /** Layar Stok sedang menampilkan seluruh cabang berjajar, bukan cabang ini. */
+  let stokLintas = false;
+
+  /** Boleh melihat perbandingan antar cabang? Servernya tetap memeriksa sendiri. */
+  const bolehStokLintas = () =>
+    !!APP_STATE.flag?.akses_lintas_cabang && APP_STATE.daftarCabangSemua.length > 1;
+
+  /**
+   * Susun baris perbandingan stok antar cabang. FUNGSI MURNI.
+   *
+   * Tidak menyentuh DOM maupun IndexedDB — masuk daftar stok mentah dan daftar
+   * produk, keluar baris siap gambar. Itu yang membuat aturannya bisa dibuktikan
+   * uji apa adanya: SKU yang tidak punya baris stok di sebuah cabang bernilai
+   * NOL di sana, bukan hilang dari tabelnya.
+   *
+   * Diurut menurut TOTAL menurun. Layar stok satu cabang mengurut menaik supaya
+   * yang menipis muncul di atas; di sini yang dicari justru "apa yang menumpuk,
+   * dan menumpuk di mana" — dan ribuan baris nol di puncak tabel tidak menjawab
+   * pertanyaan siapa pun. Kepala kolomnya tetap bisa diklik untuk mengurut ulang.
+   */
+  function barisStokLintas(stokMentah, produk, cabang) {
+    const peta = {};
+    (stokMentah || []).forEach(r => {
+      const k = String(r.sku) + '|' + String(r.cabang);
+      peta[k] = (peta[k] || 0) + Number(r.qty || 0);
+    });
+    return (produk || []).map(p => {
+      const baris = { sku: String(p.sku), nama: String(p.nama || p.sku),
+                      kategori: String(p.kategori || ''), total: 0 };
+      cabang.forEach(c => {
+        const q = Number(peta[baris.sku + '|' + c] || 0);
+        baris['c_' + c] = q;
+        baris.total += q;
+      });
+      return baris;
+    }).sort((a, b) => b.total - a.total || urutNama(a.nama, b.nama));
+  }
+
+  /**
+   * Tabel perbandingan: satu baris per SKU, satu kolom per cabang.
+   *
+   * Angka nol DIREDUPKAN, bukan dikosongkan. Sel kosong terbaca sebagai "datanya
+   * tidak ada"; yang benar adalah "barangnya tidak ada di sana", dan itu justru
+   * jawaban yang dicari orang saat membuka layar ini.
+   */
+  const tabelStokLintas = (rows, cabang) => tabel([
+    { judul: 'SKU', kunci: 'sku' },
+    { judul: 'Nama', kunci: 'nama' },
+    ...cabang.map(c => ({
+      judul: c, angka: true, kunci: 'c_' + c,
+      render: r => r['c_' + c] > 0
+        ? `<span${c === APP_STATE.cabang ? ' style="font-weight:600"' : ''}>${r['c_' + c]}</span>`
+        : '<span style="color:var(--teks-redup)">0</span>'
+    })),
+    { judul: 'TOTAL', angka: true, kunci: 'total',
+      render: r => `<strong>${r.total}</strong>` }
+  ], rows, { kosong: 'Belum ada satu pun produk di katalog' });
+
+  /**
+   * Layar Stok versi SELURUH CABANG.
+   *
+   * Angkanya dibaca dari store `stok_cabang` di perangkat — ringkasan yang sama
+   * yang dipakai kasir mengintip stok cabang lain. Tabelnya terbuka SEKETIKA dan
+   * tetap terbuka saat internet mati; ongkosnya angkanya sesegar tarikan
+   * terakhir, dan umur itu DITULIS di atas tabel, tidak disembunyikan. Tombol
+   * "Hitung ulang" menariknya lagi dari server.
+   *
+   * Katalognya pun dari `DB.all('produk')`, bukan API: satu panggilan jaringan
+   * di layar yang menjanjikan "seketika" membatalkan janjinya.
+   */
+  async function muatStokSemuaCabang(katStok = '') {
+    memuat('#isiStok');
+    try {
+      const [stokMentah, produk, waktu] = await Promise.all([
+        DB.all('stok_cabang'), DB.all('produk'),
+        DB.kvGet('stok_cabang_diperbarui', '')
+      ]);
+      const cabang = APP_STATE.daftarCabangSemua.slice().sort(urutNama);
+      const rows = barisStokLintas(stokMentah, produk, cabang);
+      const tampil = katStok ? rows.filter(r => r.kategori === katStok) : rows;
+      const kategoriAda = [...new Set(produk.map(p => (p.kategori || '').trim()).filter(Boolean))].sort();
+
+      $('#isiStok').innerHTML = `
+        <div class="petak petak-4">
+          ${cabang.map(c => `<div class="kartu statistik"><div class="label">Stok ${esc(c)}</div>
+            <div class="nilai">${rows.reduce((a, r) => a + r['c_' + c], 0)}</div></div>`).join('')}
+          <div class="kartu statistik"><div class="label">Seluruh cabang</div>
+            <div class="nilai">${rows.reduce((a, r) => a + r.total, 0)}</div></div>
+        </div>
+        <div class="kartu">
+          <div class="bar-alat">
+            <input type="text" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
+            <select id="stokKategori" style="max-width:200px">${opsiKategori(kategoriAda, katStok)}</select>
+            <select id="stokLingkup" style="max-width:170px">
+              <option value="sini">Cabang ${esc(APP_STATE.cabang)}</option>
+              <option value="semua" selected>Semua cabang</option>
+            </select>
+            <div style="flex:1"></div>
+            <button class="tombol" id="btnSegarkanStokLintas">Hitung ulang</button>
+          </div>
+          <p class="petunjuk" style="margin:0 0 10px">
+            Angka ini <strong>ringkasan tersimpan di perangkat ini</strong>, diperbarui
+            ${waktu ? esc(waktuTampil(waktu)) : 'belum pernah'}. Cukup untuk membandingkan
+            dan memutuskan kirim-mengirim; sebelum menjanjikan barang ke pelanggan,
+            tekan Hitung ulang.
+          </p>
+          <div id="tabelStok">${tabelStokLintas(tampil, cabang)}</div>
+        </div>`;
+      $('#isiStok')._rows = rows;
+      $('#isiStok')._cabang = cabang;
+    } catch (e) { galat('#isiStok', e); }
+  }
+
   async function muatStok(katStok = '') {
+    if (stokLintas && bolehStokLintas()) return muatStokSemuaCabang(katStok);
     memuat('#isiStok');
     try {
       /* AKUNTING punya `stok` tapi tidak punya `produk`; tanpa `.catch` di sini
@@ -1992,7 +2168,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat">
             <input type="text" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
             <select id="stokKategori" style="max-width:200px">${opsiKategori(prod.kategori_ada, katStok)}</select>
-            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${bolehStokLintas() ? `<select id="stokLingkup" style="max-width:170px">
+              <option value="sini" selected>Cabang ${esc(APP_STATE.cabang)}</option>
+              <option value="semua">Semua cabang</option>
+            </select>` : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
             <span class="lencana hijau">HPP: FIFO</span>
             <div style="flex:1"></div>
             ${tombolEkspor('stok', { cabang: APP_STATE.cabang })}
@@ -3691,6 +3870,31 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnSimpanPermintaan">Kirim permintaan</button>`);
     daftarPilihProduk = prod.produk;
+
+    /* Stok kedua cabang dibaca dari store `stok_cabang` di perangkat — yang
+       sama dengan yang dipakai kasir untuk mengintip stok cabang lain. Instan
+       dan tetap jalan saat internet mati; umurnya sesegar tarikan terakhir
+       (tiap 10 menit, lihat Sync.mulai). Itu cukup untuk memutuskan MEMINTA;
+       yang memastikan isi rak tetap gudang, saat menyiapkannya. */
+    const semuaStok = await DB.all('stok_cabang');
+    const peta = {};
+    semuaStok.forEach(r => {
+      const k = String(r.cabang) + '|' + String(r.sku);
+      peta[k] = (peta[k] || 0) + Number(r.qty || 0);
+    });
+    const segarkanStokPm = () => {
+      stokDuaCabang = { asal: nilai('pmAsal'), tujuan: nilai('pmTujuan'), peta };
+      /* Daftar yang sedang TERBUKA digambar ulang. Tanpa ini, mengganti cabang
+         sementara daftarnya terbuka meninggalkan angka cabang yang lama di
+         layar — angka yang salah dan tidak menyebut dirinya salah. */
+      const kotak = $$('.cari-prd').find(k =>
+        !k.parentElement.querySelector('.hasil-prd').classList.contains('sembunyi'));
+      if (kotak) gambarHasilProduk(kotak);
+    };
+    segarkanStokPm();
+    $('#pmAsal').addEventListener('change', segarkanStokPm);
+    $('#pmTujuan').addEventListener('change', segarkanStokPm);
+
     tambahBarisPm();
   }
 
@@ -4939,6 +5143,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      if (t.id === 'btnSegarkanStokLintas') {
+        /* Ditarik ulang dari SERVER, lalu digambar ulang dari store yang baru
+           saja diisi ulang. Tombolnya dinonaktifkan selama menunggu: tarikan
+           seluruh cabang bisa memakan puluhan detik, dan tombol yang tetap
+           hidup mengundang tekanan kedua yang menggandakan pekerjaannya. */
+        t.disabled = true;
+        try {
+          await Sync.tarikStokSemuaCabang();
+          await muatStok($('#stokKategori')?.value || '');
+          toast('Stok seluruh cabang diperbarui.');
+        } catch (x) {
+          toast('Gagal memperbarui: ' + (x.message || x), 'galat');
+          t.disabled = false;
+        }
+        return;
+      }
       if (d.rincianBeli) return rincianPembelian(d.rincianBeli);
 
       if (d.batalPembelian) {
@@ -5466,6 +5686,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         $('#' + id)?.focus();
         return;
       }
+      /* Lingkupnya digambar ULANG dari awal, bukan disaring: kolomnya sendiri
+         yang berbeda antara "cabang ini" dan "semua cabang". */
+      if (e.target.id === 'stokLingkup') {
+        stokLintas = e.target.value === 'semua';
+        return muatStok($('#stokKategori')?.value || '');
+      }
       if (e.target.id === 'cariStok' || e.target.id === 'stokKategori') {
         const q = ($('#cariStok')?.value || '').toLowerCase();
         const kat = $('#stokKategori')?.value || '';
@@ -5473,7 +5699,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const rows = (wadah._rows || []).filter(r =>
           (!kat || r.kategori === kat) &&
           (r.sku + ' ' + r.nama).toLowerCase().includes(q));
-        $('#tabelStok').innerHTML = tabelStok(rows, wadah._punyaNilai);
+        $('#tabelStok').innerHTML = stokLintas
+          ? tabelStokLintas(rows, wadah._cabang || [])
+          : tabelStok(rows, wadah._punyaNilai);
       }
       if (e.target.closest('#barisBeli') || ['beliDiskon', 'beliPpn'].includes(e.target.id)) {
         hitungTotalBeli();

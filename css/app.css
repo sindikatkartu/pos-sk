@@ -435,6 +435,22 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   content: ''; width: 8px; height: 8px; border-radius: 50%;
   background: currentColor; flex-shrink: 0; opacity: .85;
 }
+/* Pemilih cabang di header. Berbentuk lencana supaya ia berdiri sejajar dengan
+   lencana cabang di sebelahnya — yang berubah cuma bahwa ia bisa ditekan.
+   `appearance: none` membuang panah bawaan peramban yang tingginya berbeda di
+   tiap mesin dan merusak barisan lencana; panahnya digambar sendiri. */
+.pilih-cabang {
+  cursor: pointer; appearance: none; -webkit-appearance: none;
+  padding-right: 22px; color: var(--teks); font-family: inherit;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: right 10px center, right 6px center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.pilih-cabang:hover { border-color: var(--garis-kuat); }
+.pilih-cabang:disabled { opacity: .55; cursor: progress; }
+
 .lencana.polos::before { display: none; }
 /* Lencana kosong jangan menyisakan titik melayang tanpa keterangan */
 .lencana:empty { display: none; }
@@ -799,6 +815,22 @@ tbody tr:last-child td { border-bottom: none; }
 /* Baris tabel yang MEMBUKA sesuatu kalau diklik.
    Latar hover-nya sudah datang dari `tbody tr:hover td` di atas; yang kurang
    cuma kursornya, dan tanpa itu barisnya tidak pernah terbaca bisa ditekan. */
+/* PANAH NAIK-TURUN BAWAAN PERAMBAN DIHILANGKAN.
+   Diminta pemilik 6 Sep 2026: "perbaiki jika bisa atau hapus fitur numeric
+   stepper di text field angka, yang merepotkan jika pake mouse". Panahnya
+   sempit, menempel di tepi kanan kolom, dan satu klik meleset mengubah angkanya
+   tanpa terlihat — persis cara `isi = 8` masuk ke nota 5 Sep 2026.
+
+   TIPENYA TETAP `number`, dan itu disengaja: yang dibuang cuma panahnya.
+   Mengubahnya jadi `type="text"` akan membuat papan ketik HP menampilkan huruf,
+   dan kasir mengetik qty di layar sentuh jauh lebih sering daripada pemilik
+   mengetiknya dengan tetikus.
+
+   Rodanya dijaga terpisah oleh pasangPenjagaRoda() di app.js. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
 tbody tr.baris-klik { cursor: pointer; }
 .tautan-baris { text-decoration: underline; text-underline-offset: 2px; }
 /* Kolom angka tidak boleh patah baris.
@@ -880,8 +912,19 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 /* Baris nonaktif: keluar dari daftar utama, tetap satu klik jauhnya.
    Sengaja tenang — abu-abu, tanpa warna bahaya. Yang dinonaktifkan itu keadaan
    normal dan disengaja, bukan masalah yang perlu diteriakkan. */
-.blok-nonaktif { margin: 10px calc(0px - var(--tepi-x)) calc(0px - var(--tepi-y));
-                 border-top: 1px solid var(--garis); }
+/* Bloknya sekarang di ATAS tabel (lihat komentar `tabel()` di admin.js), jadi
+   garis pemisahnya pindah ke BAWAH — memisahkannya dari daftar utama yang
+   menyusul.
+
+   MARGIN ATASNYA NOL, bukan negatif. Waktu bloknya masih di bawah, margin
+   negatif menariknya ke tepi kartu dan yang "ditindih" cuma padding kosong.
+   Di atas, yang ada di depannya adalah ISI — bar alat dan paragraf petunjuk —
+   dan margin negatif yang sama menariknya menimpa tulisan itu. Ditemukan
+   uji-rupa.mjs: 48 tumpang tindih `p.petunjuk` ↔ `details.blok-nonaktif` di
+   enam layar × tiga ukuran layar. Yang melebar keluar kartu tinggal sisi
+   KIRI-KANAN saja, supaya garis pemisahnya tetap membelah kartu penuh. */
+.blok-nonaktif { margin: 0 calc(0px - var(--tepi-x)) 12px;
+                 border-bottom: 1px solid var(--garis); }
 .blok-nonaktif > summary {
   list-style: none; cursor: pointer; user-select: none;
   display: flex; align-items: center; gap: 8px;

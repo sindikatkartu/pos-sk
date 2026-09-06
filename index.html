@@ -122,6 +122,10 @@
     <div class="isi-tengah"></div>
     <div class="lencana-grup">
       <span class="lencana" id="lncCabang">—</span>
+      <!-- Pemilih cabang: hanya muncul untuk peran ber-flag akses_lintas_cabang
+           DAN yang akunnya punya lebih dari satu cabang. Diisi oleh
+           pasangPemilihCabang() di app.js. -->
+      <select class="lencana pilih-cabang sembunyi" id="selCabangAktif" title="Cabang aktif"></select>
       <span class="lencana" id="lncShift">Shift belum dibuka</span><!-- jadi tombol saat shift belum dibuka: lihat periksaShift() -->
       <span class="lencana" id="lncSync">Memeriksa…</span>
       <span class="lencana polos sembunyi" id="lncUser">—</span>

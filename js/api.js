@@ -170,6 +170,7 @@ const API = (() => {
     ping:            ()  => panggil('ping'),
     login:           (d) => panggil('login', d),
     logout:          ()  => panggil('logout'),
+    gantiCabang:     (d) => panggil('ganti_cabang', d),
     catatKeluarPaksa:(d) => panggil('catat_keluar_paksa', d),
     gantiPin:        (d) => panggil('ganti_pin', d),
 
