@@ -1365,9 +1365,11 @@ const Admin = (() => {
       if (String(el.value).trim() !== '' && !el.dataset.auto) return;  // angka ketikan orang
       el.value = ribuan(v); el.dataset.auto = '1';
     };
-    /* Satuan & faktor MELEKAT pada produknya, bukan pada baris: "lusin isi 12"
-       milik produk lama tidak berlaku untuk produk baru. Karena itu keduanya
-       ditimpa, bukan diisi kalau kosong. */
+    /* Satuan & faktor sudah tidak punya kolom di formulir pembelian sejak
+       6 Sep 2026 — keduanya dikunci 'pcs' dan 1 di simpanPembelian(). Penjaga
+       querySelector di bawah tetap ada karena formulir LAIN (retur beli) masih
+       membawa keduanya sebagai input tersembunyi, dan mengisi kolom yang tidak
+       ada adalah galat yang menghentikan seluruh pemilihan produk. */
     if (baris.querySelector('[data-f="satuan"]')) isi('satuan', p.satuan_dasar || 'pcs');
     if (baris.querySelector('[data-f="faktor"]')) isi('faktor', 1);
     isiUang('harga_beli', hargaProduk(p, 'beli'));
@@ -1897,7 +1899,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">Setiap pembelian menaikkan stok dan membentuk lapisan FIFO baru pada harga belinya (diskon dokumen ikut memotong nilai lapisan), lalu membukukan jurnal Persediaan / Utang secara otomatis.</p>
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
-            { judul: 'No dokumen', kunci: 'no_dokumen' },
+            /* Nomornya digarisbawahi supaya barisnya terbaca BISA DIBUKA. Baris
+               yang membuka sesuatu tapi tampak persis seperti baris mati tidak
+               akan pernah diklik siapa pun — itu sama saja tidak ada. */
+            { judul: 'No dokumen', kunci: 'no_dokumen',
+              render: r => `<span class="tautan-baris">${esc(r.no_dokumen || '(tanpa nomor)')}</span>` },
             { judul: 'Supplier', kunci: 'nama_supplier' },
             { judul: 'Bayar', render: r => `<span class="lencana">${esc(r.tipe_bayar)}</span>` },
             { judul: 'Total', angka: true, render: r => rp(r.total) },
@@ -1909,9 +1915,81 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">AKTIF</span>' },
             { judul: '', render: r => r.status !== 'DIBATALKAN' && bolehIzin('pembelian', 'hapus')
                 ? `<button class="tombol kecil bahaya" data-batal-pembelian="${esc(r.uuid)}">Batal</button>` : '' }
-          ], rows, { kosong: 'Belum ada pembelian tercatat' })}
+          ], rows, { kosong: 'Belum ada pembelian tercatat',
+                     dataAttr: r => `data-rincian-beli="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
     } catch (e) { galat('#isiPembelian', e); }
+  }
+
+  /**
+   * Rincian satu dokumen pembelian.
+   *
+   * Diminta pemilik 6 Sep 2026: "saya tidak ada jalur akses rincian pembelian,
+   * sehingga tidak tahu dibagian mana pembeliannya yang harus saya batalkan,
+   * karena tanggal 5 banyak melakukan pembelian". Menu ini sejak awal cuma
+   * memperlihatkan kepala dokumennya, sementara tombol Batal-nya sudah ada —
+   * menyuruh orang membatalkan sesuatu yang isinya tidak pernah bisa ia lihat.
+   *
+   * Kolom yang paling penting di sini MODAL MASUK, dan ia bukan hiasan: satu
+   * baris `8 pcs isi 8` memperlihatkan qty 8, harga 14.000 dan subtotal 112.000
+   * yang semuanya tampak wajar — yang janggal hanya modal masuknya, Rp 1.750.
+   * Tanpa kolom itu layar ini tidak akan pernah menjawab pertanyaan yang
+   * membuatnya dibuat.
+   *
+   * Tombol Batal ikut dipasang di kaki modal supaya orang tidak perlu menutup,
+   * mencari barisnya lagi, lalu menebak apakah itu memang yang tadi dilihat.
+   */
+  async function rincianPembelian(uuid) {
+    bukaModal('Rincian pembelian', '<p class="petunjuk">Memuat…</p>');
+    let d;
+    try {
+      d = await API.rincianPembelian({ uuid, cabang: APP_STATE.cabang });
+    } catch (x) {
+      return bukaModal('Rincian pembelian', `<div class="pesan galat">${esc(x.message)}</div>`);
+    }
+    const item = d.item || [];
+    const janggal = item.filter(i => i.sebab_janggal);
+    const bolehBatal = d.status !== 'DIBATALKAN' && bolehIzin('pembelian', 'hapus');
+
+    bukaModal(`Pembelian ${d.no_dokumen || '(tanpa nomor)'}`, `
+      <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.nama_supplier || '—')} ·
+        <span class="lencana">${esc(d.tipe_bayar)}</span>
+        ${d.status === 'DIBATALKAN'
+          ? '<span class="lencana merah">DIBATALKAN</span>'
+          : '<span class="lencana hijau">AKTIF</span>'}
+        ${d.jatuh_tempo ? `<br>Jatuh tempo ${esc(tglTampil(d.jatuh_tempo))}` : ''}
+        ${d.catatan ? `<br>Catatan: ${esc(d.catatan)}` : ''}</p>
+      ${janggal.length ? `<div class="pesan galat">${janggal.length} baris isinya janggal.
+        Stok yang masuk berlipat dan modalnya ikut mengecil sebanyak itu juga.
+        Dokumen ini perlu DIBATALKAN lalu diketik ulang.</div>` : ''}
+      ${tabel([
+        { judul: 'SKU', kunci: 'sku' },
+        { judul: 'Nama', kunci: 'nama',
+          render: i => esc(i.nama) + (i.sebab_janggal
+            ? `<div class="meta-kecil" style="color:var(--bahaya)">${esc(i.sebab_janggal)}</div>` : '') },
+        { judul: 'Qty', angka: true, kunci: 'qty' },
+        { judul: 'Satuan', kunci: 'satuan' },
+        { judul: 'Isi', angka: true, kunci: 'faktor',
+          render: i => i.faktor === 1 ? '1' : `<span class="stok-kritis">${esc(String(i.faktor))}</span>` },
+        { judul: 'Masuk stok', angka: true, kunci: 'qty_dasar',
+          render: i => `${esc(String(i.qty_dasar))} ${esc(i.satuan_dasar)}` },
+        { judul: 'Harga beli', angka: true, kunci: 'harga_satuan', render: i => rp(i.harga_satuan) },
+        { judul: 'Subtotal', angka: true, kunci: 'subtotal', render: i => rp(i.subtotal) },
+        { judul: 'Modal masuk', angka: true, kunci: 'modal_per_dasar',
+          render: i => i.sebab_janggal
+            ? `<span class="stok-kritis">${rp(i.modal_per_dasar)}</span>`
+            : rp(i.modal_per_dasar) }
+      ], item, { kosong: 'Dokumen ini tidak punya baris barang' })}
+      <p class="petunjuk">Modal masuk = subtotal ÷ jumlah yang benar-benar masuk stok.
+        Angka itulah yang muncul di kolom Modal pada layar Produk.</p>
+      <div class="total-baris"><span>Subtotal</span><span>${rp(d.subtotal)}</span></div>
+      ${d.diskon ? `<div class="total-baris"><span>Diskon dokumen</span><span>-${rp(d.diskon)}</span></div>` : ''}
+      ${d.ppn ? `<div class="total-baris"><span>PPN</span><span>${rp(d.ppn)}</span></div>` : ''}
+      <div class="total-baris besar"><span>TOTAL</span><span>${rp(d.total)}</span></div>`,
+      `<button class="tombol" data-tutup="1">Tutup</button>
+       ${bolehBatal
+         ? `<button class="tombol bahaya" data-batal-pembelian="${esc(d.uuid)}">Batalkan pembelian</button>`
+         : ''}`);
   }
 
   /**
@@ -2020,8 +2098,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris-anak" data-anak="beli">
         ${barisPilihProduk(3)}
         <input type="number" data-f="qty" placeholder="qty" value="1">
-        <input type="text" data-f="satuan" placeholder="pcs" value="pcs">
-        <input type="number" data-f="faktor" placeholder="isi" value="1" title="Isi per satuan (lusin = 12)">
         <input type="text" inputmode="numeric" class="uang" data-f="harga_satuan" placeholder="harga beli">
         ${barisHapus}
       </div>`);
@@ -2047,9 +2123,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         kode_supplier: nilai('beliSupplier'), tipe_bayar: nilai('beliTipe'),
         jatuh_tempo: nilai('beliJatuhTempo'),
         diskon: angka('beliDiskon'), ppn: angka('beliPpn'),
+        /* SATUAN DIKUNCI 'pcs' DAN ISINYA 1, mati, bukan dibaca dari layar.
+           Diminta pemilik 6 Sep 2026: "hapus text field isi per satuan karena
+           selain membingungkan petugas juga saya tidak menggunakan satuan selain
+           pcs, tidak ada lusin kilo dan sebagainya. hanya fix 1pcs = 1pcs".
+           Kolomnya sudah tidak ada di formulir; nilainya ditulis DI SINI supaya
+           tidak ada satu jalan pun yang bisa mengirim angka lain — termasuk
+           kalau suatu hari ada yang menambahkan kembali inputnya tanpa membaca
+           permintaan ini.
+
+           Yang dicegah bukan kebingungan saja. Satu angka salah di kolom sempit
+           itu menggandakan stok sekaligus mengecilkan modal berkali lipat, tanpa
+           satu galat pun — persis yang terjadi pada nota 5 Sep 2026 (lihat
+           _galatSatuanPembelian di 06_Stock.gs). Kolom yang tidak ada tidak bisa
+           salah diisi, dan roda tetikus tidak bisa menggeser apa yang tidak ada. */
         item: item.map(i => ({
-          sku: i.sku, qty: Number(i.qty), satuan: i.satuan || 'pcs',
-          faktor: Number(i.faktor) || 1, harga_satuan: Number(i.harga_satuan) || 0, diskon: 0
+          sku: i.sku, qty: Number(i.qty), satuan: 'pcs',
+          faktor: 1, harga_satuan: Number(i.harga_satuan) || 0, diskon: 0
         }))
       });
       await Sync.tarikMaster(true);
@@ -4308,7 +4398,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
 
     async function tanganiKlikAksi(e) {
-      const t = e.target.closest('button, [data-tutup]');
+      /* `tr[data-rincian-beli]` ikut dicari supaya seluruh BARIS daftar
+         pembelian bisa diklik. Yang membuat ini aman: closest() mengambil
+         leluhur TERDEKAT, bukan yang pertama disebut di selektornya — jadi klik
+         pada tombol Batal di dalam baris itu tetap mengembalikan tombolnya.
+         `button` karena itu tidak boleh hilang dari sini: tanpa dia, menekan
+         Batal berubah jadi membuka rincian dan pembatalannya tidak pernah
+         jalan. */
+      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli]');
       if (!t) return;
       const d = t.dataset;
 
@@ -4651,6 +4748,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
+
+      if (d.rincianBeli) return rincianPembelian(d.rincianBeli);
 
       if (d.batalPembelian) {
         const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');

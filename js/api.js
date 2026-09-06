@@ -246,6 +246,7 @@ const API = (() => {
     bayarUtang:        (d) => panggil('bayar_utang', d),
     logAudit:          (d) => panggil('log_audit', d, { timeout: 60000 }),
     daftarPembelian:   (d) => panggil('daftar_pembelian', d),
+    rincianPembelian:  (d) => panggil('rincian_pembelian', d),
 
     /* --- klaim penjualan per petugas --- */
     daftarPetugas:     ()  => panggil('daftar_petugas'),

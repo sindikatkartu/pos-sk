@@ -795,6 +795,12 @@ th.angka.bisa-urut[data-arah="turun"]::before { content: '\25BC'; color: var(--t
 
 tbody tr:hover td { background: var(--panel-2); }
 tbody tr:last-child td { border-bottom: none; }
+
+/* Baris tabel yang MEMBUKA sesuatu kalau diklik.
+   Latar hover-nya sudah datang dari `tbody tr:hover td` di atas; yang kurang
+   cuma kursornya, dan tanpa itu barisnya tidak pernah terbaca bisa ditekan. */
+tbody tr.baris-klik { cursor: pointer; }
+.tautan-baris { text-decoration: underline; text-underline-offset: 2px; }
 /* Kolom angka tidak boleh patah baris.
    Tanpa `white-space: nowrap`, kolom yang sempit membuang "Rp" ke baris sendiri
    di atas angkanya — dan karena patahnya bergantung panjang tiap nilai, satu
