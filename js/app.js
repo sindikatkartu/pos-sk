@@ -3238,13 +3238,20 @@ async function perbaruiInfoLabel() {
   if ($('#setLabelTinggi')) $('#setLabelTinggi').value = u.tinggi_mm;
   if ($('#setLabelJarak')) $('#setLabelJarak').value = u.jarak_mm;
   if ($('#setLabelKolom')) $('#setLabelKolom').value = u.kolom;
+  if ($('#setLabelHurufKode')) $('#setLabelHurufKode').value = u.huruf_kode_mm;
+  if ($('#setLabelHurufNama')) $('#setLabelHurufNama').value = u.huruf_nama_mm;
+  if ($('#setLabelTinggiBar')) $('#setLabelTinggiBar').value = u.tinggi_bar_mm;
   /* Contoh hasil cetak digambar dari fungsi yang SAMA dengan yang mencetak.
      Pratinjau yang punya penggambar sendiri adalah pratinjau yang suatu hari
      akan berbeda dari kertasnya, dan hari itu tidak akan ada yang tahu mana
      yang benar. */
   if ($('#pratinjauLabelSetel') && typeof Label.svg === 'function') {
     try {
-      $('#pratinjauLabelSetel').innerHTML = Label.svg({ kode: 'TG01030006' }, u);
+      /* Contohnya MEMBAWA NAMA, sejak ukuran huruf nama bisa disetel di layar
+         ini juga: setelan yang akibatnya tidak kelihatan adalah setelan yang
+         disetel dengan menebak. */
+      $('#pratinjauLabelSetel').innerHTML =
+        Label.svg({ kode: 'TG01030006', nama: 'Contoh nama produk' }, u);
     } catch (e) {
       $('#pratinjauLabelSetel').innerHTML =
         `<p style="color:var(--bahaya);font-size:var(--fs-12);margin:0">${esc(e.message)}</p>`;
@@ -3888,12 +3895,21 @@ function pasangEvent() {
       lebar_mm: Number($('#setLabelLebar').value),
       tinggi_mm: Number($('#setLabelTinggi').value),
       jarak_mm: Number($('#setLabelJarak').value),
-      kolom: Number($('#setLabelKolom')?.value)
+      kolom: Number($('#setLabelKolom')?.value),
+      huruf_kode_mm: Number($('#setLabelHurufKode')?.value),
+      huruf_nama_mm: Number($('#setLabelHurufNama')?.value),
+      tinggi_bar_mm: Number($('#setLabelTinggiBar')?.value)
     });
     await perbaruiInfoLabel();
-    Admin.toast(`Kertas label: ${u.lebar_mm} × ${u.tinggi_mm} mm, ${u.kolom} per baris.`, 'sukses');
+    /* Angka yang dilaporkan dibaca dari HASIL penjepitan, bukan dari kolomnya.
+       Kalau seseorang mengetik huruf 40mm, yang tersimpan 8mm — dan pesan yang
+       mengulang "40" akan membuatnya mengira setelannya masuk. */
+    Admin.toast(`Kertas label: ${u.lebar_mm} × ${u.tinggi_mm} mm, ${u.kolom} per baris. ` +
+                `Huruf ${u.huruf_kode_mm}/${u.huruf_nama_mm} mm, barcode ` +
+                (u.tinggi_bar_mm > 0 ? `${u.tinggi_bar_mm} mm.` : 'otomatis.'), 'sukses');
   };
-  ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak', '#setLabelKolom']
+  ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak', '#setLabelKolom',
+   '#setLabelHurufKode', '#setLabelHurufNama', '#setLabelTinggiBar']
     .forEach(id => $(id)?.addEventListener('change', simpanUkuranLabel));
 
   $('#btnUjiCetak').addEventListener('click', () => {

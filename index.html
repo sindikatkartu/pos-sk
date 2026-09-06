@@ -789,6 +789,29 @@
           </div>
           <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0" id="infoLabelMuat"></p>
 
+          <!-- Ukuran tulisan & tinggi barcode. Sengaja dipisah dari empat kolom di
+               atas: yang di atas HARUS sama dengan kertas di driver printer, yang
+               di sini urusan keterbacaan dan boleh dicoba-coba. -->
+          <div class="petak-mini" style="margin-top:12px">
+            <div class="grup" style="margin:0">
+              <label>Huruf kode (mm)</label>
+              <input type="number" id="setLabelHurufKode" min="1.2" max="8" step="0.1">
+            </div>
+            <div class="grup" style="margin:0">
+              <label>Huruf nama (mm)</label>
+              <input type="number" id="setLabelHurufNama" min="1.2" max="8" step="0.1">
+            </div>
+            <div class="grup" style="margin:0">
+              <label>Tinggi barcode (mm)</label>
+              <input type="number" id="setLabelTinggiBar" min="0" max="60" step="0.5">
+            </div>
+          </div>
+          <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0">
+            Tinggi barcode <strong>0</strong> berarti otomatis — batangnya mengambil
+            seluruh sisa ruang sesudah tulisan. Ketiganya berebut tinggi stiker yang
+            sama: huruf yang dibesarkan memendekkan barcodenya. Lihat akibatnya pada
+            contoh di bawah sebelum mencetak seratus lembar.</p>
+
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">
             <label style="font-size:var(--fs-13);color:var(--teks-redup)">Contoh hasil cetak</label>
             <!-- Pratinjau dibungkus div biasa: `.pratinjau-label` itu

@@ -52,7 +52,27 @@ const Label = (() => {
     kolom: 3,
     /* Lebar bar tersempit. 0,25mm = 2 titik pada 203 dpi. */
     sempit: 2,
-    margin_mm: 2
+    margin_mm: 2,
+
+    /* Tinggi huruf dan tinggi batang, dalam mm — bisa disetel dari layar
+       Setelan. Diminta pemilik 6 Sep 2026: tulisan di bawah barcode kekecilan,
+       dan tinggi barcodenya ingin bisa diatur.
+
+       BAWAANNYA PERSIS SEPERTI SEBELUM SETELAN INI ADA, dan itu bukan
+       kehati-hatian kosong: stiker yang sudah tercetak dan tertempel di ratusan
+       barang tidak boleh berubah bentuk hanya karena aplikasinya diperbarui.
+
+       `tinggi_bar_mm: 0` berarti OTOMATIS — batangnya mengambil seluruh sisa
+       ruang sesudah teks, seperti selama ini. Angka di atas nol berarti tinggi
+       yang ditetapkan orang, dan sisanya jadi ruang kosong.
+
+       Ketiganya berebut tinggi label yang sama. Pada stiker 15mm, huruf yang
+       dibesarkan MEMENDEKKAN batangnya — itu bukan cacat melainkan aritmetika,
+       dan yang menyetelnya harus melihat akibatnya. Karena itu layar Setelan
+       menggambar contohnya dari fungsi yang sama dengan yang mencetak. */
+    huruf_kode_mm: 2.6,
+    huruf_nama_mm: 2.0,
+    tinggi_bar_mm: 0
   };
 
   /* Tinggi huruf, dalam mm. Monospace dipakai supaya lebar teks bisa DIHITUNG
@@ -237,12 +257,34 @@ const Label = (() => {
     const { lebar } = pola(kode);
     const lebarBar = cocok.lebar;
 
+    /* Tinggi huruf diambil dari setelan, dengan BAWAAN sebagai cadangan —
+       stiker yang dicetak perangkat yang setelannya belum pernah disentuh harus
+       keluar persis seperti sebelum setelan ini ada. */
+    const hKode = Number(o.huruf_kode_mm) > 0 ? Number(o.huruf_kode_mm) : HURUF.kode;
+    const hNama = Number(o.huruf_nama_mm) > 0 ? Number(o.huruf_nama_mm) : HURUF.nama;
+
     /* Tinggi dibagi dari atas ke bawah, sisanya jadi tinggi batang. Dihitung,
        bukan dihafal: label 15mm dan label 25mm memakai rumus yang sama. */
     const atas = 1, selaKode = 0.6, selaNama = 0.4, bawah = 0.8;
-    let tBar = H - atas - selaKode - HURUF.kode - bawah;
-    if (nama) tBar -= selaNama + HURUF.nama;
-    if (tBar < 3) throw new Error(`Label ${H}mm terlalu pendek untuk barcode + teks.`);
+    let sisa = H - atas - selaKode - hKode - bawah;
+    if (nama) sisa -= selaNama + hNama;
+
+    /* Tinggi batang yang DIMINTA orang dipakai apa adanya; sisanya dibiarkan
+       kosong. Ditolak kalau tidak muat, dan penolakannya menyebut ANGKANYA —
+       "terlalu pendek" tanpa angka tidak memberi tahu siapa pun berapa yang
+       harus dikurangi. */
+    const minta = Number(o.tinggi_bar_mm) || 0;
+    if (minta > 0 && minta > sisa) {
+      throw new Error(`Tinggi barcode ${minta}mm tidak muat: label ${H}mm hanya menyisakan ` +
+        `${sisa.toFixed(1)}mm sesudah tulisannya. Kecilkan tinggi barcode, kecilkan ukuran ` +
+        `huruf, atau pakai stiker yang lebih tinggi.`);
+    }
+    const tBar = minta > 0 ? minta : sisa;
+    if (tBar < 3) {
+      throw new Error(`Label ${H}mm terlalu pendek untuk barcode + teks — tersisa ` +
+        `${sisa.toFixed(1)}mm untuk batangnya, minimal 3mm. Kecilkan ukuran huruf atau ` +
+        `pakai stiker yang lebih tinggi.`);
+    }
 
     let x = (W - lebarBar) / 2;
     const bagian = [];
@@ -256,15 +298,18 @@ const Label = (() => {
       x += w;
     });
 
-    const yKode = atas + tBar + selaKode + HURUF.kode * 0.82;
-    bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yKode)}" font-size="${HURUF.kode}"` +
+    const yKode = atas + tBar + selaKode + hKode * 0.82;
+    bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yKode)}" font-size="${hKode}"` +
                 ` text-anchor="middle" font-family="monospace">${esc(kode)}</text>`);
 
     if (nama) {
-      const tersediaHuruf = Math.floor((W - 2 * o.margin_mm) / (HURUF.nama * RASIO_HURUF));
+      /* Berapa huruf yang muat ikut menyusut saat hurufnya dibesarkan — kalau
+         tidak, nama yang tadinya pas akan menjulur keluar stiker begitu
+         ukurannya dinaikkan, dan yang tercetak terpotong di tengah kata. */
+      const tersediaHuruf = Math.floor((W - 2 * o.margin_mm) / (hNama * RASIO_HURUF));
       const potong = nama.length > tersediaHuruf ? nama.slice(0, tersediaHuruf) : nama;
-      const yNama = yKode + selaNama + HURUF.nama;
-      bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yNama)}" font-size="${HURUF.nama}"` +
+      const yNama = yKode + selaNama + hNama;
+      bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yNama)}" font-size="${hNama}"` +
                   ` text-anchor="middle" font-family="monospace">${esc(potong)}</text>`);
     }
 
@@ -338,7 +383,15 @@ const Label = (() => {
       lebar_mm: Math.max(10, Math.min(100, Number(u.lebar_mm) || BAWAAN.lebar_mm)),
       tinggi_mm: Math.max(10, Math.min(100, Number(u.tinggi_mm) || BAWAAN.tinggi_mm)),
       jarak_mm: Math.max(0, Math.min(10, Number(u.jarak_mm) || 0)),
-      kolom: Math.max(1, Math.min(10, Math.round(Number(u.kolom) || BAWAAN.kolom)))
+      kolom: Math.max(1, Math.min(10, Math.round(Number(u.kolom) || BAWAAN.kolom))),
+      /* Dijepit DI SINI, bukan hanya lewat atribut min/max di layar: `type=number`
+         tidak menghalangi angka yang diketik langsung, dan huruf 40mm pada stiker
+         15mm menghasilkan stiker yang isinya cuma satu huruf raksasa. Sama
+         persis alasannya dengan `printer_umpan` di app.js. */
+      huruf_kode_mm: Math.max(1.2, Math.min(8, Number(u.huruf_kode_mm) || BAWAAN.huruf_kode_mm)),
+      huruf_nama_mm: Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm)),
+      /* Nol DIPERTAHANKAN — ia berarti "otomatis", bukan "kosong". */
+      tinggi_bar_mm: Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))
     };
     await DB.kvSet('label_ukuran', bersih);
     return bersih;
