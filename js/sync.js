@@ -16,7 +16,23 @@ const Sync = (() => {
      IndexedDB; menyelipkan pembacaan async di dalam penggambar berarti lencana
      yang berkedip. Diangkut di sini, penggambarnya tetap sederhana. */
   const status = { mengirim: false, tertahan: 0, ditolak: 0, terakhir: null,
-                   galat: null, umur_jam: 0 };
+                   galat: null, umur_jam: 0, tertahan_cabang: {} };
+
+  /* Cabang milik SATU baris outbox.
+     Baris lama (dibuat sebelum v1.114.0) tidak punya kolomnya; ia jatuh ke
+     cabang sekarang — persis perilaku lama. Disengaja: memutakhirkan aplikasi
+     tidak boleh mengubah nasib antrean yang sedang berisi di perangkat kasir. */
+  const cabangBaris = (o) => o.cabang || APP_STATE.cabang;
+
+  /* Boleh dikirim kalau cabangnya cabang sekarang, atau akunnya memang berhak
+     lintas cabang — aturan yang SAMA dengan wajibCabang() di server.
+
+     Menebak "boleh" lalu ditolak IZIN bukan sekadar gagal: penanganan galat di
+     bawah MEMBAKAR jatah percobaan untuk kode IZIN, dan tiga kali cukup untuk
+     menandai notanya DITOLAK selamanya. Nota yang sehat, cuma sedang menunggu
+     orang yang tepat login, tidak boleh mati karena itu. */
+  const bolehKirimCabang = (kode) =>
+    kode === APP_STATE.cabang || !!(APP_STATE.flag || {}).akses_lintas_cabang;
 
   function kabarkan() { document.dispatchEvent(new CustomEvent('sync:status', { detail: { ...status } })); }
 
@@ -24,6 +40,13 @@ const Sync = (() => {
   async function antrikanPenjualan(dok) {
     await DB.put('outbox', {
       uuid: dok.uuid, jenis: 'penjualan', status: 'PENDING',
+      /* Cabang DICAP DI SINI, saat notanya dibuat — bukan dibaca saat mengirim.
+         Sampai v1.113.0 seluruh antrean dikirim dengan `APP_STATE.cabang` pada
+         saat KIRIM, jadi nota yang dibuat di SK01 lalu terkirim sesudah orangnya
+         login ke SK02 mendarat di SK02, tanpa satu galat pun. Yang salah bukan
+         izinnya, melainkan pertanyaannya: cabang sebuah nota adalah fakta saat
+         ia dibuat, bukan keadaan layar saat ia kebetulan terkirim. */
+      cabang: APP_STATE.cabang,
       dibuat: new Date().toISOString(), percobaan: 0, dokumen: dok
     });
     status.tertahan = await DB.outboxJumlah();
@@ -54,6 +77,7 @@ const Sync = (() => {
     if (status.mengirim || !API.online || !API.getToken()) return;
     const antri = await DB.outboxAntri('PENDING');
     status.tertahan = antri.length;
+    status.tertahan_cabang = {};
 
     /* Umur data DIHITUNG SEBELUM jalan keluar di bawah. Saat online outbox
        hampir selalu kosong, jadi menghitungnya sesudah baris itu berarti
@@ -71,53 +95,77 @@ const Sync = (() => {
        diam di nol selama ini. */
     let sedangDikirim = [];
     try {
-      for (let i = 0; i < antri.length; i += CONFIG.BATCH_SIZE) {
-        const paket = antri.slice(i, i + CONFIG.BATCH_SIZE);
-        /* Jejak cetak ulang dikirim satu per satu dan TIDAK menghalangi apa pun:
-           kegagalannya hanya membuatnya dicoba lagi nanti. Ditaruh sebelum
-           penjualan supaya `continue` di bawah — yang melompati paket tanpa
-           nota — tidak ikut melompati jejaknya. */
-        for (const o of paket.filter(o => o.jenis === 'cetak_ulang')) {
-          try {
-            await API.catatCetakUlang(o.dokumen);
-            o.status = 'SYNCED'; o.waktu_sinkron = new Date().toISOString();
-          } catch (e) {
-            o.percobaan = (o.percobaan || 0) + 1;
-            if (o.percobaan >= 5) o.status = 'DITOLAK';
-          }
-          await DB.put('outbox', o);
-        }
-
-        const penjualan = paket.filter(o => o.jenis === 'penjualan');
-        if (!penjualan.length) continue;
-
-        sedangDikirim = penjualan;
-        const hasil = await API.kirimPenjualan({
-          cabang: APP_STATE.cabang,
-          dokumen: penjualan.map(o => o.dokumen)
-        }, { latar: true });
-        sedangDikirim = [];   // paketnya selamat; yang gagal sesudah ini bukan salahnya
-
-        // Diterima maupun duplikat sama-sama berarti "sudah aman di server"
-        const beres = new Set([...(hasil.diterima || []), ...(hasil.duplikat || [])]);
-        for (const o of penjualan) {
-          if (beres.has(o.uuid)) {
-            o.status = 'SYNCED'; o.waktu_sinkron = hasil.waktu;
-            await DB.put('outbox', o);
-            const nota = await DB.get('penjualan', o.uuid);
-            if (nota) { nota.status_sync = 'SYNCED'; await DB.put('penjualan', nota); }
-          }
-        }
-
-        // Dokumen yang ditolak server ditandai agar tidak diulang terus-menerus
-        for (const g of (hasil.gagal || [])) {
-          const o = penjualan.find(x => x.uuid === g.uuid);
-          if (!o) continue;
+      /* Jejak cetak ulang dikirim satu per satu dan TIDAK menghalangi apa pun:
+         kegagalannya hanya membuatnya dicoba lagi nanti. Dikerjakan lebih dulu
+         supaya jalan pintas mana pun di bawah tidak ikut melompatinya.
+         Tidak dikelompokkan per cabang: `catatCetakUlang` tidak menerima cabang
+         sama sekali, servernya memakai cabang sesi. */
+      for (const o of antri.filter(o => o.jenis === 'cetak_ulang')) {
+        try {
+          await API.catatCetakUlang(o.dokumen);
+          o.status = 'SYNCED'; o.waktu_sinkron = new Date().toISOString();
+        } catch (e) {
           o.percobaan = (o.percobaan || 0) + 1;
-          o.pesan_galat = g.pesan;
-          if (o.percobaan >= 3) o.status = 'DITOLAK';
-          await DB.put('outbox', o);
-          console.warn('Dokumen ditolak server:', g.uuid, g.pesan);
+          if (o.percobaan >= 5) o.status = 'DITOLAK';
+        }
+        await DB.put('outbox', o);
+      }
+
+      /* Penjualan DIKELOMPOKKAN MENURUT CABANGNYA SENDIRI, lalu tiap kelompok
+         dikirim dengan cabangnya masing-masing. Pemaketan BATCH_SIZE terjadi di
+         dalam kelompok, bukan di atasnya — satu paket berisi dua cabang harus
+         dikirim dengan satu nilai `cabang`, dan nilai apa pun yang dipilih akan
+         salah untuk separuh isinya. */
+      const perCabang = {};
+      antri.filter(o => o.jenis === 'penjualan').forEach(o => {
+        const k = cabangBaris(o);
+        (perCabang[k] = perCabang[k] || []).push(o);
+      });
+
+      /* Kelompok yang tidak berhak dikirim akun ini DITAHAN — tidak dicoba,
+         tidak membakar jatah percobaan, dan TIDAK didiamkan: jumlahnya
+         disiarkan supaya lencananya bisa menyebut cabang mana yang menunggu.
+         Nota yang tertahan tanpa ada yang tahu adalah persis jenis kegagalan
+         yang sedang diperbaiki di sini. */
+      Object.keys(perCabang).forEach(k => {
+        if (!bolehKirimCabang(k)) status.tertahan_cabang[k] = perCabang[k].length;
+      });
+
+      for (const kode of Object.keys(perCabang)) {
+        if (status.tertahan_cabang[kode]) continue;
+        const antriCabang = perCabang[kode];
+
+        for (let i = 0; i < antriCabang.length; i += CONFIG.BATCH_SIZE) {
+          const penjualan = antriCabang.slice(i, i + CONFIG.BATCH_SIZE);
+
+          sedangDikirim = penjualan;
+          const hasil = await API.kirimPenjualan({
+            cabang: kode,
+            dokumen: penjualan.map(o => o.dokumen)
+          }, { latar: true });
+          sedangDikirim = [];   // paketnya selamat; yang gagal sesudah ini bukan salahnya
+
+          // Diterima maupun duplikat sama-sama berarti "sudah aman di server"
+          const beres = new Set([...(hasil.diterima || []), ...(hasil.duplikat || [])]);
+          for (const o of penjualan) {
+            if (beres.has(o.uuid)) {
+              o.status = 'SYNCED'; o.waktu_sinkron = hasil.waktu;
+              await DB.put('outbox', o);
+              const nota = await DB.get('penjualan', o.uuid);
+              if (nota) { nota.status_sync = 'SYNCED'; await DB.put('penjualan', nota); }
+            }
+          }
+
+          // Dokumen yang ditolak server ditandai agar tidak diulang terus-menerus
+          for (const g of (hasil.gagal || [])) {
+            const o = penjualan.find(x => x.uuid === g.uuid);
+            if (!o) continue;
+            o.percobaan = (o.percobaan || 0) + 1;
+            o.pesan_galat = g.pesan;
+            if (o.percobaan >= 3) o.status = 'DITOLAK';
+            await DB.put('outbox', o);
+            console.warn('Dokumen ditolak server:', g.uuid, g.pesan);
+          }
         }
       }
       status.terakhir = new Date().toISOString();

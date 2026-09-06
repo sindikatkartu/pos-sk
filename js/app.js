@@ -4179,6 +4179,22 @@ function pasangEvent() {
     if (s.tertahan >= CONFIG.PERINGATAN_OUTBOX) {
       el.textContent = '⚠ ' + s.tertahan + ' tertahan'; el.className = 'lencana merah';
     }
+    /* Nota yang tertahan karena MILIK CABANG LAIN — dibuat di SK01, lalu
+       perangkatnya login ke SK02. Sejak v1.114.0 nota membawa cabangnya sendiri
+       dan tidak lagi ikut terkirim ke cabang yang sedang aktif; konsekuensinya
+       ia menunggu, dan menunggu tanpa diberitahu sama saja dengan hilang.
+       Menang atas "N menunggu" yang kuning: yang ini tidak sembuh dengan
+       menunggu jaringan, ia butuh orang yang login ke cabang itu. */
+    const asingCabang = Object.keys(s.tertahan_cabang || {});
+    let judulAsing = '';
+    if (asingCabang.length) {
+      const n = asingCabang.reduce((a, k) => a + s.tertahan_cabang[k], 0);
+      el.textContent = '⚠ ' + n + ' nota cabang ' + asingCabang.join(', ');
+      el.className = 'lencana merah';
+      judulAsing = n + ' nota dibuat di cabang ' + asingCabang.join(', ') +
+                   ' dan belum terkirim. Notanya aman di perangkat ini; login ke ' +
+                   'cabang itu supaya terkirim ke pembukuan yang benar.';
+    }
     /* Nota yang DITOLAK server tidak lagi dihitung "menunggu", jadi tanpa baris
        ini lencana kembali hijau seolah semuanya beres — padahal ada uang yang
        tidak pernah sampai ke pembukuan. Ini harus menang atas status lain. */
@@ -4192,7 +4208,8 @@ function pasangEvent() {
       /* Alasannya, bukan cuma warnanya. Lencana merah tanpa keterangan hanya
          bisa dilaporkan sebagai "lencananya merah" — dan itu tidak cukup untuk
          menebak bahwa yang hilang adalah satu centang izin di layar Peran. */
-      if (s.galat) el.title = s.galat;
+      if (judulAsing) el.title = judulAsing;
+      else if (s.galat) el.title = s.galat;
       /* `removeAttribute('title')` di atas ikut menghapus keterangan harga basi,
          jadi peringatannya harus dipasang ulang di sini — kalau tidak, lencana
          kuning itu muncul tanpa penjelasan apa pun saat ditunjuk. */
