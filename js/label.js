@@ -453,12 +453,11 @@ const Label = (() => {
    * stikernya — bukan dihilangkan. Yang perlu dilihat orang justru POSISINYA:
    * "stiker saya akan keluar di kolom kedua, kolom pertama dibiarkan kosong".
    */
-  function pratinjauSemua(daftar, opsi = {}, batas = 0) {
+  function pratinjauSemua(daftar, opsi = {}) {
     const o = Object.assign({}, BAWAAN, opsi);
     const kolom = jumlahKolom(o);
     const slot = slotDipakai(o);
-    const baris = _potongBaris(sebar(daftar), kolom, slot);
-    return (batas > 0 ? baris.slice(0, batas) : baris).map(sel =>
+    return _potongBaris(sebar(daftar), kolom, slot).map(sel =>
       `<div class="baris-pratinjau" style="gap:${o.jarak_mm}mm">${sel.map(isi => isi
         ? `<div class="sel-pratinjau">${svg(isi, o)}</div>`
         : `<div class="sel-pratinjau kosong" style="width:${o.lebar_mm}mm;height:${o.tinggi_mm}mm"></div>`
@@ -468,12 +467,12 @@ const Label = (() => {
   /**
    * Berapa BARIS KERTAS yang akan keluar — tanpa menggambar satu pun stiker.
    *
-   * Layar hanya menampilkan baris pertama (kertasnya memang maju satu baris
-   * pada satu waktu, dan menggambar lima belas baris di layar tidak
-   * menjelaskan apa pun yang tidak dijelaskan baris pertama). Tapi orangnya
-   * tetap harus tahu berapa yang akan tercetak sebelum menekan Cetak, jadi
-   * angkanya dihitung di sini — dengan pembagi yang sama dengan yang dipakai
-   * mencetak, bukan dibagi tiga di layar.
+   * Layar menggambar seluruh barisnya, jadi angkanya bisa saja dihitung dengan
+   * membaca hasil gambarnya. Tapi angka yang dibaca dari gambar akan ikut salah
+   * kalau gambarnya salah, dan yang dibutuhkan justru angka yang berdiri
+   * sendiri. Dihitung di sini dengan pembagi yang SAMA dengan yang dipakai
+   * mencetak — bukan dibagi tiga di layar, yang akan benar selama ketiga
+   * kolomnya menyala lalu berbohong begitu satu kolom dimatikan.
    */
   function jumlahBarisCetak(daftar, opsi = {}) {
     const o = Object.assign({}, BAWAAN, opsi);

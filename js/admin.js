@@ -1041,7 +1041,7 @@ const Admin = (() => {
         </div>
         <label class="cek"><input type="checkbox" id="labNama"> Sertakan nama produk di label</label>
         <div class="grup">
-          <label>Pratinjau baris pertama — ukuran sesungguhnya</label>
+          <label>Pratinjau — ukuran sesungguhnya, seluruh barisnya</label>
           <div id="labPratinjau" style="margin-top:6px"></div>
           <p class="petunjuk" id="labKetPratinjau" style="margin:6px 0 0"></p>
         </div>
@@ -1135,28 +1135,31 @@ const Admin = (() => {
        membuang stiker. */
     if (btn) btn.hidden = !k.length || tidakMuat.length > 0;
 
-    /* BARIS PERTAMA SAJA, dan itu diminta pemilik 6 Sep 2026 setelah melihat
-       versi yang menggambar semuanya: "pratinjaunya 1 baris 3 label saja sesuai
-       kenyataan". Ia benar dua kali. Kertasnya memang maju SATU baris pada satu
-       waktu, jadi satu baris itulah kenyataan yang perlu dicocokkan dengan mata.
-       Dan baris kedua dan seterusnya tidak menjelaskan apa pun yang tidak sudah
-       dijelaskan baris pertama — sebelas stiker TG yang sama digambar sebelas
-       kali cuma membuat yang penting (SKU mana mendarat di kolom mana) tenggelam.
+    /* SELURUH BARIS digambar, sampai ke bawah — diminta pemilik 6 Sep 2026:
+       "harusnya pratinjaunya tampak sampai ke bawah sesuai isi keranjang".
+
+       Sempat dibatasi satu baris pada percobaan sebelumnya, dan itu salah
+       membaca keluhannya. Yang ia lihat waktu itu adalah dua baris kertas
+       tergambar BERDAMPINGAN gara-gara `.baris-pratinjau { inline-flex }` —
+       yang terbaca seperti satu baris berisi enam stiker. Cacatnya di CSS, bukan
+       pada jumlah baris yang digambar. Membatasi jadi satu baris menyembunyikan
+       cacatnya sekaligus membuang yang memang ingin ia lihat: keranjang 14
+       stiker harus terlihat 14 stiker.
 
        Jumlah barisnya tetap disebut dengan ANGKA, dihitung `jumlahBarisCetak`
        memakai pembagi yang sama dengan yang mencetak — bukan dibagi tiga di
-       sini. Orang tetap harus tahu berapa yang akan keluar sebelum menekan
-       Cetak. */
+       sini, yang akan benar selama ketiga kolomnya menyala lalu berbohong
+       begitu satu kolom dimatikan. */
     const el = $('#labPratinjau');
     const ket = $('#labKetPratinjau');
     try {
       const opsi = Object.assign({}, u, { slot: slotLabelTerpilih() });
-      el.innerHTML = k.length ? Label.pratinjauSemua(isiCetakDari(k), opsi, 1) : '';
+      el.innerHTML = k.length ? Label.pratinjauSemua(isiCetakDari(k), opsi) : '';
       if (ket) {
         const nBaris = k.length ? Label.jumlahBarisCetak(isiCetakDari(k), opsi) : 0;
         const nStiker = k.reduce((a, x) => a + (Number(x.lembar) || 1), 0);
         ket.textContent = k.length
-          ? `Baris pertama dari ${nBaris} baris kertas · ${nStiker} stiker seluruhnya.`
+          ? `${nBaris} baris kertas · ${nStiker} stiker.`
           : '';
       }
     } catch (e) {
