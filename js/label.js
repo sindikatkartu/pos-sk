@@ -380,6 +380,38 @@ const Label = (() => {
    * `@page margin: 0` wajib — margin bawaan peramban 10mm akan menggeser
    * seluruh barisnya keluar kertas.
    */
+  /**
+   * SATU-SATUNYA tempat yang memutuskan stiker mana mendarat di sel mana.
+   *
+   * Dipakai bersama oleh `halaman()` (yang keluar ke printer) dan
+   * `pratinjauSemua()` (yang dilihat orang di layar). Sampai 6 Sep 2026 kedua
+   * penyusun itu ditulis terpisah, dan pelajaran dari v1.104.0 masih segar:
+   * pratinjau yang punya penyusun sendiri suatu hari akan berbeda dari
+   * kertasnya, dan hari itu tidak ada yang tahu mana yang benar.
+   *
+   * Mengembalikan array baris; tiap baris array sepanjang `kolom`, berisi
+   * item atau `null` untuk sel yang dilewati. Sel yang dilewati TETAP ADA —
+   * kertasnya maju satu baris penuh, dan sel kosong harus tetap memakan
+   * tempatnya atau seluruh baris melenceng satu kolom.
+   */
+  function _potongBaris(semua, kolom, slot) {
+    const baris = [];
+    /* Nol slot tidak mungkin lolos ke sini (`slotDipakai` melempar), tapi
+       langkah nol memutar for-loop ini selamanya dan mematikan tabnya tanpa
+       satu pesan pun — ditemukan lewat mutasi, bukan lewat pembacaan. */
+    const langkah = Math.max(1, slot.length);
+    for (let i = 0; i < semua.length; i += langkah) {
+      const potong = semua.slice(i, i + langkah);
+      const sel = [];
+      for (let k = 1; k <= kolom; k++) {
+        const ke = slot.indexOf(k);
+        sel.push(ke >= 0 && potong[ke] ? potong[ke] : null);
+      }
+      baris.push(sel);
+    }
+    return baris;
+  }
+
   function halaman(daftar, opsi = {}) {
     const o = Object.assign({}, BAWAAN, opsi);
     const kolom = jumlahKolom(o);
@@ -391,17 +423,9 @@ const Label = (() => {
        Kertasnya tetap maju satu baris penuh, dan sel yang dilewati harus tetap
        memakan tempatnya — kalau tidak, stiker kolom 2 tercetak di posisi kolom
        1 dan seluruh baris melenceng. */
-    const baris = [];
-    const langkah = Math.max(1, slot.length);
-    for (let i = 0; i < semua.length; i += langkah) {
-      const potong = semua.slice(i, i + langkah);
-      const sel = [];
-      for (let k = 1; k <= kolom; k++) {
-        const ke = slot.indexOf(k);
-        sel.push(`<div class="sel">${ke >= 0 && potong[ke] ? svg(potong[ke], o) : ''}</div>`);
-      }
-      baris.push(`<div class="baris">${sel.join('')}</div>`);
-    }
+    const baris = _potongBaris(semua, kolom, slot).map(sel =>
+      `<div class="baris">${sel.map(isi =>
+        `<div class="sel">${isi ? svg(isi, o) : ''}</div>`).join('')}</div>`);
 
     return `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <title>Label barcode</title>
@@ -429,17 +453,30 @@ const Label = (() => {
    * stikernya — bukan dihilangkan. Yang perlu dilihat orang justru POSISINYA:
    * "stiker saya akan keluar di kolom kedua, kolom pertama dibiarkan kosong".
    */
-  function barisPratinjau(isi, opsi = {}) {
+  function pratinjauSemua(daftar, opsi = {}) {
     const o = Object.assign({}, BAWAAN, opsi);
     const kolom = jumlahKolom(o);
     const slot = slotDipakai(o);
-    const sel = [];
-    for (let k = 1; k <= kolom; k++) {
-      sel.push(slot.indexOf(k) >= 0
+    return _potongBaris(sebar(daftar), kolom, slot).map(sel =>
+      `<div class="baris-pratinjau" style="gap:${o.jarak_mm}mm">${sel.map(isi => isi
         ? `<div class="sel-pratinjau">${svg(isi, o)}</div>`
-        : `<div class="sel-pratinjau kosong" style="width:${o.lebar_mm}mm;height:${o.tinggi_mm}mm"></div>`);
-    }
-    return `<div class="baris-pratinjau" style="gap:${o.jarak_mm}mm">${sel.join('')}</div>`;
+        : `<div class="sel-pratinjau kosong" style="width:${o.lebar_mm}mm;height:${o.tinggi_mm}mm"></div>`
+      ).join('')}</div>`).join('');
+  }
+
+  /**
+   * Satu baris berisi SATU kode yang diulang di seluruh kolom aktif.
+   *
+   * Ini bukan tata letak sungguhan melainkan ILUSTRASI "beginilah satu baris
+   * penuh akan terlihat" — dipakai contoh di layar Setelan. Ia sengaja jadi
+   * pembungkus tipis `pratinjauSemua`, bukan penggambar kedua: `lembar`
+   * disetel sebanyak slot aktif, jadi sebar() menghasilkan tepat satu baris
+   * penuh dan hasilnya identik sampai ke karakternya.
+   */
+  function barisPratinjau(isi, opsi = {}) {
+    const o = Object.assign({}, BAWAAN, opsi);
+    return pratinjauSemua([{ kode: isi.kode, nama: isi.nama,
+                             lembar: slotDipakai(o).length }], opsi);
   }
 
   /* ---------- Pengaturan ---------- */
@@ -525,7 +562,8 @@ const Label = (() => {
   }
 
   return { sandi128, pola, lebarMm, muat, svg, halaman, sebar, kodeProduk,
-           ukuran, simpanUkuran, cetak, barisPratinjau, slotDipakai, jumlahKolom,
+           ukuran, simpanUkuran, cetak, barisPratinjau, pratinjauSemua,
+           slotDipakai, jumlahKolom,
            BAWAAN, HURUF, POLA, TITIK_PER_MM, mmKeTitik };
 })();
 
