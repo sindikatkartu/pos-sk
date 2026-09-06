@@ -830,6 +830,7 @@ const Admin = (() => {
             </span>` : ''}
           <span class="jumlah-baris">${hitung}</span>
           <div class="kanan">
+            <button class="tombol" id="btnKeranjangLabel">Stiker <span class="lencana" id="lencanaStiker">0</span></button>
             ${tombolEkspor('produk')}
             ${bolehIzin('produk', 'ubah') ? `
               <button class="tombol" id="btnTandaiPasang"
@@ -918,38 +919,116 @@ const Admin = (() => {
      tidak muat di stikernya, tombolnya MENOLAK dan menyebut angkanya — barcode
      terpotong terbaca sebagai barang lain, dan itu jauh lebih mahal daripada
      label yang tidak jadi tercetak. */
-  async function cetakLabelProduk(sku) {
-    const p = cacheProduk.find(x => x.sku === sku);
-    if (!p) return toast('Produk tidak ditemukan.', 'galat');
+  /* ==================== KERANJANG STIKER ====================
+     Diminta pemilik 6 Sep 2026: "ada situasi dimana cuma membutuhkan 1 label
+     saja, sedangkan sekali printah print 1 baris harus berjalan. saya berharap
+     ada jalur yang bisa diadjust perlabel sehingga 1 baris terisi semua dengan
+     berbeda sku".
+
+     Mesinnya sudah bisa sejak awal — `Label.cetak()` menerima ARRAY dan
+     `sebar()` mengembangkannya per lembar. Yang tidak ada cuma jalannya: dialog
+     cetak selalu diberi satu produk saja, jadi satu stiker memakan satu baris
+     kertas penuh dan dua kolom sisanya terbuang. Roll 3 line yang dipakai toko
+     ini membuang dua pertiga kertasnya setiap kali mencetak satu barang.
+
+     Keranjangnya BERTAHAN di perangkat (IndexedDB, sama seperti outbox kasir).
+     Mengumpulkan tiga SKU berarti tiga kali mencari di katalog; kehilangan
+     kumpulan itu karena tab tertutup atau aplikasi memuat versi baru berarti
+     mengulang seluruh pencariannya. */
+
+  const KUNCI_KERANJANG = 'label_keranjang';
+
+  const muatKeranjangLabel = async () => {
+    const k = await DB.kvGet(KUNCI_KERANJANG, []);
+    return Array.isArray(k) ? k : [];
+  };
+  const simpanKeranjangLabel = async (k) => {
+    await DB.kvSet(KUNCI_KERANJANG, k);
+    perbaruiLencanaStiker(k);
+  };
+
+  /** Angka di tombol Stiker = jumlah STIKER, bukan jumlah baris keranjang. */
+  function perbaruiLencanaStiker(k) {
+    const el = $('#lencanaStiker');
+    if (!el) return;
+    el.textContent = String((k || []).reduce((a, x) => a + (Number(x.lembar) || 1), 0));
+  }
+
+  /**
+   * Cari produk untuk keranjang — dari KATALOG CACHE di perangkat, bukan server.
+   *
+   * Diminta pemilik di kalimat yang sama: "kalau bisa ada sistem cache supaya
+   * bisa digunakan dengan cepat". `DB.all('produk')` membaca store IndexedDB
+   * yang sudah diisi Sync.tarikMaster, dan store itu SUDAH ber-cache baca di
+   * memori (lihat CACHEABLE di db.js) — pencarian kedua dan seterusnya tidak
+   * menyentuh disk sama sekali, apalagi jaringan.
+   *
+   * TIDAK ada lapisan cache kedua di sini, dan itu disengaja. Cache milik db.js
+   * dibuang setiap kali katalognya ditulis ulang, dan pembuangannya disiarkan
+   * ke tab lain lewat BroadcastChannel. Menyimpan salinan sendiri di sini
+   * berarti salinan itu tidak ikut dibuang — sesudah tarik master, pencarian
+   * stiker akan menyajikan katalog basi selamanya, tanpa satu pun tanda.
+   *
+   * Konsekuensinya tetap jujur: katalognya sesegar tarikan master terakhir,
+   * jadi produk yang dibuat menit ini belum ada sampai master ditarik lagi.
+   */
+  const katalogStiker = () => DB.all('produk');
+
+  /** Satu baris keranjang dari sebuah produk, atau null kalau tak punya kode. */
+  function barisStikerDari(p) {
+    const kode = Label.kodeProduk(p);
+    if (!kode) return null;
+    return { sku: String(p.sku), kode, nama: String(p.nama || p.sku), lembar: 1 };
+  }
+
+  async function tambahKeranjangLabel(sku) {
     if (typeof Label === 'undefined') {
       return toast('Muat ulang aplikasi sekali lagi supaya modul label ikut terpasang.', 'galat');
     }
-    const kode = Label.kodeProduk(p);
-    if (!kode) return toast('Produk ini tidak punya SKU maupun barcode untuk dicetak.', 'galat');
-    /* Produk berbarcode pabrik mencetak barcode ITU, bukan SKU-nya. Dikatakan di
-       layar, bukan dibiarkan ditebak: kode yang tercetak berbeda dari SKU yang
-       barusan diklik adalah persis hal yang membuat orang mengira salah tombol. */
-    const dariPabrik = String(p.barcode || '').trim() && kode === String(p.barcode).trim();
+    let p = cacheProduk.find(x => x.sku === sku);
+    if (!p) p = (await katalogStiker()).find(x => String(x.sku) === String(sku));
+    if (!p) return toast('Produk tidak ditemukan.', 'galat');
 
+    const baris = barisStikerDari(p);
+    if (!baris) return toast('Produk ini tidak punya SKU maupun barcode untuk dicetak.', 'galat');
+
+    const k = await muatKeranjangLabel();
+    /* SKU yang sama ditambah JUMLAHNYA, bukan jadi baris kedua. Dua baris
+       dengan SKU sama membuat orang mengira ia salah pencet, lalu membuang
+       salah satunya — dan yang terbuang membawa jumlahnya. */
+    const ada = k.find(x => x.sku === baris.sku);
+    if (ada) ada.lembar = Math.min(999, (Number(ada.lembar) || 1) + 1);
+    else k.push(baris);
+    await simpanKeranjangLabel(k);
+
+    /* TANPA esc(): toast() menulis lewat textContent, jadi meloloskannya di sini
+       justru memunculkan "&amp;" pada nama produk yang memuat "&". */
+    toast(`${baris.nama} masuk keranjang stiker (${
+      k.reduce((a, x) => a + (Number(x.lembar) || 1), 0)} stiker).`);
+    if ($('#modalUmum') && $('#modalUmum')._label) gambarKeranjangLabel();
+  }
+
+  /* ---------- dialog keranjang ---------- */
+
+  async function bukaKeranjangLabel() {
+    if (typeof Label === 'undefined') {
+      return toast('Muat ulang aplikasi sekali lagi supaya modul label ikut terpasang.', 'galat');
+    }
     const u = await Label.ukuran();
     u.kolom = Label.jumlahKolom(u);
-    const cocok = Label.muat(kode, u);
     const lebarHalaman = u.lebar_mm * u.kolom + (u.kolom - 1) * u.jarak_mm;
 
-    bukaModal('Cetak label — ' + esc(p.nama), `
+    bukaModal('Keranjang stiker', `
       <div class="petak-tunggal" style="max-width:none">
         <div class="grup">
-          <label>Kode yang dicetak</label>
-          <p style="margin:4px 0 0"><code>${esc(kode)}</code>
-            <span class="petunjuk"> · ${cocok.lebar.toFixed(1)}mm dari ${
-              cocok.tersedia.toFixed(0)}mm tersedia</span></p>
-          ${dariPabrik ? `<p class="petunjuk" style="margin:4px 0 0">Ini <strong>barcode pabrik</strong>
-            produk ini, bukan SKU-nya (${esc(p.sku)}) — supaya stiker cetakan dan
-            stiker kemasan memindai ke kode yang sama.</p>` : ''}
+          <label for="labCari">Tambah produk</label>
+          <input type="text" id="labCari" placeholder="Cari SKU, nama, merek, tipe HP…" autocomplete="off">
+          <div id="labHasil" class="hasil-stiker sembunyi"></div>
         </div>
-        ${cocok.muat ? '' : `<div class="pesan galat">Kode ini terlalu panjang untuk stiker ${
-          u.lebar_mm} × ${u.tinggi_mm} mm. Butuh ${cocok.lebar.toFixed(1)}mm, tersedia ${
-          cocok.tersedia.toFixed(0)}mm. Pakai stiker lebih lebar, atau perpendek kodenya.</div>`}
+        <div class="grup">
+          <label>Isi keranjang</label>
+          <div id="labIsi"></div>
+        </div>
         <div class="grup">
           <label>Kolom yang dicetak</label>
           <div class="bar-alat" style="gap:14px;margin-top:4px">
@@ -960,65 +1039,149 @@ const Admin = (() => {
             perlu dibuang: matikan kolom yang stikernya sudah terpakai, dan cetakan berikutnya
             mulai dari kolom yang masih kosong.</p>
         </div>
-        <div class="grup">
-          <label>Pratinjau satu baris — ukuran sesungguhnya</label>
-          <div id="labPratinjau" style="margin-top:6px"></div>
-        </div>
         <label class="cek"><input type="checkbox" id="labNama"> Sertakan nama produk di label</label>
         <div class="grup">
-          <label>Jumlah lembar</label>
-          <input type="number" id="labLembar" value="1" min="1" max="999" step="1" style="max-width:110px">
+          <label>Pratinjau — ukuran sesungguhnya, seluruh barisnya</label>
+          <div id="labPratinjau" style="margin-top:6px"></div>
         </div>
+        <div id="pesanLabel"></div>
         <p class="petunjuk" style="margin:0">Di dialog cetak: pilih printer label,
           kertas ${lebarHalaman} × ${u.tinggi_mm} mm, margin <strong>None</strong>,
           skala <strong>100%</strong>, header/footer dimatikan.</p>
       </div>`,
-      (cocok.muat
-        ? '<button class="tombol utama" id="btnCetakLabel">Cetak</button>'
-        : '') + '<button class="tombol" data-tutup="1">Tutup</button>');
-    $('#modalUmum')._label = { kode, nama: p.nama, ukuran: u };
-    gambarPratinjauLabel();
-    /* Pratinjaunya ikut berubah saat centang nama diklik. Kalau tidak, yang
-       dilihat sebelum menekan Cetak bukan yang akan keluar dari printer — dan
-       pratinjau semacam itu lebih buruk daripada tidak ada sama sekali. */
-    $('#labNama')?.addEventListener('change', gambarPratinjauLabel);
-    $$('.labSlot').forEach(c => c.addEventListener('change', gambarPratinjauLabel));
+      `<button class="tombol" data-tutup="1">Tutup</button>
+       <button class="tombol" id="btnKosongkanLabel">Kosongkan</button>
+       <button class="tombol utama" id="btnCetakLabel">Cetak</button>`);
+
+    $('#modalUmum')._label = { ukuran: u };
+    await gambarKeranjangLabel();
+
+    $('#labNama').addEventListener('change', gambarKeranjangLabel);
+    $$('.labSlot').forEach(c => c.addEventListener('change', gambarKeranjangLabel));
+    $('#labCari').addEventListener('input', cariProdukStiker);
+    $('#labCari').addEventListener('blur', () => setTimeout(() => $('#labHasil')?.classList.add('sembunyi'), 150));
+  }
+
+  async function cariProdukStiker() {
+    const kotak = $('#labCari'), wadah = $('#labHasil');
+    if (!kotak || !wadah) return;
+    const q = kotak.value.trim().toLowerCase();
+    if (q.length < 2) return wadah.classList.add('sembunyi');
+    /* Penyaring AND lintas kata, sama seperti pemilih produk di form Pembelian:
+       "og a11" harus menyisakan yang memuat KEDUANYA. */
+    const kata = q.split(/\s+/).filter(Boolean);
+    const hasil = (await katalogStiker()).filter(p => {
+      const t = String(p._cari || (p.nama + ' ' + p.sku)).toLowerCase();
+      return kata.every(w => t.indexOf(w) >= 0);
+    }).slice(0, 12);
+    wadah.innerHTML = hasil.length
+      ? hasil.map(p => `<div class="baris-prd" data-stiker-tambah="${esc(p.sku)}">
+          <div class="prd-judul">${esc(p.nama)}</div>
+          <div class="prd-ekor">${esc(p.sku)}${p.tipe_hp ? ' · ' + esc(p.tipe_hp) : ''}</div>
+        </div>`).join('')
+      : '<div class="prd-kosong">Tidak ada produk cocok</div>';
+    wadah.classList.remove('sembunyi');
   }
 
   /** Nomor kolom yang dicentang, 1-basis dan urut. */
   const slotLabelTerpilih = () =>
     $$('.labSlot').filter(c => c.checked).map(c => Number(c.dataset.slot));
 
-  /** Gambar ulang pratinjau label dari pilihan yang sedang aktif di modal. */
-  function gambarPratinjauLabel() {
-    const el = $('#labPratinjau');
+  /** Isi keranjang siap cetak: nama ikut hanya kalau centangnya menyala. */
+  function isiCetakDari(k) {
+    const pakaiNama = $('#labNama') && $('#labNama').checked;
+    return k.map(x => ({ kode: x.kode, nama: pakaiNama ? x.nama : '',
+                         lembar: Math.max(1, Number(x.lembar) || 1) }));
+  }
+
+  async function gambarKeranjangLabel() {
     const d = $('#modalUmum') && $('#modalUmum')._label;
-    if (!el || !d) return;
+    if (!d) return;
+    const k = await muatKeranjangLabel();
+    const u = d.ukuran;
+
+    /* Setiap baris diperiksa SENDIRI-SENDIRI: satu SKU panjang di tengah
+       keranjang tidak boleh diam-diam tercetak terpotong, dan barcode terpotong
+       terbaca sebagai barang lain. */
+    const tidakMuat = [];
+    $('#labIsi').innerHTML = k.length ? k.map(x => {
+      const c = Label.muat(x.kode, u);
+      if (!c.muat) tidakMuat.push(x);
+      return `<div class="baris-anak labBaris" data-sku="${esc(x.sku)}">
+        <div style="flex:2;min-width:0">
+          <strong>${esc(x.nama)}</strong>
+          <div class="meta-kecil"><code>${esc(x.kode)}</code>${c.muat ? '' :
+            ` <span style="color:var(--bahaya)">tidak muat — butuh ${c.lebar.toFixed(1)}mm dari ${
+              c.tersedia.toFixed(0)}mm</span>`}</div>
+        </div>
+        <input type="number" class="labQty" data-sku="${esc(x.sku)}" value="${
+          Number(x.lembar) || 1}" min="1" max="999" step="1" style="max-width:90px">
+        <button class="tombol kecil bahaya" data-stiker-buang="${esc(x.sku)}">Buang</button>
+      </div>`;
+    }).join('') : '<p class="petunjuk" style="margin:0">Keranjang masih kosong — cari produk di atas, atau tekan tombol Label di baris produk.</p>';
+
+    $$('.labQty').forEach(i => i.addEventListener('change', ubahJumlahStiker));
+    perbaruiLencanaStiker(k);
+
+    const btn = $('#btnCetakLabel');
+    const pesan = $('#pesanLabel');
+    if (tidakMuat.length) {
+      pesan.innerHTML = `<div class="pesan galat">${tidakMuat.length} kode terlalu panjang untuk
+        stiker ${u.lebar_mm} × ${u.tinggi_mm} mm. Buang barisnya, atau pakai stiker lebih lebar.</div>`;
+    } else { pesan.innerHTML = ''; }
+    /* Tombol Cetak DISEMBUNYIKAN, bukan sekadar dinonaktifkan — dialog yang
+       menawarkan Cetak untuk kode yang tidak muat adalah dialog yang mengajak
+       membuang stiker. */
+    if (btn) btn.hidden = !k.length || tidakMuat.length > 0;
+
+    const el = $('#labPratinjau');
     try {
-      /* SATU BARIS penuh, bukan satu stiker: yang perlu dilihat orang justru
-         POSISI stikernya di antara kolom yang dilewati. */
-      el.innerHTML = Label.barisPratinjau(
-        { kode: d.kode, nama: $('#labNama') && $('#labNama').checked ? d.nama : '' },
-        Object.assign({}, d.ukuran, { slot: slotLabelTerpilih() }));
+      el.innerHTML = k.length
+        ? Label.pratinjauSemua(isiCetakDari(k),
+                               Object.assign({}, u, { slot: slotLabelTerpilih() }))
+        : '';
     } catch (e) {
       el.innerHTML = `<p style="color:var(--bahaya);font-size:var(--fs-12);margin:0">${esc(e.message)}</p>`;
     }
   }
 
+  async function ubahJumlahStiker(e) {
+    const sku = e.target.dataset.sku;
+    const n = Math.max(1, Math.min(999, Math.round(Number(e.target.value) || 1)));
+    const k = await muatKeranjangLabel();
+    const b = k.find(x => x.sku === sku);
+    if (!b) return;
+    b.lembar = n;
+    await simpanKeranjangLabel(k);
+    await gambarKeranjangLabel();
+  }
+
+  async function buangStiker(sku) {
+    await simpanKeranjangLabel((await muatKeranjangLabel()).filter(x => x.sku !== sku));
+    await gambarKeranjangLabel();
+  }
+
+  async function kosongkanKeranjangLabel() {
+    await simpanKeranjangLabel([]);
+    await gambarKeranjangLabel();
+  }
+
   async function kirimLabel() {
-    const d = $('#modalUmum')._label;
+    const d = $('#modalUmum') && $('#modalUmum')._label;
     if (!d) return;
-    const lembar = Number($('#labLembar').value) || 1;
-    const isi = {
-      kode: d.kode,
-      nama: $('#labNama') && $('#labNama').checked ? d.nama : '',
-      lembar
-    };
+    const k = await muatKeranjangLabel();
+    if (!k.length) return toast('Keranjang stiker masih kosong.', 'galat');
     const slot = slotLabelTerpilih();
+    const jumlah = k.reduce((a, x) => a + (Number(x.lembar) || 1), 0);
     try {
-      await Label.cetak([isi], { slot });
+      await Label.cetak(isiCetakDari(k), { slot });
+      /* Dikosongkan SESUDAH cetak berhasil, bukan sebelum. Kalau jendela
+         cetaknya gagal dibuka (pemblokir popup), keranjangnya harus masih utuh
+         — mengumpulkan ulang sepuluh SKU karena satu popup terblokir adalah
+         hukuman untuk kesalahan yang bukan milik orangnya. */
+      await kosongkanKeranjangLabel();
       tutupModal();
-      toast(`${lembar} label dikirim ke dialog cetak` +
+      toast(`${jumlah} stiker dikirim ke dialog cetak` +
             (slot.length < 3 ? ` (kolom ${slot.join(' & ')}).` : '.'), 'sukses');
     } catch (e) { toast('Gagal mencetak: ' + e.message, 'galat'); }
   }
@@ -4405,7 +4568,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          `button` karena itu tidak boleh hilang dari sini: tanpa dia, menekan
          Batal berubah jadi membuka rincian dan pembatalannya tidak pernah
          jalan. */
-      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli]');
+      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], [data-stiker-tambah]');
       if (!t) return;
       const d = t.dataset;
 
@@ -4421,7 +4584,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- produk --- */
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
       if (d.editProduk)               return editorProduk(d.editProduk);
-      if (d.labelProduk)              return cetakLabelProduk(d.labelProduk);
+      if (d.labelProduk)              return tambahKeranjangLabel(d.labelProduk);
+      if (t.id === 'btnKeranjangLabel') return bukaKeranjangLabel();
+      if (d.stikerTambah)             return tambahKeranjangLabel(d.stikerTambah);
+      if (d.stikerBuang)              return buangStiker(d.stikerBuang);
+      if (t.id === 'btnKosongkanLabel') return kosongkanKeranjangLabel();
       if (t.id === 'btnCetakLabel')   return kirimLabel();
       if (t.id === 'btnTambahSatuan') return tambahBarisSatuan();
       if (t.id === 'btnTambahTier')   return tambahBarisTier();

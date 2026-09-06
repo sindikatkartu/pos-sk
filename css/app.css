@@ -1692,6 +1692,17 @@ body.tunggu button:not(.sibuk) {
 .prd-ekor { font-size: var(--fs-11); color: var(--teks-redup); margin-top: 2px; }
 .prd-kosong { padding: 12px; font-size: var(--fs-12); color: var(--teks-redup); text-align: center; }
 
+/* Daftar hasil pencarian di dalam KERANJANG STIKER.
+   Sengaja BUKAN `.hasil-prd`: yang itu `position: fixed` dan letaknya dihitung
+   JavaScript supaya tidak menumbuhkan bilah gulir di modal Pembelian. Di sini
+   panelnya hidup di dalam modal yang memang digulir, jadi ia ikut mengalir —
+   `fixed` di sini justru akan menempel di layar sementara isinya bergerak. */
+.hasil-stiker {
+  max-height: 220px; overflow-y: auto; margin-top: 6px;
+  background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
+}
+.labBaris { align-items: flex-start; }
+
 /* ==================== CETAK ====================
    Ditambahkan v1.49 bersama tombol Cetak di layar Laporan. Tanpa aturan ini,
    yang keluar dari printer adalah menu samping, bilah alat, dan tombol — tiga
