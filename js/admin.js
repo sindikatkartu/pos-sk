@@ -1041,8 +1041,9 @@ const Admin = (() => {
         </div>
         <label class="cek"><input type="checkbox" id="labNama"> Sertakan nama produk di label</label>
         <div class="grup">
-          <label>Pratinjau — ukuran sesungguhnya, seluruh barisnya</label>
+          <label>Pratinjau baris pertama — ukuran sesungguhnya</label>
           <div id="labPratinjau" style="margin-top:6px"></div>
+          <p class="petunjuk" id="labKetPratinjau" style="margin:6px 0 0"></p>
         </div>
         <div id="pesanLabel"></div>
         <p class="petunjuk" style="margin:0">Di dialog cetak: pilih printer label,
@@ -1134,14 +1135,33 @@ const Admin = (() => {
        membuang stiker. */
     if (btn) btn.hidden = !k.length || tidakMuat.length > 0;
 
+    /* BARIS PERTAMA SAJA, dan itu diminta pemilik 6 Sep 2026 setelah melihat
+       versi yang menggambar semuanya: "pratinjaunya 1 baris 3 label saja sesuai
+       kenyataan". Ia benar dua kali. Kertasnya memang maju SATU baris pada satu
+       waktu, jadi satu baris itulah kenyataan yang perlu dicocokkan dengan mata.
+       Dan baris kedua dan seterusnya tidak menjelaskan apa pun yang tidak sudah
+       dijelaskan baris pertama — sebelas stiker TG yang sama digambar sebelas
+       kali cuma membuat yang penting (SKU mana mendarat di kolom mana) tenggelam.
+
+       Jumlah barisnya tetap disebut dengan ANGKA, dihitung `jumlahBarisCetak`
+       memakai pembagi yang sama dengan yang mencetak — bukan dibagi tiga di
+       sini. Orang tetap harus tahu berapa yang akan keluar sebelum menekan
+       Cetak. */
     const el = $('#labPratinjau');
+    const ket = $('#labKetPratinjau');
     try {
-      el.innerHTML = k.length
-        ? Label.pratinjauSemua(isiCetakDari(k),
-                               Object.assign({}, u, { slot: slotLabelTerpilih() }))
-        : '';
+      const opsi = Object.assign({}, u, { slot: slotLabelTerpilih() });
+      el.innerHTML = k.length ? Label.pratinjauSemua(isiCetakDari(k), opsi, 1) : '';
+      if (ket) {
+        const nBaris = k.length ? Label.jumlahBarisCetak(isiCetakDari(k), opsi) : 0;
+        const nStiker = k.reduce((a, x) => a + (Number(x.lembar) || 1), 0);
+        ket.textContent = k.length
+          ? `Baris pertama dari ${nBaris} baris kertas · ${nStiker} stiker seluruhnya.`
+          : '';
+      }
     } catch (e) {
       el.innerHTML = `<p style="color:var(--bahaya);font-size:var(--fs-12);margin:0">${esc(e.message)}</p>`;
+      if (ket) ket.textContent = '';
     }
   }
 

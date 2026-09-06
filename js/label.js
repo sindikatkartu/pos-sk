@@ -453,15 +453,31 @@ const Label = (() => {
    * stikernya — bukan dihilangkan. Yang perlu dilihat orang justru POSISINYA:
    * "stiker saya akan keluar di kolom kedua, kolom pertama dibiarkan kosong".
    */
-  function pratinjauSemua(daftar, opsi = {}) {
+  function pratinjauSemua(daftar, opsi = {}, batas = 0) {
     const o = Object.assign({}, BAWAAN, opsi);
     const kolom = jumlahKolom(o);
     const slot = slotDipakai(o);
-    return _potongBaris(sebar(daftar), kolom, slot).map(sel =>
+    const baris = _potongBaris(sebar(daftar), kolom, slot);
+    return (batas > 0 ? baris.slice(0, batas) : baris).map(sel =>
       `<div class="baris-pratinjau" style="gap:${o.jarak_mm}mm">${sel.map(isi => isi
         ? `<div class="sel-pratinjau">${svg(isi, o)}</div>`
         : `<div class="sel-pratinjau kosong" style="width:${o.lebar_mm}mm;height:${o.tinggi_mm}mm"></div>`
       ).join('')}</div>`).join('');
+  }
+
+  /**
+   * Berapa BARIS KERTAS yang akan keluar — tanpa menggambar satu pun stiker.
+   *
+   * Layar hanya menampilkan baris pertama (kertasnya memang maju satu baris
+   * pada satu waktu, dan menggambar lima belas baris di layar tidak
+   * menjelaskan apa pun yang tidak dijelaskan baris pertama). Tapi orangnya
+   * tetap harus tahu berapa yang akan tercetak sebelum menekan Cetak, jadi
+   * angkanya dihitung di sini — dengan pembagi yang sama dengan yang dipakai
+   * mencetak, bukan dibagi tiga di layar.
+   */
+  function jumlahBarisCetak(daftar, opsi = {}) {
+    const o = Object.assign({}, BAWAAN, opsi);
+    return _potongBaris(sebar(daftar), jumlahKolom(o), slotDipakai(o)).length;
   }
 
   /**
@@ -562,7 +578,7 @@ const Label = (() => {
   }
 
   return { sandi128, pola, lebarMm, muat, svg, halaman, sebar, kodeProduk,
-           ukuran, simpanUkuran, cetak, barisPratinjau, pratinjauSemua,
+           ukuran, simpanUkuran, cetak, barisPratinjau, pratinjauSemua, jumlahBarisCetak,
            slotDipakai, jumlahKolom,
            BAWAAN, HURUF, POLA, TITIK_PER_MM, mmKeTitik };
 })();

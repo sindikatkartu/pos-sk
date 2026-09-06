@@ -1076,9 +1076,15 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    Yang dilewati digambar sebagai kotak putus-putus seukuran stikernya, bukan
    dihilangkan: yang perlu dilihat orang justru posisi stikernya di baris itu. */
 .baris-pratinjau {
-  display: inline-flex; background: #fff; border: 1px solid var(--garis);
+  /* `flex`, bukan `inline-flex`. Selama pratinjaunya cuma satu baris, keduanya
+     terlihat sama; begitu barisnya lebih dari satu, yang inline mengalir
+     BERDAMPINGAN — dua baris kertas tergambar sebaris di layar, dan yang
+     membacanya mengira satu baris memuat enam stiker. Terlihat 6 Sep 2026 pada
+     keranjang berisi 14 stiker. */
+  display: flex; width: max-content; background: #fff; border: 1px solid var(--garis);
   border-radius: 4px; padding: 2px; line-height: 0; max-width: 100%; overflow: auto;
 }
+.baris-pratinjau + .baris-pratinjau { margin-top: 6px; }
 .sel-pratinjau svg { display: block; }
 .sel-pratinjau.kosong {
   /* Abu-abu netral, bukan warna bertoken: kotak ini digambar di atas kertas
