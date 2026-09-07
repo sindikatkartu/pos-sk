@@ -2089,24 +2089,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (stokLintas && bolehStokLintas()) return muatStokSemuaCabang(katStok);
     memuat('#isiStok');
     try {
-      /* AKUNTING punya `stok` tapi tidak punya `produk`; tanpa `.catch` di sini
-         seluruh layar Stok jadi kotak merah untuknya, padahal stok_terkini-nya
-         sendiri berhasil. Nama produk yang hilang diganti SKU-nya — lihat
-         `nama[s.sku]?.nama || s.sku` di bawah, yang memang sudah menyiapkan
-         keadaan itu. Audit 5 Sep 2026. */
-      const [stok, prod] = await Promise.all([
-        API.stokTerkini({ cabang: APP_STATE.cabang }),
-        API.daftarProduk({}).catch(e => {
-          toast('Nama produk tidak bisa dimuat — ' + (e.message || e) +
-                '. Daftarnya tetap tampil dengan SKU.', 'galat');
-          return { produk: [] };
-        })
-      ]);
-      const nama = Object.fromEntries(prod.produk.map(p => [p.sku, p]));
-      const bergerak = stok.stok.map(s => ({
-        ...s, nama: nama[s.sku]?.nama || s.sku, stok_min: nama[s.sku]?.stok_min || 0,
-        kategori: nama[s.sku]?.kategori || ''
-      }));
+      /**
+       * SATU panggilan, bukan dua — dan itu perbaikan yang diukur, bukan ditebak.
+       *
+       * Sampai v1.119.0 layar ini memanggil `stok_terkini` untuk angkanya lalu
+       * `daftar_produk` semata-mata untuk NAMA. Diukur 7 Sep 2026 di data
+       * produksi:
+       *
+       *     stok_terkini   1.052 md ·    85 KB
+       *     daftar_produk  3.511 md · 1.538 KB   <- hanya untuk namanya
+       *
+       * Satu setengah megabita tiap kali layar dibuka, ditambah satu perjalanan
+       * bolak-balik (~2 detik), dan `apiDaftarProduk` menghitung `petaStok` lagi
+       * di ujungnya — peta yang sama, dua kali, untuk satu layar.
+       *
+       * Sekarang servernya yang menggabungkan (`dengan_produk: true`), dan
+       * produk yang belum pernah bergerak ikut dari sana dengan penanda `diam`.
+       *
+       * AKUNTING punya `stok` tapi tidak punya `produk`. Penggabungannya di
+       * server tidak melewati `wajibIzin(produk)` — ia bagian dari layar Stok,
+       * dan izin `stok · lihat` yang menjaganya. Jadi peran itu tidak lagi
+       * kehilangan nama produk seperti pada audit 5 Sep 2026.
+       */
+      const stok = await API.stokTerkini({ cabang: APP_STATE.cabang, dengan_produk: true });
+      const bergerak = stok.stok.filter(s => !s.diam);
 
       /**
        * Produk yang BELUM PERNAH bergerak ikut ditampilkan, stok 0.
@@ -2128,13 +2134,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        * yang tahu daftar varian adalah master produk, dan menebaknya berarti
        * menampilkan baris untuk kombinasi yang mungkin tidak pernah ada.
        */
-      const adaStok = new Set(bergerak.map(s => s.sku));
-      const diam = prod.produk
-        .filter(p => !adaStok.has(p.sku))
-        .map(p => ({ sku: p.sku, kode_varian: '', qty: 0, nama: p.nama,
-                     stok_min: p.stok_min || 0, kategori: p.kategori || '', _diam: true }));
+      const diam = stok.stok.filter(s => s.diam);
 
-      const rows = bergerak.concat(diam).sort((a, b) => a.qty - b.qty);
+      const rows = stok.stok.slice().sort((a, b) => a.qty - b.qty);
 
       const totalNilai = rows.reduce((a, r) => a + (r.nilai || 0), 0);
       /* Diperiksa pada baris yang BERGERAK, bukan `rows[0]`: sesudah pengurutan,
@@ -2167,7 +2169,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <div class="bar-alat">
             <input type="text" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
-            <select id="stokKategori" style="max-width:200px">${opsiKategori(prod.kategori_ada, katStok)}</select>
+            <select id="stokKategori" style="max-width:200px">${opsiKategori(stok.kategori_ada || [], katStok)}</select>
             ${bolehStokLintas() ? `<select id="stokLingkup" style="max-width:170px">
               <option value="sini" selected>Cabang ${esc(APP_STATE.cabang)}</option>
               <option value="semua">Semua cabang</option>
