@@ -1113,21 +1113,25 @@ function pasangPemilihCabang() {
     const semula = APP_STATE.cabang;
     if (tujuan === semula) return;
 
-    /* NOTA YANG BELUM TERKIRIM MENGUNCI PERPINDAHAN, dan ini bukan kehati-hatian
-       berlebihan. `Sync.kirim()` mengirim antrean dengan `cabang:
-       APP_STATE.cabang` — cabang SAAT MENGIRIM, bukan cabang saat notanya
-       dibuat. Pindah cabang sementara antreannya masih berisi akan
-       membukukan penjualan cabang lama ke cabang baru, tanpa satu pun galat.
-       Sampai antreannya diubah menyimpan cabangnya sendiri per baris,
-       jawabannya adalah menolak — kerusakan yang diam jauh lebih mahal
-       daripada menunggu satu sinkron. */
-    let antre = 0;
-    try { antre = await DB.outboxJumlah(); } catch (e) { antre = 0; }
-    if (antre) {
-      el.value = semula;
-      return Admin.toast(`Masih ada ${antre} nota yang belum terkirim ke server. ` +
-        'Tunggu sampai lencana sinkron hijau, baru ganti cabang.', 'galat');
-    }
+    /* ANTREAN KIRIM TIDAK LAGI MENGUNCI PERPINDAHAN — dan hilangnya penjaga itu
+       disengaja, bukan kelalaian.
+     *
+     * v1.110.0 menolak pindah cabang selama antrean berisi, karena
+     * `Sync.kirim()` waktu itu mengirim seluruh antrean dengan `cabang:
+     * APP_STATE.cabang` — cabang saat MENGIRIM, bukan saat notanya dibuat.
+     * Penolakan itu menutup pintu yang baru dibuat pemilih cabang; ia tidak
+     * pernah menutup cacatnya, sebab keluar-lalu-masuk menempuh jalan yang sama.
+     *
+     * Sejak v1.114.0 tiap baris outbox membawa cabangnya sendiri dan dikirim
+     * per kelompok cabang. Nota SK01 tetap mendarat di SK01 walau layarnya
+     * sudah SK02 — dan dropdown ini hanya muncul untuk akun ber-flag
+     * `akses_lintas_cabang`, yaitu akun yang memang berhak mengirimkannya.
+     *
+     * Membiarkan penolakannya berdiri sesudah itu bukan kehati-hatian
+     * tambahan, melainkan gesekan yang menghukum tepat orang yang paling
+     * sering pindah cabang, atas bahaya yang sudah tidak ada. Penjaga yang
+     * tidak lagi menjaga apa pun juga mengajarkan hal yang salah: orang
+     * berikutnya akan mengira perpindahan cabang masih rawan. */
 
     if (Keranjang.baris.length &&
         !confirm('Keranjang kasir yang belum dibayar akan hilang saat pindah cabang.\n\nLanjutkan?')) {
