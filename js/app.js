@@ -675,7 +675,48 @@ function gambarTentang() {
     ['Versi data lokal', 'v' + CONFIG.DB_VERSI]
   ];
   el.innerHTML = baris.map(([k, v]) =>
-    `<div class="baris-tentang"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('');
+    `<div class="baris-tentang"><span>${esc(k)}</span><strong>${esc(v)}</strong></div>`).join('')
+    + tabelWaktu();
+}
+
+/**
+ * Waktu permintaan per aksi — alat diagnosa, bukan pajangan.
+ *
+ * Dilaporkan pemilik 7 Sep 2026: Stok/Produk/Laporan "lebih dari 8 detik,
+ * kadang gagal". Yang menentukan obatnya bukan totalnya melainkan PEMBAGIANNYA:
+ * server yang berpikir lama diperbaiki di kuerinya, perjalanan yang lama
+ * diperbaiki dengan mengurangi jumlah panggilan dan menggambar dari data lokal.
+ * Dua arah yang berlawanan, dan menebak berarti separuh kemungkinan salah.
+ *
+ * Ditaruh di layar Tentang, bukan di konsol peramban: yang bisa menjawab
+ * "berapa lama tadi" adalah orang yang mengalaminya di lantai toko, dan ia tidak
+ * membuka DevTools. Layar ini juga sudah jadi tempat orang mencari nomor versi
+ * saat melapor.
+ *
+ * Kosong sampai ada permintaan yang lewat — jejaknya di memori dan hilang saat
+ * halaman dimuat ulang, jadi urutannya: muat ulang, buka layar yang lambat,
+ * baru buka Tentang.
+ */
+function tabelWaktu() {
+  const r = (API.ringkasanWaktu ? API.ringkasanWaktu() : []) || [];
+  if (!r.length) return '';
+  const ms = (v) => v === null || v === undefined ? '—' :
+    (v >= 1000 ? (v / 1000).toFixed(1) + ' d' : Math.round(v) + ' md');
+  return `<h3 style="margin-top:22px">Waktu permintaan</h3>
+    <p class="petunjuk">Sejak halaman ini terakhir dimuat. <strong>Server</strong> = lama Apps Script
+    mengerjakannya; <strong>jalan</strong> = sisanya, yaitu perjalanan bolak-balik.</p>
+    <div class="gulir-x"><table><thead><tr>
+      <th>Aksi</th><th class="angka">n</th><th class="angka">Tengah</th>
+      <th class="angka">Server</th><th class="angka">Jalan</th>
+      <th class="angka">Terburuk</th><th class="angka">Gagal</th>
+    </tr></thead><tbody>${r.map(x => `<tr>
+      <td>${esc(x.aksi)}</td><td class="angka">${x.n}</td>
+      <td class="angka">${esc(ms(x.total))}</td>
+      <td class="angka">${esc(ms(x.server))}</td>
+      <td class="angka">${esc(ms(x.jalan))}</td>
+      <td class="angka">${esc(ms(x.terburuk))}</td>
+      <td class="angka">${x.galat || ''}</td>
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
 const IKON = {

@@ -43,6 +43,65 @@ const API = (() => {
    * kelazimannya.
    */
   let _sibukOrang = 0;
+
+  /**
+   * JEJAK WAKTU per aksi — bahan diagnosa, bukan hiasan.
+   *
+   * Dilaporkan pemilik 7 Sep 2026: layar Stok/Produk/Laporan "lebih dari 8
+   * detik, kadang gagal". Angka itu sendiri tidak bisa dipakai memperbaiki apa
+   * pun, karena ia menggabungkan dua hal yang obatnya BERTOLAK BELAKANG:
+   * server yang berpikir lama (perbaiki kuerinya) dan perjalanan yang lama
+   * (kurangi jumlah panggilan, gambar dari data lokal). Menebak salah satunya
+   * berarti separuh kemungkinan mengerjakan yang sia-sia berhari-hari.
+   *
+   * Server melaporkan waktunya sendiri lewat `_ms` pada amplop jawaban (lihat
+   * `_keluar` di 04_Api.gs); total dikurangi `_ms` adalah perjalanannya.
+   *
+   * Disimpan DI MEMORI saja, dan dibatasi. Menulisnya ke IndexedDB berarti satu
+   * penulisan tambahan pada tiap permintaan — pengukur yang ikut memperlambat
+   * apa yang diukurnya. Konsekuensinya jujur: jejaknya hilang saat halaman
+   * dimuat ulang, dan itu memang cukup untuk membuka satu layar lalu melihat
+   * angkanya.
+   */
+  const _JEJAK_MAKS = 200;
+  const _jejak = [];
+
+  function _catatWaktu(aksi, total, server, galat) {
+    _jejak.push({ aksi, total: Math.round(total),
+                  server: server === null || server === undefined ? null : Math.round(server),
+                  galat: galat || null, waktu: Date.now() });
+    if (_jejak.length > _JEJAK_MAKS) _jejak.shift();
+  }
+
+  /** Ringkasan per aksi: jumlah, tengah, terburuk — total maupun sisi server. */
+  function ringkasanWaktu() {
+    const per = {};
+    _jejak.forEach(j => {
+      const a = per[j.aksi] || (per[j.aksi] = { aksi: j.aksi, n: 0, galat: 0, total: [], server: [] });
+      a.n++;
+      if (j.galat) a.galat++;
+      a.total.push(j.total);
+      if (j.server !== null) a.server.push(j.server);
+    });
+    /* TENGAH, bukan rata-rata: satu permintaan 30 detik yang kena batas waktu
+       akan menarik rata-rata sepuluh permintaan sehat ke angka yang tidak
+       pernah dialami siapa pun. */
+    const tengah = (arr) => {
+      if (!arr.length) return null;
+      const u = arr.slice().sort((x, y) => x - y);
+      return u[Math.floor(u.length / 2)];
+    };
+    return Object.values(per).map(a => ({
+      aksi: a.aksi, n: a.n, galat: a.galat,
+      total: tengah(a.total), server: tengah(a.server),
+      /* Perjalanan dihitung dari TENGAH masing-masing, bukan tengah selisihnya.
+         Cukup untuk memutuskan sisi mana yang dikerjakan, dan tidak berpura-pura
+         lebih teliti daripada itu. */
+      jalan: tengah(a.total) === null || tengah(a.server) === null
+        ? null : Math.max(0, tengah(a.total) - tengah(a.server)),
+      terburuk: Math.max.apply(null, a.total)
+    })).sort((x, y) => y.terburuk - x.terburuk);
+  }
   const _kabar = () => document.dispatchEvent(
     new CustomEvent('api:sibuk', { detail: { jumlah: _sibuk, orang: _sibukOrang } }));
 
@@ -54,6 +113,8 @@ const API = (() => {
     const timer = setTimeout(() => ctrl.abort(), opsi.timeout || 30000);
     const latar = opsi.latar === true;
     _sibuk++; if (!latar) _sibukOrang++; _kabar();
+    const _t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    let _msServer = null, _galat = null;
     try {
       const resp = await fetch(CONFIG.API_URL, {
         method: 'POST',
@@ -92,8 +153,10 @@ const API = (() => {
         e.kode = j.kode; e.detail = j.detail;
         throw e;
       }
+      _msServer = typeof j._ms === 'number' ? j._ms : null;
       return j.data;
     } catch (e) {
+      _galat = e.kode || 'GALAT';
       if (e.name === 'AbortError') throw Object.assign(new Error('Server tidak menjawab'), { kode: 'TIMEOUT' });
       if (e.message === 'Failed to fetch') throw Object.assign(new Error('Tidak dapat menghubungi server'), { kode: 'JARINGAN' });
       /* Sesi kedaluwarsa diumumkan DI SINI, dan hanya di sini.
@@ -119,6 +182,11 @@ const API = (() => {
       throw e;
     } finally {
       clearTimeout(timer);
+      /* Dicatat di `finally`, jadi permintaan yang GAGAL ikut terukur. Justru
+         yang gagal itulah yang paling perlu terlihat: "kadang gagal" adalah
+         separuh dari keluhan yang sedang didiagnosa. */
+      _catatWaktu(aksi, (typeof performance !== 'undefined' ? performance.now() : Date.now()) - _t0,
+                  _msServer, _galat);
       _sibuk--; if (!latar) _sibukOrang--; _kabar();
     }
   }
@@ -305,6 +373,11 @@ const API = (() => {
     cariNota:        (d) => panggil('cari_nota', d, { timeout: 60000 }),
 
     /** Jalur umum — untuk aksi baru yang belum punya pembungkus khusus. */
-    call: (aksi, d, opsi) => panggil(aksi, d || {}, opsi || {})
+    call: (aksi, d, opsi) => panggil(aksi, d || {}, opsi || {}),
+
+    /* --- diagnosa waktu (lihat _jejak di atas) --- */
+    ringkasanWaktu,
+    jejakWaktu: () => _jejak.slice(),
+    kosongkanJejak: () => { _jejak.length = 0; }
   };
 })();
