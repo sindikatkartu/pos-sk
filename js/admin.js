@@ -2425,7 +2425,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               '. Pembeliannya tetap bisa dicatat tanpa memilih supplier.', 'galat');
         return [];
       }),
-      API.daftarProduk({})
+      API.daftarProduk({ ramping: true })
     ]);
     uuidPembelian = crypto.randomUUID ? crypto.randomUUID() : 'B' + Date.now();
     bukaModal('Pembelian baru', `
@@ -3584,7 +3584,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function formKirimTransfer() {
     lepasUuidDokumen('transfer');            // dokumen BARU — lihat uuidDokumen()
-    const [prod, cab] = await Promise.all([API.daftarProduk({}), API.daftarCabangAdmin().catch(() => [])]);
+    const [prod, cab] = await Promise.all([API.daftarProduk({ ramping: true }), API.daftarCabangAdmin().catch(() => [])]);
     const tujuan = (cab.length ? cab.filter(c => c.aktif).map(c => c.kode_cabang) : APP_STATE.daftarCabangSemua)
       .filter(k => k !== APP_STATE.cabang);
 
@@ -3837,7 +3837,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        pola yang sama persis dipakai formKirimTransfer, dan alasannya sama:
        layar yang mati total karena satu daftar hiasan tidak bisa dibaca. */
     const [prod, cab] = await Promise.all([
-      API.daftarProduk({}), API.daftarCabangAdmin().catch(() => [])
+      API.daftarProduk({ ramping: true }), API.daftarCabangAdmin().catch(() => [])
     ]);
     const semua = (cab.length ? cab.filter(c => c.aktif).map(c => c.kode_cabang)
                               : APP_STATE.daftarCabangSemua).slice().sort(urutNama);
