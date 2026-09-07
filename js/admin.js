@@ -2793,6 +2793,31 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   let dataPoin = null, urutPetugas = 'poin_desc', urutCabang = 'omzet_desc';
 
+  /**
+   * Penyaring cabang layar Performa — diminta pemilik 7 Sep 2026.
+   *
+   * Aturan tampilnya SAMA PERSIS dengan penyaring di layar Laporan dan pemilih
+   * cabang aktif di puncak layar: hanya untuk akun berbendera lintas cabang,
+   * dan hanya bila cabangnya lebih dari satu. Tiga tempat dengan tiga aturan
+   * berbeda adalah cara paling mudah membuat satu peran melihat pilihan yang
+   * tidak pernah bisa ia pakai.
+   *
+   * `apiLaporanPoin` sudah menerima `p.cabang` sejak lama dan memeriksa haknya
+   * sendiri lewat `wajibCabang()`. Tidak ada endpoint baru, tidak ada baris
+   * baru di Sheets — dan menyempitkan ke satu cabang justru membuat servernya
+   * memutari satu cabang, bukan tiga.
+   */
+  function pilihCabangPoin() {
+    const sumber = (APP_STATE.daftarCabangSemua && APP_STATE.daftarCabangSemua.length)
+      ? APP_STATE.daftarCabangSemua : (APP_STATE.daftarCabang || []);
+    const daftar = sumber.slice().sort(urutNama);
+    if (!APP_STATE.flag?.akses_lintas_cabang || daftar.length < 2) return '';
+    return `<div style="max-width:200px"><label>Cabang</label><select id="poinCabang">
+        <option value="*">Semua cabang</option>
+        ${daftar.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+      </select></div>`;
+  }
+
   async function muatPoin() {
     memuat('#isiPoin');
     try {
@@ -2814,6 +2839,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <option value="">Semua petugas</option>
               ${urutkanOleh(rows, r => r.nama).map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
             </select></div>
+            ${pilihCabangPoin()}
             <button class="tombol utama" id="btnLaporanPoin">Tampilkan</button>
           </div>
           <p class="petunjuk">Angka di sini dibekukan saat notanya masuk, bukan dihitung ulang
@@ -2830,7 +2856,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try {
       dataPoin = await API.laporanPoin({
         dari: nilai('poinDari'), sampai: nilai('poinSampai'),
-        kode_petugas: nilai('poinPetugas') || undefined
+        kode_petugas: nilai('poinPetugas') || undefined,
+        /* Jatuh ke '*' bila penyaringnya tidak tergambar. Aman untuk semua
+           peran: server menerjemahkan '*' jadi "seluruh cabang aktif" HANYA
+           bagi yang berbendera lintas cabang, dan jadi cabang sesi bagi yang
+           tidak — persis perilaku layar ini sebelum penyaringnya ada. */
+        cabang: nilai('poinCabang') || '*'
       });
       gambarPeringkat();
     } catch (e) { galat('#hasilPoin', e); }
@@ -3567,16 +3598,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <h3>Riwayat transfer</h3>
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
-            { judul: 'No dokumen', kunci: 'no_dokumen' },
+            /* Nomornya digarisbawahi supaya barisnya terbaca BISA DIBUKA —
+               pola yang sama dengan daftar Pembelian. Baris yang membuka
+               sesuatu tapi tampak persis seperti baris mati tidak akan pernah
+               diklik siapa pun. `kunci` tetap ada supaya kolomnya masih bisa
+               diurut: `data-urut` membaca nilai mentah, bukan teks selnya. */
+            { judul: 'No dokumen', kunci: 'no_dokumen',
+              render: r => `<span class="tautan-baris">${esc(r.no_dokumen || '(tanpa nomor)')}</span>` },
             { judul: 'Rute', render: r => `${esc(r.cabang_asal)} → ${esc(r.cabang_tujuan)}` },
             { judul: 'Item', render: r => String(r.item.length) },
             { judul: 'Status', render: r => `<span class="lencana ${LENCANA_TRANSFER[r.status] || ''}">${esc(r.status)}</span>` },
             ...(rows[0]?.nilai_hpp !== undefined ? [{ judul: 'Nilai', angka: true, render: r => rp(r.nilai_hpp) }] : []),
-            { judul: '', render: r => `
-              <button class="tombol kecil" data-detail-transfer="${esc(r.uuid)}">Detail</button>
-              ${r.status === 'DIKIRIM' && r.cabang_asal === APP_STATE.cabang && bolehIzin('transfer', 'hapus')
-                ? `<button class="tombol kecil bahaya" data-batal-transfer="${esc(r.uuid)}">Batal</button>` : ''}` }
-          ], rows, { kosong: 'Belum ada transfer' })}
+            { judul: '', render: r =>
+              r.status === 'DIKIRIM' && r.cabang_asal === APP_STATE.cabang && bolehIzin('transfer', 'hapus')
+                ? `<button class="tombol kecil bahaya" data-batal-transfer="${esc(r.uuid)}">Batal</button>` : '' }
+          ], rows, { kosong: 'Belum ada transfer',
+                     /* Tombol "Detail" dibuang, digantikan klik pada barisnya —
+                        diminta pemilik 7 Sep 2026, disamakan dengan Pembelian.
+                        Tombol Batal TETAP tombol: `closest()` mengambil leluhur
+                        TERDEKAT, jadi menekannya tidak berubah jadi membuka
+                        rincian. */
+                     dataAttr: r => `data-detail-transfer="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
       $('#isiTransfer')._rows = rows;
     } catch (e) { galat('#isiTransfer', e); }
@@ -4797,8 +4839,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          `button` karena itu tidak boleh hilang dari sini: tanpa dia, menekan
          Batal berubah jadi membuka rincian dan pembatalannya tidak pernah
          jalan. */
-      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], [data-stiker-tambah]');
+      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], tr[data-detail-transfer], [data-stiker-tambah]');
       if (!t) return;
+
+      /* ---- KUNCI KONTEKS TINDAKAN ----
+       * Selama satu tindakan orang berjalan, `body.tunggu` menyala dan CSS
+       * mematikan SELURUH <button> — termasuk menu, jadi pindah layar ikut
+       * tertahan. Tapi baris tabel yang bisa diklik BUKAN tombol, dan sejak
+       * Riwayat transfer memakai klik-baris lubang itu melebar: menekan Simpan
+       * lalu mengklik baris lain membuka dokumen kedua di tengah penyimpanan
+       * yang belum selesai — tanpa satu pun galat.
+       *
+       * Dijaga DI SINI, bukan dengan menambah `pointer-events` di CSS: penjaga
+       * yang bisa dijalankan uji lebih berharga daripada penjaga yang hanya
+       * bisa dilihat mata, dan dua mekanisme untuk satu aturan cepat atau
+       * lambat berselisih.
+       *
+       * TIDAK bisa mengunci selamanya: `body.tunggu` dilepas paling lama 150
+       * detik oleh BATAS_TUNGGU di app.js, dan hanya dipasang oleh klik ORANG —
+       * sinkronisasi latar tiap 5 menit tidak pernah menyalakannya. */
+      if (document.body.classList.contains('tunggu')) return;
+
       const d = t.dataset;
 
       /* --- modal --- */

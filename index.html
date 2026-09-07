@@ -260,6 +260,14 @@
           <div><label>Dari</label><input type="date" id="lapDari"></div>
           <div><label>Sampai</label><input type="date" id="lapSampai"></div>
         </div>
+        <!-- Penyaring cabang. Barisnya sendiri, dan TERSEMBUNYI untuk akun yang
+             cuma berhak atas satu cabang: dropdown berisi satu pilihan adalah
+             hiasan yang mengundang klik tanpa hasil. Diisi pasangPilihCabangLaporan()
+             di app.js. Bawaannya "Semua cabang" — sama persis dengan yang
+             ditampilkan layar ini sebelum penyaring ini ada. -->
+        <div class="baris2 sembunyi" style="max-width:520px;margin-top:10px" id="grupLapCabang">
+          <div><label>Cabang</label><select id="lapCabang"></select></div>
+        </div>
         <div class="bar-alat" style="margin-top:12px">
           <button class="tombol utama" id="btnLaporan">Tampilkan</button>
           <button class="tombol" id="btnCetakLaporan">Cetak</button>

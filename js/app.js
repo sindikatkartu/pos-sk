@@ -1018,6 +1018,11 @@ async function mulaiSesi(d) {
   $('#btnTutupBuku').classList.toggle('sembunyi', !APP_STATE.flag.tutup_buku);
 
   await muatMaster();
+  /* SESUDAH muatMaster(), bukan di sebelah pasangPemilihCabang() di atas:
+     daftar cabang lengkapnya (`daftarCabangSemua`) baru terisi di dalamnya,
+     dari store lokal `cabang_list`. Dipasang lebih awal, dropdownnya kosong
+     dan penyaringnya tidak pernah muncul. */
+  pasangPilihCabangLaporan();
   Sync.mulai();
   Sync.tarikStok();
   Sync.tarikStokSemuaCabang();
@@ -2750,21 +2755,76 @@ function selisihLaporan(kini, lalu) {
  * semuanya — data satu rentang yang dipakai untuk rentang lain adalah angka
  * yang terlihat masuk akal dan sepenuhnya keliru.
  */
-const LAP = { dari: '', sampai: '', tab: 'ringkas', data: {} };
+const LAP = { dari: '', sampai: '', cabang: '*', tab: 'ringkas', data: {} };
 
-/** Satu tab, satu cara menariknya. */
+/* Satu tab, satu cara menariknya.
+ *
+ * `cabang` dititipkan lewat `par`, bukan dipatok di sini. Sampai v1.129.0 tab
+ * Shift memaksa `cabang: '*'`, dan itu memang benar SELAMA belum ada
+ * penyaringnya — tanpa itu `apiDaftarShift` hanya menjawab cabang sesi, tidak
+ * seperti keempat tab lain yang menggabungkan semuanya. Sekarang nilainya
+ * datang dari satu tempat untuk kelima tab; memaksanya di sini akan membuat
+ * satu tab mengabaikan penyaring yang keempat tab lain patuhi. */
 const LAP_TARIK = {
   ringkas: (par) => API.laporanPenjualan(par),
   nota:    (par) => API.laporanNota({ ...par, status: 'AKTIF' }),
-  shift:   (par) => API.daftarShift({ ...par, cabang: '*' }),
+  shift:   (par) => API.daftarShift({ ...par }),
   petugas: (par) => API.laporanPoin({ ...par }),
   void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' })
 };
 
+/**
+ * Penyaring cabang layar Laporan.
+ *
+ * Diminta pemilik 7 Sep 2026. Sebelum ini akun berbendera `akses_lintas_cabang`
+ * SELALU melihat gabungan seluruh cabang, tanpa cara menyempitkannya — padahal
+ * servernya sudah menerima `p.cabang` sejak lama di kelima endpointnya, dan
+ * memeriksa haknya sendiri lewat `wajibCabang()`.
+ *
+ * Tidak ada data baru yang ditulis ke Sheets, dan tidak ada endpoint baru.
+ * Menyempitkan ke satu cabang justru membuat servernya memutari SATU cabang,
+ * bukan tiga — jadi laporannya lebih cepat, bukan lebih lambat.
+ *
+ * Tersembunyi untuk yang cuma berhak atas satu cabang, dengan aturan yang sama
+ * persis seperti pemilih cabang aktif di puncak layar: dropdown berisi satu
+ * pilihan bukan pilihan, ia hiasan yang mengundang klik tanpa hasil.
+ */
+function pasangPilihCabangLaporan() {
+  const el = $('#lapCabang'), grup = $('#grupLapCabang');
+  if (!el || !grup) return;
+  /* `daftarCabangSemua` datang dari store lokal `cabang_list`, dan store itu
+     bisa saja belum pernah terisi — perangkat baru yang login sekali lalu
+     kehilangan jaringan. Jatuh kembali ke daftar dari jawaban login, yang
+     selalu ada. Tanpa penjagaan ini penyaringnya menghilang diam-diam persis
+     pada perangkat yang paling jarang dipakai, dan tidak ada yang tahu kenapa. */
+  const sumber = (APP_STATE.daftarCabangSemua && APP_STATE.daftarCabangSemua.length)
+    ? APP_STATE.daftarCabangSemua : (APP_STATE.daftarCabang || []);
+  const daftar = sumber.slice().sort(urutNama);
+  if (!APP_STATE.flag.akses_lintas_cabang || daftar.length < 2) return;   // tetap tersembunyi
+
+  el.innerHTML = '<option value="*">Semua cabang</option>' +
+    daftar.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  grup.classList.remove('sembunyi');
+
+  /* Digambar ulang SEKETIKA, tidak menunggu tombol Tampilkan. Layar ini
+     menyimpan hasil tiap tab selama rentangnya sama; mengganti cabang tanpa
+     membuang simpanan itu membuat angka cabang lama tetap terpampang di bawah
+     nama cabang yang baru — angka yang terlihat masuk akal dan sepenuhnya
+     keliru. `tampilkanLaporan()` membuang seluruh simpanan itu. */
+  el.addEventListener('change', () => {
+    if (!LAP.dari || !LAP.sampai) { LAP.cabang = el.value; return; }
+    tampilkanLaporan();
+  });
+}
+
 async function tampilkanLaporan() {
   LAP.dari = $('#lapDari').value;
   LAP.sampai = $('#lapSampai').value;
-  LAP.data = {};                 // rentang baru: seluruh tab basi
+  /* Jatuh ke '*' bila penyaringnya tersembunyi. Aman untuk semua peran:
+     server menerjemahkan '*' menjadi "seluruh cabang aktif" HANYA bagi yang
+     berbendera lintas cabang, dan menjadi cabang sesi bagi yang tidak. */
+  LAP.cabang = $('#lapCabang')?.value || '*';
+  LAP.data = {};                 // rentang atau cabang baru: seluruh tab basi
   return gambarTabLaporan(LAP.tab);
 }
 
@@ -2781,7 +2841,7 @@ async function gambarTabLaporan(tab) {
   if (!LAP.data[tab]) {
     w.innerHTML = '<div class="kartu">Memuat…</div>';
     try {
-      LAP.data[tab] = await LAP_TARIK[tab]({ dari: LAP.dari, sampai: LAP.sampai });
+      LAP.data[tab] = await LAP_TARIK[tab]({ dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang });
     } catch (e) {
       w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
       $('#kartuPilihCetak').classList.add('sembunyi');
