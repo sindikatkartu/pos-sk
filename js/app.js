@@ -702,21 +702,50 @@ function tabelWaktu() {
   if (!r.length) return '';
   const ms = (v) => v === null || v === undefined ? '—' :
     (v >= 1000 ? (v / 1000).toFixed(1) + ' d' : Math.round(v) + ' md');
+
+  /**
+   * Kolom yang tidak menambah apa pun DIBUANG, bukan dikecilkan.
+   *
+   * Dilaporkan pemilik 7 Sep 2026: kolom Aksi terpotong dan tabelnya harus
+   * digeser. Tujuh kolom memang tidak muat di kartu selebar ini — tapi dua di
+   * antaranya sedang tidak mengatakan apa pun:
+   *
+   *   - `Terburuk` sama persis dengan `Tengah` untuk tiap baris ber-n=1, dan
+   *     hampir semua baris ber-n=1. Kolom yang mengulang tetangganya bukan
+   *     informasi, ia cuma memakan lebar yang dibutuhkan nama aksinya.
+   *   - `Gagal` kosong di seluruh baris selama tidak ada yang gagal.
+   *
+   * Keduanya MUNCUL KEMBALI begitu ada isinya — yang dibuang keadaannya, bukan
+   * kolomnya. Justru saat ada yang gagal atau ada satu permintaan yang jauh
+   * lebih lambat daripada tengahnya, kolom itu yang paling perlu terlihat.
+   */
+  const adaGagal = r.some(x => (x.galat || 0) > 0);
+  const adaTerburuk = r.some(x => x.terburuk !== x.total);
+
+  const kolom = [
+    { judul: 'Aksi', isi: (x) => esc(x.aksi) },
+    { judul: 'n', angka: true, isi: (x) => x.n },
+    { judul: 'Tengah', angka: true, isi: (x) => esc(ms(x.total)) },
+    { judul: 'Server', angka: true, isi: (x) => esc(ms(x.server)) },
+    { judul: 'Jalan', angka: true, isi: (x) => esc(ms(x.jalan)) }
+  ];
+  if (adaTerburuk) kolom.push({ judul: 'Terburuk', angka: true, isi: (x) => esc(ms(x.terburuk)) });
+  if (adaGagal) kolom.push({ judul: 'Gagal', angka: true, isi: (x) => x.galat || '' });
+
+  /* `data-l` WAJIB di tiap sel. Di bawah 620px tabelnya berhenti jadi tabel dan
+     tiap baris berubah jadi kartu "Nama kolom …… isi"; nama kolomnya diambil
+     dari atribut ini (lihat blok TABEL DI HP TEGAK di app.css). Tanpa itu, yang
+     terlihat di HP hanya deretan angka telanjang tanpa satu pun keterangan —
+     dan itulah keadaan tabel ini sejak v1.116.0. Aturannya sudah tertulis di
+     app.css: jangan pasang salah satunya tanpa yang lain. */
   return `<h3 style="margin-top:22px">Waktu permintaan</h3>
     <p class="petunjuk">Sejak halaman ini terakhir dimuat. <strong>Server</strong> = lama Apps Script
     mengerjakannya; <strong>jalan</strong> = sisanya, yaitu perjalanan bolak-balik.</p>
-    <div class="gulir-x"><table><thead><tr>
-      <th>Aksi</th><th class="angka">n</th><th class="angka">Tengah</th>
-      <th class="angka">Server</th><th class="angka">Jalan</th>
-      <th class="angka">Terburuk</th><th class="angka">Gagal</th>
-    </tr></thead><tbody>${r.map(x => `<tr>
-      <td>${esc(x.aksi)}</td><td class="angka">${x.n}</td>
-      <td class="angka">${esc(ms(x.total))}</td>
-      <td class="angka">${esc(ms(x.server))}</td>
-      <td class="angka">${esc(ms(x.jalan))}</td>
-      <td class="angka">${esc(ms(x.terburuk))}</td>
-      <td class="angka">${x.galat || ''}</td>
-    </tr>`).join('')}</tbody></table></div>`;
+    <div class="gulir-x"><table><thead><tr>${kolom.map(k =>
+      `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
+      <tbody>${r.map(x => `<tr>${kolom.map(k =>
+        `<td data-l="${esc(k.judul)}" class="${k.angka ? 'angka' : ''}">${k.isi(x)}</td>`).join('')
+      }</tr>`).join('')}</tbody></table></div>`;
 }
 
 const IKON = {
