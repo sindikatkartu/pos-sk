@@ -1491,8 +1491,15 @@ function gambarBarisTim(x) {
      pertanyaan yang cuma bisa dijawab dengan membuka layar lain. */
   const tim = Keranjang.timEfektif(x);
   if (!tim.length) return '';
-  const manual = (x.tim || []).length;
-  return `<br><span class="tanda-tier">${manual ? 'tim' : 'pasang'}: ${
+  /* Kata yang ditulis adalah PERANNYA (`pasang`, `jual+pasang`), bukan label
+     `tim` yang tidak menyebut apa pun. Kasir mengisi peran di sini tanpa
+     pernah memilihnya — perannya ditentukan URUTAN — dan satu nama di baris
+     berarti orang itu mengambil seluruh poin, omzet, dan laba baris itu.
+     Akibat sebesar itu tidak boleh baru terbaca dua layar kemudian.
+
+     Bedanya tim yang diisi tangan dan tim turunan tidak hilang: itu terbaca
+     dari tombolnya — `Tim` lawan `+ Pemasang`. */
+  return `<br><span class="tanda-tier">${labelTimBaris(tim)}: ${
     esc(tim.map(t => namaPetugas(t.kode)).join(', '))}</span>`;
 }
 
@@ -1764,14 +1771,30 @@ function gambarPilihanPetugas() {
  * dihindari `Keranjang.petugasNota` (lihat komentarnya di pos.js).
  */
 function gambarRosterKlaim() {
+  const hitungNama = {};
+  Keranjang.baris.forEach(b => { hitungNama[b.nama] = (hitungNama[b.nama] || 0) + 1; });
   const semu = {
     klaim: Keranjang.petugasNota,
     /* Tim EFEKTIF, bukan `b.tim` mentah — pemasang yang baru dipilih di layar
        bayar harus ikut terlihat di panel ini. Sumbernya sama persis dengan yang
        dikirim ke server dan yang dicetak di struk (`timEfektifBaris` di pos.js),
        jadi ketiganya tidak mungkin berbeda. */
+    /* Nama produk di katalog ini TIDAK unik — 98 dari 382 SKU memakai salah
+       satu dari empat nama generik, yang terbesar dipakai 41 SKU (lihat
+       `tokenProduk` di pos.js). Tiga baris "TG OG Multi_Fit" dengan tiga
+       pemasang berbeda karena itu terbaca seperti satu barang yang dikerjakan
+       bertiga. Pembedanya ditambahkan HANYA saat namanya memang kembar di
+       keranjang ini — kalau selalu, panelnya jadi penuh kode yang tidak
+       dibutuhkan. Pembedanya dikurung, BUKAN dipisah titik-tengah: daftar
+       pekerjaan satu orang juga dipisah titik-tengah, dan dua pemisah yang sama
+       membuat "A \u00b7 Samsung A20 \u00b7 B" tidak bisa dibaca sebagai dua pekerjaan
+       atau tiga. Ketahuan saat dilihat dengan mata, bukan saat dipikirkan.
+       Ini nama untuk DILIHAT saja; yang dikirim ke server dan
+       dicetak di struk tetap nama aslinya. */
     item: Keranjang.baris.map(b => ({
-      nama: b.nama, poin_satuan: b.poin_satuan, tim: Keranjang.timEfektif(b)
+      nama: b.nama + (hitungNama[b.nama] > 1
+        ? ' (' + ((b._produk && b._produk.tipe_hp) || b.sku) + ')' : ''),
+      poin_satuan: b.poin_satuan, tim: Keranjang.timEfektif(b)
     }))
   };
   const r = susunPeranNota(semu, APP_STATE.daftarPetugas);
@@ -1787,8 +1810,14 @@ function gambarRosterKlaim() {
     else peta.push({ kode: x.kode, nama: x.nama, peran: x.peran, kerja: [x.pekerjaan] });
   });
 
-  const kerjaTeks = (k) => k.map(x => x === 'nota'
-    ? 'baris tanpa tim sendiri' : x).join(' · ');
+  /* "baris tanpa tim sendiri" benar tapi memaksa kasir menebak yang mana.
+     Barisnya disebut namanya, sama seperti baris lain di panel ini. Dipotong
+     di tiga: daftar sepanjang keranjang membuat panel ini lebih tinggi
+     daripada isi yang dijelaskannya. */
+  const sisa = semu.item.filter(i => !i.tim.length).map(i => i.nama).filter(Boolean);
+  const sisaTeks = !sisa.length ? 'seluruh nota'
+    : sisa.slice(0, 3).join(', ') + (sisa.length > 3 ? ` +${sisa.length - 3} lagi` : '');
+  const kerjaTeks = (k) => k.map(x => x === 'nota' ? sisaTeks : x).join(' · ');
 
   const baris = peta.map(p => `
     <div style="display:flex;gap:8px;align-items:baseline;padding:4px 0">

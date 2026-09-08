@@ -800,6 +800,34 @@ function _peranUrutKlaim(jumlah, jenis) {
 }
 
 /**
+ * Kata yang dipakai LAYAR untuk peran sebuah tim BARIS.
+ *
+ * Dibangun di atas `_peranUrutKlaim`, bukan ditulis ulang. Aturannya berlawanan
+ * arah dengan aturan nota — satu orang di NOTA adalah PENJUAL, satu orang di
+ * BARIS adalah PEMASANG — dan dua salinan aturan yang berlawanan arah pasti
+ * berpisah jalan.
+ *
+ * Kenapa perannya perlu disebut di baris keranjang. Sebelum ini barisnya cuma
+ * berbunyi `tim: Abdul Azis`, dan perannya baru terbaca dua layar kemudian di
+ * panel poin layar Bayar. Dilaporkan pemilik 8 Sep 2026 sebagai logika yang
+ * membingungkan — dan taruhannya bukan cuma kata: SATU nama di sebuah baris
+ * mengambil seluruh poin, omzet, DAN laba baris itu (`_porsiDariBobot`
+ * menormalkan bobot ke orang yang hadir), sementara pramuniaga notanya tidak
+ * mendapat apa pun dari baris tersebut. Kasir harus bisa melihat akibat itu di
+ * tempat ia mengisinya.
+ *
+ * Yang TIDAK hilang: bedanya tim yang diisi tangan dan tim yang diturunkan dari
+ * kolom Pemasang tetap terbaca dari tombolnya — `Tim` untuk yang punya tim
+ * sendiri, `+ Pemasang` untuk yang belum (lihat `tombolTimBaris`).
+ */
+function labelTimBaris(tim) {
+  const n = (tim || []).length;
+  if (!n) return '';
+  return _peranUrutKlaim(n, 'BARIS').slice(0, n)
+    .map(function (x) { return x === 'PEMASANG' ? 'pasang' : 'jual'; }).join('+');
+}
+
+/**
  * SATU daftar tunggal "siapa mengerjakan apa di nota ini".
  *
  * MASALAH YANG DISELESAIKAN (dilaporkan dari lapangan 28 Agu 2026, hari pertama
@@ -974,5 +1002,6 @@ if (typeof module !== 'undefined' && module.exports) {
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
-                     timEfektifBaris, petugasUntukPeran, lencanaStok };
+                     timEfektifBaris, petugasUntukPeran, lencanaStok,
+                     labelTimBaris };
 }
