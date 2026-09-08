@@ -1593,8 +1593,6 @@ function gambarKeranjang() {
 const PERAN_TIM = ['PENJUAL', 'PEMASANG'];
 const LABEL_PERAN = { PENJUAL: 'Penjual', PEMASANG: 'Pemasang' };
 
-/** Paling banyak dua orang per penjualan. Cerminan MAKS_PETUGAS_KLAIM di server. */
-const MAKS_PETUGAS = 2;
 
 /**
  * Peran ditentukan URUTAN, bukan dipilih.
@@ -1921,26 +1919,51 @@ function bukaTim(idBaris) {
     return alert('Daftar petugas masih kosong. Isi lebih dulu lewat menu Petugas.');
   }
 
+  /* Satu nota = satu penjual, mutlak (keputusan pemilik, 8 Sep 2026). Karena itu
+     penjual sebuah BARIS tidak pernah bisa berbeda dari pramuniaga notanya, dan
+     pemasang selalu MENDAMPINGI penjualnya — tidak pernah menggantikannya.
+     Tanpa pramuniaga nota, tidak ada penjual yang bisa dikunci ke barisnya.
+
+     Inilah yang dulu bocor: tim baris berisi satu nama membuat orang itu
+     PEMASANG yang mengambil 100% poin, omzet, dan laba baris tersebut, dan
+     penjualnya lenyap dari baris itu tanpa satu pun tanda di layar. */
+  const penjual = (Keranjang.petugasNota[0] || {}).kode || '';
+  if (!nota && !penjual) {
+    return alert('Pilih pramuniaga nota ini dulu di bar alat kasir.\n\n' +
+                 'Pemasang selalu mendampingi penjualnya, bukan menggantikannya.');
+  }
+
   APP_STATE.timBaris = idBaris;
-  const min = nota ? 1 : (b.butuh_tim ? MAKS_PETUGAS : 1);
   // Poin bawaan pekerjaan ini — dari `poin_satuan` produk dikali qty dasarnya.
   const poinDasar = nota ? Keranjang.poinSisaNota() : Keranjang.poinBaris(idBaris);
   APP_STATE._timPoinDasar = poinDasar;
 
-  $('#timJudul').textContent = nota ? 'Pramuniaga nota ini' : 'Tim — ' + b.nama;
+  $('#timJudul').textContent = nota ? 'Pramuniaga nota ini' : 'Pemasang — ' + b.nama;
   $('#timRingkas').innerHTML = `<p class="petunjuk">${nota
-    ? 'Berlaku untuk seluruh baris yang <strong>tidak</strong> punya timnya sendiri.'
-    : 'Baris ini dikerjakan berdua, dan karena itu keluar dari klaim nota.'}
+    ? 'Satu nota, satu penjual. Ia berlaku untuk seluruh baris yang <strong>tidak</strong> punya pemasangnya sendiri.'
+    : 'Penjualnya sudah pasti pramuniaga nota ini. Yang dipilih di sini hanya <strong>siapa yang memasang</strong> baris ini — dan karena itu baris ini keluar dari klaim nota.'}
     Pekerjaan ini bernilai <strong>${poinDasar} poin</strong> menurut master produk,
     dan dibagi menurut bobot peran. Keduanya diatur back office — di sini tinggal
     memilih orangnya.</p>
     ${poinDasar > 0 ? '' : `<div class="pesan info">Produk ini belum diberi nilai poin,
       jadi penjualannya tidak berpoin. Omzetnya tetap tercatat atas nama petugas.</div>`}`;
 
-  const awal = nota ? Keranjang.petugasNota : Keranjang.timBaris(idBaris);
-  APP_STATE._timDraft = awal.length
-    ? awal.slice(0, MAKS_PETUGAS).map(x => ({ kode: x.kode }))
-    : Array.from({ length: min }, () => ({ kode: '' }));
+  /* BENTUK DRAFT-nya TETAP, tidak lagi daftar yang bisa tumbuh-menyusut.
+
+     Nota: satu slot, penjual. Baris: dua slot — penjual TERKUNCI ke pramuniaga
+     nota, dan pemasang yang boleh dipilih (boleh juga dikosongkan).
+
+     Tim baris lama yang cuma berisi SATU nama dibaca sebagai pemasangnya, bukan
+     penjualnya — itu memang artinya menurut `_peranUrutKlaim(1, 'BARIS')`. Nota
+     lama yang terlanjur berisi dua nama kehilangan nama keduanya di sini, dan
+     itu memang yang diinginkan: nama kedua di klaim nota adalah cacat yang
+     sedang ditutup. */
+  const timLama = nota ? [] : Keranjang.timBaris(idBaris);
+  const pemasangLama = timLama.length > 1 ? (timLama[1] || {}).kode || ''
+                     : (timLama[0] || {}).kode || '';
+  APP_STATE._timDraft = nota
+    ? [{ kode: (Keranjang.petugasNota[0] || {}).kode || '' }]
+    : [{ kode: penjual }, { kode: pemasangLama === penjual ? '' : pemasangLama }];
 
   pesan('#pesanTim', '');
   gambarAnggotaTim();
@@ -1950,8 +1973,7 @@ function bukaTim(idBaris) {
 
 function gambarAnggotaTim() {
   const d = APP_STATE._timDraft || [];
-  const peran = peranSlot(d);
-  const kode = peranKodeSlot(d);
+  const nota = APP_STATE.timBaris === '#NOTA';
 
   /* Tiap slot hanya menawarkan orang yang MAMPU mengerjakan perannya. Slot
      "Pemasang" yang berisi seluruh nama adalah cara paling mudah mencatat
@@ -1959,8 +1981,13 @@ function gambarAnggotaTim() {
      ketahuan saat bagi hasil, saat sudah tidak ada yang ingat notanya.
      Nama yang SUDAH terpilih tetap ikut ditampilkan meski tidak lolos saringan,
      supaya klaim lama tidak lenyap dari layar tanpa penjelasan. */
-  const opsiSlot = (i, terpilih) => {
-    const boleh = petugasUntukPeran(APP_STATE.daftarPetugas || [], kode[i]);
+  /* Penjualnya sendiri TIDAK ditawarkan sebagai pemasang. Menuliskan satu nama
+     dua kali di satu baris justru memotong poin orang itu sendiri, dan
+     "dipasang sendiri" sudah punya jalannya: kosongkan saja pemasangnya. */
+  const penjualKini = (d[0] || {}).kode || '';
+  const opsi = (peran, terpilih) => {
+    const boleh = petugasUntukPeran(APP_STATE.daftarPetugas || [], peran)
+      .filter(p => nota || peran !== 'PEMASANG' || p.kode !== penjualKini);
     const ada = boleh.some(p => p.kode === terpilih);
     const daftar = ada || !terpilih ? boleh
       : boleh.concat((APP_STATE.daftarPetugas || []).filter(p => p.kode === terpilih));
@@ -1968,22 +1995,29 @@ function gambarAnggotaTim() {
       `<option value="${esc(p.kode)}" ${p.kode === terpilih ? 'selected' : ''}>${esc(p.nama)}</option>`).join('');
   };
 
-  $('#timDaftar').innerHTML = d.map((a, i) => `
-    <div class="baris-anak" style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:8px">
-      <div><label>${esc(peran[i])}</label>
-        <select data-i="${i}" data-f="kode">
-          <option value="">— pilih —</option>
-          ${opsiSlot(i, a.kode)}
-        </select></div>
-      ${d.length > 1 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:12px 12px">×</button>` : '<span></span>'}
-    </div>`).join('');
+  /* Dua bentuk TETAP, bukan daftar yang bisa tumbuh.
 
-  // Tombol tambah hanya berarti selama masih ada tempat.
-  const btn = $('#btnTambahAnggota');
-  if (btn) {
-    btn.style.display = d.length >= MAKS_PETUGAS ? 'none' : '';
-    btn.textContent = '+ Tambah pemasang';
-  }
+     Nota: satu slot penjual. Baris: penjual yang terkunci — ditampilkan supaya
+     kasir melihat atas nama siapa barisnya, tapi tidak bisa diubah — lalu satu
+     pilihan pemasang yang BOLEH dikosongkan. Kosong artinya baris ini dikerjakan
+     sendiri oleh penjualnya, bukan artinya belum diisi. */
+  $('#timDaftar').innerHTML = nota
+    ? `<div class="baris-anak" style="margin-bottom:8px">
+         <label>Penjual</label>
+         <select data-i="0" data-f="kode">
+           <option value="">— pilih —</option>${opsi('PENJUAL', (d[0] || {}).kode)}
+         </select></div>`
+    : `<div class="baris-anak" style="margin-bottom:8px">
+         <label>Penjual</label>
+         <input type="text" data-f="penjual" readonly tabindex="-1"
+                title="Satu nota, satu penjual — diubah di bar alat kasir"
+                value="${esc(namaPetugas((d[0] || {}).kode))}"></div>
+       <div class="baris-anak" style="margin-bottom:8px">
+         <label>Pemasang</label>
+         <select data-i="1" data-f="kode">
+           <option value="">— tidak ada, dipasang sendiri —</option>${opsi('PEMASANG', (d[1] || {}).kode)}
+         </select></div>`;
+
   gambarBagianTim();
 }
 
@@ -1995,48 +2029,17 @@ function gambarAnggotaTim() {
  * adalah hasil aturan itu, dihitung dengan cara yang sama seperti di server,
  * supaya kasir bisa melihat akibat pilihannya sebelum menyimpan.
  */
-/**
- * Label peran tiap slot, menurut POSISI slotnya.
- *
- * '#NOTA' adalah string, dan string apa pun truthy — jadi pemeriksaannya harus
- * `=== '#NOTA'`, bukan sekadar `? :`.
- *
- * Label ini boleh mengikuti posisi HANYA karena `rapikanDraft()` menjamin tidak
- * pernah ada slot kosong di atas slot terisi. Tanpa jaminan itu, satu orang di
- * slot kedua akan tampil "Pemasang" padahal server mencatatnya "Penjual" — yang
- * dikirim sudah disaring `filter(a => a.kode)`, dan peran ditetapkan menurut
- * urutan daftar tersaring itu.
- */
-function peranSlot(d) {
-  const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
-  const peran = peranUrut(d.length, jenis);
-  return d.map((a, i) => LABEL_PERAN[peran[i]] || 'Petugas');
-}
+/* `peranSlot`, `peranKodeSlot`, dan `rapikanDraft` DICABUT 8 Sep 2026.
 
-/** Peran MENTAH tiap slot (PENJUAL/PEMASANG) — dipakai menyaring dropdownnya. */
-function peranKodeSlot(d) {
-  const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
-  return peranUrut(d.length, jenis);
-}
+   Ketiganya ada untuk satu hal: daftar slot yang panjangnya bisa berubah, yang
+   karenanya bisa punya slot kosong di atas slot terisi — dan saat itu terjadi,
+   satu orang di slot kedua tampil "Pemasang" padahal server mencatatnya
+   "Penjual", karena yang dikirim sudah disaring `filter(a => a.kode)`.
 
-/**
- * Naikkan slot yang terisi ke atas, sisakan yang kosong di bawah.
- *
- * Kasir bisa saja memilih slot kedua lebih dulu. Kalau dibiarkan, posisi slot
- * berhenti mencerminkan urutan yang dikirim ke server, dan label perannya jadi
- * berbohong. Merapikannya seketika lebih baik daripada menolak saat menyimpan:
- * kasir melihat sendiri namanya berpindah ke baris Penjual.
- *
- * @return true bila susunannya berubah (perlu digambar ulang).
- */
-function rapikanDraft(d) {
-  const isi = d.filter(a => a.kode);
-  const kosong = d.filter(a => !a.kode);
-  const baru = isi.concat(kosong);
-  const berubah = baru.some((a, i) => a !== d[i]);
-  if (berubah) d.splice(0, d.length, ...baru);
-  return berubah;
-}
+   Bentuk draftnya sekarang TETAP — nota satu slot, baris penjual-terkunci +
+   pemasang — jadi tidak ada lagi urutan yang bisa bergeser, dan peran tidak
+   lagi ditebak dari posisi. Bahayanya hilang bersama mekanismenya, bukan
+   dijaga oleh perapian. Penjaganya di uji.js ikut diganti. */
 
 function gambarBagianTim() {
   const d = APP_STATE._timDraft || [];
@@ -2048,8 +2051,14 @@ function gambarBagianTim() {
 
   const elR = $('#timPorsi');
   const isi = d.filter(a => a.kode);
-  if (!isi.length || isi.length !== d.length) {
-    elR.textContent = 'pilih petugasnya dulu';
+  if (!isi.length) { elR.textContent = 'pilih petugasnya dulu'; return; }
+
+  /* Baris tanpa pemasang BUKAN tim beranggota satu: ia kembali ikut klaim
+     nota, dan di sana penjualnya sendirian — seluruhnya miliknya. Menghitungnya
+     sebagai tim satu orang akan menyebutnya PEMASANG, peran yang justru tidak
+     terjadi di baris itu. */
+  if (jenis === 'BARIS' && isi.length === 1) {
+    elR.textContent = `${namaPetugas(isi[0].kode).split(' ')[0]} ${total} poin (100%)`;
     return;
   }
 
@@ -2085,32 +2094,27 @@ function bagiRata(total, porsi) {
 }
 
 function simpanTim() {
-  const d = (APP_STATE._timDraft || []).filter(a => a.kode);
   const nota = APP_STATE.timBaris === '#NOTA';
-  const b = nota ? null : Keranjang.baris.find(x => x.id === APP_STATE.timBaris);
+  const d = APP_STATE._timDraft || [];
+  const penjual = (d[0] || {}).kode || '';
 
-  if (!nota && !b) { $('#tiraiTim').classList.remove('tampil'); return; }
-
-  const kode = d.map(a => a.kode);
-  if (new Set(kode).size !== kode.length) {
-    return pesan('#pesanTim', 'Ada petugas yang dipilih dua kali.', 'galat');
+  if (nota) {
+    /* Satu nama, selalu. Slot kedua di klaim nota sudah dicabut: ia hanya bisa
+       berarti PEMASANG, dan pemasang di tingkat nota menempel ke SEMUA baris
+       sisa — casing yang tidak pernah dipasang ikut terbagi. Dilaporkan pemilik
+       8 Sep 2026. */
+    Keranjang.setPetugasNota(penjual ? [{ kode: penjual }] : []);
+  } else {
+    const b = Keranjang.baris.find(x => x.id === APP_STATE.timBaris);
+    if (!b) { $('#tiraiTim').classList.remove('tampil'); return; }
+    const pemasang = (d[1] || {}).kode || '';
+    /* Pemasang kosong ATAU pemasang = penjualnya berarti dikerjakan sendiri:
+       barisnya tidak punya tim, ia kembali ikut klaim nota, dan penjualnya
+       mendapat seluruhnya. Menuliskan satu nama yang sama dua kali justru
+       memotong poin orang itu sendiri (§19). */
+    Keranjang.setTimBaris(APP_STATE.timBaris,
+      (pemasang && pemasang !== penjual) ? [{ kode: penjual }, { kode: pemasang }] : []);
   }
-
-  if (d.length > MAKS_PETUGAS) {
-    return pesan('#pesanTim', `Paling banyak ${MAKS_PETUGAS} petugas per penjualan.`, 'galat');
-  }
-  const min = nota ? 0 : (b.butuh_tim ? 2 : 0);
-  if (d.length < min) {
-    return pesan('#pesanTim', `Baris ini dikerjakan berdua — pilih ${min} petugas.`, 'galat');
-  }
-
-  /* Yang dikirim hanya SIAPA. Peran ditentukan urutan, dan poin berasal dari
-     master produk — keduanya diputuskan server. Mengirimkannya dari sini hanya
-     menciptakan angka kedua yang bisa berbeda dari yang tercatat. */
-  const bersih = d.map(a => ({ kode: a.kode }));
-
-  if (nota) Keranjang.setPetugasNota(bersih);
-  else Keranjang.setTimBaris(APP_STATE.timBaris, bersih);
 
   $('#tiraiTim').classList.remove('tampil');
   APP_STATE.timBaris = null;
@@ -3982,18 +3986,6 @@ function pasangEvent() {
     APP_STATE.timBaris = null;
   });
   $('#btnSimpanTim').addEventListener('click', simpanTim);
-  $('#btnTambahAnggota').addEventListener('click', () => {
-    const d = (APP_STATE._timDraft = APP_STATE._timDraft || []);
-    if (d.length >= MAKS_PETUGAS) return;
-    d.push({ kode: '' });
-    gambarAnggotaTim();
-  });
-  $('#timDaftar').addEventListener('click', e => {
-    const b = e.target.closest('button[data-f=hapus]');
-    if (!b) return;
-    APP_STATE._timDraft.splice(Number(b.dataset.i), 1);
-    gambarAnggotaTim();
-  });
   /* Tidak ada lagi kolom yang bisa diketik di sini — hanya siapa orangnya.
      Poin datang dari master produk, pembagiannya dari bobot peran, dan keduanya
      milik back office. Yang tersisa untuk kasir adalah keputusan yang memang
@@ -4002,8 +3994,7 @@ function pasangEvent() {
     if (e.target.dataset.f !== 'kode') return;
     const d = APP_STATE._timDraft;
     d[Number(e.target.dataset.i)].kode = e.target.value;
-    if (rapikanDraft(d)) gambarAnggotaTim();
-    else gambarBagianTim();
+    gambarBagianTim();
   });
 
   /* --- keranjang --- */
