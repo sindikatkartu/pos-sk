@@ -1824,3 +1824,97 @@ body.tunggu button:not(.sibuk) {
   font-size: var(--fs-13); color: var(--teks-2); white-space: nowrap; cursor: pointer;
 }
 .cip-cetak input { margin: 0; }
+
+/* ==================== LAYAR PENGATURAN SISTEM ====================
+   Tiga belas setelan yang berderet dalam satu petak tanpa pengelompokan
+   memaksa pembacanya menyaring sendiri mana yang soal pajak dan mana yang soal
+   kertas struk. Yang ditambahkan di sini HANYA pengelompokan dan bentuk
+   kendalinya — petak, jumlah kolom, kartu pembungkus, dan seluruh token warna
+   di atas tidak disentuh satu pun. Setiap warna di bawah diambil dari token
+   yang sudah ada; tidak ada satu pun nilai heksa baru di blok ini. */
+
+/* Kepala kelompok. TANPA garis pemisah: tiap kelompok punya petaknya sendiri,
+   jadi yang memisahkan adalah jarak dan kepalanya sendiri. Garis di dalam satu
+   petak yang dibagi-bagi terbaca sebagai tabel yang bocor, bukan sebagai
+   kelompok — diminta pemilik 8 Sep 2026. */
+.set-kepala { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.set-kepala .ikon-svg { width: 17px; height: 17px; color: var(--teks-redup); }
+.set-kepala div { display: flex; flex-direction: column; min-width: 0; }
+.set-kepala b { font-size: var(--fs-13); font-weight: 650; color: var(--teks);
+  letter-spacing: .04em; text-transform: uppercase; }
+.set-kepala span { font-size: var(--fs-12); color: var(--teks-redup); }
+/* Tiap kelompok kotaknya SENDIRI, bukan satu kartu yang dibagi jarak — diminta
+   pemilik 8 Sep 2026 sambil menunjuk rancangannya. Jaraknya diurus
+   `margin-bottom` milik `.kartu`, jadi kelompok di layar ini berjarak sama
+   dengan kartu di layar mana pun. */
+.set-grup > .petak:last-child { margin-bottom: 0; }
+
+/* Keterangan di BAWAH kotak, bukan di dalam label. Label yang menampung
+   penjelasan ikut membesar dan berhenti terbaca sebagai nama kolom. */
+.set-bantu { display: block; font-size: var(--fs-12); color: var(--teks-redup); margin-top: 6px; }
+.set-baca { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 0; }
+.set-baca .set-bantu { margin-top: 0; }
+
+/* Satuan (%, mm) duduk DI DALAM kotak. Di dalam label ia terbaca sebagai
+   bagian dari nama setelan, bukan sebagai satuan angkanya. */
+.isian-satuan { position: relative; }
+.isian-satuan input { padding-right: 44px; }
+.isian-satuan span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-size: var(--fs-13); color: var(--teks-redup); pointer-events: none;
+  font-variant-numeric: tabular-nums; }
+
+/* Kartu centang bertingkat: nama setelan di atas, akibatnya di bawah. */
+.set-cek span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.set-cek span b  { font-weight: 600; font-size: var(--fs-14); }
+.set-cek span em { font-style: normal; font-size: var(--fs-12); color: var(--teks-redup); }
+
+/* SAKELAR. Bentuknya baru, warnanya tidak: --panel-3/--garis saat mati dan
+   --utama-tombol/--garis-tombol saat hidup — sama persis dengan tombol utama,
+   jadi ia ikut berganti tema tanpa satu baris tambahan.
+
+   Kekhususannya sengaja ditulis `label.cek input[type=checkbox].sakelar`:
+   aturan kotak centang 17x17 di atas berkekhususan (0,2,1) dan akan MENANG
+   atas `input.sakelar` yang (0,1,1). Ditulis pendek, sakelarnya tergambar
+   sebesar kotak centang dan tuas putihnya menindih tulisan di sebelahnya. */
+label.cek input[type=checkbox].sakelar { appearance: none; -webkit-appearance: none;
+  width: 40px; height: 23px; border-radius: 12px; flex-shrink: 0; position: relative;
+  background: var(--panel-3); border: 1px solid var(--garis); margin: 0;
+  transition: background .12s, border-color .12s; cursor: pointer; }
+label.cek input.sakelar::after { content: ''; position: absolute; top: 2px; left: 2px;
+  width: 17px; height: 17px; border-radius: 50%; background: var(--panel);
+  box-shadow: var(--bayang-2); transition: transform .12s; }
+label.cek input.sakelar:checked { background: var(--utama-tombol); border-color: var(--garis-tombol); }
+label.cek input.sakelar:checked::after { transform: translateX(17px); }
+label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin); }
+
+/* KENDALI BERSEGMEN untuk pilihan yang cuma dua. Keduanya terlihat sekaligus,
+   tidak perlu dibuka dulu untuk tahu isinya. Bentuknya meniru `.pecahan .cip`
+   yang sudah dipakai di layar kasir. */
+.segmen { display: flex; border: 1px solid var(--garis); border-radius: var(--radius);
+  overflow: hidden; background: var(--panel-2); width: fit-content; }
+/* Tinggi 40px, bukan sisa dari paddingnya: aplikasi ini dipakai di tablet
+   sentuh, dan ada uji yang MENGUKURNYA (uji-rupa.mjs, bagian 5). */
+.segmen button { display: flex; align-items: center; gap: 8px; background: transparent;
+  border: none; border-radius: 0; padding: 10px 14px; min-height: 40px;
+  font-size: var(--fs-14); font-weight: 500; color: var(--teks-2); }
+.segmen button + button { border-left: 1px solid var(--garis-halus); }
+.segmen button:hover { background: var(--panel-3); }
+.segmen button.pas { background: var(--panel); color: var(--teks); font-weight: 650;
+  box-shadow: var(--bayang-1); }
+.segmen button:focus-visible { outline: none; box-shadow: var(--cincin); }
+.segmen .ikon-svg { width: 16px; height: 16px; }
+
+/* Setelan yang tidak berlaku saat induknya mati DIREDUPKAN, bukan dikosongkan:
+   nilainya harus tetap utuh saat induknya dinyalakan lagi. */
+.grup.set-tidur { opacity: .5; }
+.grup.set-tidur input { pointer-events: none; }
+
+/* Kaki layar. Tombol Simpan yang selalu menyala tidak membedakan layar yang
+   belum disentuh dari layar yang sudah diubah tiga kali. */
+/* Tombol simpan MELEBAR PENUH, jejaknya di atasnya — diminta pemilik 8 Sep
+   2026. Aplikasi ini dipakai di tablet sentuh: tombol tunggal yang mengakhiri
+   satu layar tidak perlu dicari, dan tombol selebar layar tidak bisa meleset. */
+.set-kaki { display: flex; flex-direction: column; align-items: stretch;
+  gap: 8px; margin-top: 16px; }
+.set-jejak { font-size: var(--fs-13); color: var(--teks-redup); }
+.set-jejak.ada { color: var(--peringatan); font-weight: 600; }

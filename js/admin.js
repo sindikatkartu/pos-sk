@@ -3369,19 +3369,59 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim'];
 
+  /* LABEL. Dipendekkan sampai jadi NAMA setelan saja. Penjelasannya pindah ke
+     `.set-bantu` di bawah kotak dan `<em>` di dalam kartu centang: label yang
+     menampung penjelasan ikut memanjang dan berhenti terbaca sebagai nama
+     kolom — di layar sempit ia bahkan membungkus jadi dua baris sementara
+     kotak isiannya tetap satu baris. */
   const LABEL_SETTING = {
-    nama_usaha: 'Nama usaha (tercetak di struk)',
-    alamat_usaha: 'Alamat usaha', telepon_usaha: 'Telepon usaha',
-    npwp: 'NPWP (tercetak di struk bila PKP menyala)',
-    pkp: 'Pengusaha Kena Pajak (PPN dihitung per nota)',
-    tarif_ppn: 'Tarif PPN (%)',
-    izinkan_stok_minus: 'Boleh menjual saat stok 0 (ditandai untuk opname)',
-    tema: 'Tema tampilan (berlaku untuk SEMUA perangkat)',
-    metode_hpp: 'Metode HPP', footer_struk: 'Baris penutup struk',
-    lebar_struk: 'Lebar kertas struk (mm)', mdr_qris: 'Potongan QRIS (%)',
-    auto_jurnal: 'Posting jurnal otomatis'
+    nama_usaha: 'Nama usaha', alamat_usaha: 'Alamat usaha',
+    telepon_usaha: 'Telepon usaha', npwp: 'NPWP',
+    pkp: 'Pengusaha Kena Pajak (PKP)', tarif_ppn: 'Tarif PPN',
+    izinkan_stok_minus: 'Boleh menjual saat stok 0',
+    tema: 'Tema tampilan', metode_hpp: 'Metode HPP',
+    footer_struk: 'Baris penutup struk', lebar_struk: 'Lebar kertas struk',
+    mdr_qris: 'Potongan QRIS', auto_jurnal: 'Posting jurnal otomatis',
+    klaim_petugas_wajib: 'Wajib klaim petugas'
   };
-  const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'auto_jurnal'];
+
+  /* Keterangan sebaris di bawah kotak isian. */
+  const BANTU_SETTING = {
+    nama_usaha: 'Tercetak paling atas di struk.',
+    alamat_usaha: 'Dikosongkan berarti baris alamat tidak dicetak.',
+    telepon_usaha: 'Dikosongkan berarti baris telepon tidak dicetak.',
+    npwp: 'Hanya dipakai bila PKP menyala.',
+    tarif_ppn: 'Hanya dipakai bila PKP menyala.',
+    footer_struk: 'Baris terakhir sebelum kertas terpotong.',
+    lebar_struk: '58 atau 80.',
+    mdr_qris: 'Dicatat sebagai beban di jurnal.',
+    tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.'
+  };
+
+  /* Baris kedua di dalam kartu sakelar: apa yang terjadi kalau ia dinyalakan. */
+  const SUB_SETTING = {
+    pkp: 'PPN dihitung per nota.',
+    izinkan_stok_minus: 'Nota tetap jalan, selisihnya ditandai untuk opname.',
+    auto_jurnal: 'Setiap transaksi langsung masuk jurnal.',
+    klaim_petugas_wajib: 'Nota ditolak bila belum ada petugas yang mengklaimnya.'
+  };
+
+  /* Satuan yang duduk DI DALAM kotak. Ditulis di label, ia terbaca sebagai
+     bagian dari nama setelannya — "Tarif PPN (%)" adalah nama yang aneh. */
+  const SATUAN_SETTING = { tarif_ppn: '%', mdr_qris: '%', lebar_struk: 'mm' };
+
+  /* Contoh isi untuk kotak yang masih kosong. Kotak kosong tanpa contoh tidak
+     memberi tahu bentuk isian yang diharapkan. */
+  const CONTOH_SETTING = {
+    alamat_usaha: 'Jl. …', telepon_usaha: '08…', npwp: '00.000.000.0-000.000'
+  };
+
+  /* `klaim_petugas_wajib` ikut di sini sejak v1.132.0. Sebelumnya ia tidak
+     terdaftar di mana pun, jadi layar menggambarnya sebagai kotak isian bebas
+     berlabel mentah `klaim_petugas_wajib` — dan servernya membaca nilainya
+     dengan `String(x) === 'true'`, sehingga apa pun yang diketik selain kata
+     itu berarti mati, tanpa satu pun galat. */
+  const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'auto_jurnal', 'klaim_petugas_wajib'];
 
   /* SETELAN YANG DIBUANG. Membuangnya dari benih di 00_Config.gs saja tidak
      cukup: barisnya SUDAH ada di sheet toko yang berjalan sejak Agustus, dan
@@ -3405,6 +3445,176 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     tema: [['terang', 'Terang'], ['gelap', 'Gelap']]
   };
 
+  /* IKON LAYAR SETTING. Digambar sebaris, sama seperti `tombolIkon` di atas:
+     aplikasi harus tetap utuh saat internet mati, jadi tidak ada satu pun ikon
+     yang datang dari CDN. Jalurnya 24x24, digoreskan oleh `.ikon-svg`. */
+  const IKON_SETTING = {
+    usaha:    '<path d="m2.5 7.5 1.6-4.2h15.8l1.6 4.2"/><path d="M2.5 7.5h19v1.6a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-5.3 0Z"/><path d="M4.6 12.6v8.4h14.8v-8.4"/><path d="M9.6 21v-5h4.8v5"/>',
+    pajak:    '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
+    struk:    '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
+    stok:     '<rect x="2.5" y="3.5" width="19" height="4.6" rx="1.4"/><path d="M4.4 8.1v10.4a2 2 0 0 0 2 2h11.2a2 2 0 0 0 2-2V8.1"/><path d="M10 12.2h4"/>',
+    tampilan: '<rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7"/><path d="M12 16.5v4"/>',
+    lain:     '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.4a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 1.9-2.7 3.7"/><circle cx="12" cy="17" r="1"/>',
+    gembok:   '<rect x="4.5" y="10" width="15" height="10.5" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+    terang:   '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2"/><path d="M12 19.5v2"/><path d="m5.2 5.2 1.4 1.4"/><path d="m17.4 17.4 1.4 1.4"/><path d="M2.5 12h2"/><path d="M19.5 12h2"/><path d="m5.2 18.8 1.4-1.4"/><path d="m17.4 6.6 1.4-1.4"/>',
+    gelap:    '<path d="M20 14.6A8.6 8.6 0 0 1 9.4 4 8.6 8.6 0 1 0 20 14.6Z"/>'
+  };
+  const ikonSetting = (id) =>
+    `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON_SETTING[id] || ''}</svg>`;
+
+  /* KELOMPOK SETELAN. Tiga belas setelan yang berderet dalam satu petak tanpa
+     pengelompokan memaksa pembacanya menyaring sendiri mana yang soal pajak,
+     mana yang soal kertas struk, dan mana yang soal aturan kasir. Urutan DI
+     SINI yang menentukan urutan di layar — bukan urutan baris di sheet, yang
+     ditentukan oleh urutan penyemaian dan tidak berarti apa-apa bagi pembaca. */
+  const GRUP_SETTING = [
+    { judul: 'Identitas usaha', ikon: 'usaha',
+      ket: 'Tercetak di kepala setiap struk.',
+      kunci: ['nama_usaha', 'alamat_usaha', 'telepon_usaha'] },
+    { judul: 'Pajak & pembukuan', ikon: 'pajak',
+      ket: 'Menentukan cara nota dan jurnal dihitung.',
+      kunci: ['pkp', 'npwp', 'tarif_ppn', 'auto_jurnal', 'metode_hpp'] },
+    { judul: 'Struk & cetak', ikon: 'struk',
+      ket: 'Bentuk kertas yang keluar dari printer kasir.',
+      kunci: ['footer_struk', 'lebar_struk'] },
+    { judul: 'Penjualan & stok', ikon: 'stok',
+      ket: 'Aturan yang dipakai kasir saat melayani.',
+      kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris'] },
+    { judul: 'Tampilan', ikon: 'tampilan',
+      ket: 'Berlaku untuk semua perangkat yang masuk.',
+      kunci: ['tema'] }
+  ];
+
+  /* SETELAN YANG NILAINYA BERGANTUNG PADA SETELAN LAIN. Kuncinya diredupkan
+     saat induknya mati — DIREDUPKAN, bukan dikosongkan: NPWP yang terhapus
+     saat PKP dimatikan harus diketik ulang saat PKP dinyalakan lagi. */
+  const SETTING_IKUT_PKP = ['npwp', 'tarif_ppn'];
+
+  /**
+   * Susun baris setelan menjadi kelompok, menurut GRUP_SETTING.
+   *
+   * Kunci yang TIDAK terdaftar di GRUP_SETTING tetap digambar, di kelompok
+   * "Lainnya" paling bawah. Tanpa itu, setelan baru yang disemai di
+   * 00_Config.gs besok akan hilang dari layar tanpa satu pun galat — dan yang
+   * menyemainya tidak akan pernah tahu bahwa layarnya berhenti menampilkannya.
+   *
+   * Kelompok yang seluruh kuncinya tidak ada di sheet tidak digambar sama
+   * sekali: kepala kelompok tanpa isi adalah garis yang tidak menerangkan apa
+   * pun.
+   */
+  function susunGrupSetting(rows) {
+    const sisa = new Map(rows.map(r => [r.kunci, r]));
+    const out = [];
+    GRUP_SETTING.forEach(g => {
+      const isi = [];
+      g.kunci.forEach(k => {
+        if (!sisa.has(k)) return;
+        isi.push(sisa.get(k));
+        sisa.delete(k);
+      });
+      if (isi.length) out.push({ grup: g, isi: isi });
+    });
+    if (sisa.size) {
+      out.push({
+        grup: { judul: 'Lainnya', ikon: 'lain', ket: 'Belum dikelompokkan.' },
+        isi: [...sisa.values()]
+      });
+    }
+    return out;
+  }
+
+  /** Satu kepala kelompok. Duduk DI ATAS petaknya, bukan di dalamnya. */
+  const kepalaGrupSetting = (g) =>
+    `<div class="set-kepala">${ikonSetting(g.ikon)}` +
+    `<div><b>${esc(g.judul)}</b><span>${esc(g.ket)}</span></div></div>`;
+
+  /** Satu kendali setelan. */
+  function isianSetting(r) {
+    const label = LABEL_SETTING[r.kunci] || r.kunci;
+    const bantu = BANTU_SETTING[r.kunci]
+      ? `<span class="set-bantu">${esc(BANTU_SETTING[r.kunci])}</span>` : '';
+    /* Tanpa `data-setting` penyimpan di bawah tidak akan menyentuhnya — dan itu
+       memang yang diinginkan: nilainya tidak boleh berubah dari sini. */
+    if (SETTING_BACA_SAJA.includes(r.kunci)) {
+      return `<div class="grup"><label>${esc(label)}</label>
+        <p class="set-baca">${ikonSetting('gembok')}<span class="lencana hijau">${esc(r.nilai)}</span>
+        <span class="set-bantu">ditetapkan mesin persediaan, tidak bisa diubah</span></p></div>`;
+    }
+    if (SETTING_PILIHAN[r.kunci]) {
+      /* Kendali bersegmen, bukan <select>: dua pilihan yang keduanya sudah
+         terlihat tidak perlu dibuka dulu untuk diketahui isinya.
+         Nilainya dititipkan ke <input type=hidden> — penyimpan di pendengar
+         klik membaca SETIAP `[data-setting]` dan tidak perlu tahu bentuk
+         kendalinya; tanpa titipan itu ia harus dibuatkan cabang khusus, dan
+         setiap kendali baru berikutnya butuh cabangnya sendiri. */
+      const tombol = SETTING_PILIHAN[r.kunci].map(([v, t]) =>
+        `<button type="button" class="${String(r.nilai) === v ? 'pas' : ''}"` +
+        ` data-segmen="${esc(r.kunci)}" data-segmen-nilai="${esc(v)}">` +
+        `${ikonSetting(v)}<span>${esc(t)}</span></button>`).join('');
+      return `<div class="grup"><label>${esc(label)}</label>
+        <input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
+        <div class="segmen">${tombol}</div>${bantu}</div>`;
+    }
+    if (SETTING_BOOL.includes(r.kunci)) {
+      return `<label class="cek kartu-cek set-cek">
+        <input type="checkbox" class="sakelar" data-setting="${esc(r.kunci)}" ${String(r.nilai) === 'true' ? 'checked' : ''}>
+        <span><b>${esc(label)}</b><em>${esc(SUB_SETTING[r.kunci] || '')}</em></span></label>`;
+    }
+    if (SATUAN_SETTING[r.kunci]) {
+      return `<div class="grup"><label>${esc(label)}</label>
+        <div class="isian-satuan">
+          <input type="text" inputmode="decimal" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
+          <span>${esc(SATUAN_SETTING[r.kunci])}</span>
+        </div>${bantu}</div>`;
+    }
+    return `<div class="grup"><label>${esc(label)}</label>
+      <input type="text" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}" placeholder="${esc(CONTOH_SETTING[r.kunci] || '')}">${bantu}</div>`;
+  }
+
+  /* JEJAK PERUBAHAN. Tombol Simpan yang selalu menyala tidak membedakan layar
+     yang belum disentuh dari layar yang sudah diubah tiga kali — dan yang
+     menekannya tidak pernah tahu apa yang sedang ia kirim. Nilai awalnya
+     direkam saat layar digambar, lalu setiap ketikan dibandingkan dengannya. */
+  let _awalSetting = {};
+
+  function bacaSetting() {
+    const nilai = {};
+    $$('#isiSistem [data-setting]').forEach(i => {
+      nilai[i.dataset.setting] = i.type === 'checkbox' ? String(i.checked) : i.value;
+    });
+    return nilai;
+  }
+
+  /**
+   * Segarkan dua hal yang bergantung pada isi layar: setelan yang ikut mati
+   * bersama induknya, dan hitungan perubahan yang belum disimpan.
+   *
+   * Peredupan dikerjakan SEBELUM tombolnya dicari. Peran tanpa izin
+   * `setting·ubah` tidak punya tombol Simpan sama sekali; kalau urutannya
+   * dibalik, layar baca-saja miliknya berhenti menunjukkan bahwa NPWP tidak
+   * berlaku — padahal justru dia yang cuma bisa membaca.
+   */
+  function segarkanJejakSetting() {
+    const kini = bacaSetting();
+    const pkpMati = kini.pkp === 'false';
+    SETTING_IKUT_PKP.forEach(k => {
+      const el = $(`#isiSistem [data-setting="${k}"]`);
+      const grup = el && el.closest('.grup');
+      if (grup) grup.classList.toggle('set-tidur', pkpMati);
+    });
+    const tombol = $('#btnSimpanSetting');
+    if (!tombol) return;
+    const n = Object.keys(kini).filter(k => kini[k] !== _awalSetting[k]).length;
+    tombol.disabled = n === 0;
+    const jejak = $('#jejakSetting');
+    if (jejak) {
+      jejak.classList.toggle('ada', n > 0);
+      jejak.textContent = n === 0
+        ? 'Belum ada perubahan.'
+        : n + ' perubahan belum disimpan.';
+    }
+  }
+
   async function muatSistem() {
     memuat('#isiSistem');
     try {
@@ -3416,39 +3626,34 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
         .filter(r => !SETTING_DIBUANG.includes(r.kunci));
       $('#isiSistem').innerHTML = `
-        <div class="kartu">
-          <h3>Pengaturan sistem</h3>
-          <p class="petunjuk">Perubahan berlaku untuk seluruh cabang dan langsung ditarik perangkat kasir pada sinkronisasi berikutnya.</p>
-          <div class="petak petak-form" style="grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))">
-            ${rows.map(r => {
-              const label = LABEL_SETTING[r.kunci] || r.kunci;
-              /* Tanpa `data-setting` penyimpan di bawah tidak akan menyentuhnya —
-                 dan itu memang yang diinginkan: nilainya tidak boleh berubah dari
-                 sini. */
-              if (SETTING_BACA_SAJA.includes(r.kunci)) {
-                return `<div class="grup"><label>${esc(label)}</label>
-                  <p style="margin:4px 0 0"><span class="lencana hijau">${esc(r.nilai)}</span>
-                  <span class="petunjuk"> — ditetapkan mesin persediaan, tidak bisa diubah</span></p></div>`;
-              }
-              if (SETTING_PILIHAN[r.kunci]) {
-                return `<div class="grup"><label>${esc(label)}</label>
-                  <select data-setting="${esc(r.kunci)}">
-                    ${SETTING_PILIHAN[r.kunci].map(([v, t]) =>
-                      `<option value="${esc(v)}" ${String(r.nilai) === v ? 'selected' : ''}>${esc(t)}</option>`
-                    ).join('')}
-                  </select></div>`;
-              }
-              if (SETTING_BOOL.includes(r.kunci)) {
-                return `<label class="cek kartu-cek">
-                  <input type="checkbox" data-setting="${esc(r.kunci)}" ${String(r.nilai) === 'true' ? 'checked' : ''}>
-                  <span>${esc(label)}</span></label>`;
-              }
-              return `<div class="grup"><label>${esc(label)}</label>
-                <input type="text" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}"></div>`;
-            }).join('')}
+        <p class="petunjuk">Perubahan berlaku untuk seluruh cabang dan langsung ditarik perangkat kasir pada sinkronisasi berikutnya.</p>
+        ${/* SATU KARTU PER KELOMPOK, bukan satu kartu besar yang dibagi garis.
+              Garis pemisah di dalam satu petak terbaca sebagai tabel yang bocor;
+              kotak terbaca sebagai kelompok.
+              Kolomnya `auto-fill`, BUKAN `auto-fit`: `auto-fit` mengempiskan
+              jalur yang kosong, jadi kelompok berisi dua isian melebarkan
+              kotaknya sampai setengah layar sementara kelompok di atasnya
+              bertiga — lima kelompok jadi lima lebar kotak yang berbeda.
+              `auto-fill` menyisakan jalur kosongnya, jadi kotak isian di
+              seluruh layar ini berbaris lurus dari kartu ke kartu. */''}
+        ${susunGrupSetting(rows).map(k => `<div class="kartu set-grup">
+          ${kepalaGrupSetting(k.grup)}
+          <div class="petak petak-form" style="grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr))">
+            ${k.isi.map(isianSetting).join('')}
           </div>
-          ${bolehIzin('setting', 'ubah') ? '<button class="tombol utama" id="btnSimpanSetting" style="margin-top:14px">Simpan pengaturan</button>' : ''}
-        </div>`;
+        </div>`).join('')}
+        ${bolehIzin('setting', 'ubah') ? `<div class="set-kaki">
+          <span class="set-jejak" id="jejakSetting">Belum ada perubahan.</span>
+          <button class="tombol utama besar" id="btnSimpanSetting" disabled>Simpan pengaturan</button>
+        </div>` : ''}`;
+      /* Dipasang sebagai PROPERTI, bukan addEventListener: layar ini digambar
+         ulang setiap kali menunya dibuka, dan pendengar yang ditambahkan akan
+         menumpuk — hitungan perubahannya tetap benar, tapi jumlah pemanggilan
+         per ketikan naik terus sepanjang sesi. */
+      $('#isiSistem').oninput = segarkanJejakSetting;
+      $('#isiSistem').onchange = segarkanJejakSetting;
+      _awalSetting = bacaSetting();
+      segarkanJejakSetting();
     } catch (e) { galat('#isiSistem', e); }
   }
 
@@ -5588,6 +5793,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      /* --- setting: kendali bersegmen ---
+         Nilainya tidak disimpan di tombolnya melainkan dituliskan ke
+         `<input type=hidden data-setting>` di sebelahnya, supaya penyimpan di
+         bawah — yang menyapu SETIAP `[data-setting]` — tidak perlu tahu bentuk
+         kendalinya. */
+      if (d.segmen) {
+        const isi = $(`#isiSistem [data-setting="${d.segmen}"]`);
+        if (isi) isi.value = d.segmenNilai;
+        $$(`#isiSistem [data-segmen="${d.segmen}"]`)
+          .forEach(b => b.classList.toggle('pas', b === t));
+        segarkanJejakSetting();
+        return;
+      }
+
       /* --- setting --- */
       if (t.id === 'btnSimpanSetting') {
         const setting = {};
@@ -5598,6 +5817,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await API.simpanSetting({ setting });
           await Sync.tarikMaster(true);
           await muatMaster();
+          /* Yang baru tersimpan JADI titik nolnya yang baru. Tanpa baris ini
+             tombolnya tetap menyala dan jejaknya tetap menyebut angka yang
+             sudah tidak berlaku — layar yang bersih terbaca sebagai layar yang
+             masih punya perubahan tertunda. */
+          _awalSetting = bacaSetting();
+          segarkanJejakSetting();
           toast('Pengaturan tersimpan.');
         } catch (x) { toast(x.message, 'galat'); }
         return;
