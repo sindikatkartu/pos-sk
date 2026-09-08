@@ -925,7 +925,7 @@ const Admin = (() => {
           ...(modal ? [{ judul: 'Modal', angka: true, render: r => rp(r.harga_beli_terakhir) }] : []),
           { judul: 'Eceran', angka: true, render: r => rp(r.harga_eceran) },
           { judul: 'Grosir', angka: true, render: r => rp(r.harga_grosir) },
-          { judul: 'Stok', angka: true, render: r => `<span class="${r.stok <= r.stok_min ? 'stok-kritis' : ''}">${r.stok ?? '-'}</span>` },
+          { judul: 'Stok', angka: true, render: r => lencanaStok(r.stok, r.stok_min) },
           /* Kolom Terjual muncul SENDIRI saat penyaringnya dipakai, tanpa perlu
              memilihnya lagi di dropdown kolom. Daftar yang diurut menurut angka
              yang tidak kelihatan adalah daftar yang urutannya tidak bisa
@@ -2189,7 +2189,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     { judul: 'SKU', kunci: 'sku' },
     { judul: 'Nama', kunci: 'nama' },
     { judul: 'Varian', render: r => esc(r.kode_varian || '—') },
-    { judul: 'Stok', angka: true, render: r => `<span class="${r.qty <= r.stok_min ? 'stok-kritis' : ''}">${r.qty}</span>` },
+    { judul: 'Stok', angka: true, render: r => lencanaStok(r.qty, r.stok_min) },
     { judul: 'Min', kunci: 'stok_min', angka: true },
     ...(punyaNilai ? [
       // Dengan FIFO, satu SKU bisa punya beberapa harga modal. Kolom ini menunjukkan

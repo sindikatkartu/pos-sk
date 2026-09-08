@@ -905,11 +905,51 @@ function resolvePenjualPemasang(nota, daftarPetugas) {
   return { penjual: r.penjual[0] || null, pemasang: r.pemasang[0] || null };
 }
 
+/**
+ * TEMPATNYA DI SINI, BUKAN DI app.js.
+ *
+ * Sempat ditaruh di `app.js` dan langsung merah di `uji-hp.mjs`: panggung
+ * `rupa.html` memuat pos.js, grafik.js, dan admin.js — TANPA app.js. Layar
+ * Produk memanggil fungsi yang tidak ada di sana, gagal menggambar, dan
+ * tabelnya kosong tanpa satu galat pun sampai ke `pageerror`. Bentuk jebakan
+ * yang sama persis dengan `toast` di §12: admin.js TIDAK BOLEH bergantung pada
+ * apa pun yang hidup di app.js. pos.js dimuat lebih dulu oleh keduanya.
+ */
+/**
+ * Angka stok, dengan warna hanya saat warnanya berarti sesuatu.
+ *
+ * SATU fungsi untuk seluruh aplikasi: layar Kasir, tabel Produk, dan layar
+ * Stok sebelumnya menggambarnya masing-masing: kasir memakai teks abu-abu,
+ * dua layar back office memakai angka merah tebal, dan
+ * ambangnya ditulis ulang di tiap tempat. Tiga tampilan untuk satu pengertian,
+ * dan ambang yang disalin akan berbeda di salah satu salinannya cepat atau
+ * lambat.
+ *
+ * Ambangnya `stok_min` MILIK PRODUK ITU, bukan angka tetap: tempered glass
+ * yang laku puluhan sehari dan casing yang laku sebulan sekali tidak menipis
+ * di angka yang sama.
+ *
+ * Yang normal TIDAK dilencanai. Lencana di setiap baris membuat tabel 3.300
+ * baris jadi dinding warna, dan yang menandai semuanya sama saja dengan yang
+ * tidak menandai apa pun.
+ */
+function lencanaStok(qty, stokMin, opsi) {
+  const o = opsi || {};
+  const min = Number(stokMin) || 0;
+  const kosong = qty === null || qty === undefined;
+  const aman = (t) => String(t).replace(/[&<>"']/g,
+    c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const teks = aman(kosong ? (o.kosong || '-') : (o.awalan || '') + qty);
+  const warna = kosong ? '' : qty <= 0 ? ' lencana merah habis'
+    : (min > 0 && qty <= min) ? ' lencana kuning menipis' : '';
+  return `<span class="stok${warna}">${teks}</span>`;
+}
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil, jamTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
-                     timEfektifBaris, petugasUntukPeran };
+                     timEfektifBaris, petugasUntukPeran, lencanaStok };
 }

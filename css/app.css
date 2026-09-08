@@ -525,11 +525,29 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kotak-cari .ikon .ikon-svg { width: 19px; height: 19px; }
 
 .baris-alat-kasir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* Kolom yang SEDANG TIDAK di nilai bawaannya diberi tanda kuning — bahasa
+   warna yang sama dengan `.pesan.peringatan` dan `.lencana.kuning`: kuning
+   berarti "perlu diperhatikan", bukan "salah".
 
-.daftar-produk { flex: 1; overflow: auto; display: grid; gap: 8px; align-content: start; padding-bottom: 4px; }
+   Sebabnya nyata: begitu tingkat harga dipindah ke Grosir atau pelanggan
+   dipilih, kotaknya berbunyi "Grosir" atau sebuah nama saja. Kasir
+   berikutnya yang datang ke mesin yang sama tidak punya cara tahu bahwa
+   nota berikutnya akan dihargai berbeda — kecuali ia memang curiga dan
+   memeriksa satu per satu. Tandanya membuat keadaan itu terlihat tanpa
+   dicari. */
+.baris-alat-kasir select.disetel {
+  border-color: var(--peringatan); background: var(--peringatan-lembut);
+}
+
+.daftar-produk { flex: 1; overflow: auto; display: grid; gap: 6px; align-content: start; padding-bottom: 4px; }
+/* Kepadatan baris adalah keputusan operasional, bukan selera. Katalognya 3.310
+   produk dan kartunya dulu 106px: lima produk per layar, sisanya digulir. Yang
+   dipotong bukan isinya melainkan ruang kosongnya — dua baris keterangan jadi
+   satu, dan tombol "cabang lain" pindah ke samping lencana stok, bukan di
+   bawahnya. Isinya utuh; yang terlihat sekaligus dua kali lipat. */
 .kartu-produk {
-  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
-  padding: 12px 14px; background: var(--panel); border: 1px solid var(--garis);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 8px 12px; background: var(--panel); border: 1px solid var(--garis);
   border-radius: 10px; cursor: pointer; box-shadow: var(--bayang-1);
   transition: border-color .12s, box-shadow .12s, transform .12s;
 }
@@ -538,21 +556,26 @@ main { flex: 1; overflow: hidden; position: relative; }
   border-color: var(--utama); box-shadow: var(--cincin), var(--bayang-2);
 }
 .kartu-produk:active { transform: translateY(1px); }
-.kartu-produk .nama { font-weight: 600; font-size: var(--fs-15); letter-spacing: -.1px; }
-.kartu-produk .meta { font-size: var(--fs-13); color: var(--teks-redup); margin-top: 4px; }
+.kartu-produk .kiri-produk { min-width: 0; }
+.kartu-produk .nama { font-weight: 600; font-size: var(--fs-14); letter-spacing: -.1px; }
+/* Satu baris, dipotong elipsis. `min-width: 0` di induknya wajib: tanpa itu
+   kolom grid melebar mengikuti teks dan elipsisnya tidak pernah muncul. */
+.kartu-produk .meta {
+  font-size: var(--fs-12); color: var(--teks-redup); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .kartu-produk .harga {
-  text-align: right; font-weight: 700; white-space: nowrap;
+  text-align: right; font-weight: 700; white-space: nowrap; font-size: var(--fs-15);
   font-variant-numeric: tabular-nums; letter-spacing: -.2px;
 }
-.kartu-produk .stok {
-  font-size: var(--fs-12); color: var(--teks-redup); text-align: right; margin-top: 4px;
-  font-variant-numeric: tabular-nums;
+/* Lencana stok dan tombol "cabang lain" duduk sebaris. Tombolnya sengaja TETAP
+   berkata-kata, bukan jadi lambang: ia dipakai berkali-kali sehari dan kasir
+   sudah mengenalnya lewat kata itu. Yang diubah cuma letaknya. */
+.kartu-produk .baris-stok {
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 4px;
 }
-.kartu-produk .stok.habis { color: var(--bahaya); font-weight: 600; }
-.kartu-produk .ada-di-lain { font-size: var(--fs-12); color: var(--sukses); margin-top: 4px; font-weight: 600; }
-/* Biru di GitHub berarti "bisa diklik". Baris ini hanya keterangan, jadi ia
-   dibedakan lewat kata "cocok:" dan huruf tebal — bukan lewat warna tautan. */
-.kartu-produk .meta.cocok { color: var(--teks-redup); font-weight: 500; }
+.kartu-produk .stok { font-variant-numeric: tabular-nums; }
+.kartu-produk .ada-di-lain { font-size: var(--fs-12); color: var(--sukses); margin-top: 2px; font-weight: 600; }
 
 /* ---------- Panel keranjang ---------- */
 .panel-keranjang {
@@ -1102,6 +1125,11 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .pesan.sukses { background: var(--sukses-lembut);     color: var(--teks); border-color: var(--sukses-garis); }
 .pesan.info   { background: var(--utama-lembut);      color: var(--teks); border-color: var(--utama-garis); }
 .pesan.peringatan { background: var(--peringatan-lembut); color: var(--teks); border-color: var(--peringatan-garis); }
+/* `--irama` adalah jarak antar KARTU. Pesan yang hidup DI DALAM satu panel
+   — panel keranjang, isi modal — mengikuti jarak isi panel itu, bukan irama
+   halaman; 16px di sana membuatnya terlihat lepas dari tombol yang justru
+   jadi pasangannya. */
+.pesan.rapat { margin: 12px 0 0; }
 
 /* Pratinjau label barcode.
    Latarnya SELALU putih dan batangnya SELALU hitam, juga di tema gelap: yang
@@ -1169,7 +1197,6 @@ th.sempit, td.sempit { width: 1%; white-space: nowrap; }
   background: var(--panel-2); border: 1px solid var(--garis); padding: 2px 6px;
   border-radius: 5px; font-size: var(--fs-12);
 }
-.stok-kritis { color: var(--bahaya); font-weight: 700; }
 
 label.cek {
   display: flex; align-items: center; gap: 10px; font-size: var(--fs-14); color: var(--teks);
@@ -1229,6 +1256,7 @@ input.sudah-hitung {
   border-color: var(--sukses); background: var(--sukses-lembut); font-weight: 700;
 }
 
+.stok-kritis { color: var(--bahaya); font-weight: 700; }
 .sembunyi { display: none !important; }
 
 /* ==================== GRAFIK ==================== */

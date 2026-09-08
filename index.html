@@ -187,6 +187,17 @@
           <div class="total-baris"><span>Diskon</span><span id="tDiskon">Rp 0</span></div>
           <div class="total-baris" id="brsPpn" style="display:none"><span>PPN</span><span id="tPpn">Rp 0</span></div>
           <div class="total-baris besar"><span>TOTAL</span><span id="tTotal">Rp 0</span></div>
+          <!-- Pagar shift, dibawa ke tempat keputusannya diambil. Lencana di pojok
+               kanan atas tidak salah, tapi jaraknya nyaris selebar layar dari tombol
+               Bayar — dan yang dibaca kasir saat pembeli menyodorkan uang adalah
+               panel ini. Tombol Bayar SENGAJA tidak dimatikan: jalur konfirmasinya
+               di bukaBayar() tetap satu-satunya yang tahu keadaan sebenarnya saat
+               internet mati, dan mematikan tombol berdasarkan keadaan yang mungkin
+               basi berarti menahan penjualan yang sah. -->
+          <div class="pesan peringatan rapat sembunyi" id="pesanShiftKasir">
+            <strong>Shift belum dibuka.</strong> Transaksi belum bisa disimpan.
+            <button class="tombol kecil" id="btnBukaShiftKasir">Buka shift</button>
+          </div>
           <button class="tombol sukses besar" id="btnBayar" style="margin-top:12px">BAYAR  (F12)</button>
         </div>
       </aside>

@@ -1245,6 +1245,58 @@ function isiKategoriKasir(produk) {
   if (daftar.includes(dipilih)) el.value = dipilih;
 }
 
+/**
+ * Daftar tipe HP yang cocok, dengan yang SEDANG DICARI di depan.
+ *
+ * Baris keterangan di kartu produk dipotong elipsis. Untuk tempered glass
+ * multi-fit yang cocok belasan tipe, urutan apa adanya berarti tipe yang barusan
+ * diketik kasir justru yang terpotong — daftarnya panjang, dan yang dicari bisa
+ * ada di urutan kesebelas. Yang mengandung kueri karena itu didahulukan.
+ *
+ * `penuh` dipakai untuk atribut `title`: yang tidak muat di layar tetap bisa
+ * dibaca tanpa membuka apa pun.
+ */
+function cocokDidahulukan(p, q) {
+  const semua = [];
+  if (p.tipe_hp) semua.push(String(p.tipe_hp));
+  (p.kompatibel || []).forEach(k => { if (k && k.tipe) semua.push(String(k.tipe)); });
+  if (!semua.length) return { ringkas: '', penuh: '' };
+
+  const urut = q
+    ? semua.slice().sort((a, b) => {
+        const ca = a.toLowerCase().includes(q) ? 0 : 1;
+        const cb = b.toLowerCase().includes(q) ? 0 : 1;
+        return ca - cb;
+      })
+    : semua;
+
+  const TAMPIL = 4;
+  const sisa = urut.length - TAMPIL;
+  return {
+    ringkas: urut.slice(0, TAMPIL).map(esc).join(', ') + (sisa > 0 ? ` +${sisa} lagi` : ''),
+    penuh: urut.join(', ')
+  };
+}
+
+/**
+ * Tandai kolom bar alat kasir yang sedang TIDAK di nilai bawaannya.
+ *
+ * Keempat kolom itu menyebut nama fieldnya sendiri selama masih bawaan
+ * ("Semua kategori", "Harga Eceran", "Pelanggan umum", "Tanpa pramuniaga"),
+ * dan berhenti menyebutnya begitu diisi — yang tersisa cuma "Grosir" atau
+ * sebuah nama. Justru di keadaan itulah kolomnya paling perlu terlihat.
+ *
+ * Bawaannya string kosong untuk tiga kolom, dan 'eceran' untuk tingkat
+ * harga — bukan kosong, karena harga selalu punya tingkat.
+ */
+function tandaiKendaliKasir() {
+  const tandai = (el, bukanBawaan) => el && el.classList.toggle('disetel', !!bukanBawaan);
+  tandai($('#kasirKategori'), $('#kasirKategori')?.value);
+  tandai($('#selLevel'), $('#selLevel')?.value && $('#selLevel').value !== 'eceran');
+  tandai($('#selPelanggan'), $('#selPelanggan')?.value);
+  tandai($('#selPetugas'), $('#selPetugas')?.value);
+}
+
 async function gambarProduk(kueri) {
   const semuaProduk = await DB.all('produk');
   const stok = await DB.all('stok');
@@ -1316,27 +1368,44 @@ async function gambarProduk(kueri) {
       ? `<div class="ada-di-lain">ada di ${diLain.slice(0, 3).map(s => esc(s.cabang) + ' (' + s.qty + ')').join(', ')}${
           diLain.length > 3 ? ' +' + (diLain.length - 3) : ''}</div>` : '';
 
+    /* SATU baris keterangan, bukan dua. Sebelumnya identitas produk dan daftar
+       kecocokan menempati barisnya sendiri-sendiri, dan kartunya jadi 106px:
+       lima produk per layar dari katalog 3.310. Sekarang satu baris terpotong
+       elipsis — yang terlihat sekaligus naik lebih dari dua kali lipat.
+
+       Yang terpotong tidak hilang: `title` membawa teks utuhnya, dan tipe yang
+       SEDANG DICARI didahulukan (`cocokDidahulukan`) supaya justru bagian yang
+       dicari kasir bukan yang lenyap di ujung baris. */
+    const cocok = cocokDidahulukan(p, q);
+    const keterangan = [
+      esc(p.sku),
+      p.merek ? esc(p.merek) : '',
+      (p.satuan_lain || []).length ? p.satuan_lain.map(s => esc(s.nama)).join('/') : '',
+      cocok.ringkas ? 'cocok: ' + cocok.ringkas : ''
+    ].filter(Boolean).join(' · ');
+
     return `<div class="kartu-produk ${i === 0 ? 'sorot' : ''}" data-sku="${esc(p.sku)}">
-      <div>
+      <div class="kiri-produk">
         <div class="nama">${esc(p.nama)}</div>
-        <div class="meta">${esc(p.sku)}${p.merek ? ' · ' + esc(p.merek) : ''}${
-          (p.satuan_lain || []).length ? ' · ' + p.satuan_lain.map(s => esc(s.nama)).join('/') : ''}</div>
-        ${p.tipe_hp || (p.kompatibel || []).length
-          ? `<div class="meta cocok">cocok: ${esc(p.tipe_hp || '')}${
-              p.tipe_hp && (p.kompatibel || []).length ? ', ' : ''}${
-              (p.kompatibel || []).slice(0, 4).map(k => esc(k.tipe)).join(', ')}${
-              (p.kompatibel || []).length > 4 ? ` +${p.kompatibel.length - 4} lagi` : ''}</div>` : ''}
+        <div class="meta"${cocok.penuh ? ` title="${esc(cocok.penuh)}"` : ''}>${keterangan}</div>
         ${petunjukLain}
       </div>
-      <div>
+      <div class="kanan-produk">
         <div class="harga">${rp(harga)}</div>
-        <div class="stok ${qty !== null && qty <= 0 ? 'habis' : ''}">${qty === null ? 'stok ?' : 'stok ' + qty}</div>
-        <button class="tombol kecil sunyi" data-stok-cabang="${esc(p.sku)}"
-                title="Lihat stok produk ini di seluruh cabang"
-                style="margin-top:6px">cabang lain</button>
+        <div class="baris-stok">
+          ${lencanaStok(qty, p.stok_min, { awalan: 'stok ', kosong: 'stok ?' })}
+          <button class="tombol kecil sunyi" data-stok-cabang="${esc(p.sku)}"
+                  title="Lihat stok produk ini di seluruh cabang">cabang lain</button>
+        </div>
       </div>
     </div>`;
   }).join('') : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Tidak ada produk cocok</p>';
+
+  /* Bukan cuma saat kolomnya diubah orang: memilih pelanggan menyetel tingkat
+     harga dari kode, dan perubahan yang datang dari kode tidak memicu
+     'change'. Digambar ulang di sini, di satu titik yang dilewati semua
+     jalur itu. */
+  tandaiKendaliKasir();
 }
 
 /* ==================== INTIP STOK ANTAR CABANG ==================== */
@@ -2471,6 +2540,11 @@ function gambarKeadaanShift() {
   const perluBuka = !APP_STATE.idShift;
   lnc.textContent = perluBuka ? 'Shift belum dibuka' : 'Shift aktif';
   lnc.className = 'lencana ' + (perluBuka ? 'kuning bisa-klik' : 'hijau');
+  /* Pagar yang sama, digambar juga di panel keranjang — dari keadaan yang
+     SAMA, bukan dari salinan kedua. Lencana di pojok kanan atas benar, tapi
+     ia berada di ujung layar yang berlawanan dari tombol Bayar; yang dibaca
+     kasir saat pembeli sudah menyodorkan uang adalah panel keranjang. */
+  $('#pesanShiftKasir')?.classList.toggle('sembunyi', !perluBuka);
   /* Saat belum dibuka, lencana ini jadi jalan pintas — bukan sekadar keterangan. */
   if (perluBuka) {
     lnc.setAttribute('role', 'button');
@@ -3760,6 +3834,12 @@ function pasangEvent() {
     if (b) lihatStokCabangLain(b.dataset.sku, true);
   });
 
+  /* Satu pendengar untuk seluruh bar alat, didelegasikan — bukan empat
+     pendengar terpisah. Dropdown pramuniaga digambar ULANG setiap kali
+     keranjang berubah, jadi pendengar yang dipasang pada elemennya akan
+     hilang bersama elemennya (jebakan yang sama sudah tercatat di §12). */
+  $('.baris-alat-kasir')?.addEventListener('change', tandaiKendaliKasir);
+  $('#btnBukaShiftKasir')?.addEventListener('click', menujuBukaShift);
   $('#selLevel').addEventListener('change', e => { Keranjang.setLevel(e.target.value); gambarKeranjang(); gambarProduk($('#inpCari').value); });
   $('#selPelanggan').addEventListener('change', async e => {
     const p = e.target.value ? await DB.get('pelanggan', e.target.value) : null;
