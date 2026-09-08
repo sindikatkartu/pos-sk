@@ -3830,6 +3830,9 @@ function pasangEvent() {
        Tanpa penanda, ikon yang tidak bereaksi mengundang sentuhan kedua. */
     tbl.classList.add('sibuk'); tbl.disabled = true;
     try {
+      // Kosong dengan sengaja: mengakhiri sesi di server itu kebersihan, bukan
+      // syarat. Yang menentukan orang benar-benar keluar adalah token yang
+      // dibuang di baris berikutnya, dan itu tidak boleh digagalkan jaringan.
       try { await API.logout(); } catch (e) {}
       await DB.kvSet('token', null);
       location.reload();
@@ -4519,6 +4522,9 @@ function pasangEvent() {
        hanya karena sesinya kedaluwarsa. */
     try { if (APP_STATE.idShift) await antrikanKeluarPaksa({ sebab: 'SESI_BERAKHIR' }); }
     catch (e) { console.warn('Catatan shift menggantung gagal disimpan:', e.message); }
+    // Kosong dengan sengaja: sesinya sudah mati di server, jadi token yang
+    // gagal dibuang tidak membuka apa pun — dan muat ulang di bawah tetap
+    // harus terjadi.
     try { await DB.kvSet('token', null); } catch (e) {}
     /* DITUNGGU, bukan toast. Baris sesudahnya memuat ulang halaman: kabar yang
        cuma lewat tiga detik tidak akan pernah terbaca, dan orangnya kembali ke

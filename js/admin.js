@@ -277,6 +277,9 @@ const Admin = (() => {
         /* Fokus dikembalikan ke tombol yang memulai. Tanpa ini fokus jatuh ke
            <body>, dan pintasan keyboard berikutnya tidak punya sasaran — pada
            kasir yang bekerja tanpa mouse itu berarti berhenti total. */
+        // Kosong dengan sengaja: elemen yang memulai pertanyaan bisa sudah
+        // dibuang bersama layar yang digambar ulang, dan fokus yang gagal
+        // kembali bukan kabar untuk siapa pun.
         try { fokusSemula && fokusSemula.focus && fokusSemula.focus(); } catch (e) {}
         resolve(jawab);
       }
@@ -436,6 +439,10 @@ const Admin = (() => {
     pemicu.disabled = true; pemicu.textContent = 'Menyiapkan…';
     try {
       let params = {};
+      // Kosong dengan sengaja: `esc()` melarikan petik tunggal, jadi atribut
+      // ini tidak bisa terpotong dan JSON-nya selalu utuh. Penjaganya ada
+      // supaya ekspor tetap jalan (tanpa penyaring) kalau suatu hari salah,
+      // bukan mati di tangan tanda baca.
       try { params = JSON.parse(btn.dataset.params || '{}'); } catch (e) {}
       const d = await API.ekspor({ jenis: btn.dataset.ekspor, format: btn.dataset.format, ...params });
       unduhBase64(d.nama, d.mime, d.base64);
@@ -4408,8 +4415,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function wizardOpname() {
     lepasUuidDokumen('opname');              // dokumen BARU — lihat uuidDokumen()
+    /* Kegagalannya DIKATAKAN, bukan ditelan.
+
+       Sampai 8 Sep 2026 catch-nya kosong, dan akibatnya mahal: kedua dropdown
+       tinggal berisi "— semua kategori —", yang terbaca persis seperti "toko
+       ini memang belum punya kategori". Orangnya lalu membaca petunjuk di
+       bawahnya — "kalau dua-duanya dikosongkan, pilih cakupan Penuh" — dan
+       menghitung SELURUH SKU aktif. Opname penuh itu berjam-jam kerja, dipilih
+       karena satu panggilan yang gagal tanpa sepatah kata.
+
+       Wizardnya tetap dibuka: Penuh dan Spot check tidak butuh daftar ini. */
     let f = { kategori: [], merek: [] };
-    try { f = await API.filterOpname(); } catch (e) {}
+    let galatFilter = '';
+    try { f = await API.filterOpname(); } catch (e) { galatFilter = e.message || String(e); }
 
     bukaModal('Mulai stok opname', `
       <div class="grup">
@@ -4422,6 +4440,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
 
       <div id="opFilterParsial">
+        ${galatFilter ? `<div class="pesan peringatan">Daftar kategori &amp; merek gagal dimuat
+          (${esc(galatFilter)}), jadi kedua kolom di bawah kosong — itu <strong>bukan</strong>
+          berarti tokonya tidak punya. Coba lagi sebentar lagi sebelum memilih cakupan Penuh.</div>` : ''}
         <div class="baris2">
           <div class="grup"><label>Kategori</label><select id="opKategori">
             <option value="">— semua kategori —</option>

@@ -761,7 +761,7 @@ function pasangKolomAngka(akar) {
     if (!kolomAngka(el)) return;
     el._baruFokus = true;
     el._nilaiFokus = el.value;
-    try { el.select(); } catch (err) {}
+    try { el.select(); } catch (err) { /* sebagian peramban menolak select() */ }
     /* Sebagian peramban menaruh kursornya SESUDAH focusin selesai; pemilihan
        diulang di gilir berikutnya supaya tidak keburu batal.
        ⚠️ Isi kolomnya DIPERIKSA dulu — dan inilah bagian yang pernah salah.
@@ -774,7 +774,7 @@ function pasangKolomAngka(akar) {
        sudah memegang kendali dan pemilihan ulang tidak berhak lagi. */
     setTimeout(() => {
       if (document.activeElement === el && el._baruFokus && el.value === el._nilaiFokus) {
-        try { el.select(); } catch (err) {}
+        try { el.select(); } catch (err) { /* sebagian peramban menolak select() */ }
       }
     }, 0);
   });
