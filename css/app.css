@@ -525,6 +525,24 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kotak-cari .ikon .ikon-svg { width: 19px; height: 19px; }
 
 .baris-alat-kasir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* Pemisah antara kendali yang mengatur CARA MELIHAT (kategori, tingkat harga)
+   dan kendali yang menentukan MILIK SIAPA nota ini (pelanggan, pramuniaga).
+   Empat dropdown yang rupanya sama persis membuat kolom yang paling menentukan
+   poin terbaca seperti saringan. Garis, bukan kotak: pengelompokan tidak boleh
+   menambah satu lapis wadah pada baris yang sudah padat. */
+/* GARISNYA DIGAMBAR SEBAGAI BORDER, BUKAN BACKGROUND. `--garis` itu
+   lapisan beralfa terang di atas latar gelap, benar sebagai
+   garis dan salah sebagai permukaan. Ditulis sebagai `background`, penyapu
+   mode gelap di `uji-sunyi.mjs` membacanya sebagai apa adanya: sebuah
+   permukaan terang di tengah layar gelap, dan ia benar. Seluruh garis lain di
+   aplikasi ini memang border; yang ini sempat jadi pengecualian tanpa alasan. */
+.pemisah-alat {
+  width: 0; align-self: stretch; margin: 2px; border-left: 1px solid var(--garis);
+}
+/* Jumlah produk itu KETERANGAN, bukan kendali. Didorong ke ujung kanan supaya
+   tidak berdiri di tengah deretan kendali dan menyeret tombol Tim ikut turun
+   ke baris kedua saat barisnya penuh. */
+#lncJumlahProduk { margin-left: auto; }
 /* Kolom yang SEDANG TIDAK di nilai bawaannya diberi tanda kuning — bahasa
    warna yang sama dengan `.pesan.peringatan` dan `.lencana.kuning`: kuning
    berarti "perlu diperhatikan", bukan "salah".
@@ -568,13 +586,22 @@ main { flex: 1; overflow: hidden; position: relative; }
   text-align: right; font-weight: 700; white-space: nowrap; font-size: var(--fs-15);
   font-variant-numeric: tabular-nums; letter-spacing: -.2px;
 }
-/* Lencana stok dan tombol "cabang lain" duduk sebaris. Tombolnya sengaja TETAP
-   berkata-kata, bukan jadi lambang: ia dipakai berkali-kali sehari dan kasir
-   sudah mengenalnya lewat kata itu. Yang diubah cuma letaknya. */
+/* Angka stok ADALAH tombolnya. Tombol "cabang lain" yang berdiri sendiri
+   dicabut: warnanya biru — warna paling menonjol di baris — dipakai dua belas
+   kali sekaligus untuk aksi yang dipakai sesekali, dan ia bersaing dengan
+   harga, satu-satunya angka yang dibaca kasir setiap detik. Fungsinya tidak
+   hilang, hanya pindah ke elemen yang memang menanyakan hal yang sama. */
 .kartu-produk .baris-stok {
   display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 4px;
 }
 .kartu-produk .stok { font-variant-numeric: tabular-nums; }
+/* Garis lencana netral ditipiskan: dua belas kotak bergaris penuh di satu
+   layar adalah dinding, dan yang menandai semuanya tidak menandai apa pun.
+   Kuning dan merah tetap memakai garisnya sendiri — di situ tandanya memang
+   maksudnya. */
+.kartu-produk .stok.lencana:not(.kuning):not(.merah) { border-color: var(--garis-halus); }
+.kartu-produk .stok.bisa-klik:hover { border-color: var(--utama); }
+.kartu-produk .stok .ikon-svg { width: 13px; height: 13px; opacity: .85; }
 .kartu-produk .ada-di-lain { font-size: var(--fs-12); color: var(--sukses); margin-top: 2px; font-weight: 600; }
 
 /* ---------- Panel keranjang ---------- */
@@ -1447,6 +1474,8 @@ input.sudah-hitung {
   .baris-alat-kasir { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .baris-alat-kasir > * { width: 100% !important; max-width: none !important; min-width: 0; }
   .baris-alat-kasir > .lencana { width: auto !important; justify-self: start; align-self: center; }
+  .pemisah-alat { display: none; }
+  #lncJumlahProduk { margin-left: 0; }
 
   /* ---- Sasaran sentuh ----
      Jari bukan kursor. Apa pun yang diklik harus ≥40px; di bawah itu salah

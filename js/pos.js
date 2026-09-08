@@ -940,9 +940,32 @@ function lencanaStok(qty, stokMin, opsi) {
   const aman = (t) => String(t).replace(/[&<>"']/g,
     c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   const teks = aman(kosong ? (o.kosong || '-') : (o.awalan || '') + qty);
-  const warna = kosong ? '' : qty <= 0 ? ' lencana merah habis'
-    : (min > 0 && qty <= min) ? ' lencana kuning menipis' : '';
-  return `<span class="stok${warna}">${teks}</span>`;
+  const warna = kosong ? '' : qty <= 0 ? ' merah habis'
+    : (min > 0 && qty <= min) ? ' kuning menipis' : '';
+
+  /* Dua bentuk, satu aturan warna.
+
+     Di tabel back office ia cuma angka: teks biasa saat normal, lencana
+     berwarna saat tidak. Di layar kasir ia SEKALIGUS pintu ke stok cabang
+     lain — angka stok di sini dan angka stok di cabang lain adalah
+     pertanyaan yang sama, jadi jawabannya satu tempat, bukan dua kendali
+     bersebelahan yang salah satunya cuma pengulangan.
+
+     `bisa-klik` bukan kelas karangan: ia pola yang sudah dipakai lencana
+     shift, lengkap dengan cincin fokus dan — yang menentukan di sini —
+     `min-height: 40px` di bawah 620px dan pada layar sentuh. Sasaran
+     sentuhnya karena itu sudah benar tanpa aturan baru.
+
+     TEKSNYA tetap "stok N" persis: `uji-stok-nol.mjs` membacanya, dan
+     ikon SVG tidak menyumbang teks apa pun ke `textContent`. */
+  if (!o.tombol) {
+    return `<span class="stok${warna ? ' lencana' + warna : ''}">${teks}</span>`;
+  }
+  return '<span class="stok lencana bisa-klik' + warna + '" role="button" tabindex="0"'
+       + ' data-stok-cabang="' + aman(o.sku || '') + '"'
+       + ' title="Lihat stok produk ini di seluruh cabang"'
+       + ' aria-label="' + teks + ' — lihat stok di cabang lain">'
+       + teks + (o.ikon || '') + '</span>';
 }
 
 // Ekspor untuk pengujian di Node

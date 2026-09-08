@@ -154,6 +154,11 @@
             <option value="eceran">Harga Eceran</option>
             <option value="grosir">Harga Grosir</option>
           </select>
+          <!-- Garis pemisah: di kiri kendali yang mengatur CARA MELIHAT dan
+               MENGHARGAI, di kanan kendali yang menentukan MILIK SIAPA nota ini.
+               Sebelumnya keempatnya berderet dengan rupa yang sama persis, dan
+               kolom yang paling menentukan poin terbaca seperti saringan. -->
+          <span class="pemisah-alat" aria-hidden="true"></span>
           <select id="selPelanggan" style="width:auto;max-width:220px"></select>
           <!-- Siapa yang melayani. Berlaku untuk seluruh baris nota, KECUALI baris
                yang punya timnya sendiri (lihat tombol "Tim" di keranjang). -->
@@ -163,6 +168,19 @@
                hanya muat satu nama. -->
           <button class="tombol kecil" id="btnTimNota"
                   title="Bagi nota ini ke beberapa pramuniaga">Tim</button>
+          <!-- Jalan keluar saat daftar petugas kosong. Kolom pramuniaga tetap
+               disembunyikan dalam keadaan itu (keputusan lama: toko yang belum
+               mengisi daftar petugas tidak perlu melihat kolom yang selalu
+               kosong) — tapi MENGHILANG SAMA SEKALI adalah hal lain. Perangkat
+               yang sudah menarik master sebelum fitur petugas ada tidak akan
+               pernah menerimanya lagi: `versi_master` tidak berubah, jadi
+               server menjawab "tidak ada perubahan" dan daftar itu tetap kosong
+               selamanya. Yang terlihat di layar: pramuniaga dan Tim lenyap,
+               tanpa satu kata pun. Cip ini yang menyisakan jejaknya, sekaligus
+               membawa tindakan yang memperbaikinya. -->
+          <span class="lencana kuning bisa-klik sembunyi" id="lncPetugasKosong"
+                role="button" tabindex="0"
+                title="Tarik ulang data master supaya daftar petugas ikut turun">Pramuniaga kosong · segarkan</span>
           <span class="lencana" id="lncJumlahProduk"></span>
         </div>
         <div class="daftar-produk" id="daftarProduk"></div>
@@ -482,6 +500,8 @@
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Barcode yang cocok persis langsung masuk keranjang</strong> tanpa perlu menekan Enter, dan tetap ketemu walau saringan kategori sedang aktif.</li>
             <li>Dropdown kategori hanya alat bantu melihat; pencarian tidak dibatasi olehnya.</li>
+            <li><strong>Angka stok bisa ditekan.</strong> Menekan <strong>stok 7</strong> pada sebuah baris membuka daftar stok barang itu di seluruh cabang — dan tombol <strong>Cek terkini</strong> di dalamnya menghitung ulang langsung dari mutasi tiap cabang. Menekan angkanya <em>tidak</em> menambah barang ke keranjang; yang menambah adalah menekan bagian lain dari barisnya.</li>
+            <li>Angka stok berwarna <strong>kuning</strong> berarti sudah menyentuh stok minimum barang itu, <strong>merah</strong> berarti habis. Saat habis, baris hijau <strong>ada di …</strong> menyebut cabang mana yang masih punya, tanpa perlu ditekan.</li>
             <li>Tombol <strong>⋯</strong> pada baris keranjang membuka detail item: qty, satuan, harga satuan, dan diskon baris.</li>
           </ul>
         </div>

@@ -1393,9 +1393,8 @@ async function gambarProduk(kueri) {
       <div class="kanan-produk">
         <div class="harga">${rp(harga)}</div>
         <div class="baris-stok">
-          ${lencanaStok(qty, p.stok_min, { awalan: 'stok ', kosong: 'stok ?' })}
-          <button class="tombol kecil sunyi" data-stok-cabang="${esc(p.sku)}"
-                  title="Lihat stok produk ini di seluruh cabang">cabang lain</button>
+          ${lencanaStok(qty, p.stok_min, { awalan: 'stok ', kosong: 'stok ?',
+            tombol: true, sku: p.sku, ikon: svgIkon('cabang') })}
         </div>
       </div>
     </div>`;
@@ -1684,9 +1683,48 @@ function gambarPilihanPemasang() {
 }
 
 /** Gambar ulang KEDUA dropdown pramuniaga sekaligus, supaya tidak pernah beda. */
+/**
+ * Tarik ulang master DENGAN PAKSA, lalu gambar ulang yang bergantung padanya.
+ *
+ * `paksa` bukan hiasan. `tarikMaster()` biasa mengirim `versi_master` yang
+ * tersimpan, dan server menjawab "tidak ada perubahan" kalau nomornya sama —
+ * jadi perangkat yang menarik master SEBELUM sebuah kolom baru ada tidak akan
+ * pernah menerimanya, berapa kali pun ia sinkron. Itulah yang membuat daftar
+ * petugas bisa kosong selamanya di satu mesin sementara mesin sebelah baik-baik
+ * saja.
+ *
+ * Satu fungsi, dua pemanggil (tombol di layar Perangkat dan cip di bar alat
+ * kasir). Dua salinan urutan langkah ini akan berpisah jalan, dan yang berpisah
+ * di sini berarti salah satunya menyegarkan separuh.
+ */
+async function tarikUlangMaster() {
+  try {
+    await Sync.tarikMaster(true);
+    await Sync.tarikStok();
+    await muatMaster();
+    await gambarProduk($('#inpCari')?.value || '');
+    alert('Data master diperbarui.');
+  } catch (e) {
+    alert('Gagal: ' + e.message);
+  }
+}
+
 function gambarPilihanPetugas() {
   isiSatuDropdownPetugas($('#selPetugas'), $('#btnTimNota'));
   isiSatuDropdownPetugas($('#selPetugasBayar'), $('#btnTimNotaBayar'));
+
+  /* Kolomnya tetap disembunyikan saat daftarnya kosong — keputusan lama, dan
+     alasannya masih berlaku: toko yang belum mengisi daftar petugas tidak perlu
+     melihat kolom yang selalu kosong.
+
+     Yang salah bukan itu, melainkan bahwa keadaan itu TIDAK MENINGGALKAN JEJAK
+     APA PUN. Dilaporkan pemilik 8 Sep 2026: pramuniaga dan pemasangan "hilang".
+     Keduanya memang tidak digambar, dan tidak ada satu kata pun di layar yang
+     membedakan "toko ini memang belum punya petugas" dari "daftarnya gagal
+     turun ke mesin ini". Cip ini yang membedakannya — dan ia membawa
+     tindakannya sekaligus, bukan cuma keluhan. */
+  const kosong = petugasUntukPeran(APP_STATE.daftarPetugas || [], 'PENJUAL').length === 0;
+  $('#lncPetugasKosong')?.classList.toggle('sembunyi', !kosong);
 }
 
 /**
@@ -3819,8 +3857,19 @@ function pasangEvent() {
       $$('.kartu-produk')[APP_STATE.indeksSorot]?.scrollIntoView({ block: 'nearest' });
     }
   });
+  /* Angka stok kini kendali yang bisa difokus (`role=button`, `tabindex=0`).
+     Kendali yang bisa difokus tapi tidak bisa ditekan dari papan ketik adalah
+     kendali yang setengah ada — dan di konter, papan ketik sering satu-satunya
+     yang tersentuh karena tangan yang lain memegang barang. */
+  $('#daftarProduk').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const el = e.target.closest('[data-stok-cabang]');
+    if (!el) return;
+    e.preventDefault(); e.stopPropagation();
+    lihatStokCabangLain(el.dataset.stokCabang);
+  });
   $('#daftarProduk').addEventListener('click', async e => {
-    // Tombol "cabang lain" berada di dalam kartu — jangan sampai ikut menambah ke keranjang
+    // Angka stok berada DI DALAM kartu — menekannya jangan sampai ikut menambah ke keranjang
     const btnLain = e.target.closest('[data-stok-cabang]');
     if (btnLain) { e.stopPropagation(); return lihatStokCabangLain(btnLain.dataset.stokCabang); }
 
@@ -3840,6 +3889,12 @@ function pasangEvent() {
      hilang bersama elemennya (jebakan yang sama sudah tercatat di §12). */
   $('.baris-alat-kasir')?.addEventListener('change', tandaiKendaliKasir);
   $('#btnBukaShiftKasir')?.addEventListener('click', menujuBukaShift);
+  const cipPetugas = $('#lncPetugasKosong');
+  cipPetugas?.addEventListener('click', () => tarikUlangMaster());
+  cipPetugas?.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault(); tarikUlangMaster();
+  });
   $('#selLevel').addEventListener('change', e => { Keranjang.setLevel(e.target.value); gambarKeranjang(); gambarProduk($('#inpCari').value); });
   $('#selPelanggan').addEventListener('change', async e => {
     const p = e.target.value ? await DB.get('pelanggan', e.target.value) : null;
@@ -4241,10 +4296,7 @@ function pasangEvent() {
       _total: { bruto: 1000, diskon_item: 0 }, _kembali: 0
     });
   });
-  $('#btnTarikMaster').addEventListener('click', async () => {
-    try { await Sync.tarikMaster(true); await Sync.tarikStok(); await muatMaster(); await gambarProduk(''); alert('Data master diperbarui.'); }
-    catch (e) { alert('Gagal: ' + e.message); }
-  });
+  $('#btnTarikMaster').addEventListener('click', () => tarikUlangMaster());
   $('#btnKirimSekarang').addEventListener('click', async () => { await Sync.kirim(); await perbaruiInfoData(); });
   $('#btnKeSettingStruk').addEventListener('click', () => bukaLayar('sistem'));
 
