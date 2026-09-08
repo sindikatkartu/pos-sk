@@ -1204,8 +1204,22 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    `flex:1` lepas seperti dulu, "+ Produk baru" turun ke baris kedua sementara
    "Ekspor" tertinggal di baris pertama — dua tombol sederajat di dua baris
    berbeda, dan itulah yang membuat bar alatnya terlihat berantakan. */
+/* YANG MENDORONG KE KANAN itu penghitung barisnya, BUKAN kelompok tombolnya.
+
+   Diukur di layar Produk, 1280px: `margin-left: auto` di sini benar selama
+   semuanya muat sebaris, dan salah begitu tidak. Kelompok tombolnya butuh 664px
+   sementara sisa baris pertama cuma 326px, jadi ia turun — dan dorongan yang
+   sama melemparnya ke kanan baris kedua, meninggalkan lubang 563px di sebelah
+   kirinya sementara 326px baris pertama tetap kosong. Dua tepi kiri yang tidak
+   sejajar, dan satu baris yang terbaca seperti tersangkut.
+
+   Dipindah ke `.jumlah-baris`, hasilnya benar di kedua keadaan: kalau muat
+   sebaris, dorongannya tetap membawa penghitung DAN tombol-tombolnya ke kanan
+   (persis seperti dulu); kalau tidak muat, penghitungnya yang mengisi ujung
+   kanan baris pertama dan tombolnya jatuh rata kiri di bawah kolom cari. Pola
+   yang sama dipakai `#lncJumlahProduk` di bar alat kasir. */
 .bar-alat > .kanan {
-  margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
 }
 /* Kolom nomor peringkat: selebar isinya saja, jangan ikut membagi sisa ruang. */
 th.sempit, td.sempit { width: 1%; white-space: nowrap; }
@@ -1213,7 +1227,7 @@ th.sempit, td.sempit { width: 1%; white-space: nowrap; }
    bertepi ia terbaca seperti tombol yang bisa diklik. */
 .jumlah-baris {
   font-size: var(--fs-13); color: var(--teks-redup); white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums; margin-left: auto;
 }
 .meta-kecil { font-size: var(--fs-12); color: var(--teks-redup); margin-top: 4px; }
 .petunjuk { font-size: var(--fs-13); color: var(--teks-redup); line-height: 1.6; margin: 6px 0 12px; }
@@ -1464,7 +1478,10 @@ input.sudah-hitung {
      terpotong di tengah dan berhenti memberi tahu apa yang bisa dicari. */
   /* Tombol aksi bertumpuk selebar penuh — tiga tombol di dua kolom selalu
      menyisakan satu yang separuh lebar dan terbaca sebagai salah taruh. */
-  .bar-alat > .kanan { margin-left: 0; display: grid; grid-template-columns: 1fr; }
+  .bar-alat > .kanan { display: grid; grid-template-columns: 1fr; }
+  /* Di lebar ini bar alatnya SELALU bertumpuk, jadi dorongan ke kanan tidak
+     punya sisa ruang untuk dipakai dan hanya menggeser penghitungnya sendiri. */
+  .jumlah-baris { margin-left: 0; }
   .bar-alat > .kanan > * { width: 100%; }
   .bar-alat > .kanan > .ekspor { display: grid; }
   .jumlah-baris { text-align: right; }
