@@ -949,6 +949,20 @@ async function login(pakaiPassword = false) {
     await DB.kvSet('token', d.token);
     await DB.kvSet('sesi', d);
     await DB.kvSet('cabang_terakhir', d.cabang);
+    /* CABANG KERJA — cabang tempat sesi ini DIMULAI, dan satu-satunya tempat ia
+       ditulis adalah di sini: sesudah login yang sungguhan.
+
+       `gantiCabang` sengaja TIDAK menyentuhnya, dan itu seluruh mekanismenya.
+       Berpindah cabang memuat ulang halaman, lalu sesinya dipulihkan dengan
+       cabang yang baru — kalau nilai ini ikut ditulis di sana, ia akan selalu
+       sama dengan cabang aktif dan Mode Tinjau tidak akan pernah menyala
+       sekali pun.
+
+       Untuk benar-benar BEKERJA di cabang lain: keluar, lalu masuk lagi. Login
+       berikutnya membawa `cabang_terakhir`, jadi ia mendarat di cabang itu dan
+       nilai ini ikut berpindah. Gesekan itu memang yang diinginkan — 'saya cuma
+       melihat' dan 'saya berjualan di sini' tidak boleh sama mudahnya. */
+    await DB.kvSet('cabang_kerja', d.cabang);
     await laporkanKeluarPaksa();
     await mulaiSesi(d);
   } catch (e) {
@@ -984,6 +998,10 @@ async function login(pakaiPassword = false) {
 async function mulaiSesi(d) {
   APP_STATE.user = d.user;
   APP_STATE.cabang = d.cabang;
+  /* Bawaannya cabang sesi ini sendiri: perangkat yang belum pernah menyimpannya
+     (login pertama, atau sesi lama yang dipulihkan offline) tidak boleh mendadak
+     masuk Mode Tinjau atas keadaan yang tidak pernah dipilih siapa pun. */
+  APP_STATE.cabangKerja = await DB.kvGet('cabang_kerja', d.cabang);
   APP_STATE.daftarCabang = d.daftar_cabang || [d.cabang];
   APP_STATE.izin = d.izin || {};
   APP_STATE.flag = d.flag || {};
@@ -1142,7 +1160,11 @@ function pasangPemilihCabang() {
 
   el.innerHTML = daftar.map(c =>
     `<option value="${esc(c)}"${c === APP_STATE.cabang ? ' selected' : ''}>${esc(c)}</option>`).join('');
-  el.classList.remove('sembunyi');
+  /* Yang dibuka BARISNYA, bukan dropdownnya sendiri — labelnya ikut. Dulu di
+     sini `el.classList.remove('sembunyi')` sementara lencana #lncCabang di bar
+     atas dibiarkan tampil: cabangnya tergambar dua kali dalam dua chip
+     berbentuk sama, satu mati satu hidup. */
+  $('#barisCabang').classList.remove('sembunyi');
 
   el.addEventListener('change', async () => {
     const tujuan = el.value;
@@ -1190,6 +1212,66 @@ function pasangPemilihCabang() {
       Admin.toast('Gagal pindah cabang: ' + (e.message || e), 'galat');
     }
   });
+}
+
+/* ==================== MODE TINJAU ====================
+ *
+ * Dua peran bawaan — Owner dan Manajer Area — punya `akses_lintas_cabang`
+ * SEKALIGUS izin `kasir` dan `shift` penuh. Artinya keduanya bisa berpindah ke
+ * cabang lain lalu berjualan di sana dengan hak penuh, dan alurnya justru
+ * mendorong ke situ: di cabang tujuan belum ada shift, menekan Bayar menawarkan
+ * "Buka shift", satu ketukan lagi ada shift menggantung di laci orang lain
+ * dengan kas awal dari perangkat yang salah.
+ *
+ * Mode Tinjau memisahkan "saya melihat cabang itu" dari "saya bekerja di cabang
+ * itu". Yang dimatikan HANYA yang membuat dokumen di zona kasir: bayar, buka
+ * shift, tutup shift, catat kas. Melihat, mencari, membaca riwayat, dan seluruh
+ * menu back office tetap terbuka — justru itu gunanya.
+ *
+ * INI PAGAR LAYAR, BUKAN PAGAR SERVER, dan itu harus dikatakan terang-terangan.
+ * Sesudah `gantiCabang`, server memang menganggap sesi ini berada di cabang
+ * tujuan dan akan menerima notanya. Yang menahan cuma app.js. Pagar servernya
+ * butuh sesi mengingat cabang asalnya sendiri — pekerjaan lain, belum
+ * dikerjakan, dan jangan dianggap sudah ada.
+ */
+function modeTinjau() {
+  return !!APP_STATE.cabangKerja && APP_STATE.cabang !== APP_STATE.cabangKerja;
+}
+
+/** Tolak satu tindakan sambil menyebut sebabnya DAN jalan keluarnya. */
+function tolakTinjau(apa) {
+  Admin.toast('Mode tinjau — ' + apa + ' tidak bisa dilakukan di cabang '
+            + APP_STATE.cabang + '. Keluar lalu masuk lagi untuk bekerja di sini.', 'galat');
+}
+
+/**
+ * Gambar seluruh akibat Mode Tinjau dari SATU keadaan.
+ *
+ * Dipanggil sesudah sesi mulai dan setiap kali keadaan shift digambar ulang:
+ * `gambarKeadaanShift` menyalakan kembali tombol shift menurut ada-tidaknya
+ * shift, jadi mematikannya sekali di awal saja akan hidup lagi sendiri.
+ */
+function gambarModeTinjau() {
+  const tinjau = modeTinjau();
+  const lnc = $('#lncCabang');
+  if (lnc) {
+    lnc.className = 'lencana' + (tinjau ? ' kuning' : '');
+    lnc.title = tinjau ? 'Sedang meninjau cabang ' + APP_STATE.cabang
+                       + ' — cabang kerja Anda ' + APP_STATE.cabangKerja : '';
+  }
+  const p = $('#pesanTinjau');
+  if (p) {
+    p.classList.toggle('sembunyi', !tinjau);
+    if (tinjau) p.innerHTML = '<strong>Mode tinjau — cabang ' + esc(APP_STATE.cabang)
+      + '.</strong> Nota, shift, dan kas tidak bisa disimpan dari sini. Untuk bekerja'
+      + ' di cabang ini: keluar, lalu masuk lagi.';
+  }
+  ['#btnBukaShift', '#btnTutupShift', '#btnSimpanKas', '#btnBukaShiftKasir'].forEach(s => {
+    const b = $(s); if (b && tinjau) b.disabled = true;
+  });
+  /* #btnBayar TIDAK dimatikan di sini: `gambarKeranjang` yang memilikinya, dan
+     dua tangan pada satu tombol berarti keadaan yang berselisih. Penolakannya
+     ada di `bukaBayar` — satu-satunya pintu, termasuk untuk pintasan F12. */
 }
 
 async function muatMaster() {
@@ -2115,6 +2197,7 @@ function simpanTim() {
 /* ==================== PEMBAYARAN ==================== */
 function bukaBayar() {
   if (Keranjang.kosong) return;
+  if (modeTinjau()) return tolakTinjau('menyimpan nota');
   if (!APP_STATE.idShift) {
     /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
        berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
@@ -2624,6 +2707,10 @@ function gambarKeadaanShift() {
   $('#grupKasAwal').classList.toggle('sembunyi', !perluBuka);
   $('#btnBukaShift').classList.toggle('sembunyi', !perluBuka);
   $('#btnTutupShift').classList.toggle('sembunyi', perluBuka);
+  /* Digambar ULANG di sini, bukan sekali di awal: dua baris di atas menghidupkan
+     kembali tombol shift menurut ada-tidaknya shift, dan tanpa panggilan ini
+     Mode Tinjau padam sendiri pada penggambaran berikutnya. */
+  gambarModeTinjau();
   const h = APP_STATE.hasilTutupShift;
   $('#infoShift').innerHTML = (APP_STATE.idShift
     ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`
@@ -3920,7 +4007,8 @@ function pasangEvent() {
      keranjang berubah, jadi pendengar yang dipasang pada elemennya akan
      hilang bersama elemennya (jebakan yang sama sudah tercatat di §12). */
   $('.baris-alat-kasir')?.addEventListener('change', tandaiKendaliKasir);
-  $('#btnBukaShiftKasir')?.addEventListener('click', menujuBukaShift);
+  $('#btnBukaShiftKasir')?.addEventListener('click', () =>
+    modeTinjau() ? tolakTinjau('membuka shift') : menujuBukaShift());
   const cipPetugas = $('#lncPetugasKosong');
   cipPetugas?.addEventListener('click', () => tarikUlangMaster());
   cipPetugas?.addEventListener('keydown', e => {

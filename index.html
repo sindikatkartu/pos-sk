@@ -103,6 +103,22 @@
     <!-- Menu dibangun dinamis dari hak akses user — lihat MENU di app.js -->
     <nav class="sisi-isi" id="navSisi"></nav>
 
+    <!-- PEMILIH CABANG — di sini, bukan di deret lencana bar atas.
+
+         Deret di bar atas seluruhnya MEMBERI KABAR: shift, sinkronisasi,
+         pengguna. Satu-satunya kendali yang mengubah seluruh sesi dan memuat
+         ulang halaman menyamar sebagai kabar di antaranya — dan lencana cabang
+         di sebelahnya menampilkan kode yang sama persis.
+
+         Tempatnya sekarang di kaki sidebar, bersama nama dan peran: ia bagian
+         dari "saya siapa, sedang di cabang mana", bukan bagian dari deret
+         kabar. Hanya muncul untuk peran ber-flag akses_lintas_cabang DAN akun
+         yang punya lebih dari satu cabang — diisi pasangPemilihCabang(). -->
+    <div class="sisi-cabang sembunyi" id="barisCabang">
+      <label for="selCabangAktif">Cabang</label>
+      <select id="selCabangAktif" title="Cabang yang sedang dilihat"></select>
+    </div>
+
     <div class="sisi-bawah">
       <div class="kartu-user">
         <div class="avatar" id="avatarUser">—</div>
@@ -121,11 +137,11 @@
     <h1 id="judulLayar">Kasir</h1>
     <div class="isi-tengah"></div>
     <div class="lencana-grup">
+      <!-- Bar atas MENGABARKAN cabang mana; yang MENGUBAHNYA ada di kaki
+           sidebar (#barisCabang). Sampai 8 Sep 2026 keduanya di sini,
+           berdampingan, dua chip berbentuk sama berisi kode yang sama — satu
+           mati, satu hidup. Dilaporkan pemilik sebagai "terasa cacat". -->
       <span class="lencana" id="lncCabang">—</span>
-      <!-- Pemilih cabang: hanya muncul untuk peran ber-flag akses_lintas_cabang
-           DAN yang akunnya punya lebih dari satu cabang. Diisi oleh
-           pasangPemilihCabang() di app.js. -->
-      <select class="lencana pilih-cabang sembunyi" id="selCabangAktif" title="Cabang aktif"></select>
       <span class="lencana" id="lncShift">Shift belum dibuka</span><!-- jadi tombol saat shift belum dibuka: lihat periksaShift() -->
       <span class="lencana" id="lncSync">Memeriksa…</span>
       <span class="lencana polos sembunyi" id="lncUser">—</span>
@@ -212,6 +228,11 @@
             <strong>Shift belum dibuka.</strong> Transaksi belum bisa disimpan.
             <button class="tombol kecil" id="btnBukaShiftKasir">Buka shift</button>
           </div>
+          <!-- MODE TINJAU. Muncul saat cabang yang sedang dilihat bukan cabang
+               tempat sesi ini dimulai. Isinya ditulis gambarModeTinjau() karena
+               ia menyebut kode cabangnya. Ditaruh di panel keranjang, sebelah
+               tombol Bayar: di situlah keputusannya diambil. -->
+          <div class="pesan galat rapat sembunyi" id="pesanTinjau"></div>
           <button class="tombol sukses besar" id="btnBayar" style="margin-top:12px">BAYAR  (F12)</button>
         </div>
       </aside>

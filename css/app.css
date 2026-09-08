@@ -343,6 +343,18 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    kaki yang menggemuk, bukan sebagai dua blok yang berbeda maksud.
    Padding kartunya dipindah ke MENDATAR saja; jarak tegaknya datang dari
    tinggi kotaknya, bukan dari padding yang bertumpuk. */
+/* Pemilih cabang di kaki sidebar — KENDALI, bukan lencana status. Ia berdiri
+   sebagai barisnya sendiri di atas kartu pengguna, bukan di dalam .sisi-bawah:
+   kaki itu punya kontrak tinggi (--tinggi-kepala) yang dijaga render.mjs supaya
+   sejajar dengan bar atas, dan menyisipkan baris kedua ke dalamnya akan
+   memutus kesejajaran itu demi hal yang tidak ada hubungannya. */
+.sisi-cabang { display: flex; align-items: center; gap: 8px; padding: 0 10px 10px; }
+.sisi-cabang label { margin: 0; font-size: var(--fs-12); color: var(--teks-redup); }
+.sisi-cabang select { flex: 1; min-width: 0; }
+/* Saat sidebar terlipat, labelnya tidak muat dan dropdown selebar 48px tidak
+   bisa dibaca. Cabangnya tetap terbaca di lencana bar atas. */
+#app.sisi-lipat .sisi-cabang { display: none; }
+
 .sisi-bawah {
   box-sizing: border-box; min-height: var(--tinggi-kepala);
   display: flex; align-items: center;
