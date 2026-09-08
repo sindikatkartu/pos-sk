@@ -189,7 +189,18 @@ const Keranjang = (() => {
 
     /** Daftar petugas yang mengklaim seluruh nota (di luar baris yang punya tim). */
     setPetugasNota(daftar) {
-      petugasNota = (daftar || []).filter(x => x && x.kode);
+      /* DIPANGKAS jadi satu nama, di sini, bukan di penggambarnya.
+
+         Satu nota = satu penjual (keputusan pemilik 8 Sep 2026). Aturan itu
+         dijaga di TIGA tempat karena tiga-tiganya bisa dilewati sendiri-
+         sendiri: server memangkas klaim nota, dialognya cuma punya satu slot,
+         dan di sini — satu-satunya pintu masuk ke keadaan keranjang. Yang
+         terakhir ini yang menutup jalur yang tidak lewat layar sama sekali.
+
+         Nama kedua di klaim nota berarti PEMASANG menurut `_peranUrut`, dan
+         pemasang tingkat nota menempel ke SELURUH baris sisa — casing yang
+         tidak pernah dipasang pun ikut terbagi. */
+      petugasNota = (daftar || []).filter(x => x && x.kode).slice(0, 1);
     },
 
     get pemasangNota() { return pemasangNota; },

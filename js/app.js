@@ -1033,7 +1033,9 @@ async function mulaiSesi(d) {
 
   if (d.user.wajib_ganti_pin) {
     // Kasus yang sama seperti shift: jangan sebut nama menu, antar saja.
-    if (confirm('PIN Anda masih PIN awal dan sebaiknya segera diganti.\n\nGanti PIN sekarang?')) {
+    if (await Admin.tanya('PIN Anda masih PIN awal',
+          '<p class="petunjuk">Sebaiknya segera diganti — PIN awal sama untuk semua akun baru.</p>',
+          { ya: 'Ganti sekarang', batal: 'Nanti' })) {
       menujuKartu('akun', 'kartuAkun', '#pinLama');
     }
   }
@@ -1167,8 +1169,9 @@ function pasangPemilihCabang() {
      * tidak lagi menjaga apa pun juga mengajarkan hal yang salah: orang
      * berikutnya akan mengira perpindahan cabang masih rawan. */
 
-    if (Keranjang.baris.length &&
-        !confirm('Keranjang kasir yang belum dibayar akan hilang saat pindah cabang.\n\nLanjutkan?')) {
+    if (Keranjang.baris.length && !(await Admin.tanya('Pindah cabang?',
+          '<p class="petunjuk">Keranjang kasir yang belum dibayar akan hilang.</p>',
+          { ya: 'Pindah', jenis: 'bahaya' }))) {
       el.value = semula;
       return;
     }
@@ -1469,7 +1472,7 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
     });
     gambarKeranjang();
   } catch (e) {
-    alert(e.message);
+    Admin.toast(e.message, 'galat');
   }
 }
 
@@ -1539,8 +1542,12 @@ function gambarBarisTim(x) {
 function tombolTimBaris(x) {
   const tim = x.tim || [];
   if (!tim.length && !x.butuh_pasang) return '';
-  return `<button data-aksi="tim" title="Petugas yang mengerjakan baris ini">${
-    tim.length ? 'Tim' : '+ Pemasang'}</button>`;
+  /* Satu kata, satu arti. Label "Tim" tersisa dari masa tombol ini bisa memuat
+     beberapa nama dengan peran yang ditebak dari urutan; sejak 8 Sep 2026 yang
+     ditanyakan cuma SATU hal — siapa yang memasang. Tombol yang menjanjikan
+     "tim" lalu membuka satu dropdown pemasang adalah janji yang tidak ditepati. */
+  return `<button data-aksi="tim" title="Petugas yang memasang baris ini">${
+    tim.length ? 'Pemasang' : '+ Pemasang'}</button>`;
 }
 
 function gambarKeranjang() {
@@ -1618,7 +1625,7 @@ const namaPetugas = (kode) =>
  * `Keranjang.petugasNota` — dan digambar fungsi ini, bukan disalin. Dua salinan
  * daftar yang sama adalah cara paling pasti membuat keduanya berbeda diam-diam.
  */
-function isiSatuDropdownPetugas(sel, tombol) {
+function isiSatuDropdownPetugas(sel) {
   if (!sel) return;
   /* Diurutkan A-Z DI PENGGAMBAR, bukan saat daftarnya dimuat.
      `APP_STATE.daftarPetugas` sengaja dibiarkan apa adanya: satu-satunya yang
@@ -1637,15 +1644,13 @@ function isiSatuDropdownPetugas(sel, tombol) {
 
   // Toko yang belum mengisi daftar petugas tidak perlu melihat kolom yang selalu kosong.
   sel.classList.toggle('sembunyi', daftar.length === 0);
-  tombol?.classList.toggle('sembunyi', daftar.length === 0);
   if (!daftar.length) return;
 
-  // Lebih dari satu orang tidak muat di satu dropdown — dalam keadaan itu kolomnya
-  // menampilkan ringkasan dan penyuntingannya lewat tombol "Tim".
-  if (dipilih.length > 1) {
-    sel.innerHTML = `<option value="__tim__" selected>${esc(dipilih.length + ' pramuniaga')}</option>`;
-    return;
-  }
+  /* Cabang "lebih dari satu nama" DICABUT 8 Sep 2026 bersama tombol Tim tingkat
+     nota. Ia menggambar ringkasan `2 pramuniaga` yang hanya bisa disunting lewat
+     tombol itu; tanpa tombolnya, ringkasan yang sama jadi kolom mati yang tidak
+     punya jalan keluar. Keadaannya sendiri sudah tidak mungkin: `setPetugasNota`
+     memangkas ke satu nama. */
   const terpilih = (dipilih[0] || {}).kode || '';
   sel.innerHTML =
     `<option value="">${APP_STATE.klaimWajib ? '— pilih pramuniaga —' : 'Tanpa pramuniaga'}</option>` +
@@ -1708,15 +1713,15 @@ async function tarikUlangMaster() {
     await Sync.tarikStok();
     await muatMaster();
     await gambarProduk($('#inpCari')?.value || '');
-    alert('Data master diperbarui.');
+    Admin.toast('Data master diperbarui.');
   } catch (e) {
-    alert('Gagal: ' + e.message);
+    Admin.toast('Gagal menarik master: ' + e.message, 'galat');
   }
 }
 
 function gambarPilihanPetugas() {
-  isiSatuDropdownPetugas($('#selPetugas'), $('#btnTimNota'));
-  isiSatuDropdownPetugas($('#selPetugasBayar'), $('#btnTimNotaBayar'));
+  isiSatuDropdownPetugas($('#selPetugas'));
+  isiSatuDropdownPetugas($('#selPetugasBayar'));
 
   /* Kolomnya tetap disembunyikan saat daftarnya kosong — keputusan lama, dan
      alasannya masih berlaku: toko yang belum mengisi daftar petugas tidak perlu
@@ -1887,8 +1892,6 @@ function gambarJagaKlaim() {
          <label style="margin:0;white-space:nowrap">Pramuniaga</label>
          <select id="selPetugasBayar" style="flex:1;min-width:0"
                  title="Pramuniaga yang melayani nota ini"></select>
-         <button class="tombol kecil" id="btnTimNotaBayar" type="button"
-                 title="Bagi nota ini ke beberapa pramuniaga">Tim</button>
        </div>
        <div id="barisPemasang" class="sembunyi"
             style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -1902,7 +1905,7 @@ function gambarJagaKlaim() {
      Menyusun ulang <option> pada dropdown yang sedang terbuka akan menutup
      daftarnya di tengah kasir memilih. */
   const sel = $('#selPetugasBayar');
-  if (document.activeElement !== sel) isiSatuDropdownPetugas(sel, $('#btnTimNotaBayar'));
+  if (document.activeElement !== sel) isiSatuDropdownPetugas(sel);
   gambarPilihanPemasang();
   $('#byrKetKlaim').innerHTML = ket;
   return !kurang;
@@ -1910,13 +1913,21 @@ function gambarJagaKlaim() {
 
 /* ---------- Modal tim ---------- */
 
-/** @param idBaris id baris keranjang, atau '#NOTA' untuk klaim seluruh nota. */
+/**
+ * Dialog SATU pertanyaan: siapa yang memasang baris ini.
+ *
+ * Jalur '#NOTA' DICABUT 8 Sep 2026 bersama tombol Tim tingkat nota. Pramuniaga
+ * nota sudah punya satu-satunya tempatnya — dropdown di bar alat kasir, yang
+ * digandakan di layar bayar — dan satu nota hanya boleh punya satu penjual.
+ * Dialog kedua untuk hal yang sama cuma menambah tempat orang bisa salah.
+ *
+ * @param idBaris id baris keranjang.
+ */
 function bukaTim(idBaris) {
-  const nota = idBaris === '#NOTA';
-  const b = nota ? null : Keranjang.baris.find(x => x.id === idBaris);
-  if (!nota && !b) return;
+  const b = Keranjang.baris.find(x => x.id === idBaris);
+  if (!b) return;
   if (!APP_STATE.daftarPetugas.length) {
-    return alert('Daftar petugas masih kosong. Isi lebih dulu lewat menu Petugas.');
+    return Admin.toast('Daftar petugas masih kosong. Isi lebih dulu lewat menu Petugas.', 'galat');
   }
 
   /* Satu nota = satu penjual, mutlak (keputusan pemilik, 8 Sep 2026). Karena itu
@@ -1928,42 +1939,36 @@ function bukaTim(idBaris) {
      PEMASANG yang mengambil 100% poin, omzet, dan laba baris tersebut, dan
      penjualnya lenyap dari baris itu tanpa satu pun tanda di layar. */
   const penjual = (Keranjang.petugasNota[0] || {}).kode || '';
-  if (!nota && !penjual) {
-    return alert('Pilih pramuniaga nota ini dulu di bar alat kasir.\n\n' +
-                 'Pemasang selalu mendampingi penjualnya, bukan menggantikannya.');
+  if (!penjual) {
+    return Admin.toast('Pilih pramuniaga nota ini dulu di bar alat kasir — '
+                     + 'pemasang mendampingi penjualnya, bukan menggantikannya.', 'galat');
   }
 
   APP_STATE.timBaris = idBaris;
   // Poin bawaan pekerjaan ini — dari `poin_satuan` produk dikali qty dasarnya.
-  const poinDasar = nota ? Keranjang.poinSisaNota() : Keranjang.poinBaris(idBaris);
+  const poinDasar = Keranjang.poinBaris(idBaris);
   APP_STATE._timPoinDasar = poinDasar;
 
-  $('#timJudul').textContent = nota ? 'Pramuniaga nota ini' : 'Pemasang — ' + b.nama;
-  $('#timRingkas').innerHTML = `<p class="petunjuk">${nota
-    ? 'Satu nota, satu penjual. Ia berlaku untuk seluruh baris yang <strong>tidak</strong> punya pemasangnya sendiri.'
-    : 'Penjualnya sudah pasti pramuniaga nota ini. Yang dipilih di sini hanya <strong>siapa yang memasang</strong> baris ini — dan karena itu baris ini keluar dari klaim nota.'}
+  $('#timJudul').textContent = 'Pemasang — ' + b.nama;
+  $('#timRingkas').innerHTML = `<p class="petunjuk">Penjualnya sudah pasti pramuniaga
+    nota ini. Yang dipilih di sini hanya <strong>siapa yang memasang</strong> baris ini
+    — dan karena itu baris ini keluar dari klaim nota.
     Pekerjaan ini bernilai <strong>${poinDasar} poin</strong> menurut master produk,
     dan dibagi menurut bobot peran. Keduanya diatur back office — di sini tinggal
     memilih orangnya.</p>
     ${poinDasar > 0 ? '' : `<div class="pesan info">Produk ini belum diberi nilai poin,
       jadi penjualannya tidak berpoin. Omzetnya tetap tercatat atas nama petugas.</div>`}`;
 
-  /* BENTUK DRAFT-nya TETAP, tidak lagi daftar yang bisa tumbuh-menyusut.
-
-     Nota: satu slot, penjual. Baris: dua slot — penjual TERKUNCI ke pramuniaga
-     nota, dan pemasang yang boleh dipilih (boleh juga dikosongkan).
+  /* BENTUK DRAFT-nya TETAP: dua slot, selalu. Penjual TERKUNCI ke pramuniaga
+     nota, pemasang yang boleh dipilih — dan boleh dikosongkan.
 
      Tim baris lama yang cuma berisi SATU nama dibaca sebagai pemasangnya, bukan
-     penjualnya — itu memang artinya menurut `_peranUrutKlaim(1, 'BARIS')`. Nota
-     lama yang terlanjur berisi dua nama kehilangan nama keduanya di sini, dan
-     itu memang yang diinginkan: nama kedua di klaim nota adalah cacat yang
-     sedang ditutup. */
-  const timLama = nota ? [] : Keranjang.timBaris(idBaris);
+     penjualnya — itu memang artinya menurut `_peranUrutKlaim(1, 'BARIS')`. */
+  const timLama = Keranjang.timBaris(idBaris);
   const pemasangLama = timLama.length > 1 ? (timLama[1] || {}).kode || ''
                      : (timLama[0] || {}).kode || '';
-  APP_STATE._timDraft = nota
-    ? [{ kode: (Keranjang.petugasNota[0] || {}).kode || '' }]
-    : [{ kode: penjual }, { kode: pemasangLama === penjual ? '' : pemasangLama }];
+  APP_STATE._timDraft = [{ kode: penjual },
+                         { kode: pemasangLama === penjual ? '' : pemasangLama }];
 
   pesan('#pesanTim', '');
   gambarAnggotaTim();
@@ -1973,7 +1978,6 @@ function bukaTim(idBaris) {
 
 function gambarAnggotaTim() {
   const d = APP_STATE._timDraft || [];
-  const nota = APP_STATE.timBaris === '#NOTA';
 
   /* Tiap slot hanya menawarkan orang yang MAMPU mengerjakan perannya. Slot
      "Pemasang" yang berisi seluruh nama adalah cara paling mudah mencatat
@@ -1987,7 +1991,7 @@ function gambarAnggotaTim() {
   const penjualKini = (d[0] || {}).kode || '';
   const opsi = (peran, terpilih) => {
     const boleh = petugasUntukPeran(APP_STATE.daftarPetugas || [], peran)
-      .filter(p => nota || peran !== 'PEMASANG' || p.kode !== penjualKini);
+      .filter(p => peran !== 'PEMASANG' || p.kode !== penjualKini);
     const ada = boleh.some(p => p.kode === terpilih);
     const daftar = ada || !terpilih ? boleh
       : boleh.concat((APP_STATE.daftarPetugas || []).filter(p => p.kode === terpilih));
@@ -1995,19 +1999,12 @@ function gambarAnggotaTim() {
       `<option value="${esc(p.kode)}" ${p.kode === terpilih ? 'selected' : ''}>${esc(p.nama)}</option>`).join('');
   };
 
-  /* Dua bentuk TETAP, bukan daftar yang bisa tumbuh.
-
-     Nota: satu slot penjual. Baris: penjual yang terkunci — ditampilkan supaya
-     kasir melihat atas nama siapa barisnya, tapi tidak bisa diubah — lalu satu
-     pilihan pemasang yang BOLEH dikosongkan. Kosong artinya baris ini dikerjakan
-     sendiri oleh penjualnya, bukan artinya belum diisi. */
-  $('#timDaftar').innerHTML = nota
-    ? `<div class="baris-anak" style="margin-bottom:8px">
-         <label>Penjual</label>
-         <select data-i="0" data-f="kode">
-           <option value="">— pilih —</option>${opsi('PENJUAL', (d[0] || {}).kode)}
-         </select></div>`
-    : `<div class="baris-anak" style="margin-bottom:8px">
+  /* SATU bentuk TETAP, bukan daftar yang bisa tumbuh: penjual yang terkunci —
+     ditampilkan supaya kasir melihat atas nama siapa barisnya, tapi tidak bisa
+     diubah — lalu satu pilihan pemasang yang BOLEH dikosongkan. Kosong artinya
+     baris ini dikerjakan sendiri oleh penjualnya, bukan artinya belum diisi. */
+  $('#timDaftar').innerHTML =
+      `<div class="baris-anak" style="margin-bottom:8px">
          <label>Penjual</label>
          <input type="text" data-f="penjual" readonly tabindex="-1"
                 title="Satu nota, satu penjual — diubah di bar alat kasir"
@@ -2044,7 +2041,8 @@ function gambarAnggotaTim() {
 function gambarBagianTim() {
   const d = APP_STATE._timDraft || [];
   const total = Number(APP_STATE._timPoinDasar) || 0;
-  const jenis = APP_STATE.timBaris === '#NOTA' ? 'NOTA' : 'BARIS';
+  // Dialog ini hanya pernah membicarakan satu BARIS sejak jalur '#NOTA' dicabut.
+  const jenis = 'BARIS';
 
   $('#timTotalPoin').textContent = total + ' poin';
   $('#timTotalPoin').style.color = total > 0 ? 'var(--sukses)' : 'var(--teks-redup)';
@@ -2057,7 +2055,7 @@ function gambarBagianTim() {
      nota, dan di sana penjualnya sendirian — seluruhnya miliknya. Menghitungnya
      sebagai tim satu orang akan menyebutnya PEMASANG, peran yang justru tidak
      terjadi di baris itu. */
-  if (jenis === 'BARIS' && isi.length === 1) {
+  if (isi.length === 1) {
     elR.textContent = `${namaPetugas(isi[0].kode).split(' ')[0]} ${total} poin (100%)`;
     return;
   }
@@ -2094,27 +2092,18 @@ function bagiRata(total, porsi) {
 }
 
 function simpanTim() {
-  const nota = APP_STATE.timBaris === '#NOTA';
   const d = APP_STATE._timDraft || [];
   const penjual = (d[0] || {}).kode || '';
+  const b = Keranjang.baris.find(x => x.id === APP_STATE.timBaris);
+  if (!b) { $('#tiraiTim').classList.remove('tampil'); return; }
 
-  if (nota) {
-    /* Satu nama, selalu. Slot kedua di klaim nota sudah dicabut: ia hanya bisa
-       berarti PEMASANG, dan pemasang di tingkat nota menempel ke SEMUA baris
-       sisa — casing yang tidak pernah dipasang ikut terbagi. Dilaporkan pemilik
-       8 Sep 2026. */
-    Keranjang.setPetugasNota(penjual ? [{ kode: penjual }] : []);
-  } else {
-    const b = Keranjang.baris.find(x => x.id === APP_STATE.timBaris);
-    if (!b) { $('#tiraiTim').classList.remove('tampil'); return; }
-    const pemasang = (d[1] || {}).kode || '';
-    /* Pemasang kosong ATAU pemasang = penjualnya berarti dikerjakan sendiri:
-       barisnya tidak punya tim, ia kembali ikut klaim nota, dan penjualnya
-       mendapat seluruhnya. Menuliskan satu nama yang sama dua kali justru
-       memotong poin orang itu sendiri (§19). */
-    Keranjang.setTimBaris(APP_STATE.timBaris,
-      (pemasang && pemasang !== penjual) ? [{ kode: penjual }, { kode: pemasang }] : []);
-  }
+  const pemasang = (d[1] || {}).kode || '';
+  /* Pemasang kosong ATAU pemasang = penjualnya berarti dikerjakan sendiri:
+     barisnya tidak punya tim, ia kembali ikut klaim nota, dan penjualnya
+     mendapat seluruhnya. Menuliskan satu nama yang sama dua kali justru
+     memotong poin orang itu sendiri (§19). */
+  Keranjang.setTimBaris(APP_STATE.timBaris,
+    (pemasang && pemasang !== penjual) ? [{ kode: penjual }, { kode: pemasang }] : []);
 
   $('#tiraiTim').classList.remove('tampil');
   APP_STATE.timBaris = null;
@@ -2131,7 +2120,12 @@ function bukaBayar() {
        berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
        tidak ada — dan menu Setting memang tersembunyi bagi kasir. Sekarang
        pengguna langsung diantar ke kartu shift-nya. */
-    if (confirm('Shift belum dibuka, jadi transaksi belum bisa disimpan.\n\nBuka shift sekarang?')) menujuBukaShift();
+    /* Sengaja TIDAK di-await, dan `bukaBayar` sengaja tidak dijadikan async:
+       ia dipanggil dari penangan klik DAN dari pintasan F12, dan tidak ada satu
+       baris pun sesudah ini yang bergantung pada jawabannya. */
+    Admin.tanya('Shift belum dibuka',
+      '<p class="petunjuk">Transaksi belum bisa disimpan sebelum shift dibuka.</p>',
+      { ya: 'Buka shift' }).then(ya => { if (ya) menujuBukaShift(); });
     return;
   }
   /* Mulai dari 0, BUKAN dari total nota. Kolom ini artinya "uang yang diterima",
@@ -3822,7 +3816,9 @@ function pasangEvent() {
       `Masih ada ${tertahan} nota belum terkirim. Nota tetap tersimpan di ` +
       'perangkat ini dan akan dikirim saat Anda masuk lagi.');
 
-    if (!confirm((alasan.length ? alasan.join('\n\n') + '\n\n' : '') + 'Keluar dari akun ini?')) return;
+    if (!(await Admin.tanya('Keluar dari akun ini?',
+          alasan.map(x => `<div class="pesan peringatan">${esc(x)}</div>`).join(''),
+          { ya: 'Keluar', jenis: 'bahaya' }))) return;
 
     if (APP_STATE.idShift) {
       // Disimpan sekarang, dilaporkan saat login berikutnya — sesi yang sedang
@@ -3945,9 +3941,7 @@ function pasangEvent() {
      ringkasan bayar berubah, jadi pendengarnya dipasang di document (delegasi)
      — memasangnya langsung pada elemennya akan hilang bersama elemennya. */
   const ubahPetugasNota = (nilai) => {
-    // '__tim__' hanyalah label ringkasan saat notanya dibagi ke beberapa orang;
-    // memilihnya berarti membuka kembali dialognya, bukan mengubah apa pun.
-    if (nilai === '__tim__') return bukaTim('#NOTA');
+    // Satu nama, selalu — `setPetugasNota` sendiri yang memangkasnya.
     Keranjang.setPetugasNota(nilai ? [{ kode: nilai }] : []);
     gambarPilihanPetugas();
     if ($('#tiraiBayar').classList.contains('tampil')) gambarRingkasBayar();
@@ -3965,10 +3959,6 @@ function pasangEvent() {
       gambarRingkasBayar();
     }
   });
-  document.addEventListener('click', e => {
-    if (e.target.id === 'btnTimNota' || e.target.id === 'btnTimNotaBayar') bukaTim('#NOTA');
-  });
-
   /* Tombol ini hidup di dalam modal yang dibuka `tampilkanDitolak()`. Modalnya
      milik Admin, jadi delegasinya harus dipasang di sini — penangan klik Admin
      tidak tahu apa-apa tentang outbox. */
@@ -4014,11 +4004,15 @@ function pasangEvent() {
     Keranjang.ubahQty(e.target.closest('.baris-item').dataset.id, e.target.value);
     gambarKeranjang();
   });
-  $('#btnKosongkan').addEventListener('click', () => {
-    if (Keranjang.kosong || confirm('Kosongkan keranjang?')) {
-      Keranjang.kosongkan(); $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran';
-      gambarPilihanPetugas(); gambarKeranjang();
-    }
+  $('#btnKosongkan').addEventListener('click', async () => {
+    /* Keranjang kosong tidak ditanya apa-apa: tidak ada yang bisa hilang, dan
+       pertanyaan atas tindakan yang tidak berakibat mengajari orang menjawab
+       tanpa membaca. */
+    if (!Keranjang.kosong && !(await Admin.tanya('Kosongkan keranjang?',
+          '<p class="petunjuk">Seluruh baris, pelanggan, dan pramuniaga nota ini dilepas.</p>',
+          { ya: 'Kosongkan', jenis: 'bahaya' }))) return;
+    Keranjang.kosongkan(); $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran';
+    gambarPilihanPetugas(); gambarKeranjang();
   });
   $('#pegangan').addEventListener('click', () => $('#panelKeranjang').classList.toggle('buka'));
 
@@ -4158,11 +4152,11 @@ function pasangEvent() {
       await DB.kvSet('id_shift', d.id_shift);
       gambarKeadaanShift();          // seketika, tanpa menunggu periksaShift()
       await periksaShift();
-      alert('Shift dibuka: ' + d.id_shift);
-    } catch (e) { alert('Gagal membuka shift: ' + e.message); }
+      Admin.toast('Shift dibuka: ' + d.id_shift);
+    } catch (e) { Admin.toast('Gagal membuka shift: ' + e.message, 'galat'); }
   });
   $('#btnTutupShift').addEventListener('click', async () => {
-    if (!APP_STATE.idShift) return alert('Tidak ada shift aktif.');
+    if (!APP_STATE.idShift) return Admin.toast('Tidak ada shift aktif.', 'galat');
     /* Penanda menunggu dipasang tangan di sini.
      *
      * pasangPenandaSibuk() hanya menyalakan tombol yang memicu permintaan ke
@@ -4178,10 +4172,13 @@ function pasangEvent() {
     let tertahan;
     try { tertahan = await DB.outboxJumlah(); }
     finally { b.classList.remove('sibuk'); }
-    // confirm() memblokir; penandanya dilepas DULU supaya tidak ada tombol yang
-    // berputar-putar di belakang dialog yang justru sedang menunggu manusia.
+    // Penandanya dilepas DULU supaya tidak ada tombol yang berputar-putar di
+    // belakang pertanyaan yang justru sedang menunggu manusia.
     if (tertahan > 0) {
-      if (!confirm(`Masih ada ${tertahan} nota belum terkirim. Angka kas sistem bisa belum lengkap. Lanjutkan?`)) return;
+      if (!(await Admin.tanya('Tutup shift sekarang?',
+            `<div class="pesan peringatan">Masih ada ${tertahan} nota belum terkirim.
+               Angka kas sistem bisa belum lengkap.</div>`,
+            { ya: 'Lanjutkan', jenis: 'bahaya' }))) return;
     }
     $('#tsHasil').innerHTML = '';
     $('#tiraiTutupShift').classList.add('tampil');
@@ -4254,8 +4251,8 @@ function pasangEvent() {
   $('#btnHubungkanPrinter').addEventListener('click', async () => {
     const b = $('#btnHubungkanPrinter');
     b.classList.add('sibuk'); b.disabled = true;
-    try { const n = await Struk.hubungkanBluetooth(); alert('Terhubung: ' + n); perbaruiInfoData(); }
-    catch (e) { alert('Gagal: ' + e.message); }
+    try { const n = await Struk.hubungkanBluetooth(); Admin.toast('Printer terhubung: ' + n); perbaruiInfoData(); }
+    catch (e) { Admin.toast('Gagal menghubungkan printer: ' + e.message, 'galat'); }
     finally { b.classList.remove('sibuk'); b.disabled = false; }
   });
   /* Disimpan begitu diubah, tanpa tombol Simpan. Setelan ini dicari orang
@@ -4282,7 +4279,7 @@ function pasangEvent() {
     try {
       const u = await Label.ukuran();
       await Label.cetak([{ kode: 'UJI12345', nama: 'Uji cetak', lembar: u.kolom || 1 }]);
-    } catch (e) { alert('Gagal: ' + e.message); }
+    } catch (e) { Admin.toast('Gagal uji cetak label: ' + e.message, 'galat'); }
   });
   const simpanUkuranLabel = async () => {
     const u = await Label.simpanUkuran({
@@ -4392,7 +4389,10 @@ function pasangEvent() {
   $('#btnUji').addEventListener('click', tampilkanUji);
   $('#btnTutupBuku').addEventListener('click', async () => {
     const periode = $('#keuPeriode').value;
-    if (!confirm(`Kunci periode ${periode}? Setelah dikunci, tidak ada transaksi baru yang bisa masuk ke periode itu — koreksi harus lewat periode berjalan.`)) return;
+    if (!(await Admin.tanya(`Kunci periode ${periode}?`,
+          '<p class="petunjuk">Setelah dikunci, tidak ada transaksi baru yang bisa masuk'
+          + ' ke periode itu — koreksi harus lewat periode berjalan.</p>',
+          { ya: 'Kunci periode', jenis: 'bahaya' }))) return;
     try {
       await API.tutupBuku({ periode });
       Admin.toast('Periode ' + periode + ' dikunci.');
@@ -4520,7 +4520,12 @@ function pasangEvent() {
     try { if (APP_STATE.idShift) await antrikanKeluarPaksa({ sebab: 'SESI_BERAKHIR' }); }
     catch (e) { console.warn('Catatan shift menggantung gagal disimpan:', e.message); }
     try { await DB.kvSet('token', null); } catch (e) {}
-    alert('Sesi berakhir. Silakan login ulang. Nota yang belum terkirim tetap aman di perangkat ini.');
+    /* DITUNGGU, bukan toast. Baris sesudahnya memuat ulang halaman: kabar yang
+       cuma lewat tiga detik tidak akan pernah terbaca, dan orangnya kembali ke
+       layar masuk tanpa tahu kenapa. */
+    await Admin.tanya('Sesi berakhir',
+      '<p class="petunjuk">Silakan masuk lagi. Nota yang belum terkirim tetap aman di perangkat ini.</p>',
+      { ya: 'Masuk lagi', tanpaBatal: true });
     location.reload();
   });
   document.addEventListener('stok:diperbarui', () => gambarProduk($('#inpCari').value));

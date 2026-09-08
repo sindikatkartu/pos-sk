@@ -164,10 +164,6 @@
                yang punya timnya sendiri (lihat tombol "Tim" di keranjang). -->
           <select id="selPetugas" style="width:auto;max-width:220px"
                   title="Pramuniaga yang melayani nota ini"></select>
-          <!-- Untuk nota yang dilayani lebih dari satu pramuniaga — dropdown di atas
-               hanya muat satu nama. -->
-          <button class="tombol kecil" id="btnTimNota"
-                  title="Bagi nota ini ke beberapa pramuniaga">Tim</button>
           <!-- Jalan keluar saat daftar petugas kosong. Kolom pramuniaga tetap
                disembunyikan dalam keadaan itu (keputusan lama: toko yang belum
                mengisi daftar petugas tidak perlu melihat kolom yang selalu
@@ -1040,6 +1036,15 @@
 <div class="tirai" id="tiraiUmum">
   <div class="modal lebar" id="modalUmum"></div>
 </div>
+
+<!-- Pertanyaan ya/tidak milik aplikasi sendiri — pengganti confirm() dan
+     prompt(). Tirainya TERPISAH dari #tiraiUmum, dan itu bukan kerapian:
+     sebagian besar pertanyaannya muncul dari DALAM modal yang sedang terbuka
+     (Nonaktifkan produk dari editor produk, Void nota dari daftar nota,
+     Posting opname dari layar hitung). `bukaModal` menimpa isi #modalUmum,
+     jadi memakai tirai yang sama akan menghapus layar yang justru sedang
+     ditanyakan. Isinya dibangun `tanya()` di admin.js. -->
+<div class="tirai" id="tiraiTanya"></div>
 
 <script src="js/config.min.js"></script>
 <script src="js/db.min.js"></script>

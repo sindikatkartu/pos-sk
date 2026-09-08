@@ -181,6 +181,145 @@ const Admin = (() => {
   }
   const tutupModal = () => $('#tiraiUmum').classList.remove('tampil');
 
+  /* ==================== TANYA — pengganti confirm() dan prompt() ==================== */
+
+  /**
+   * Pertanyaan ya/tidak — dan, bila diminta, satu isian — di atas layar apa pun.
+   *
+   * ALASANNYA BUKAN RUPA. Chrome menempelkan kotak centang "Cegah halaman ini
+   * membuat dialog tambahan" pada dialog KEDUA yang muncul berturut-turut, dan
+   * sekali dicentang setiap confirm() berikutnya mengembalikan `false` tanpa
+   * satu piksel pun muncul: tanpa galat, tanpa jejak di konsol, dan tanpa cara
+   * mematikannya kembali selain memuat ulang tab. Yang terlihat pemilik adalah
+   * tombol Kosongkan yang "tidak berfungsi" — dilaporkan 8 Sep 2026, dan
+   * kodenya memang sehat; jawabannyalah yang dipalsukan peramban. prompt() dan
+   * alert() ikut dimatikan kotak centang yang sama, jadi tidak satu pun dari
+   * ketiganya boleh memikul keputusan.
+   *
+   * TIRAINYA SENDIRI (#tiraiTanya), bukan #tiraiUmum. Enam pemanggilnya
+   * bertanya dari DALAM modal yang sedang terbuka — Nonaktifkan produk dari
+   * editor produk, Void nota dari daftar nota, Posting opname dan Tutup
+   * hitungan dari layar hitung, Reset PIN dari daftar pengguna. `bukaModal`
+   * menimpa innerHTML #modalUmum: memakai tirai yang sama akan MENGHAPUS layar
+   * yang justru jadi pokok pertanyaannya, lalu mengembalikan orang ke layar
+   * kosong apa pun jawabannya.
+   *
+   * MENUTUP DENGAN CARA APA PUN BERARTI "TIDAK": Batal, Escape, klik latar —
+   * dan juga tangan lain yang membuang `.tampil`, karena pintasan Escape di
+   * app.js menyapu SELURUH `.tirai` sekaligus. Yang terakhir itu sebabnya ada
+   * MutationObserver di sini: janji yang tidak pernah dijawab menggantungkan
+   * pemanggilnya selamanya, dan `await` yang tidak pernah kembali tidak
+   * meninggalkan satu pun jejak untuk dilacak.
+   *
+   * Escape ditangkap pada fase CAPTURE lalu dihentikan di situ. Tanpa itu satu
+   * tekanan Escape menjawab pertanyaannya SEKALIGUS menutup modal di
+   * belakangnya — dua tindakan dari satu niat.
+   *
+   * @param {string} judul  judul pertanyaan (teks polos).
+   * @param {string} isi    badan pertanyaan (HTML; pemanggil yang menyusunnya).
+   * @param {object} [opsi] ya/batal = label tombol; jenis 'bahaya' untuk
+   *   tindakan yang tidak bisa diurungkan; isian = string placeholder untuk
+   *   meminta teks; minimal = panjang minimum teks itu; tanpaBatal = kabar yang
+   *   hanya perlu diakui, bukan pertanyaan (satu tombol saja).
+   * @returns {Promise<boolean|string|null>} tanpa `isian`: true/false. Dengan
+   *   `isian`: teks yang diketik, atau null bila dibatalkan.
+   */
+  let _tanyaSelesai = null;
+
+  function tanya(judul, isi, opsi) {
+    const o = opsi || {};
+    const berisian = o.isian !== undefined && o.isian !== null && o.isian !== false;
+    const tidak = () => (berisian ? null : false);
+
+    /* Pertanyaan baru sebelum yang lama dijawab: yang lama dijawab "tidak"
+       lebih dulu. Satu tirai, satu janji — pemanggil yang tirainya baru saja
+       diambil orang lain harus dilepas, bukan ditinggal menunggu. */
+    if (_tanyaSelesai) _tanyaSelesai(tidak());
+
+    const tirai = $('#tiraiTanya');
+    const fokusSemula = document.activeElement;
+    tirai.innerHTML =
+      `<div class="modal" id="modalTanya" role="alertdialog" aria-modal="true"
+            aria-labelledby="judulTanya">
+         <h3 id="judulTanya">${esc(judul)}</h3>
+         ${isi || ''}
+         ${berisian ? `<input type="text" id="isiTanya" autocomplete="off"
+              placeholder="${esc(o.isian === true ? '' : o.isian)}">
+            <div class="pesan galat rapat sembunyi" id="pesanTanya"></div>` : ''}
+         <div class="aksi-modal">
+           <button class="tombol ${o.tanpaBatal ? 'sembunyi' : ''}" id="btnTanyaBatal"
+                   type="button">${esc(o.batal || 'Batal')}</button>
+           <button class="tombol ${o.jenis === 'bahaya' ? 'bahaya' : 'utama'}"
+                   id="btnTanyaYa" type="button">${esc(o.ya || 'Ya')}</button>
+         </div>
+       </div>`;
+    tirai.classList.add('tampil');
+
+    const ya  = $('#btnTanyaYa');
+    const btl = $('#btnTanyaBatal');
+    const inp = berisian ? $('#isiTanya') : null;
+
+    return new Promise(resolve => {
+      let sudah = false;
+      const pengamat = new MutationObserver(() => {
+        if (!tirai.classList.contains('tampil')) selesai(tidak());
+      });
+
+      function selesai(jawab) {
+        if (sudah) return;
+        sudah = true;
+        _tanyaSelesai = null;
+        pengamat.disconnect();
+        document.removeEventListener('keydown', kunci, true);
+        tirai.removeEventListener('click', latar);
+        tirai.classList.remove('tampil');
+        tirai.innerHTML = '';
+        /* Fokus dikembalikan ke tombol yang memulai. Tanpa ini fokus jatuh ke
+           <body>, dan pintasan keyboard berikutnya tidak punya sasaran — pada
+           kasir yang bekerja tanpa mouse itu berarti berhenti total. */
+        try { fokusSemula && fokusSemula.focus && fokusSemula.focus(); } catch (e) {}
+        resolve(jawab);
+      }
+      function kunci(e) {
+        if (e.key !== 'Escape') return;
+        e.stopPropagation(); e.preventDefault();
+        selesai(tidak());
+      }
+      function latar(e) { if (e.target === tirai) selesai(tidak()); }
+
+      _tanyaSelesai = selesai;
+      pengamat.observe(tirai, { attributes: true, attributeFilter: ['class'] });
+      document.addEventListener('keydown', kunci, true);
+      tirai.addEventListener('click', latar);
+
+      ya.addEventListener('click', () => {
+        if (!berisian) return selesai(true);
+        const teks = String(inp.value || '').trim();
+        /* Teks yang kependekan ditolak DI TEMPAT. prompt() lama mengembalikan
+           teks itu ke pemanggilnya, yang lalu `return` tanpa sepatah kata pun —
+           orangnya mengira tombolnya rusak, lalu menekannya lagi. */
+        if (o.minimal && teks.length < o.minimal) {
+          const p = $('#pesanTanya');
+          p.textContent = `Minimal ${o.minimal} karakter.`;
+          p.classList.remove('sembunyi');
+          inp.focus();
+          return;
+        }
+        selesai(teks);
+      });
+      btl.addEventListener('click', () => selesai(tidak()));
+      if (inp) inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); ya.click(); }
+      });
+
+      /* Fokus bawaan di BATAL, bukan di tombol yang mengiyakan: sebagian besar
+         pertanyaan ini tidak bisa diurungkan, dan Enter yang tidak sengaja
+         tidak boleh menjadi jawabannya. Kecuali saat ada isian — di situ yang
+         ditunggu memang ketikan — atau saat tidak ada Batal untuk difokuskan. */
+      (inp || (o.tanpaBatal ? ya : btl)).focus();
+    });
+  }
+
   const nilai = (id) => ($('#' + id)?.value ?? '').trim();
   /**
    * Kolom uang ('1.250.000') diurai lewat angkaDari; sisanya lewat Number.
@@ -5091,7 +5230,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnTambahKompatibel') return tambahBarisKompatibel();
       if (t.id === 'btnSimpanProduk') return simpanProduk();
       if (t.id === 'btnNonaktifProduk') {
-        if (!confirm('Nonaktifkan produk ini? Data historis tetap utuh, produk hanya hilang dari layar kasir.')) return;
+        if (!(await tanya('Nonaktifkan produk ini?',
+              '<p class="petunjuk">Data historisnya tetap utuh — produk hanya hilang dari layar kasir.</p>',
+              { ya: 'Nonaktifkan', jenis: 'bahaya' }))) return;
         try {
           await API.nonaktifkanProduk({ sku: nilai('pSku') });
           await Sync.tarikMaster(true);
@@ -5265,7 +5406,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.resetPin) {
-        if (!confirm('Reset PIN pengguna ini? Seluruh sesi aktifnya akan dicabut.')) return;
+        if (!(await tanya('Reset PIN pengguna ini?',
+              '<p class="petunjuk">Seluruh sesi aktifnya ikut dicabut — ia harus masuk lagi.</p>',
+              { ya: 'Reset PIN', jenis: 'bahaya' }))) return;
         try {
           const r = await API.resetPinUser({ id_user: d.resetPin });
           bukaModal('PIN berhasil direset', `
@@ -5317,9 +5460,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ($('#isiPengguna')._user || []).find(u => String(u.id_user) === String(r.user_terakhir))?.nama
                 || r.user_terakhir) : 'belum pernah dipakai'}`
           : d.hapusPerangkat;
-        if (!confirm('Hapus perangkat berikut dari daftar?\n\n' + ket +
-                     '\n\nRiwayat nota & shiftnya TIDAK ikut terhapus. Kalau perangkat ' +
-                     'ini dipakai lagi, ia akan muncul kembali sebagai MENUNGGU.')) return;
+        if (!(await tanya('Hapus perangkat ini dari daftar?',
+              `<div class="pesan info" style="white-space:pre-line">${esc(ket)}</div>
+               <p class="petunjuk">Riwayat nota &amp; shiftnya TIDAK ikut terhapus. Kalau
+                  perangkat ini dipakai lagi, ia muncul kembali sebagai MENUNGGU.</p>`,
+              { ya: 'Hapus perangkat', jenis: 'bahaya' }))) return;
         try {
           const h = await API.hapusPerangkat({ id_perangkat: d.hapusPerangkat });
           await muat('pengguna');
@@ -5401,8 +5546,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.batalTransfer) {
-        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
-        if (!alasan || alasan.trim().length < 5) return;
+        const alasan = await tanya('Batalkan transfer ini?',
+          '<p class="petunjuk">Barang kembali ke cabang asal. Alasannya ikut tercatat.</p>',
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
+            ya: 'Batalkan transfer', jenis: 'bahaya' });
+        if (!alasan) return;
         try {
           await API.batalTransfer({ uuid: d.batalTransfer, alasan });
           await Sync.tarikStok();
@@ -5430,8 +5578,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.rincianBeli) return rincianPembelian(d.rincianBeli);
 
       if (d.batalPembelian) {
-        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
-        if (!alasan || alasan.trim().length < 5) return;
+        const alasan = await tanya('Batalkan pembelian ini?',
+          '<p class="petunjuk">Stok dan jurnalnya dibalik. Alasannya ikut tercatat.</p>',
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
+            ya: 'Batalkan pembelian', jenis: 'bahaya' });
+        if (!alasan) return;
         try {
           const r = await API.batalPembelian({ uuid: d.batalPembelian, cabang: APP_STATE.cabang, alasan });
           await Sync.tarikStok();
@@ -5502,8 +5653,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.batalPermintaan) {
-        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
-        if (!alasan || alasan.trim().length < 5) return;
+        const alasan = await tanya('Batalkan permintaan ini?',
+          '<p class="petunjuk">Alasannya ikut tercatat dan terbaca cabang yang meminta.</p>',
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
+            ya: 'Batalkan permintaan', jenis: 'bahaya' });
+        if (!alasan) return;
         try {
           await API.batalPermintaan({ uuid: d.batalPermintaan, alasan });
           await sukses('Permintaan dibatalkan.', 'permintaan');
@@ -5592,9 +5746,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- arsip --- */
       if (t.id === 'btnUjiArsip' || t.id === 'btnJalankanArsip') {
         const sungguhan = t.id === 'btnJalankanArsip';
-        if (sungguhan && !confirm(
-          'Jalankan rotasi SUNGGUHAN?\n\nData akan dipindah ke berkas arsip dan dihapus dari berkas cabang. ' +
-          'Penyalinan diverifikasi lebih dulu, tapi tetap pastikan Anda sudah membaca hasil uji coba.')) return;
+        if (sungguhan && !(await tanya('Jalankan rotasi SUNGGUHAN?',
+              '<p class="petunjuk">Data dipindah ke berkas arsip dan dihapus dari berkas cabang.'
+              + ' Penyalinannya diverifikasi lebih dulu, tapi tetap pastikan Anda sudah membaca'
+              + ' hasil uji coba.</p>',
+              { ya: 'Jalankan rotasi', jenis: 'bahaya' }))) return;
         t.disabled = true;
         $('#hasilArsip').innerHTML = '<div class="pesan info" style="margin-top:14px">Memproses… ini bisa memakan beberapa menit untuk data setahun penuh. Jangan tutup jendela.</div>';
         try {
@@ -5658,8 +5814,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnTutupHitung') {
         const belum = $$('[data-hitung]').filter(i =>
           String(i.value).trim() !== '' && !i.classList.contains('sudah-hitung'));
-        if (belum.length && !confirm(
-              `${belum.length} hitungan belum disimpan dan akan hilang. Tutup saja?`)) return;
+        if (belum.length && !(await tanya('Tutup tanpa menyimpan?',
+              `<div class="pesan peringatan">${belum.length} hitungan belum disimpan dan akan hilang.</div>`,
+              { ya: 'Tutup saja', jenis: 'bahaya' }))) return;
         tutupModal();
         return;
       }
@@ -5680,7 +5837,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnSelesaiHitung') {
         const item = hitunganTerisi();
         if (!item.length) return toast('Belum ada satu pun yang diisi.', 'galat');
-        if (!confirm(`Selesaikan penghitungan? ${item.length} barang akan dikunci dan tidak bisa diubah lagi.`)) return;
+        if (!(await tanya('Selesaikan penghitungan?',
+              `<p class="petunjuk">${item.length} barang akan dikunci dan tidak bisa diubah lagi.</p>`,
+              { ya: 'Selesaikan', jenis: 'bahaya' }))) return;
         t.disabled = true;
         try {
           await API.simpanHitungan({ uuid: d.uuid, cabang: APP_STATE.cabang, item });
@@ -5693,7 +5852,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (t.id === 'btnPostingOpname') {
-        if (!confirm('Posting opname? Stok akan disesuaikan dan selisihnya dibukukan. Tindakan ini tidak bisa dibatalkan.')) return;
+        if (!(await tanya('Posting opname?',
+              '<p class="petunjuk">Stok disesuaikan dan selisihnya dibukukan. Tindakan ini tidak bisa dibatalkan.</p>',
+              { ya: 'Posting', jenis: 'bahaya' }))) return;
         t.disabled = true;
         try {
           const r = await API.postingOpname({ uuid: d.uuid, cabang: APP_STATE.cabang,
@@ -5710,8 +5871,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.batalOpname) {
-        const alasan = prompt('Alasan pembatalan opname (minimal 5 karakter):');
-        if (!alasan || alasan.trim().length < 5) return;
+        const alasan = await tanya('Batalkan opname ini?',
+          '<p class="petunjuk">Hitungan yang sudah masuk tetap tersimpan, tapi opnamenya tidak diposting.</p>',
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
+            ya: 'Batalkan opname', jenis: 'bahaya' });
+        if (!alasan) return;
         try {
           await API.batalOpname({ uuid: d.batalOpname, cabang: APP_STATE.cabang, alasan });
           await sukses('Opname dibatalkan.', 'opname');
@@ -5780,9 +5944,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.voidNota) {
         const nota = ($('#hasilCariNotaVoid')._rows || []).find(x => x.uuid === d.voidNota);
         if (!nota) return;
-        if (!confirm(`Void nota ${nota.no_nota} senilai ${rp(nota.total)}?\n\nSeluruh nota akan dibalik — stok, jurnal, dan piutang terkait. Tindakan ini tidak bisa diurungkan.`)) return;
-        const alasan = prompt('Alasan pembatalan (minimal 5 karakter):');
-        if (!alasan || alasan.trim().length < 5) return;
+        /* Dulu DUA dialog beruntun: confirm lalu prompt. Justru pasangan itu
+           yang memicu kotak centang "Cegah halaman ini membuat dialog tambahan"
+           di Chrome — dan sesudah dicentang, void berhenti bekerja tanpa satu
+           pun tanda. Sekarang satu pertanyaan: keputusan dan alasannya sekalian. */
+        const alasan = await tanya(`Void nota ${nota.no_nota}?`,
+          `<div class="pesan peringatan">Senilai ${rp(nota.total)}. Seluruh nota dibalik —
+             stok, jurnal, dan piutang terkait. Tidak bisa diurungkan.</div>`,
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
+            ya: 'Void nota', jenis: 'bahaya' });
+        if (!alasan) return;
         try {
           await API.voidPenjualan({ uuid: nota.uuid, alasan, cabang: APP_STATE.cabang });
           await Sync.tarikStok();
@@ -6085,5 +6256,5 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   // tombolEkspor ikut diekspor supaya app.js memakai komponen yang SAMA,
   // bukan menyalin bentuk tombolnya sendiri.
-  return { muat, pasang, toast, modal: bukaModal, tutupModal, tabel, tombolEkspor };
+  return { muat, pasang, toast, modal: bukaModal, tutupModal, tanya, tabel, tombolEkspor };
 })();

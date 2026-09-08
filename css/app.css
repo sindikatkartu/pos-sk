@@ -775,6 +775,11 @@ label {
   display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px;
 }
 .tirai.tampil { display: flex; }
+
+/* Pertanyaan ya/tidak berdiri DI ATAS modal yang menanyakannya — itu satu-
+   satunya hal yang membedakannya dari modal lain. Lihat `tanya()` di
+   admin.js untuk alasan tirainya dipisah. */
+#tiraiTanya { z-index: 120; }
 /* Tirai yang muncul DI ATAS tirai lain. Persetujuan diskon dibuka dari dalam
    layar Pembayaran yang juga sebuah tirai; tanpa ini keduanya ber-z-index sama
    dan yang belakangan di DOM menang — dialognya tampil tapi tidak bisa diklik. */
