@@ -411,6 +411,18 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    dalam rel 68px itu terpotong di tepinya.
    z-index di atas laci dan tirai, di bawah modal: ia menempel pada sidebar,
    dan dialog yang terbuka harus menutupinya. */
+/* [hidden] HARUS menang atas display apa pun — dan ini akar "flyout nyangkut"
+   yang sesungguhnya, ditemukan 10 Sep 2026 sesudah dua percobaan yang salah
+   sasaran. `.flyout-sisi` di bawah memasang `display: flex`, dan aturan penulis
+   mengalahkan `[hidden] { display: none }` bawaan peramban. Akibatnya
+   `el.hidden = true` mengubah ATRIBUTNYA tanpa mengubah apa pun di layar:
+   setiap penutup — pointerout, gulir, klik, bukaLayar — berjalan, tercatat,
+   dan tidak berbuat apa-apa. Gelembungnya menggantung di tempat terakhir ia
+   digambar, persis tangkapan layar pemilik.
+   Uji peramban dulu hijau karena memeriksa atributnya, bukan yang terlihat;
+   sekarang ia memeriksa `getComputedStyle(...).display`. */
+[hidden] { display: none !important; }
+
 .flyout-sisi {
   position: fixed; z-index: 70; transform: translateY(-50%);
   display: flex; align-items: center; gap: 8px;
@@ -527,12 +539,28 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 #app.sisi-lipat .sisi-grup:first-child { border-top: none; margin-top: 0; padding-top: 0; height: 4px; }
 #app.sisi-lipat .kartu-user { justify-content: center; padding: 0; }
+/* Terlipat: popover kartu pengguna keluar ke KANAN rel, bukan terjepit di
+   dalamnya. `bottom: 4px` menyejajarkan kakinya dengan kaki rel, jadi ia
+   terbaca tumbuh dari kartu yang membukanya. Lebarnya lebar yang sama dengan
+   sidebar terbentang dikurangi tepinya: itu lebar yang isinya sudah terbukti
+   muat. Aturan mode laci (≤1024px) mengembalikannya ke bentuk semula, karena
+   di sana sidebarnya lebar lagi walau kelas lipatnya masih menempel. */
+#app.sisi-lipat .popover-akun {
+  left: calc(100% + 4px); right: auto; bottom: 4px; margin-bottom: 0;
+  width: 220px;
+}
 
 /* ---------- Popover kartu pengguna ---------- */
 /* Ditempel di ATAS kartunya (bottom:100%), bukan di bawah: kartunya sudah
    menempel di dasar sidebar, jadi popover yang membuka ke bawah akan keluar
    dari layar. */
 .sisi-bawah { position: relative; }
+/* Saat sidebar TERLIPAT popover ini MENYAMPING, selebar isinya — lihat aturan
+   `#app.sisi-lipat .popover-akun` di bawah. Tanpa itu ia mewarisi
+   `left:8px; right:8px` dari rel selebar 68px dan menjadi kolom 52px: setiap
+   butir terpotong, keterangan temanya terbelah enam baris, dan kotak centangnya
+   berdiri sendirian tanpa label. Dilaporkan pemilik 9 Sep 2026: "jendela
+   sia-sia kalau dipersempit". */
 .popover-akun {
   position: absolute; bottom: 100%; left: 8px; right: 8px; margin-bottom: 8px;
   background: var(--panel); border: 1px solid var(--garis-rangka);
@@ -1724,6 +1752,9 @@ input.sudah-hitung {
   }
   #app.sisi-lipat .sisi-atas { justify-content: flex-start; padding: 14px 14px 12px; }
   #app.sisi-lipat .kartu-user { justify-content: flex-start; padding: 0 8px; }
+  #app.sisi-lipat .popover-akun {
+    left: 8px; right: 8px; bottom: 100%; margin-bottom: 8px; width: auto;
+  }
 
   /* Satu tetapan, dua panel — lihat .sisi-atas. Menurunkan tinggi bilah atas
      saja akan mematahkan garisnya lagi, di lebar yang justru paling sempit. */

@@ -976,6 +976,10 @@ function bangunPopoverAkun(daftar) {
 }
 
 function bukaPopoverAkun() {
+  /* Gelembung nav tidak boleh menumpuk di atas popover — di tangkapan layar
+     pemilik 9 Sep 2026 "Sistem · Cabang" menggantung tepat di atas kartu
+     pengguna yang barusan dibuka. */
+  sembunyiFlyoutSisi();
   $('#popoverAkun').hidden = false;
   $('#btnKartuUser').setAttribute('aria-expanded', 'true');
   const f = $('#popoverAkun').querySelector('a, button, input');
@@ -4230,18 +4234,44 @@ function pasangEvent() {
      satu saja lupa dilepas.
      `mouseover`/`mouseout` (yang menggelembung), bukan `mouseenter`/`mouseleave`
      (yang tidak) — pendelegasian menuntut peristiwa yang naik ke wadahnya. */
-  $('#navSisi').addEventListener('mouseover', (e) => {
+  /* POINTER events, bukan mouse events — dan ini inti perbaikan "nyangkut"
+     kedua (9 Sep 2026, laporan kedua). Di laptop Windows berlayar sentuh,
+     `(hover: hover)` bernilai BENAR karena penunjuk utamanya tetikus, jadi
+     penyaring itu tidak menolong. Lalu setiap KETUKAN jari disintesis peramban
+     jadi rangkaian mouse: touchstart → touchend → mouseover → mousedown → click.
+     Penutup `touchstart` menyembunyikannya, dan `mouseover` sintetis yang
+     datang SESUDAHNYA membukanya lagi — untuk item yang tidak sedang disentuh
+     siapa pun. Pointer events membawa `pointerType`, dan ketukan jari datang
+     sebagai 'touch', bukan 'mouse'. Jari tidak pernah membuka flyout, titik. */
+  $('#navSisi').addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;
     const a = e.target.closest('a[data-layar]');
     if (a) tampilFlyoutSisi(a);
   });
-  $('#navSisi').addEventListener('mouseout', (e) => {
-    /* Pindah tetikus DI DALAM satu item (dari ikon ke labelnya) juga menembakkan
-       mouseout. Kalau tujuannya masih item yang sama, gelembungnya jangan
+  $('#navSisi').addEventListener('pointerout', (e) => {
+    /* Pindah DI DALAM satu item (dari ikon ke labelnya) juga menembakkan
+       pointerout. Kalau tujuannya masih item yang sama, gelembungnya jangan
        ditutup — kalau ditutup, ia berkedip setiap kali kursor bergeser 2px. */
     const ke = e.relatedTarget;
     if (ke && ke.closest && ke.closest('#navSisi a[data-layar]') === e.target.closest('a[data-layar]')) return;
     sembunyiFlyoutSisi();
   });
+  /* DUA JARING TERAKHIR, dan keduanya yang membuat "nyangkut" mustahil apa pun
+     urutan peristiwa yang terlewat:
+     1. Tekanan di mana pun menutupnya. Flyout adalah petunjuk SEBELUM menekan;
+        begitu ada yang ditekan, petunjuknya sudah tidak ditanyakan lagi.
+     2. Gerakan penunjuk di LUAR nav menutupnya. Kalau pointerout-nya hilang
+        karena sebab apa pun — popover yang muncul di bawah kursor, gambar
+        ulang nav, apa saja — gerakan pertama di luar nav tetap membereskannya.
+        Diperiksa `hidden` dulu supaya ribuan pointermove per detik tidak
+        membayar closest() untuk gelembung yang memang sedang tidak ada. */
+  document.addEventListener('pointerdown', sembunyiFlyoutSisi, true);
+  document.addEventListener('pointermove', (e) => {
+    const el = $('#flyoutSisi');
+    if (!el || el.hidden) return;
+    if (e.target && e.target.closest && e.target.closest('#navSisi')) return;
+    sembunyiFlyoutSisi();
+  }, { passive: true });
   /* focusin/focusout, bukan focus/blur: yang terakhir tidak menggelembung. */
   $('#navSisi').addEventListener('focusin', (e) => {
     const a = e.target.closest('a[data-layar]');
