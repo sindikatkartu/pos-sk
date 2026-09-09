@@ -3810,7 +3810,7 @@ function pasangEvent() {
     const a = e.target.closest('a[data-layar]');
     if (!a) return;
     /* Klik dengan penyerta dibiarkan sepenuhnya pada peramban — itu "buka di
-       tab baru", dan sejak v1.146.0 item ini memang tautan sungguhan. Menangkap
+       tab baru", dan sejak v1.147.0 item ini memang tautan sungguhan. Menangkap
        semua klik akan MENCURI perilaku itu dan menggambar layarnya di tab yang
        sedang dipakai orang. */
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;

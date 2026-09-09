@@ -310,7 +310,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-grup {
   font-size: var(--fs-11); font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
   color: var(--teks-redup); padding: 16px 10px 6px; white-space: nowrap;
-  /* <h2> sejak v1.146.0 — margin bawaan judul akan menggeser seluruh rel. */
+  /* <h2> sejak v1.147.0 — margin bawaan judul akan menggeser seluruh rel. */
   margin: 0;
 }
 /* 4px padding `.sisi-isi` + 14px = 18px di bawah garis — jarak yang SAMA dengan
@@ -318,7 +318,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    membuat garisnya terlihat miring walau lurus. */
 .sisi-grup:first-child { padding-top: 14px; }
 
-/* Daftar kelompok: <ul>/<li> sejak v1.146.0 supaya pembaca layar mengumumkan
+/* Daftar kelompok: <ul>/<li> sejak v1.147.0 supaya pembaca layar mengumumkan
    "Penjualan, daftar 5 butir" dan bukan 23 tautan tanpa struktur. Gaya bawaan
    daftarnya dinolkan — yang berubah hanya apa yang terbaca alat bantu, bukan
    satu piksel pun tampilannya. */
@@ -326,7 +326,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 
 /* Item nav mengikuti sidebar pengaturan GitHub: hover abu muda, item aktif
    ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh.
-   `a`, bukan `button`, sejak v1.146.0: alamat tiap layar jadi bisa disebut,
+   `a`, bukan `button`, sejak v1.147.0: alamat tiap layar jadi bisa disebut,
    Ctrl+klik membuka tab baru, dan tombol Kembali peramban bekerja. */
 .sisi-isi .item-nav {
   display: flex; align-items: center; gap: 10px;
