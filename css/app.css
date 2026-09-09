@@ -483,6 +483,118 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .kartu-user:hover { background: var(--panel-2); }
 .tanda-popover { width: 16px; height: 16px; color: var(--teks-redup); flex-shrink: 0; }
 
+/* KEPALA TABEL MENEMPEL — DICOBA DAN DICABUT, v1.149.0.
+   Jangan dipasang lagi tanpa membaca ini.
+
+   `thead th { position: sticky; top: 0 }` TIDAK PERNAH bekerja di aplikasi
+   ini, dan gagalnya diam: kepalanya tetap tergambar, cuma tidak pernah
+   menempel. Sebabnya setiap tabel back office duduk di dalam `.gulir-x`, dan
+   `overflow-x: auto` memaksa `overflow-y` ikut jadi `auto` — sifat yang sudah
+   disebut catatan di blok 760px untuk urusan lain. Pembungkus itu lalu menjadi
+   wadah gulir bagi `sticky`, sementara yang benar-benar bergulir vertikal
+   `#layarProduk` di atasnya.
+
+   Dicoba melepas pembungkusnya di atas 760px (di sana `min-width: 560px`
+   memang tidak berlaku). Hasil `uji-rupa`: 145 elemen meluber. Tabel lebar —
+   Stok lintas cabang, tab Laporan — memang memakai gulir mendatar itu di lebar
+   desktop sekalipun.
+
+   Satu-satunya jalan tersisa: tabelnya diberi tinggi maksimum dan menggulir DI
+   DALAM kotaknya sendiri, bukan halamannya yang menggulir. Itu mengubah cara
+   seluruh back office bergulir, jadi ia keputusan pemilik — bukan yang boleh
+   diselipkan diam-diam ke dalam rilis performa.
+
+   Paginasi 100 baris sudah memperkecil kerugiannya: satu halaman ~6 layar,
+   bukan 35 layar penuh seperti sebelumnya. */
+
+/* ---------- Menu "⋯" (tindakan yang jarang dipakai) ---------- */
+/* Memakai kembali rupa `.popover-akun` — satu bahasa untuk semua menu yang
+   muncul dari sebuah tombol, bukan dua yang mirip tapi tidak sama. */
+/* Bar alat Produk: DUA KOTAK — atas permintaan pemilik, ⋮ dikunci kanan atas.
+
+   Kotak kiri (`.saringan`) mengambil sisa lebar dan boleh membungkus sendiri;
+   kotak kanan (`.aksi`) selebar isinya dan menempel ke atas. Hasilnya tombol
+   utama dan ⋮ SELALU berdampingan di pojok kanan atas, berapa pun lebarnya —
+   yang turun ke baris kedua hanya saringan, dan itu wajar karena saringan
+   memang daftar.
+
+   Bukan `position:absolute` + `padding-right` seperti percobaan pertama: cara
+   itu mengunci ⋮ tapi membiarkan tombol utama di aliran, jadi di 1024px tombol
+   utama turun sendirian ke baris kedua di bawah ⋮ — dua tindakan sederajat di
+   dua baris. Dan angka padding-nya harus ditebak, lalu salah begitu isi kotak
+   kanannya berubah (peran tanpa hak `produk.buat` tidak punya tombol utama).
+
+   Dipasang pada `.bar-alat-menu`, BUKAN `.bar-alat` — kelas itu dipakai
+   belasan layar lain yang tidak punya susunan ini.
+
+   Selektornya DUA kelas, dan itu bukan hiasan. Aturan dasar `.bar-alat` —
+   `align-items: center; flex-wrap: wrap` — berdiri ~850 baris DI BAWAH sini
+   dengan spesifisitas yang sama, jadi ia menang dan menimpa kedua nilai ini.
+   Akibatnya tidak terlihat di 1366px (semuanya muat sebaris), lalu muncul di
+   1024px sebagai kotak tindakan yang melayang di tengah, dan di 768px sebagai
+   kotak tindakan yang turun ke bawah saringan — persis yang mau dihindari.
+   Ketahuan karena diukur di empat lebar, bukan satu. */
+.bar-alat.bar-alat-menu { align-items: flex-start; flex-wrap: nowrap; }
+.bar-alat-menu > .saringan {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  flex: 1 1 auto; min-width: 0;
+}
+.bar-alat-menu > .aksi {
+  display: flex; gap: 8px; align-items: center; flex: 0 0 auto;
+}
+
+.menu-lain { position: relative; display: inline-flex; }
+.menu-lain > .tombol { padding-left: 10px; padding-right: 10px; position: relative; }
+.popover-menu {
+  bottom: auto; top: 100%; left: auto; right: 0;
+  margin: 6px 0 0; min-width: 240px;
+}
+/* Titik pengingat keranjang stiker. Angkanya hidup di dalam menu; titik ini
+   tugasnya cuma satu — memberi tahu bahwa ada isinya, tanpa harus dibuka. */
+.titik-tanda {
+  position: absolute; top: 5px; right: 5px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--peringatan);
+}
+
+/* Baris penghitung di atas tabel. `.jumlah-baris` membawa `margin-left: auto`
+   untuk hidupnya di dalam `.bar-alat`; di sini ia berdiri sendiri dan harus
+   rata kiri — dorongan itu dinolkan tanpa menyentuh kelasnya, yang masih
+   dipakai layar Laporan. */
+.kepala-tabel { display: flex; align-items: center; margin: -2px 0 10px; }
+.kepala-tabel .jumlah-baris { margin-left: 0; }
+
+/* ---------- Bilah halaman ---------- */
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 12px 4px 2px; flex-wrap: wrap;
+}
+.pager-teks { font-size: var(--fs-13); color: var(--teks-redup); white-space: nowrap; }
+
+/* ---------- Rangka muat (skeleton) ---------- */
+/* Menempati ruang yang persis akan diisi isinya, jadi layarnya tidak melompat
+   saat datanya tiba — lompatan itu yang paling terasa sesudah menunggu lama. */
+.rangka {
+  display: inline-block; height: 12px; border-radius: 4px;
+  background: var(--panel-2); position: relative; overflow: hidden;
+  vertical-align: middle;
+}
+.rangka.tinggi { height: 20px; }
+.rangka::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--garis-kuat), transparent);
+  transform: translateX(-100%);
+  animation: rangka-denyut 1.4s infinite;
+}
+.rangka-baris { padding: 10px 2px; border-bottom: 1px solid var(--garis-halus); }
+.rangka-baris:last-child { border-bottom: none; }
+.rangka-alat { display: flex; gap: 8px; flex-wrap: wrap; }
+@keyframes rangka-denyut { 100% { transform: translateX(100%); } }
+/* Denyutnya padam, rangkanya tetap: yang dibutuhkan orang yang mematikan
+   animasi adalah tahu bentuk yang sedang datang, bukan kehilangan petunjuknya. */
+@media (prefers-reduced-motion: reduce) {
+  .rangka::after { animation: none; display: none; }
+}
+
 /* ---------- Bilah atas ---------- */
 .bar-atas {
   display: flex; align-items: center; gap: 10px;
@@ -1298,8 +1410,18 @@ tr.pisah td { border-top: 1px solid var(--garis); }
    (persis seperti dulu); kalau tidak muat, penghitungnya yang mengisi ujung
    kanan baris pertama dan tombolnya jatuh rata kiri di bawah kolom cari. Pola
    yang sama dipakai `#lncJumlahProduk` di bar alat kasir. */
+/* `margin-left: auto` DIKEMBALIKAN ke sini v1.149.0, mendampingi yang di
+   `.jumlah-baris`. Catatan di atas benar untuk keadaan waktu itu: lima tombol
+   sederajat memang mengisi baris keduanya sendiri, jadi rata kiri terbaca
+   wajar. Sejak Stiker, Ekspor, "Tandai butuh pemasangan" dan "Impor massal"
+   dilipat ke dalam menu "⋯", yang tersisa dua kendali — dan dua kendali rata
+   kiri di bawah kolom cari terbaca seperti tertinggal, bukan seperti kelompok.
+   Ada akibat kedua yang lebih dari sekadar rupa: menu "⋯" dibuka menempel pada
+   tepi KANAN tombolnya, jadi tombol yang terdampar di kiri membuat menunya
+   terpotong tepi kartu. */
 .bar-alat > .kanan {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-left: auto;
 }
 /* Kolom nomor peringkat: selebar isinya saja, jangan ikut membagi sisa ruang. */
 th.sempit, td.sempit { width: 1%; white-space: nowrap; }
@@ -1542,6 +1664,16 @@ input.sudah-hitung {
      kanan yang tidak pernah sejajar. Itulah yang terbaca sebagai berantakan,
      bukan jumlah kendalinya. */
   .bar-alat { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  /* Bar alat Produk punya dua kotak di dalamnya (v1.149.0). Aturan `.bar-alat
+     > *` di bawah hanya menjangkau kedua kotak itu, bukan kendali di dalamnya
+     — tanpa baris ini saringannya tetap berjajar selebar 300/180/160/170 dan
+     membungkus acak di layar 390px. Kotak saringan ikut jadi satu kolom;
+     kotak tindakan jadi dua kolom: tombol utama selebar sisa, ⋮ selebar
+     dirinya — dua tindakan itu tetap satu baris walau di HP. */
+  .bar-alat-menu > .saringan { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .bar-alat-menu > .saringan > * { width: 100%; max-width: none !important; min-width: 0; }
+  .bar-alat-menu > .aksi { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .bar-alat-menu > .aksi > .tombol { width: 100%; }
   /* `max-width` juga dinolkan, bukan hanya `width`. Lebar tiap kendali diberikan
      sebagai gaya SEBARIS di admin.js (`max-width:180px`, `170px`, `160px`) —
      angka yang dipilih untuk layar lebar. Kolom gridnya memang sudah 1fr, tapi

@@ -292,6 +292,7 @@ const API = (() => {
     /* --- back office --- */
     dashboard:         (d) => panggil('ringkasan_dashboard', d, { timeout: 90000 }),
     daftarProduk:      (d) => panggil('daftar_produk', d, { timeout: 90000 }),
+    produkSatu:        (d) => panggil('produk_satu', d),
     produkTerjual:     (d) => panggil('produk_terjual', d, { timeout: 90000 }),
     simpanProdukLengkap:(d)=> panggil('simpan_produk_lengkap', d),
     nonaktifkanProduk: (d) => panggil('nonaktifkan_produk', d),

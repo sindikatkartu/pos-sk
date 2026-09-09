@@ -155,6 +155,53 @@ const Admin = (() => {
   };
 
   const memuat = (el) => { $(el).innerHTML = '<div class="kartu">Memuat…</div>'; };
+
+  /**
+   * RANGKA (skeleton) — bentuk layar yang sedang datang, bukan kata "Memuat…".
+   *
+   * Layar Produk menunggu ~10 detik: server membaca sheet lalu mengirim ratusan
+   * KB. Selama itu satu kata di tengah kartu kosong tidak memberi tahu apa pun —
+   * tidak berapa lama lagi, tidak apa yang akan muncul, dan tidak apakah
+   * aplikasinya masih hidup. Rangka menjawab ketiganya sekaligus dengan
+   * menempati ruang yang persis akan diisi isinya, jadi layarnya juga tidak
+   * melompat saat datanya tiba.
+   *
+   * Ia TIDAK mempercepat apa pun, dan itu penting untuk diingat sesi
+   * berikutnya: yang diperbaiki rasa menunggu, bukan lamanya. Yang memperpendek
+   * waktunya ada di tempat lain — muatan `apiDaftarProduk` (v1.149.0).
+   *
+   * `prefers-reduced-motion` dihormati di CSS: denyutnya padam, rangkanya tetap.
+   */
+  const rangkaBaris = (n, lebar) => Array.from({ length: n }, (_, i) =>
+    `<div class="rangka-baris"><span class="rangka" style="width:${lebar[i % lebar.length]}"></span></div>`).join('');
+
+  const rangkaProduk = () => { $('#isiProduk').innerHTML = `
+    <div class="kartu"><div class="rangka-alat">
+      ${['300px', '180px', '170px', '160px'].map(w =>
+        `<span class="rangka tinggi" style="width:${w}"></span>`).join('')}
+    </div></div>
+    <div class="kartu" aria-busy="true" aria-label="Memuat daftar produk">
+      ${rangkaBaris(12, ['92%', '78%', '86%', '70%'])}
+    </div>`; };
+
+  const rangkaDashboard = () => { $('#isiDashboard').innerHTML = `
+    <div class="bar-alat rapat"><span class="rangka tinggi" style="width:150px"></span></div>
+    <!-- Bentuknya memakai .mini yang SAMA dengan kartu KPI sungguhan, bukan
+         kotak karangan sendiri: rangka yang ukurannya berbeda dari isinya
+         membuat layar melompat tepat saat datanya tiba, dan lompatan itu
+         justru yang paling terasa sesudah menunggu sepuluh detik.
+         (Tanpa petik-balik: blok ini ada di dalam template literal.) -->
+    <div class="petak-mini" aria-busy="true" aria-label="Memuat ringkasan">
+      ${Array.from({ length: 6 }, () => `<div class="mini">
+        <div class="mini-label"><span class="rangka" style="width:70px"></span></div>
+        <div class="mini-nilai"><span class="rangka tinggi" style="width:110px"></span></div>
+        <div class="mini-ekor"><span class="rangka" style="width:48px"></span></div>
+      </div>`).join('')}
+    </div>
+    <div class="kartu" aria-busy="true">
+      <span class="rangka" style="width:120px"></span>
+      ${rangkaBaris(6, ['88%', '64%', '80%', '72%'])}
+    </div>`; };
   const galat = (el, e) => { $(el).innerHTML = `<div class="pesan galat">${esc(e.message || e)}</div>`; };
 
   /**
@@ -420,6 +467,14 @@ const Admin = (() => {
     </span>`;
   };
 
+  /** Tutup menu "⋯" layar Produk, kalau sedang terbuka. */
+  function tutupMenuLain() {
+    const m = $('#menuProduk');
+    if (!m || m.hidden) return;
+    m.hidden = true;
+    $('#btnMenuProduk')?.setAttribute('aria-expanded', 'false');
+  }
+
   /** Tutup semua menu ekspor yang sedang terbuka. */
   function tutupMenuEkspor() {
     $$('.ekspor.buka').forEach(g => {
@@ -528,7 +583,7 @@ const Admin = (() => {
     </div>`;
 
   async function muatDashboard() {
-    memuat('#isiDashboard');
+    rangkaDashboard();
     try {
       const d = await API.dashboard({ periode: periodeDash });
       /**
@@ -820,10 +875,13 @@ const Admin = (() => {
       render: r => Number(r.poin_satuan) > 0 ? String(r.poin_satuan) : '—' },
     { id: 'margin', judul: 'Margin', angka: true, butuhModal: true,
       render: r => (r.margin_eceran || 0).toFixed(1) + '%' },
-    { id: 'turunan', judul: 'Turunan', render: r => [
-        r.satuan.length ? `<span class="lencana">${r.satuan.length} satuan</span>` : '',
-        r.tier.length ? `<span class="lencana">${r.tier.length} tier</span>` : '',
-        r.varian.length ? `<span class="lencana">${r.varian.length} varian</span>` : ''
+    /* Sejak v1.149.0 daftar hanya membawa JUMLAHNYA, dan itu pun hanya kalau
+       kolom ini sedang dipakai — pola yang sama dengan kolom "Terjual".
+       `butuhTurunan` yang memicu penarikannya. */
+    { id: 'turunan', judul: 'Turunan', butuhTurunan: true, render: r => [
+        r.n_satuan ? `<span class="lencana">${r.n_satuan} satuan</span>` : '',
+        r.n_tier ? `<span class="lencana">${r.n_tier} tier</span>` : '',
+        r.n_varian ? `<span class="lencana">${r.n_varian} varian</span>` : ''
       ].filter(Boolean).join(' ') || '—' },
     { id: 'stok_min', judul: 'Stok min', angka: true, render: r => String(r.stok_min ?? 0) },
     { id: 'barcode', judul: 'Barcode', render: r => esc(r.barcode || '') || '—' },
@@ -874,6 +932,16 @@ const Admin = (() => {
      ikut tersimpan. Membuka aplikasi besok kembali ke Poin. */
   let kolomProduk = 'poin', saringProduk = '';
   let dataProduk = null, kueriProduk = '', kategoriProduk = '';
+
+  /* PAGINASI — v1.149.0.
+     Diukur di panggung dengan 3.500 produk: satu gambar penuh menghasilkan
+     45.647 node di dalam #isiProduk, dan node itu TIDAK hilang saat pindah
+     layar (`bukaLayar` hanya mencabut class `aktif`), jadi setiap layar lain
+     sesudahnya ikut memikulnya. 100 baris = sekitar 1.300 node.
+     Yang dipotong hanya YANG DIGAMBAR: cari, saring kategori, saring baris dan
+     ekspor tetap bekerja atas SELURUH katalog seperti sebelumnya. */
+  const BARIS_PER_HAL = 100;
+  let halProduk = 1;
   /* `qty` peta SKU → jumlah terjual; `kunci` menandai rentang MANA yang sudah
      di tangan. Dulu penandanya cuma `siap` (benar/salah) — itu cukup selama
      rentangnya tetap, tapi begitu rentangnya bisa diganti, peta 30 hari akan
@@ -903,10 +971,27 @@ const Admin = (() => {
    * ikut terkirim di dalam tiap baris, jadi saringan di sini menemukan barang
    * yang SAMA — bukan versi yang lebih dangkal.
    */
+  /** Apakah tarikan terakhir sudah membawa jumlah satuan/tier/varian. */
+  let turunanSiap = false;
+  /* Penjaga gelang. `gambarProduk` menjadwalkan penarikan ulang saat kolom
+     Turunan dipilih, dan `muatProduk` menggambar lagi sesudahnya — kalau
+     servernya menjawab tanpa `turunan_ada` (server LAMA yang masih berjalan
+     sesaat setelah terbit; lihat catatan serupa di muatDashboard), keduanya
+     akan saling memanggil tanpa henti dan layarnya berkedip selamanya.
+     Dicoba SEKALI; gagal berarti kolomnya tetap kosong, bukan aplikasi mati. */
+  let turunanDicoba = false;
+
   async function muatProduk() {
-    memuat('#isiProduk');
+    rangkaProduk();
     try {
-      const d = await API.daftarProduk({ termasuk_nonaktif: true });
+      /* `turunan` diminta hanya kalau kolomnya memang sedang dipilih. Tiga
+         pembacaan sheet (441 md) tidak dibayar orang yang cuma mencari satu
+         harga. */
+      const minta = { termasuk_nonaktif: true };
+      if (kolomProduk === 'turunan') minta.turunan = true;
+      const d = await API.daftarProduk(minta);
+      turunanSiap = d.turunan_ada === true;
+      if (turunanSiap) turunanDicoba = false;   /* boleh dicoba lagi nanti */
       cacheProduk = d.produk;
       /* Teks pencarian disusun SEKALI per barang, bukan tiap ketikan. Pada 362
          produk bedanya belum terasa; pada katalog yang tumbuh, menyusun ulang
@@ -975,7 +1060,16 @@ const Admin = (() => {
     // Tanpa izin harga modal, Margin tidak ada dalam daftar. Kalau ia yang
     // sedang terpilih, jangan tinggalkan dropdown menunjuk pilihan yang lenyap.
     if (kolomProduk && !pilihan.some(k => k.id === kolomProduk)) kolomProduk = 'poin';
-    const kolomAktif = pilihan.find(k => k.id === kolomProduk);
+    let kolomAktif = pilihan.find(k => k.id === kolomProduk);
+    /* Kolom yang butuh data turunan tapi datanya belum ditarik dikembalikan ke
+       "tidak ada" untuk gambar ini, DAN penarikannya dijadwalkan. Kalau
+       dibiarkan, kolomnya menampilkan "—" untuk seluruh katalog — jawaban yang
+       salah, bukan jawaban yang kosong. Pola dan alasannya sama dengan
+       `saring.butuhTerjual` di bawah. */
+    if (kolomAktif && kolomAktif.butuhTurunan && !turunanSiap) {
+      kolomAktif = null;
+      if (!turunanDicoba) { turunanDicoba = true; muatProduk(); }
+    }
 
     let saring = SARING_PRODUK.find(s => s.id === saringProduk) || SARING_PRODUK[0];
     /* Penyaring yang butuh data penjualan tapi datanya belum ada dikembalikan ke
@@ -992,43 +1086,116 @@ const Admin = (() => {
 
     $('#isiProduk').innerHTML = `
       <div class="kartu">
-        <div class="bar-alat">
-          <input type="text" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueriProduk)}" style="max-width:300px">
-          <select id="filterKategori" style="max-width:180px">${opsiKategori(d.kategori_ada, kategoriProduk)}</select>
-          <select id="kolomProduk" style="max-width:170px" title="Kolom tambahan yang ditampilkan">
-            ${pilihan.map(k => `<option value="${k.id}" ${k.id === kolomProduk ? 'selected' : ''}>Tampilkan: ${esc(k.judul)}</option>`).join('')}
-            <option value="" ${kolomProduk ? '' : 'selected'}>Tampilkan: tidak ada</option>
-          </select>
-          <select id="saringProduk" style="max-width:160px" title="Saring baris">
-            ${SARING_PRODUK.map(s => `<option value="${s.id}" ${s.id === saringProduk ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
-          </select>
-          ${saring.butuhTerjual ? `
-            <!-- Kedua tanggal dibungkus SATU wadah supaya tidak pernah terpisah
-                 saat bar alat pindah baris. Kolom "dari" di ujung baris pertama
-                 dan "sampai" di awal baris kedua terbaca sebagai dua penyaring
-                 yang tidak ada hubungannya. -->
-            <span style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap"
-                  title="Rentang penjualan yang dihitung">
-              <input type="date" id="terjualDari" value="${esc(terjualProduk.dari)}" style="max-width:150px">
-              <span style="color:var(--teks-redup)">–</span>
-              <input type="date" id="terjualSampai" value="${esc(terjualProduk.sampai)}" style="max-width:150px">
-            </span>` : ''}
-          <span class="jumlah-baris">${hitung}</span>
-          <div class="kanan">
-            <button class="tombol" id="btnKeranjangLabel">Stiker <span class="lencana" id="lencanaStiker">0</span></button>
-            ${tombolEkspor('produk')}
-            ${bolehIzin('produk', 'ubah') ? `
-              <button class="tombol" id="btnTandaiPasang"
-                title="Tandai seluruh kategori sekaligus sebagai barang yang dipasang">Tandai butuh pemasangan</button>` : ''}
-            ${bolehIzin('produk', 'buat') ? `
-              <button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>
-              <button class="tombol" id="btnImporProduk">Impor massal</button>` : ''}
+        <!-- URUTAN BAR ALAT — disusun ulang v1.149.0 atas permintaan pemilik.
+             Sebelumnya lima tombol berjajar dengan bobot yang sama persis, dan
+             "+ Produk baru" — satu-satunya yang dipakai berkali-kali sehari —
+             terjepit di antara "Tandai butuh pemasangan" dan "Impor massal",
+             dua tombol yang dipakai beberapa kali setahun.
+
+             Susunannya sekarang: yang MENYARING lebih dulu (cari → kategori →
+             saring baris), lalu yang mengubah TAMPILAN (kolom tambahan), lalu
+             jumlah barisnya. Tindakan pindah ke kanan: satu tombol utama, dan
+             sisanya di balik "⋯".
+
+             Kolom cari berdiri paling kiri karena itu jalan masuk yang paling
+             sering dipakai; menyaring kategori dan menyaring baris berdempetan
+             karena keduanya mengurangi baris, sementara "Tampilkan" tidak
+             mengurangi apa pun — ia menambah lajur. Mencampur ketiganya
+             membuat orang mengira "Tampilkan: Poin" ikut menyembunyikan barang. -->
+        <div class="bar-alat bar-alat-menu">
+          <!-- DUA KOTAK, bukan satu deretan yang membungkus.
+               Saringan mengalir di kiri dan boleh membungkus sendiri; tindakan
+               diam di kanan atas dan tidak pernah ikut turun. Sebelum ini
+               (percobaan pertama v1.149.0) tombol ⋮ dikunci dengan
+               position:absolute dan tombol utama dibiarkan di aliran — di
+               1024px tombol utama turun sendirian ke baris kedua, rata kanan,
+               di bawah ⋮ yang tetap di atas: dua tindakan yang sederajat di dua
+               baris berbeda. Persis bentuk berantakan yang mau dihilangkan.
+               Dengan dua kotak, keduanya SELALU berdampingan, dan yang
+               membungkus hanya saringannya — itu wajar, karena saringan memang
+               daftar, sementara tindakan adalah pasangan.
+               (Tanpa petik-balik: blok ini ada di dalam template literal.) -->
+          <div class="saringan">
+            <input type="text" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueriProduk)}" style="max-width:300px">
+            <select id="filterKategori" style="max-width:180px">${opsiKategori(d.kategori_ada, kategoriProduk)}</select>
+            <select id="saringProduk" style="max-width:160px" title="Saring baris">
+              ${SARING_PRODUK.map(s => `<option value="${s.id}" ${s.id === saringProduk ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+            </select>
+            <select id="kolomProduk" style="max-width:170px" title="Kolom tambahan yang ditampilkan">
+              ${pilihan.map(k => `<option value="${k.id}" ${k.id === kolomProduk ? 'selected' : ''}>Tampilkan: ${esc(k.judul)}</option>`).join('')}
+              <option value="" ${kolomProduk ? '' : 'selected'}>Tampilkan: tidak ada</option>
+            </select>
+            ${saring.butuhTerjual ? `
+              <span style="display:inline-flex;gap:6px;align-items:center;white-space:nowrap"
+                    title="Rentang penjualan yang dihitung">
+                <input type="date" id="terjualDari" value="${esc(terjualProduk.dari)}" style="max-width:150px">
+                <span style="color:var(--teks-redup)">–</span>
+                <input type="date" id="terjualSampai" value="${esc(terjualProduk.sampai)}" style="max-width:150px">
+              </span>` : ''}
+          </div>
+          <div class="aksi">
+            ${bolehIzin('produk', 'buat')
+              ? `<button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>` : ''}
+            ${menuLainProduk()}
           </div>
         </div>
       </div>
       <div class="kartu" id="wadahTabelProduk">
-        ${tabelProduk(baris, modal, saring, kolomAktif)}
+        ${isiTabelProduk(baris, modal, saring, kolomAktif, hitung)}
       </div>`;
+  }
+
+  /**
+   * Isi kartu tabel: penghitung, tabel, bilah halaman.
+   *
+   * Penghitung PINDAH dari bar alat ke sini v1.149.0. Di bar alat ia jadi
+   * kendali kelima yang bukan kendali — tidak bisa ditekan, tidak bisa diubah,
+   * dan ikut mendorong bar alatnya membungkus jadi dua baris. Tempatnya yang
+   * benar menempel pada apa yang dihitungnya.
+   *
+   * Ia juga menjawab pertanyaan yang berbeda dari bilah halaman di kaki:
+   * penghitung menyebut BERAPA YANG COCOK ("240 dari 3.500 produk" saat
+   * disaring), bilah halaman menyebut SEBELAH MANA yang sedang dilihat
+   * ("1–100 · halaman 1/3"). Karena itu keduanya ada, dan karena itu pula
+   * "dari 3.500" dibuang dari bilah halaman — dulu ia mengulang angka yang
+   * sudah berdiri dua sentimeter di atasnya.
+   *
+   * Kelas `.jumlah-baris` DIPERTAHANKAN: layar Laporan memakainya juga
+   * (`#lapNotaHitung`), dan uji layar Produk mencari lewat kelas itu.
+   */
+  function isiTabelProduk(baris, modal, saring, kolomAktif, hitung) {
+    return `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
+      tabelProduk(potongHal(baris), modal, saring, kolomAktif) +
+      pagerProduk(baris.length);
+  }
+
+  /** Baris untuk halaman yang sedang dilihat. Menjepit halamannya sekalian:
+   *  mengetik di kolom cari bisa membuat halaman 12 tidak ada lagi, dan
+   *  halaman kosong terbaca sebagai "tidak ada produk cocok" yang salah. */
+  function potongHal(baris) {
+    const maks = Math.max(1, Math.ceil(baris.length / BARIS_PER_HAL));
+    if (halProduk > maks) halProduk = maks;
+    if (halProduk < 1) halProduk = 1;
+    return baris.slice((halProduk - 1) * BARIS_PER_HAL, halProduk * BARIS_PER_HAL);
+  }
+
+  /** Bilah halaman. Disembunyikan kalau semuanya muat di satu halaman —
+   *  kendali yang tidak pernah bisa ditekan cuma menambah yang harus dibaca. */
+  function pagerProduk(total) {
+    const maks = Math.ceil(total / BARIS_PER_HAL);
+    if (maks <= 1) return '';
+    const dari = (halProduk - 1) * BARIS_PER_HAL + 1;
+    const sampai = Math.min(halProduk * BARIS_PER_HAL, total);
+    return `
+      <nav class="pager" aria-label="Halaman daftar produk">
+        <button class="tombol kecil" data-hal="prev" ${halProduk <= 1 ? 'disabled' : ''}
+          aria-label="Halaman sebelumnya">‹ Sebelumnya</button>
+        <span class="pager-teks" aria-live="polite">
+          ${dari}–${sampai} · halaman ${halProduk}/${maks}
+        </span>
+        <button class="tombol kecil" data-hal="next" ${halProduk >= maks ? 'disabled' : ''}
+          aria-label="Halaman berikutnya">Berikutnya ›</button>
+      </nav>`;
   }
 
   /**
@@ -1053,16 +1220,74 @@ const Admin = (() => {
     const terlihat = saringKatalog();
     const baris = terlihat.filter(saring.lolos);
     if (saring.urut) baris.sort(saring.urut);
-    $('#wadahTabelProduk').innerHTML = tabelProduk(baris, modal, saring, kolomAktif);
-    const hitung = $('.jumlah-baris');
-    if (hitung) {
-      hitung.textContent = baris.length === cacheProduk.length
-        ? `${cacheProduk.length} produk`
-        : `${baris.length} dari ${cacheProduk.length} produk`;
-    }
+    /* Penghitungnya ikut digambar ulang di sini, bukan ditambal sesudahnya.
+       `$('.jumlah-baris')` mencari ke SELURUH dokumen: kalau layar Produk
+       kebetulan tidak punya penghitung, ia akan menemukan milik layar Laporan
+       (`#lapNotaHitung`) dan menimpanya dengan jumlah produk. */
+    const hitung = baris.length === cacheProduk.length
+      ? `${cacheProduk.length} produk`
+      : `${baris.length} dari ${cacheProduk.length} produk`;
+    $('#wadahTabelProduk').innerHTML = isiTabelProduk(baris, modal, saring, kolomAktif, hitung);
   }
 
   /** Bentuk tabel produk — SATU tempat, dipakai penggambaran penuh dan parsial. */
+  /**
+   * Menu "⋯" layar Produk: tindakan yang jarang dipakai, dikumpulkan.
+   *
+   * Stiker, Ekspor, "Tandai butuh pemasangan" dan "Impor massal" dulu berjajar
+   * sederajat dengan "+ Produk baru". Empat dari lima tombol itu dipakai
+   * beberapa kali setahun; yang kelima dipakai tiap hari.
+   *
+   * TIGA hal yang tidak boleh hilang saat dilipat ke dalam menu:
+   *
+   * 1. Penghitung stiker. Keranjang stiker adalah tempat menumpuk sebelum
+   *    dicetak, dan angkanya yang mengingatkan bahwa masih ada yang menunggu.
+   *    Menyembunyikannya di balik menu berarti orang lupa mencetak. Karena itu
+   *    tombol "⋯" sendiri memakai titik penanda saat keranjangnya berisi, dan
+   *    angkanya tetap ditulis di butir pertama.
+   * 2. Format ekspor. `tombolEkspor` membawa dropdown-nya sendiri, dan menu di
+   *    dalam menu adalah dua lapis yang harus dibuka untuk satu tindakan. Jadi
+   *    ketiga formatnya DIRATAKAN jadi butir tersendiri — id dan data-atribut
+   *    yang sama persis, jadi penangan ekspor yang sudah ada tetap bekerja.
+   * 3. Hak akses. Butir yang perannya tidak berhak TIDAK digambar, sama seperti
+   *    sebelum dilipat. Kalau seluruh isinya kosong, tombol "⋯" pun tidak
+   *    digambar — tombol yang membuka menu kosong lebih buruk daripada tidak
+   *    ada tombol.
+   */
+  function menuLainProduk() {
+    const bolehUbah = bolehIzin('produk', 'ubah');
+    const bolehBuat = bolehIzin('produk', 'buat');
+    const butir =
+      `<button class="popover-item" role="menuitem" id="btnKeranjangLabel">
+         <span>Keranjang stiker</span><span class="lencana" id="lencanaStiker">0</span>
+       </button>` +
+      `<div class="popover-pisah">
+         <p class="petunjuk" style="padding:2px 10px 4px;margin:0">Ekspor daftar ini</p>
+         ${FORMAT_EKSPOR.map(f => `<button class="popover-item" role="menuitem"
+             data-ekspor="produk" data-format="${f.kode}" data-params='{}'>
+             <span>${esc(f.label)}</span><span class="petunjuk">${esc(f.ket)}</span></button>`).join('')}
+       </div>` +
+      ((bolehUbah || bolehBuat) ? `<div class="popover-pisah">
+         ${bolehUbah ? `<button class="popover-item" role="menuitem" id="btnTandaiPasang">
+             <span>Tandai butuh pemasangan</span></button>` : ''}
+         ${bolehBuat ? `<button class="popover-item" role="menuitem" id="btnImporProduk">
+             <span>Impor massal</span></button>` : ''}
+       </div>` : '');
+
+    return `<div class="menu-lain">
+      <button class="tombol" id="btnMenuProduk" aria-haspopup="menu" aria-expanded="false"
+              aria-controls="menuProduk" aria-label="Tindakan lain" title="Tindakan lain">
+        <svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">
+          <circle cx="12" cy="5"  r="1.6" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>
+        <span class="titik-tanda sembunyi" id="titikStiker" aria-hidden="true"></span>
+      </button>
+      <div class="popover-akun popover-menu" id="menuProduk" role="menu"
+           aria-labelledby="btnMenuProduk" hidden>${butir}</div>
+    </div>`;
+  }
+
   function tabelProduk(baris, modal, saring, kolomAktif) {
     return tabel([
           { judul: 'SKU', kunci: 'sku' },
@@ -1132,11 +1357,17 @@ const Admin = (() => {
     perbaruiLencanaStiker(k);
   };
 
-  /** Angka di tombol Stiker = jumlah STIKER, bukan jumlah baris keranjang. */
+  /** Angka di butir Stiker = jumlah STIKER, bukan jumlah baris keranjang. */
   function perbaruiLencanaStiker(k) {
+    const n = (k || []).reduce((a, x) => a + (Number(x.lembar) || 1), 0);
     const el = $('#lencanaStiker');
-    if (!el) return;
-    el.textContent = String((k || []).reduce((a, x) => a + (Number(x.lembar) || 1), 0));
+    if (el) el.textContent = String(n);
+    /* Penanda di tombol "⋯" — sejak keranjang stiker pindah ke dalam menu,
+       angkanya tidak lagi terlihat tanpa membukanya. Titik kecil ini yang
+       menggantikan tugas mengingatkan: ada yang menunggu dicetak. Tanpa itu,
+       melipat tombolnya ke dalam menu sama saja dengan membuang pengingatnya. */
+    const t = $('#titikStiker');
+    if (t) t.classList.toggle('sembunyi', n === 0);
   }
 
   /**
@@ -1394,8 +1625,42 @@ const Admin = (() => {
     } catch (e) { toast('Gagal mencetak: ' + e.message, 'galat'); }
   }
 
-  function editorProduk(sku) {
-    const p = sku ? cacheProduk.find(x => x.sku === sku) : null;
+  /**
+   * Formulir "Ubah produk" menarik produknya SENDIRI, segar — v1.149.0.
+   *
+   * Sampai v1.148.0 ia mengisi kolomnya dari `cacheProduk`, potret yang diambil
+   * saat layar Produk dibuka. Itu bisa berjam-jam sebelumnya, dan akibatnya
+   * persis yang diceritakan `_konflikProduk` di 11_Admin.gs: A membetulkan
+   * ejaan pukul 09:10 dari salinan pukul 09:00, dan tier grosir yang B tambahkan
+   * pukul 09:05 hilang tanpa jejak.
+   *
+   * Sejak daftar berhenti mengangkut satuan/tier/varian, penarikan ini bukan
+   * lagi ongkos tambahan — ia memindahkan ongkos yang sama dari 3.500 produk
+   * ke satu produk yang benar-benar dibuka.
+   *
+   * Penjaga konflik di server TETAP ADA: dua orang masih bisa membuka formulir
+   * yang sama pada menit yang sama. Yang berubah panjang jendelanya.
+   */
+  async function editorProduk(sku) {
+    let p = null;
+    if (sku) {
+      try {
+        p = await API.produkSatu({ sku });
+      } catch (e) {
+        /* GAGAL BERARTI TIDAK DIBUKA. Tidak ada cadangan ke `cacheProduk`.
+           Sejak v1.149.0 daftar tidak lagi mengangkut satuan/tier/varian, dan
+           `apiSimpanProdukLengkap` MENGHAPUS-LALU-MENULIS-ULANG ketiganya dari
+           apa yang dikirim formulir. Formulir yang diisi dari salinan daftar
+           karena itu akan menghapus seluruh satuan, tier dan varian produk itu
+           begitu Simpan ditekan — diam-diam, tanpa satu pun galat.
+           Formulir yang tidak jadi terbuka menghalangi pekerjaan selama
+           beberapa detik; formulir yang terbuka dengan larik kosong menghapus
+           data yang tidak bisa dikembalikan. */
+        return toast('Gagal menarik data produk — ' + e.message +
+                     ' Coba lagi — formulir tidak dibuka supaya satuan, tier ' +
+                     'dan varian produk ini tidak terhapus saat disimpan.', 'galat');
+      }
+    }
     const baru = !p;
     const modal = APP_STATE.flag.lihat_harga_modal;
 
@@ -5303,6 +5568,32 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
 
       /* --- produk --- */
+      if (t.closest('#btnMenuProduk')) {
+        const m = $('#menuProduk');
+        const buka = m.hidden;
+        m.hidden = !buka;
+        $('#btnMenuProduk').setAttribute('aria-expanded', String(buka));
+        if (buka) m.querySelector('button')?.focus();
+        return;
+      }
+      /* Memilih apa pun di dalamnya menutupnya. Butir ekspor pun: unduhannya
+         berjalan sendiri, dan menu yang tetap menganga sesudah tindakannya
+         selesai terbaca seperti tombol yang tidak jadi menekan. */
+      if (t.closest('#menuProduk')) {
+        const m = $('#menuProduk');
+        setTimeout(() => { m.hidden = true;
+          $('#btnMenuProduk')?.setAttribute('aria-expanded', 'false'); }, 0);
+      }
+      if (d.hal) {
+        const arah = d.hal === 'next' ? 1 : -1;
+        halProduk += arah;
+        gambarBarisProduk();
+        /* Digulirkan ke kepala tabel, bukan dibiarkan di tempat: menekan
+           "Berikutnya" di kaki halaman lalu tetap berada di kaki berarti
+           melihat baris 200 dari halaman baru, bukan baris 101. */
+        $('#wadahTabelProduk')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        return;
+      }
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
       if (d.editProduk)               return editorProduk(d.editProduk);
       if (d.labelProduk)              return tambahKeranjangLabel(d.labelProduk);
@@ -6158,6 +6449,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            ketikan menembak server — sekarang tidak ada yang perlu ditunggu, dan
            menunda 300ms hanya membuat huruf terasa tertinggal. */
         kueriProduk = e.target.value;
+        /* Kembali ke halaman 1 setiap kali saringannya berubah. Tanpa ini,
+           mengetik saat sedang di halaman 12 menampilkan halaman 12 dari hasil
+           yang baru — yang hampir selalu kosong, dan terbaca sebagai "tidak ada
+           produk cocok" padahal cocoknya ada di halaman 1. */
+        halProduk = 1;
         gambarBarisProduk();
         return;
       }
@@ -6178,6 +6474,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            elemennya tidak diganti — dulu ia harus, dan pengguna papan ketik
            terkunci di kategori pertama setiap kali lupa. */
         kategoriProduk = e.target.value;
+        halProduk = 1;
         gambarBarisProduk();
         return;
       }
@@ -6203,6 +6500,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            tidak mengubah bentuk apa pun. */
         if (id === 'kolomProduk') kolomProduk = e.target.value;
         else saringProduk = e.target.value;
+        halProduk = 1;   /* jumlah barisnya berubah — lihat catatan di kolom cari */
         /* Penyaring yang butuh data penjualan menariknya SEKARANG. Penjaga
            "jangan tarik dua kali" ada DI DALAM `muatTerjual()`, satu tempat
            saja — penjaga kedua di sini akan membuat penjaga yang sebenarnya
@@ -6344,9 +6642,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      */
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.ekspor')) tutupMenuEkspor();
+      /* Menu "⋯" ikut aturan yang sama. `.menu-lain` mencakup tombol DAN
+         popovernya, jadi klik di dalam keduanya tidak menutupnya di sini —
+         yang menutup sesudah sebuah butir dipilih adalah penangan butirnya
+         sendiri. */
+      if (!e.target.closest('.menu-lain')) tutupMenuLain();
     }, true);
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') tutupMenuEkspor();
+      if (e.key !== 'Escape') return;
+      tutupMenuEkspor();
+      /* Esc mengembalikan fokus ke tombolnya. Menutup menu lalu meninggalkan
+         fokus di elemen yang baru saja disembunyikan membuat Tab berikutnya
+         melompat ke tempat yang tidak bisa ditebak siapa pun. */
+      const adaMenu = $('#menuProduk') && !$('#menuProduk').hidden;
+      tutupMenuLain();
+      if (adaMenu) $('#btnMenuProduk')?.focus();
     });
 
     document.addEventListener('click', (e) => {
