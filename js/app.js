@@ -1238,10 +1238,40 @@ function modeTinjau() {
   return !!APP_STATE.cabangKerja && APP_STATE.cabang !== APP_STATE.cabangKerja;
 }
 
-/** Tolak satu tindakan sambil menyebut sebabnya DAN jalan keluarnya. */
-function tolakTinjau(apa) {
-  Admin.toast('Mode tinjau — ' + apa + ' tidak bisa dilakukan di cabang '
-            + APP_STATE.cabang + '. Keluar lalu masuk lagi untuk bekerja di sini.', 'galat');
+/**
+ * Tanya sekali sebelum sebuah dokumen dibuat di cabang yang sedang ditinjau.
+ *
+ * BERTANYA, BUKAN MENOLAK — dan itu koreksi atas rancangan pertama.
+ *
+ * Versi pertama memblokirnya sama sekali. Yang membatalkannya: mencatat
+ * transaksi ke cabang lain adalah alur yang MEMANG DIRANCANG di ERP, bukan
+ * celah yang ditoleransi. Manual Accurate menyebutnya lugas — "bagi pengguna
+ * yang memiliki akses ke beberapa cabang, perlu melakukan pemilihan nama
+ * cabang-nya" saat memasukkan transaksi. Yang dikontrol bukan di cabang mana
+ * orangnya duduk, melainkan cabang mana yang boleh ia akses. NetSuite sama:
+ * peran dibatasi ke subsidiary tertentu, dan bertransaksi di semua subsidiary
+ * yang tercakup peran itu normal.
+ *
+ * Artinya server di sini SUDAH benar menurut norma itu: `apiGantiCabang`
+ * memeriksa flag `akses_lintas_cabang` DAN keanggotaan cabang di daftar akun.
+ * Owner yang punya SK02 di daftarnya memang berhak menyimpan nota di SK02.
+ * Memblokirnya akan menghukum pekerjaan yang sah — menutup shift kasir yang
+ * pulang mendadak, mengoreksi nota di cabang sebelah, mencatat kas di sana.
+ *
+ * Yang berbahaya bukan 'bertransaksi di cabang lain', melainkan melakukannya
+ * TANPA SADAR. Jadi yang dipasang pertanyaan, bukan tembok.
+ *
+ * @return {Promise<boolean>} true kalau boleh lanjut (termasuk saat tidak
+ *   sedang meninjau — di cabang sendiri tidak ada yang perlu ditanyakan).
+ */
+function tanyaTinjau(apa) {
+  if (!modeTinjau()) return Promise.resolve(true);
+  return Admin.tanya('Catat di cabang ' + APP_STATE.cabang + '?',
+    `<div class="pesan peringatan">Anda sedang meninjau <strong>${esc(APP_STATE.cabang)}</strong>,
+       sementara cabang kerja Anda <strong>${esc(APP_STATE.cabangKerja)}</strong>.
+       ${esc(apa)} akan tercatat di ${esc(APP_STATE.cabang)}, bukan di
+       ${esc(APP_STATE.cabangKerja)}.</div>`,
+    { ya: 'Catat di ' + APP_STATE.cabang, jenis: 'bahaya' });
 }
 
 /**
@@ -1263,15 +1293,18 @@ function gambarModeTinjau() {
   if (p) {
     p.classList.toggle('sembunyi', !tinjau);
     if (tinjau) p.innerHTML = '<strong>Mode tinjau — cabang ' + esc(APP_STATE.cabang)
-      + '.</strong> Nota, shift, dan kas tidak bisa disimpan dari sini. Untuk bekerja'
-      + ' di cabang ini: keluar, lalu masuk lagi.';
+      + '.</strong> Cabang kerja Anda ' + esc(APP_STATE.cabangKerja) + '. Nota, shift,'
+      + ' dan kas yang disimpan dari sini tercatat di ' + esc(APP_STATE.cabang)
+      + ' — dan akan ditanyakan dulu.';
   }
-  ['#btnBukaShift', '#btnTutupShift', '#btnSimpanKas', '#btnBukaShiftKasir'].forEach(s => {
-    const b = $(s); if (b && tinjau) b.disabled = true;
-  });
-  /* #btnBayar TIDAK dimatikan di sini: `gambarKeranjang` yang memilikinya, dan
-     dua tangan pada satu tombol berarti keadaan yang berselisih. Penolakannya
-     ada di `bukaBayar` — satu-satunya pintu, termasuk untuk pintasan F12. */
+  /* TIDAK ADA TOMBOL YANG DIMATIKAN DI SINI, dan itu disengaja.
+
+     Versi pertama mematikan Buka shift, Tutup shift, dan Simpan kas. Itu lebih
+     ketat daripada praktik ERP — bertransaksi di cabang yang memang boleh
+     diakses adalah alur yang dirancang, bukan kecelakaan (lihat `tanyaTinjau`).
+     Yang tersisa di sini cuma yang memberi tahu: lencana cabang berubah kuning,
+     dan spanduk di panel keranjang menyebut cabang mana yang akan tercatat.
+     Penjagaannya pindah ke pertanyaan, di titik dokumennya dibuat. */
 }
 
 async function muatMaster() {
@@ -2197,7 +2230,20 @@ function simpanTim() {
 /* ==================== PEMBAYARAN ==================== */
 function bukaBayar() {
   if (Keranjang.kosong) return;
-  if (modeTinjau()) return tolakTinjau('menyimpan nota');
+  /* Ditanyakan DI SINI, sebelum layar bayar terbuka — bukan di Selesaikan.
+     Kasir yang sudah mengetik uang diterima dan kembaliannya lalu ditanya
+     'cabang mana?' sudah terlanjur berdiri di depan pembeli. */
+  if (modeTinjau()) {
+    tanyaTinjau('Nota ini').then(ya => { if (ya) lanjutBukaBayar(); });
+    return;
+  }
+  lanjutBukaBayar();
+}
+
+/** Badan `bukaBayar` yang sesungguhnya — dipisah supaya bisa dipanggil sesudah
+    pertanyaan cabang dijawab, tanpa membuat `bukaBayar` sendiri async (ia
+    dipanggil dari pintasan F12 juga). */
+function lanjutBukaBayar() {
   if (!APP_STATE.idShift) {
     /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
        berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
@@ -2833,6 +2879,7 @@ async function simpanKasBaru() {
   if (!akun) return Admin.toast('Pilih akun lawannya dulu.', 'galat');
   if (!(jumlah > 0)) return Admin.toast('Jumlah harus lebih dari nol.', 'galat');
   if (!ket) return Admin.toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang keluar.', 'galat');
+  if (!(await tanyaTinjau('Catatan kas ini'))) return;
 
   const b = $('#btnSimpanKas');
   b.classList.add('sibuk');
@@ -4007,8 +4054,10 @@ function pasangEvent() {
      keranjang berubah, jadi pendengar yang dipasang pada elemennya akan
      hilang bersama elemennya (jebakan yang sama sudah tercatat di §12). */
   $('.baris-alat-kasir')?.addEventListener('change', tandaiKendaliKasir);
-  $('#btnBukaShiftKasir')?.addEventListener('click', () =>
-    modeTinjau() ? tolakTinjau('membuka shift') : menujuBukaShift());
+  /* Cip ini cuma MENGANTAR ke kartu shift; tidak ada dokumen yang dibuat di
+     sini, jadi tidak ada yang perlu ditanyakan. Pertanyaannya menunggu di
+     tombol Buka shift, tempat shiftnya benar-benar dibuat. */
+  $('#btnBukaShiftKasir')?.addEventListener('click', menujuBukaShift);
   const cipPetugas = $('#lncPetugasKosong');
   cipPetugas?.addEventListener('click', () => tarikUlangMaster());
   cipPetugas?.addEventListener('keydown', e => {
@@ -4237,6 +4286,7 @@ function pasangEvent() {
     if (!APP_STATE.idShift && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); menujuBukaShift(); }
   });
   $('#btnBukaShift').addEventListener('click', async () => {
+    if (!(await tanyaTinjau('Shift ini'))) return;
     try {
       const d = await API.bukaShift({ kas_awal: angkaDari($('#inpKasAwal').value) });
       APP_STATE.idShift = d.id_shift;
@@ -4281,6 +4331,11 @@ function pasangEvent() {
   $('#kasJumlah').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kasKeterangan').focus(); });
   $('#kasKeterangan').addEventListener('keydown', e => { if (e.key === 'Enter') simpanKasBaru(); });
   $('#btnKonfirmasiTutup').addEventListener('click', async () => {
+    /* Ditanyakan di sini, BUKAN di tombol Tutup shift. Tombol itu sudah
+       punya pertanyaannya sendiri untuk nota tertahan, dan dua pertanyaan
+       berturut-turut melatih orang menekan Ya tanpa membaca (§108). Di
+       antara keduanya ada pengisian kas fisik, jadi ini bukan beruntun. */
+    if (!(await tanyaTinjau('Penutupan shift ini'))) return;
     try {
       const d = await API.tutupShift({ id_shift: APP_STATE.idShift,
         kas_fisik: angkaDari($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
