@@ -239,9 +239,25 @@
                di bukaBayar() tetap satu-satunya yang tahu keadaan sebenarnya saat
                internet mati, dan mematikan tombol berdasarkan keadaan yang mungkin
                basi berarti menahan penjualan yang sah. -->
-          <div class="pesan peringatan rapat sembunyi" id="pesanShiftKasir">
-            <strong>Shift belum dibuka.</strong> Transaksi belum bisa disimpan.
-            <button class="tombol kecil" id="btnBukaShiftKasir">Buka shift</button>
+          <!-- Bentuk barunya diminta pemilik 9 Sep 2026 (dengan gambar).
+               Yang berubah bukan kata-katanya melainkan BOBOTNYA: sebelumnya
+               satu baris teks dengan tombol kecil menempel di ujungnya, yang
+               terbaca seperti keterangan — padahal ini penghalang: tidak ada
+               satu pun transaksi yang bisa disimpan sampai kas awal diisi.
+               Sekarang ikon, judul, sebab, dan satu tombol selebar panel.
+               role=alert, bukan status: ia muncul justru saat orang hendak
+               bekerja, dan pembaca layar harus menyelanya. -->
+          <div class="kartu-peringatan sembunyi" id="pesanShiftKasir" role="alert">
+            <div class="kartu-peringatan-isi">
+              <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+                <path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              <div>
+                <strong>Shift belum dibuka</strong>
+                <span>Transaksi terkunci sampai kas awal diisi.</span>
+              </div>
+            </div>
+            <button class="tombol peringatan penuh" id="btnBukaShiftKasir">Buka shift sekarang</button>
           </div>
           <button class="tombol sukses besar" id="btnBayar" style="margin-top:12px">BAYAR  (F12)</button>
         </div>
@@ -500,6 +516,19 @@
          bagian AR yang menjaga sebagian di antaranya. -->
     <section class="layar" id="layarBantuan">
       <div class="petak-tunggal">
+
+        <!-- Kotak cari. Diminta pemilik 9 Sep 2026: halaman ini 27 bagian, dan
+             satu-satunya cara menemukan sesuatu di dalamnya adalah menggulir
+             seluruhnya sambil membaca judul. Ctrl+F peramban tidak menolong di
+             sini — ia menemukan kata, tapi tidak menyembunyikan 26 bagian lain
+             yang tidak dicari, jadi yang ketemu tetap terkubur.
+             `type=search` supaya peramban memberi tombol silang bawaannya. -->
+        <div class="kartu cari-bantuan">
+          <label class="hanya-pembaca" for="cariBantuan">Cari di bantuan</label>
+          <input type="search" id="cariBantuan" autocomplete="off"
+                 placeholder="Cari di bantuan — mis. diskon, shift, garansi, retur…">
+          <p class="petunjuk" id="hasilBantuan" aria-live="polite" role="status"></p>
+        </div>
 
         <div class="kartu">
           <h3>Cara memakai halaman ini</h3>

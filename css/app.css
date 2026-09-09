@@ -558,8 +558,18 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 
 /* Kartu pengguna kini TOMBOL. Tampilannya dijaga sama; yang bertambah cuma
    sasaran klik dan tanda panahnya. */
-.kartu-user { border: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+/* `background: transparent` BUKAN kelebihan. Ini `<button>`, dan tombol yang
+   tidak menyebut latarnya memakai `buttonface` bawaan peramban — abu terang,
+   apa pun temanya. Akibatnya di tema gelap kartu penggunanya JAUH lebih terang
+   daripada sidebarnya saat diam, lalu MENGGELAP saat disentuh: arahnya
+   terbalik dari seluruh sisa antarmuka, dan dilaporkan pemilik 9 Sep 2026
+   ("sepertinya terbalik, harusnya gelap ke terang"). Yang salah bukan warna
+   hovernya — `--panel-2` memang satu langkah lebih terang dari `--sisi-bg` —
+   melainkan warna diamnya, yang tidak pernah ditulis siapa pun. */
+.kartu-user { border: 0; background: transparent; font: inherit; color: inherit;
+              cursor: pointer; text-align: left; transition: background .08s; }
 .kartu-user:hover { background: var(--panel-2); }
+.kartu-user[aria-expanded="true"] { background: var(--panel-2); }
 .tanda-popover { width: 16px; height: 16px; color: var(--teks-redup); flex-shrink: 0; }
 
 /* KEPALA TABEL MENEMPEL — DICOBA DAN DICABUT, v1.149.0.
@@ -972,6 +982,56 @@ main { flex: 1; overflow: hidden; position: relative; }
 .tombol.bahaya:hover { background: var(--bahaya-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.bahaya:hover .ikon-svg { color: #fff; }
 .tombol.utama:active, .tombol.sukses:active, .tombol.bahaya:active { filter: brightness(.95); }
+/* Tombol peringatan: SATU-SATUNYA jalan keluar dari keadaan yang menghalangi.
+   Berbeda dari `.bahaya`, yang diam sampai disentuh — di sini justru tombolnya
+   yang harus paling terlihat, karena tidak ada pekerjaan lain yang bisa
+   dilakukan sebelum ia ditekan. Hurufnya gelap, bukan putih: `--peringatan`
+   di tema terang adalah cokelat pekat dan di tema gelap kuning terang, dan
+   putih di atas kuning terang tidak terbaca sama sekali. */
+.tombol.peringatan {
+  background: var(--peringatan); border-color: var(--peringatan); color: var(--bg);
+  font-weight: 600;
+}
+.tombol.peringatan:hover { filter: brightness(1.08); }
+.tombol.peringatan:active { filter: brightness(.95); }
+.tombol.penuh { width: 100%; }
+
+/* ==================== CARI DI BANTUAN ====================
+   Menempel di atas saat digulir: 27 bagian berarti hasil yang ditemukan sering
+   berada jauh di bawah kotak carinya, dan mengetik ulang kata kunci menuntut
+   menggulir balik ke atas dulu. `--panel` penuh, bukan transparan — yang
+   menempel di atas isi harus menutupinya. */
+.cari-bantuan {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cari-bantuan > input { width: 100%; }
+.cari-bantuan > .petunjuk { margin: 0; }
+.cari-bantuan > .petunjuk:empty { display: none; }
+/* Penanda hasil. Kuning lembut, bukan blok warna penuh: yang ditandai kadang
+   sekalimat, dan sekalimat berlatar pekat berhenti terbaca sebagai kalimat. */
+#layarBantuan mark.sorot {
+  background: var(--peringatan-lembut); color: inherit;
+  border-bottom: 2px solid var(--peringatan); border-radius: 2px; padding: 0 1px;
+}
+
+/* ==================== KARTU PERINGATAN ====================
+   Penghalang, bukan keterangan: dipakai saat ada satu hal yang HARUS dikerjakan
+   sebelum yang lain bisa jalan. Bentuknya sengaja berbeda dari `.pesan` —
+   ikon + judul + sebab + satu tombol selebar kotaknya — supaya tidak terbaca
+   sebagai catatan pinggir yang boleh dilewati. */
+.kartu-peringatan {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px; border-radius: var(--radius);
+  background: var(--peringatan-lembut); border: 1px solid var(--peringatan-garis);
+}
+.kartu-peringatan-isi { display: flex; align-items: flex-start; gap: 10px; }
+.kartu-peringatan-isi > .ikon-svg {
+  width: 20px; height: 20px; flex: none; margin-top: 2px; color: var(--peringatan);
+}
+.kartu-peringatan-isi > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kartu-peringatan-isi strong { color: var(--peringatan); font-size: var(--fs-14); }
+.kartu-peringatan-isi span { color: var(--teks-redup); font-size: var(--fs-13); }
 .tombol.besar  { padding: 14px; font-size: var(--fs-17); font-weight: 600; width: 100%; }
 .tombol.kecil  { padding: 4px 10px; font-size: var(--fs-13); }
 /* Tombol yang isinya CUMA ikon. Padding mendatarnya dipersempit supaya
@@ -2075,12 +2135,50 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
 
    Dipasang `pasangPenandaSibuk()` di app.js, dan HANYA dari klik orang.
    Sinkronisasi latar tidak pernah menyalakannya. */
+/* DAFTAR INI HARUS DISISIR SETIAP KALI ADA KENDALI BARU.
+   Diminta pemilik 9 Sep 2026 dengan kalimat yang pantas diingat: "setiap ada
+   perombakan selalu saja tidak diperhatikan soal ini".
+
+   Sampai v1.152.0 yang dikunci CUMA `button`. Itu benar sampai v1.146.0, saat
+   seluruh menu samping berubah dari <button> jadi <a href="#/layar"> — sejak
+   itu setiap tautan menu tetap bisa diklik di tengah penyimpanan, dan pindah
+   layar di tengah penyimpanan adalah cara paling mudah membuat prosesnya kacau.
+   Kerusakan yang sama menganga untuk butir popover (role=menuitem, sebagiannya
+   <a>), dropdown penyaring (<select>, yang tiap perubahannya menembak API atau
+   menggambar ulang layar), dan sakelar (<input type=checkbox>, yang menyimpan
+   ke server). Ada penjaga di uji.js yang menghitung ulang daftar ini dari
+   index.html; menambah jenis kendali baru tanpa menambahkannya ke sini akan
+   merah.
+
+   Kolom isian TEKS sengaja TIDAK dikunci — orang boleh terus mengetik sambil
+   menunggu, dan menahannya hanya membuang apa yang sudah diketiknya.
+
+   `pointer-events: none` menahan tetikus, TIDAK menahan papan ketik: Enter di
+   atas tautan yang sedang fokus tetap menembak. Karena itu penangannya di
+   app.js ikut memeriksa `body.tunggu`. Dua lapis untuk satu aturan memang
+   berselisih kalau keduanya menebak; di sini keduanya membaca kelas yang sama.
+
+   Dipasang `pasangPenandaSibuk()` di app.js, dan HANYA dari klik orang.
+   Sinkronisasi latar tidak pernah menyalakannya. */
 body.tunggu { cursor: progress; }
-body.tunggu button:not(.sibuk) {
+body.tunggu button:not(.sibuk),
+body.tunggu a[href],
+body.tunggu select,
+body.tunggu summary,
+body.tunggu [role="menuitem"],
+body.tunggu input[type="checkbox"],
+body.tunggu input[type="radio"],
+body.tunggu input[type="file"] {
   pointer-events: none;
   opacity: .45;
   transition: opacity .15s ease;
 }
+/* Menu samping diredupkan LEBIH RINGAN. Ia menempati sepertiga layar; pada .45
+   seluruh sisi kiri berubah jadi bayangan dan aplikasinya terbaca rusak, bukan
+   sibuk. Yang penting kliknya memang ditahan — dan itu sudah dilakukan
+   `pointer-events` di atas, bukan oleh angka buramnya. */
+body.tunggu .sisi a[href],
+body.tunggu .sisi button:not(.sibuk) { opacity: .62; }
 @media (prefers-reduced-motion: reduce) {
   button.sibuk::after { animation-duration: 2.4s; }
 }

@@ -1075,9 +1075,38 @@ function mulaiLencanaNav() {
  * dokumen. Mengumumkannya dua kali membuat pembaca layar menyebut tiap menu
  * dua kali.
  */
+/**
+ * Boleh tidaknya flyout muncul. TIGA syarat, dan ketiganya lahir dari kerusakan
+ * yang dilaporkan pemilik 9 Sep 2026: "flyout sidebar nyangkut ketika diswipe".
+ *
+ * 1. Kelas `sisi-lipat` saja TIDAK CUKUP. Di layar sempit sidebar berubah jadi
+ *    LACI, dan CSS lacinya mengembalikan seluruh label — tapi kelas
+ *    `sisi-lipat` tetap menempel, karena keadaan lipat tersimpan per perangkat
+ *    dan tidak ada yang mencabutnya saat lebar layar berubah. Jadi gelembungnya
+ *    muncul di sebelah menu yang labelnya sudah terbaca jelas: dua nama untuk
+ *    satu baris. Yang ditanya di sini LEBARNYA, bukan kelasnya — itu satu-satunya
+ *    yang benar di semua breakpoint sekaligus.
+ * 2. Perangkat sentuh tidak punya "berhenti di atas". Satu ketukan menembakkan
+ *    mouseover lalu TIDAK PERNAH menembakkan mouseout, jadi gelembungnya
+ *    tertinggal menggantung — persis "nyangkut" yang dilaporkan. `(hover: hover)`
+ *    memisahkan tetikus sungguhan dari jari.
+ * 3. Sidebar yang sedang jadi laci tidak pernah berflyout, apa pun lebarnya.
+ */
+function bolehFlyout() {
+  const sisi = $('.sisi');
+  if (!sisi || !$('#app').classList.contains('sisi-lipat')) return false;
+  if (sisi.classList.contains('buka')) return false;      // sedang jadi laci
+  if (sisi.offsetWidth > 100) return false;               // labelnya sudah terbaca sendiri
+  /* Ditangkap dan DIABAIKAN dengan sengaja: peramban yang tidak punya
+     matchMedia (atau melarangnya) tidak boleh mematikan flyout sama sekali —
+     dua syarat di atas sudah cukup ketat. Yang hilang cuma penyaring sentuh. */
+  try { if (!window.matchMedia('(hover: hover)').matches) return false; } catch (e) { /* tanpa matchMedia: lanjut */ }
+  return true;
+}
+
 function tampilFlyoutSisi(a) {
   const el = $('#flyoutSisi');
-  if (!el || !a || !$('#app').classList.contains('sisi-lipat')) return;
+  if (!el || !a || !bolehFlyout()) return;
   const id = a.dataset.layar;
   const m = MENU.find(x => x.id === id);
   const n = Number((APP_STATE.lencanaNav || {})[id]) || 0;
@@ -3981,8 +4010,136 @@ function gambarPreviewStruk() {
   $('#btnKeSettingStruk')?.classList.toggle('sembunyi', !bolehIzin('setting', 'lihat'));
 }
 
+/* ==================== CARI DI BANTUAN ====================
+ * Layar Bantuan 27 bagian. Sampai v1.152.0 satu-satunya cara menemukan sesuatu
+ * di sana adalah menggulir seluruhnya sambil membaca judul; diminta pemilik
+ * 9 Sep 2026.
+ *
+ * DUA hal sekaligus, dan yang kedua yang membuatnya berguna:
+ *   1. bagian yang tidak memuat kata kuncinya DISEMBUNYIKAN — Ctrl+F peramban
+ *      menemukan katanya tapi meninggalkan 26 bagian lain di sekelilingnya,
+ *      jadi yang ketemu tetap terkubur;
+ *   2. kata yang cocok DITANDAI, supaya mata tahu harus berhenti di mana pada
+ *      bagian yang panjangnya belasan baris.
+ *
+ * Penandanya memakai TEXT NODE, tidak pernah innerHTML. Menyisipkan <mark>
+ * lewat innerHTML berarti menyusun ulang HTML halaman ini dari teksnya sendiri
+ * setiap ketukan tombol — dan satu tanda kurung di dalam sebuah <strong> sudah
+ * cukup untuk merusaknya secara permanen, karena yang rusak lalu jadi sumber
+ * penulisan berikutnya.
+ */
+const bantuanKartu = () => $$('#layarBantuan .kartu').filter(k => !k.classList.contains('cari-bantuan'));
+
+/** Cabut seluruh penanda dan satukan kembali teks yang terpotong olehnya. */
+function bersihkanSorotBantuan() {
+  $$('#layarBantuan mark.sorot').forEach(m => {
+    const induk = m.parentNode;
+    if (!induk) return;
+    induk.replaceChild(document.createTextNode(m.textContent), m);
+    /* `normalize()` menyatukan potongan teks yang tertinggal. Tanpa itu satu
+       kalimat berubah jadi belasan simpul teks setelah beberapa kali mencari,
+       dan pencarian berikutnya tidak bisa lagi menemukan kata yang kebetulan
+       jatuh di sambungannya. */
+    induk.normalize();
+  });
+}
+
+function sorotBantuan(kartu, kueri) {
+  const q = kueri.toLowerCase();
+  const jalan = document.createTreeWalker(kartu, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => {
+      if (!n.nodeValue || n.nodeValue.trim() === '') return NodeFilter.FILTER_REJECT;
+      /* Judul kartu ikut ditandai; yang dilewati cuma yang bukan teks bacaan. */
+      const t = n.parentNode && n.parentNode.nodeName;
+      if (t === 'SCRIPT' || t === 'STYLE' || t === 'MARK') return NodeFilter.FILTER_REJECT;
+      return n.nodeValue.toLowerCase().indexOf(q) >= 0
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  /* Dikumpulkan dulu, BARU diubah. Mengubah pohon sambil menelusurinya membuat
+     penelusurnya melompat ke tempat yang tidak bisa ditebak siapa pun. */
+  const simpul = [];
+  for (let n = jalan.nextNode(); n; n = jalan.nextNode()) simpul.push(n);
+
+  simpul.forEach(n => {
+    const teks = n.nodeValue;
+    const bagian = document.createDocumentFragment();
+    let i = 0;
+    for (;;) {
+      const k = teks.toLowerCase().indexOf(q, i);
+      if (k < 0) break;
+      if (k > i) bagian.appendChild(document.createTextNode(teks.slice(i, k)));
+      const m = document.createElement('mark');
+      m.className = 'sorot';
+      m.textContent = teks.slice(k, k + q.length);
+      bagian.appendChild(m);
+      i = k + q.length;
+    }
+    if (i < teks.length) bagian.appendChild(document.createTextNode(teks.slice(i)));
+    n.parentNode.replaceChild(bagian, n);
+  });
+}
+
+function cariBantuan(kueri) {
+  const kartu = bantuanKartu();
+  const q = String(kueri || '').trim();
+  bersihkanSorotBantuan();
+  const info = $('#hasilBantuan');
+
+  if (!q) {
+    kartu.forEach(k => k.classList.remove('sembunyi'));
+    if (info) info.textContent = '';
+    return kartu.length;
+  }
+
+  const ql = q.toLowerCase();
+  let cocok = 0;
+  kartu.forEach(k => {
+    const ada = k.textContent.toLowerCase().indexOf(ql) >= 0;
+    k.classList.toggle('sembunyi', !ada);
+    if (ada) { cocok++; sorotBantuan(k, q); }
+  });
+
+  if (info) {
+    /* Angka pembandingnya ikut ditulis. "3 bagian" saja tidak memberi tahu
+       apakah itu banyak atau sedikit, dan yang mencari perlu tahu berapa yang
+       sedang disembunyikan darinya. */
+    info.textContent = cocok
+      ? cocok + ' dari ' + kartu.length + ' bagian memuat "' + q + '"'
+      : 'Tidak ada bagian yang memuat "' + q + '" — coba kata yang lebih pendek';
+  }
+  return cocok;
+}
+
 /* ==================== EVENT ==================== */
 function pasangEvent() {
+
+  /* --- cari di bantuan --- */
+  {
+    const inp = $('#cariBantuan');
+    if (inp) {
+      /* Ditunda 150 md. Menyaring 27 bagian sekaligus menandai kata di dalamnya
+         menyentuh ribuan simpul teks; dikerjakan tiap ketukan tombol, mengetik
+         di kolom ini terasa tersendat pada tablet kasir. */
+      let tunda = null;
+      inp.addEventListener('input', () => {
+        clearTimeout(tunda);
+        tunda = setTimeout(() => cariBantuan(inp.value), 150);
+      });
+      /* Escape mengosongkan, dan mengosongkan SEKETIKA — orang menekannya
+         justru karena ingin melihat seluruh halaman lagi sekarang. */
+      inp.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        e.stopPropagation();
+        inp.value = ''; clearTimeout(tunda); cariBantuan('');
+      });
+      /* `search` berbunyi saat tombol silang bawaan peramban ditekan. Tanpa ini
+         menekan silang mengosongkan kolomnya tapi meninggalkan halaman tersaring
+         — kotak kosong yang menyembunyikan 26 bagian. */
+      inp.addEventListener('search', () => { clearTimeout(tunda); cariBantuan(inp.value); });
+    }
+  }
+
 
   /* --- login ---
      TIDAK ADA login otomatis di digit ke-6; yang mengirim adalah tombol OK.
@@ -4049,6 +4206,10 @@ function pasangEvent() {
   $('#navSisi').addEventListener('click', e => {
     const a = e.target.closest('a[data-layar]');
     if (!a) return;
+    /* Terkunci saat memuat. `pointer-events:none` di CSS sudah menahan
+       tetikus, tapi TIDAK menahan Enter di atas tautan yang sedang fokus — dan
+       itu jalur yang dipakai orang yang bekerja dengan papan ketik. */
+    if (document.body.classList.contains('tunggu')) { e.preventDefault(); return; }
     /* Klik dengan penyerta dibiarkan sepenuhnya pada peramban — itu "buka di
        tab baru", dan sejak v1.147.0 item ini memang tautan sungguhan. Menangkap
        semua klik akan MENCURI perilaku itu dan menggambar layarnya di tab yang
@@ -4091,6 +4252,16 @@ function pasangEvent() {
      piksel gulir lebih mahal daripada menutupnya; yang mau melihatnya lagi
      tinggal berhenti di ikonnya. `passive` supaya gulirnya tidak tersendat. */
   $('.sisi-isi').addEventListener('scroll', sembunyiFlyoutSisi, { passive: true });
+  /* Jaring pengaman, dan bukan pengulangan: gulir yang dimulai DI LUAR nav
+     (halaman, atau layar sentuh yang menggulir seluruh badan) tidak pernah
+     sampai ke pendengar di atas, sementara letak flyoutnya sudah salah begitu
+     apa pun bergerak. Ketiganya `passive` supaya tidak menghambat gulirnya. */
+  window.addEventListener('scroll', sembunyiFlyoutSisi, { passive: true });
+  window.addEventListener('resize', sembunyiFlyoutSisi, { passive: true });
+  /* Sentuhan menutupnya SEKETIKA. Di layar sentuh gelembungnya memang tidak
+     pernah dibuka (lihat bolehFlyout), tapi papan sentuh laptop bisa keduanya:
+     tetikus membukanya, lalu jari menggulir dan gelembungnya tertinggal. */
+  document.addEventListener('touchstart', sembunyiFlyoutSisi, { passive: true });
 
   /* Melipat kelompok. Tombolnya di dalam <h2>, jadi kliknya ditangkap di sini
      — bukan dengan penangan per tombol, yang harus dipasang ulang tiap kali
@@ -4167,6 +4338,9 @@ function pasangEvent() {
   $('#navSisi').addEventListener('keydown', e => {
     const a = e.target.closest('a[data-layar]');
     if (!a) return;
+    /* Panah TIDAK dikunci: memindahkan fokus tidak mengubah apa pun. Yang
+       dikunci cuma yang membuka layar, dan itu ditangani penangan klik —
+       Enter pada tautan menembakkan klik. */
     const item = itemNav();
     const i = item.indexOf(a);
     let j = -1;
