@@ -1156,40 +1156,33 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .kartu > table:not(:last-child),
 .kartu > .gulir-x:not(:last-child) { margin-bottom: 6px; }
 
-/* Baris nonaktif: keluar dari daftar utama, tetap satu klik jauhnya.
-   Sengaja tenang — abu-abu, tanpa warna bahaya. Yang dinonaktifkan itu keadaan
-   normal dan disengaja, bukan masalah yang perlu diteriakkan. */
-/* Bloknya sekarang di ATAS tabel (lihat komentar `tabel()` di admin.js), jadi
-   garis pemisahnya pindah ke BAWAH — memisahkannya dari daftar utama yang
-   menyusul.
+/* ==================== SPANDUK MODE NONAKTIF ====================
+   Menggantikan blok terlipat lama (details) v1.150.0. Bloknya tidak ada lagi: yang
+   nonaktif sekarang MENGGANTI isi daftar utama, dinyalakan dari menu "⋮"
+   (alasannya di komentar `tabel()` admin.js). Spanduk ini yang menjawab
+   "kenapa daftar saya isinya lain" — tanpa dia, daftar yang mendadak berisi 47
+   baris asing terbaca sebagai kerusakan.
 
-   MARGIN ATASNYA NOL, bukan negatif. Waktu bloknya masih di bawah, margin
-   negatif menariknya ke tepi kartu dan yang "ditindih" cuma padding kosong.
-   Di atas, yang ada di depannya adalah ISI — bar alat dan paragraf petunjuk —
-   dan margin negatif yang sama menariknya menimpa tulisan itu. Ditemukan
-   uji-rupa.mjs: 48 tumpang tindih `p.petunjuk` ↔ `details.blok-nonaktif` di
-   enam layar × tiga ukuran layar. Yang melebar keluar kartu tinggal sisi
-   KIRI-KANAN saja, supaya garis pemisahnya tetap membelah kartu penuh. */
-.blok-nonaktif { margin: 0 calc(0px - var(--tepi-x)) 12px;
-                 border-bottom: 1px solid var(--garis); }
-.blok-nonaktif > summary {
-  list-style: none; cursor: pointer; user-select: none;
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 16px; font-size: var(--fs-13); font-weight: 600; color: var(--teks-redup);
+   Sengaja tenang — abu-abu, tanpa latar warna bahaya. Yang dinonaktifkan itu
+   keadaan normal dan disengaja, bukan masalah yang perlu diteriakkan; lencana
+   merah kecil sudah cukup untuk menandainya.
+
+   Melebar ke tepi kartu di sisi KIRI-KANAN saja, supaya garis bawahnya membelah
+   kartu penuh seperti garis blok yang lama. Margin ATASNYA nol, bukan negatif:
+   yang berdiri di depannya adalah isi — bar alat, paragraf petunjuk — dan
+   margin negatif menariknya menimpa tulisan itu. Pernah terjadi, dan
+   uji-rupa.mjs menemukannya sebagai 48 tumpang tindih di enam layar. */
+.spanduk-nonaktif {
+  margin: 0 calc(0px - var(--tepi-x)) 12px;
+  border-bottom: 1px solid var(--garis);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 16px; font-size: var(--fs-13); color: var(--teks-redup);
 }
-.blok-nonaktif > summary::-webkit-details-marker { display: none; }
-/* Segitiga digambar sendiri supaya arahnya sama di semua peramban. */
-.blok-nonaktif > summary::before {
-  content: ''; width: 0; height: 0; flex: none;
-  border-left: 5px solid currentColor; border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent; transition: transform .15s ease;
-}
-.blok-nonaktif[open] > summary::before { transform: rotate(90deg); }
-.blok-nonaktif > summary:hover { background: var(--panel-2); color: var(--teks); }
-.blok-nonaktif > .gulir-x { margin: 0; }
+/* Tombol pulang didorong ke kanan — jauh dari kalimatnya, jadi ia terbaca
+   sebagai tindakan, bukan sebagai lanjutan kalimat. */
+.spanduk-nonaktif > .tombol { margin-left: auto; }
 /* Isinya diredupkan sedikit — terbaca jelas, tapi jelas bukan daftar utama. */
-.blok-nonaktif > .gulir-x table tbody td { opacity: .72; }
-
+.spanduk-nonaktif + .gulir-x table tbody td { opacity: .72; }
 
 /* ==================== DASHBOARD PADAT ====================
    Diperkenalkan 28 Agu 2026. Kepadatannya datang dari JARAK dan UKURAN HURUF
@@ -1869,8 +1862,10 @@ input.sudah-hitung {
   /* Angka tetap rata kanan — di susunan ini itu memang sudah arah bakunya. */
   .gulir-x > table > tbody > tr > td.angka { text-align: right; }
 
-  /* Kartu di dalam blok "Nonaktif" ikut menyesuaikan tepinya. */
-  .blok-nonaktif > .gulir-x { padding: 0 12px 12px; }
+  /* Spanduk nonaktif ikut menyesuaikan tepi kartu versi ponsel, dan tombol
+     pulangnya turun ke baris sendiri daripada terjepit di ujung kanan. */
+  .spanduk-nonaktif { padding: 10px 12px; }
+  .spanduk-nonaktif > .tombol { margin-left: 0; }
 }
 
 /* Contoh garis di legenda — membawa pola putus, bukan cuma warna */

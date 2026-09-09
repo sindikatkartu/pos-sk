@@ -102,30 +102,108 @@ const Admin = (() => {
     rows.forEach(r => tbody.appendChild(r));
   }
 
+  /* ==================== MODE NONAKTIF ====================
+     Baris nonaktif dikeluarkan dari daftar utama, dan jalan menuju ke sana ada
+     di menu tindakan "⋮" masing-masing daftar.
+
+     Sampai v1.149.0 bentuknya blok terlipat di ATAS daftar utama. Paginasi
+     mematahkannya: blok itu hanya melihat baris yang sedang dipegang tabel, jadi
+     di layar Produk ia menghitung 100 baris halaman ini, bukan 3.500 baris
+     katalog — "Nonaktif (2)" padahal yang mati 47. Pemilik melaporkannya
+     9 Sep 2026 ("produk yang dinonaktifkan mana?") dan memutuskan tempat
+     barunya: "produk nonaktif letakkan di titik tiga / tombol tindakan lainnya".
+
+     Bentuknya sekarang MODE, bukan blok: menyalakannya menukar isi daftar utama
+     menjadi yang nonaktif saja. Tiga hal yang tidak bisa dilakukan blok lama:
+       1. Pencarian, penyaring, kolom dan paginasi ikut bekerja di sana.
+       2. Angkanya dihitung dari SELURUH daftar, bukan dari halaman ini.
+       3. Daftar utama tinggal SATU tabel, jadi "baris pertama di layar ini"
+          punya satu arti lagi — dulu `#isiProduk tbody tr` mengembalikan
+          baris nonaktif lebih dulu.
+     Harganya jujur dan ditebus di satu tempat: yang nonaktif tidak lagi terlihat
+     sekilas, jadi JUMLAHNYA ditulis di butir menunya — supaya menunya tidak
+     perlu dibuka hanya untuk memastikan kosong.
+
+     Menyembunyikannya sama sekali bukan pilihan, dan itu alasan yang belum
+     berubah sejak blok lama: orang mengira produknya hilang lalu membuat SKU
+     kembar, dan SKU kembar merusak kartu stok.
+
+     Keadaannya satu Set untuk seluruh aplikasi, dikunci per daftar. Pindah layar
+     tidak meresetnya dengan sengaja — yang sedang membereskan produk mati lalu
+     melihat Stok sebentar tidak perlu menyalakannya dua kali. Ia hilang saat
+     aplikasinya dimuat ulang, sama seperti penyaring layar Produk.
+  */
+  const modeNonaktif = new Set();
+
+  /* Penggambar ulang per kunci, didaftarkan masing-masing layar saat memuat.
+     Tombolnya dilayani SATU penangan klik bersama, dan penangan itu tidak boleh
+     tahu nama fungsi tujuh layar. */
+  const GAMBAR_NONAKTIF = {};
+
+  /** Spanduk "sedang melihat yang nonaktif" berikut jalan kembalinya.
+   *  Jalan kembali ada DUA — di sini dan di menunya — karena yang di menu
+   *  mengharuskan orang mengingat dari mana ia masuk. */
+  const spandukNonaktif = (kunci) => `
+    <div class="spanduk-nonaktif" role="status">
+      <span class="lencana merah">Nonaktif</span>
+      <span>Daftar ini hanya menampilkan yang nonaktif.</span>
+      <button class="tombol kecil" data-nonaktif="${esc(kunci)}">Kembali ke daftar aktif</button>
+    </div>`;
+
   /**
-   * Tabel master, dengan baris NONAKTIF dikeluarkan dari daftar utama.
+   * Butir menu "⋮" untuk masuk / keluar mode nonaktif.
    *
-   * Produk, pengguna, petugas, pelanggan, supplier dan cabang semuanya bisa
-   * dinonaktifkan, dan sebelumnya semua bercampur — barang yang sudah lama stop
-   * jual tetap ikut terbaca setiap kali daftarnya dibuka. Tapi menyembunyikannya
-   * sama sekali lebih buruk: orang mengira produknya hilang lalu membuat SKU
-   * kembar, dan SKU kembar merusak kartu stok.
-   *
-   * Jalan tengahnya: keluar dari daftar utama, tetap SATU KLIK jauhnya, dengan
-   * jumlahnya tertulis supaya tidak perlu dibuka hanya untuk memastikan kosong.
-   * Dipasang di penggambar bersama ini, bukan disalin ke enam layar.
-   *
-   * BLOKNYA DI ATAS TABEL, bukan di bawahnya — diminta pemilik 6 Sep 2026:
-   * "memindah daftar nonaktif-block produk/petugas/perangkat ke bagian atas
-   * supaya mudah dijangkau, karena sku produk semakin banyak semakin sulit
-   * dijangkau jika dibawah". Ia benar: di bawah, letaknya bergantung panjang
-   * daftar utama, jadi satu-satunya jalan ke sana adalah menggulir seluruh
-   * katalog. Di atas, letaknya TETAP — selalu satu tempat yang sama, berapa pun
-   * isinya. Terlipat, jadi ia tidak mendorong daftar utama turun.
+   * Kosong kalau tidak ada satu pun yang nonaktif DAN modenya sedang mati:
+   * butir yang membuka daftar kosong cuma menambah yang harus dibaca. Saat
+   * modenya menyala butirnya SELALU digambar — itu jalan pulangnya.
    */
+  function butirNonaktif(kunci, jumlah) {
+    if (modeNonaktif.has(kunci)) {
+      return `<button class="popover-item" role="menuitem" data-nonaktif="${esc(kunci)}">
+          <span>Kembali ke daftar aktif</span></button>`;
+    }
+    if (!jumlah) return '';
+    return `<button class="popover-item" role="menuitem" data-nonaktif="${esc(kunci)}">
+        <span>Lihat yang nonaktif</span><span class="lencana">${jumlah}</span></button>`;
+  }
+
+  /** Berapa baris yang nonaktif — dihitung dari daftar PENUH, bukan halaman. */
+  const hitungMati = (rows, pred) =>
+    (rows || []).filter(pred || ((r) => r.aktif === false)).length;
+
+  const IKON_TITIK_TIGA = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">
+          <circle cx="12" cy="5"  r="1.6" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>`;
+
+  /**
+   * Menu tindakan "⋮" — SATU bentuk untuk tujuh daftar.
+   *
+   * Isi kosong berarti tombolnya tidak digambar sama sekali: tombol yang membuka
+   * menu kosong lebih buruk daripada tidak ada tombol. Id-nya diberikan
+   * pemanggil, bukan diturunkan dari kuncinya, supaya layar Produk tetap memakai
+   * `btnMenuProduk`/`menuProduk` yang sudah dikenal ujinya dan penangannya.
+   */
+  function menuTindakan(o) {
+    if (!o.isi) return '';
+    /* `data-menu-kunci` bukan hiasan: sesudah mode nonaktif dinyalakan, seluruh
+       kartunya digambar ulang dan tombol yang barusan ditekan sudah tidak ada
+       lagi sebagai simpul. Penanda inilah yang membuat fokus bisa dikembalikan
+       ke penggantinya tanpa penangan kliknya perlu hafal tujuh id. */
+    return `<div class="menu-lain">
+      <button class="tombol" id="${o.idTombol}" aria-haspopup="menu" aria-expanded="false"
+              aria-controls="${o.id}" data-menu-kunci="${esc(o.kunci || '')}"
+              aria-label="Tindakan lain" title="Tindakan lain">
+        ${IKON_TITIK_TIGA}${o.titik || ''}
+      </button>
+      <div class="popover-akun popover-menu" id="${o.id}" role="menu"
+           aria-labelledby="${o.idTombol}" hidden>${o.isi}</div>
+    </div>`;
+  }
+
   const tabel = (kolom, baris, opsi = {}) => {
     /* Penanda `daftar-utama` dipasang di SEMUA tabel yang lahir dari sini,
-       bukan cuma yang berblok nonaktif. Tabel Stok, Pembelian dan Transfer
+       bukan cuma yang punya mode nonaktif. Tabel Stok, Pembelian dan Transfer
        tidak memakai `pisahNonaktif`; kalau penandanya hanya menempel pada yang
        memakainya, "daftar utama layar ini" jadi istilah yang kadang ada kadang
        tidak — dan pemilih yang bekerja di satu layar diam-diam gagal di layar
@@ -138,20 +216,12 @@ const Admin = (() => {
     // Sebagian daftar tidak punya kolom `aktif` — perangkat kasir memakai
     // `status: DIBLOKIR`. Karena itu penentunya bisa diberikan pemanggil.
     const mati_p = opsi.nonaktif || ((r) => r.aktif === false);
-    const hidup = rows.filter(r => !mati_p(r));
-    const mati = rows.filter(mati_p);
-    return (mati.length ? `
-      <details class="blok-nonaktif">
-        <summary>Nonaktif <span class="lencana">${mati.length}</span></summary>
-        ${tabelPolos(kolom, mati, opsi)}
-      </details>` : '') +
-      /* Daftar utamanya DITANDAI, dan itu bukan kerapian. Sejak bloknya pindah
-         ke atas, "tabel pertama di dalam layar ini" bukan lagi daftar utamanya —
-         `#isiProduk tbody tr` sekarang mengembalikan baris NONAKTIF lebih dulu.
-         Siapa pun yang menulis pemilih berdasarkan urutan akan membaca tabel
-         yang salah tanpa satu pun galat; penandanya membuat pertanyaan "yang
-         mana daftar utamanya" punya jawaban yang tidak bergantung urutan. */
-      tabelPolos(kolom, hidup, utama);
+    if (opsi.kunci && modeNonaktif.has(opsi.kunci)) {
+      return spandukNonaktif(opsi.kunci) +
+        tabelPolos(kolom, rows.filter(mati_p),
+          Object.assign({}, utama, { kosong: 'Tidak ada yang nonaktif' }));
+    }
+    return tabelPolos(kolom, rows.filter(r => !mati_p(r)), utama);
   };
 
   const memuat = (el) => { $(el).innerHTML = '<div class="kartu">Memuat…</div>'; };
@@ -467,12 +537,19 @@ const Admin = (() => {
     </span>`;
   };
 
-  /** Tutup menu "⋯" layar Produk, kalau sedang terbuka. */
+  /** Menu "⋮" yang sedang terbuka, kalau ada. Cuma boleh satu. */
+  const menuLainTerbuka = () => $$('.menu-lain .popover-menu').find(m => !m.hidden) || null;
+
+  /** Tutup SEMUA menu "⋮" yang terbuka.
+   *  Sejak menunya ada di tujuh daftar, menutup "menu Produk" saja berarti enam
+   *  menu lain bisa tertinggal menganga saat orang mengklik ke tempat lain. */
   function tutupMenuLain() {
-    const m = $('#menuProduk');
-    if (!m || m.hidden) return;
-    m.hidden = true;
-    $('#btnMenuProduk')?.setAttribute('aria-expanded', 'false');
+    $$('.menu-lain .popover-menu').forEach(m => {
+      if (m.hidden) return;
+      m.hidden = true;
+      document.getElementById(m.getAttribute('aria-labelledby'))
+        ?.setAttribute('aria-expanded', 'false');
+    });
   }
 
   /** Tutup semua menu ekspor yang sedang terbuka. */
@@ -1007,10 +1084,24 @@ const Admin = (() => {
     } catch (e) { galat('#isiProduk', e); }
   }
 
+  /**
+   * Katalog DASAR layar ini: aktif saja, atau nonaktif saja.
+   *
+   * Pemisahannya dikerjakan di sini, BUKAN di dalam `tabel()` seperti enam
+   * daftar lainnya, dan itu karena layar ini satu-satunya yang berpaginasi.
+   * Kalau baris mati baru dibuang di dalam tabel, penghitung ("240 dari 3.500"),
+   * bilah halaman dan potongan 100 baris semuanya menghitung baris yang tidak
+   * jadi digambar — halaman 2 bisa datang setengah kosong tanpa satu pun galat.
+   */
+  function katalogDasar() {
+    const mati = modeNonaktif.has('produk');
+    return cacheProduk.filter(r => (r.aktif === false) === mati);
+  }
+
   /** Saring katalog di perangkat: kata kunci + kategori. */
   function saringKatalog() {
     const q = kueriProduk.toLowerCase().trim();
-    return cacheProduk.filter(r =>
+    return katalogDasar().filter(r =>
       (!kategoriProduk || String(r.kategori || '').trim() === kategoriProduk) &&
       (!q || r._cari.includes(q)));
   }
@@ -1080,9 +1171,14 @@ const Admin = (() => {
     const terlihat = saringKatalog();
     const baris = terlihat.filter(saring.lolos);
     if (saring.urut) baris.sort(saring.urut);
-    const hitung = baris.length === cacheProduk.length
-      ? `${cacheProduk.length} produk`
-      : `${baris.length} dari ${cacheProduk.length} produk`;
+    /* Penyebutnya katalog DASAR, bukan `cacheProduk`: dalam mode nonaktif
+       "12 dari 3.500 produk" menyebut dua himpunan yang berbeda dalam satu
+       kalimat, dan yang membaca akan mengira 3.488 produknya hilang. */
+    const dasar = katalogDasar();
+    const kata = modeNonaktif.has('produk') ? 'produk nonaktif' : 'produk';
+    const hitung = baris.length === dasar.length
+      ? `${dasar.length} ${kata}`
+      : `${baris.length} dari ${dasar.length} ${kata}`;
 
     $('#isiProduk').innerHTML = `
       <div class="kartu">
@@ -1164,7 +1260,8 @@ const Admin = (() => {
    * (`#lapNotaHitung`), dan uji layar Produk mencari lewat kelas itu.
    */
   function isiTabelProduk(baris, modal, saring, kolomAktif, hitung) {
-    return `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
+    return (modeNonaktif.has('produk') ? spandukNonaktif('produk') : '') +
+      `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
       tabelProduk(potongHal(baris), modal, saring, kolomAktif) +
       pagerProduk(baris.length);
   }
@@ -1224,9 +1321,14 @@ const Admin = (() => {
        `$('.jumlah-baris')` mencari ke SELURUH dokumen: kalau layar Produk
        kebetulan tidak punya penghitung, ia akan menemukan milik layar Laporan
        (`#lapNotaHitung`) dan menimpanya dengan jumlah produk. */
-    const hitung = baris.length === cacheProduk.length
-      ? `${cacheProduk.length} produk`
-      : `${baris.length} dari ${cacheProduk.length} produk`;
+    /* Penyebutnya katalog DASAR, bukan `cacheProduk`: dalam mode nonaktif
+       "12 dari 3.500 produk" menyebut dua himpunan yang berbeda dalam satu
+       kalimat, dan yang membaca akan mengira 3.488 produknya hilang. */
+    const dasar = katalogDasar();
+    const kata = modeNonaktif.has('produk') ? 'produk nonaktif' : 'produk';
+    const hitung = baris.length === dasar.length
+      ? `${dasar.length} ${kata}`
+      : `${baris.length} dari ${dasar.length} ${kata}`;
     $('#wadahTabelProduk').innerHTML = isiTabelProduk(baris, modal, saring, kolomAktif, hitung);
   }
 
@@ -1250,14 +1352,25 @@ const Admin = (() => {
    *    ketiga formatnya DIRATAKAN jadi butir tersendiri — id dan data-atribut
    *    yang sama persis, jadi penangan ekspor yang sudah ada tetap bekerja.
    * 3. Hak akses. Butir yang perannya tidak berhak TIDAK digambar, sama seperti
-   *    sebelum dilipat. Kalau seluruh isinya kosong, tombol "⋯" pun tidak
+   *    sebelum dilipat. Kalau seluruh isinya kosong, tombol "⋮" pun tidak
    *    digambar — tombol yang membuka menu kosong lebih buruk daripada tidak
    *    ada tombol.
+   *
+   * Butir "Lihat yang nonaktif" berdiri PALING ATAS dan sendirian, dipisah dari
+   * sisanya. Ia satu-satunya butir di sini yang mengubah apa yang sedang
+   * dilihat, bukan menjalankan sesuatu lalu selesai; menaruhnya berdempetan
+   * dengan Ekspor membuat dua jenis tindakan itu terbaca sederajat.
    */
   function menuLainProduk() {
     const bolehUbah = bolehIzin('produk', 'ubah');
     const bolehBuat = bolehIzin('produk', 'buat');
+    /* Dihitung dari `cacheProduk`, BUKAN dari baris yang sedang digambar:
+       angka yang ikut menyusut saat orang mengetik di kolom cari bukan jawaban
+       atas "berapa produk saya yang nonaktif". */
+    const nMati = hitungMati(cacheProduk);
+    const butirMati = butirNonaktif('produk', nMati);
     const butir =
+      (butirMati ? `<div class="popover-pisah">${butirMati}</div>` : '') +
       `<button class="popover-item" role="menuitem" id="btnKeranjangLabel">
          <span>Keranjang stiker</span><span class="lencana" id="lencanaStiker">0</span>
        </button>` +
@@ -1274,18 +1387,10 @@ const Admin = (() => {
              <span>Impor massal</span></button>` : ''}
        </div>` : '');
 
-    return `<div class="menu-lain">
-      <button class="tombol" id="btnMenuProduk" aria-haspopup="menu" aria-expanded="false"
-              aria-controls="menuProduk" aria-label="Tindakan lain" title="Tindakan lain">
-        <svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">
-          <circle cx="12" cy="5"  r="1.6" fill="currentColor" stroke="none"/>
-          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
-          <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>
-        <span class="titik-tanda sembunyi" id="titikStiker" aria-hidden="true"></span>
-      </button>
-      <div class="popover-akun popover-menu" id="menuProduk" role="menu"
-           aria-labelledby="btnMenuProduk" hidden>${butir}</div>
-    </div>`;
+    return menuTindakan({
+      id: 'menuProduk', idTombol: 'btnMenuProduk', kunci: 'produk', isi: butir,
+      titik: '<span class="titik-tanda sembunyi" id="titikStiker" aria-hidden="true"></span>'
+    });
   }
 
   function tabelProduk(baris, modal, saring, kolomAktif) {
@@ -1318,9 +1423,14 @@ const Admin = (() => {
              kode yang sama dan tidak ada lagi "yang salah" untuk discan. */
           { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` +
               ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>` }
-        ], baris, { pisahNonaktif: true, kosong: (kueriProduk || kategoriProduk || saringProduk)
+        /* TANPA `pisahNonaktif`: layar ini memisahkannya lebih awal, di
+           `katalogDasar()`, karena paginasinya harus menghitung baris yang
+           benar-benar digambar. Lihat catatan di sana. */
+        ], baris, { kosong: (kueriProduk || kategoriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
-            : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"' });
+            : (modeNonaktif.has('produk')
+                ? 'Tidak ada produk yang nonaktif'
+                : 'Belum ada produk — mulai dengan "Produk baru" atau "Impor massal"') });
   }
 
   /* ==================== CETAK LABEL BARCODE ====================
@@ -3022,40 +3132,59 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         bolehIzin('pelanggan', 'lihat') ? API.daftarPelanggan().catch(() => null) : null,
         bolehIzin('supplier', 'lihat') ? API.daftarSupplier().catch(() => null) : null
       ]);
-      $('#isiMitra').innerHTML = `
-        ${pel ? `
-        <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Pelanggan</h3><div style="flex:1"></div>
-            ${bolehIzin('pelanggan', 'buat') ? '<button class="tombol utama" id="btnPelangganBaru">+ Pelanggan</button>' : ''}</div>
-          ${tabel([
-            { judul: 'Kode', kunci: 'kode' },
-            { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
-            { judul: 'Telepon', kunci: 'telepon' },
-            { judul: 'Level harga', render: r => `<span class="lencana">${esc(normalLevelWeb(r.level_harga))}</span>` },
-            { judul: 'Limit kredit', angka: true, render: r => rp(r.limit_kredit) },
-            { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
-            { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
-                ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
-            { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}">Ubah</button>` }
-          ], pel, { kosong: 'Belum ada pelanggan', pisahNonaktif: true })}
-        </div>` : ''}
-
-        ${sup ? `
-        <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Supplier</h3><div style="flex:1"></div>
-            ${bolehIzin('supplier', 'buat') ? '<button class="tombol utama" id="btnSupplierBaru">+ Supplier</button>' : ''}</div>
-          ${tabel([
-            { judul: 'Kode', kunci: 'kode' },
-            { judul: 'Nama', kunci: 'nama' },
-            { judul: 'Kontak', kunci: 'kontak' },
-            { judul: 'Telepon', kunci: 'telepon' },
-            { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
-            { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}">Ubah</button>` }
-          ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true })}
-        </div>` : ''}`;
       $('#isiMitra')._pel = pel;
       $('#isiMitra')._sup = sup;
+      gambarMitra();
     } catch (e) { galat('#isiMitra', e); }
+  }
+
+  /**
+   * Menggambar dari data yang SUDAH di tangan.
+   *
+   * Dipisah dari `muatMitra` supaya menyalakan mode nonaktif tidak menembak
+   * server lagi. Datanya sudah tersimpan di elemennya untuk keperluan editor;
+   * yang berubah cuma baris mana yang digambar, dan itu tidak butuh jaringan.
+   * Alasan dan bentuknya sama dengan `gambarProduk` di layar Produk.
+   */
+  function gambarMitra() {
+    const w = $('#isiMitra');
+    if (!w) return;
+    const pel = w._pel, sup = w._sup;
+    w.innerHTML = `
+      ${pel ? `
+      <div class="kartu">
+        <div class="bar-alat"><h3 style="margin:0">Pelanggan</h3><div style="flex:1"></div>
+          ${bolehIzin('pelanggan', 'buat') ? '<button class="tombol utama" id="btnPelangganBaru">+ Pelanggan</button>' : ''}
+          ${menuTindakan({ id: 'menuPelanggan', kunci: 'pelanggan', idTombol: 'btnMenuPelanggan',
+              isi: butirNonaktif('pelanggan', hitungMati(pel)) })}</div>
+        ${tabel([
+          { judul: 'Kode', kunci: 'kode' },
+          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
+          { judul: 'Telepon', kunci: 'telepon' },
+          { judul: 'Level harga', render: r => `<span class="lencana">${esc(normalLevelWeb(r.level_harga))}</span>` },
+          { judul: 'Limit kredit', angka: true, render: r => rp(r.limit_kredit) },
+          { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
+          { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
+              ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}">Ubah</button>` }
+        ], pel, { kosong: 'Belum ada pelanggan', pisahNonaktif: true, kunci: 'pelanggan' })}
+      </div>` : ''}
+
+      ${sup ? `
+      <div class="kartu">
+        <div class="bar-alat"><h3 style="margin:0">Supplier</h3><div style="flex:1"></div>
+          ${bolehIzin('supplier', 'buat') ? '<button class="tombol utama" id="btnSupplierBaru">+ Supplier</button>' : ''}
+          ${menuTindakan({ id: 'menuSupplier', kunci: 'supplier', idTombol: 'btnMenuSupplier',
+              isi: butirNonaktif('supplier', hitungMati(sup)) })}</div>
+        ${tabel([
+          { judul: 'Kode', kunci: 'kode' },
+          { judul: 'Nama', kunci: 'nama' },
+          { judul: 'Kontak', kunci: 'kontak' },
+          { judul: 'Telepon', kunci: 'telepon' },
+          { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}">Ubah</button>` }
+        ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true, kunci: 'supplier' })}
+      </div>` : ''}`;
   }
 
   function editorPelanggan(kode) {
@@ -3142,9 +3271,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatPetugas() {
     memuat('#isiPetugas');
     try {
-      const rows = await API.daftarPetugas();
-      const b = bobotSekarang();
-      $('#isiPetugas').innerHTML = `
+      $('#isiPetugas')._rows = await API.daftarPetugas();
+      gambarPetugas();
+    } catch (e) { galat('#isiPetugas', e); }
+  }
+
+  /* Penggambar dipisah dari penarik supaya mode nonaktif tidak menembak server.
+     Kartu "Bobot peran" ikut digambar ulang — isinya dibaca dari APP_STATE yang
+     sama, jadi nilainya tidak bisa berbeda; memisahkannya hanya menambah satu
+     tempat lagi yang harus disamakan. */
+  function gambarPetugas() {
+    const w = $('#isiPetugas');
+    if (!w) return;
+    const rows = w._rows || [];
+    const b = bobotSekarang();
+    w.innerHTML = `
         <div class="kartu">
           <h3>Bobot peran</h3>
           <p class="petunjuk">Menentukan pembagian poin — dan pembagian omzet — antara
@@ -3167,7 +3308,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Petugas / pramuniaga</h3><div style="flex:1"></div>
-            ${bolehIzin('petugas', 'buat') ? '<button class="tombol utama" id="btnPetugasBaru">+ Petugas</button>' : ''}</div>
+            ${bolehIzin('petugas', 'buat') ? '<button class="tombol utama" id="btnPetugasBaru">+ Petugas</button>' : ''}
+            ${menuTindakan({ id: 'menuPetugas', kunci: 'petugas', idTombol: 'btnMenuPetugas',
+                isi: butirNonaktif('petugas', hitungMati(rows)) })}</div>
           <p class="petunjuk">Nama di daftar inilah yang muncul di layar kasir saat menutup nota.
              Petugas yang sudah keluar cukup dinonaktifkan — jangan dihapus, karena
              klaim dan poin lamanya masih menunjuk ke sini.</p>
@@ -3187,10 +3330,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Telepon', kunci: 'telepon' },
             { judul: '', render: r => bolehIzin('petugas', 'ubah')
                 ? `<button class="tombol kecil" data-edit-petugas="${esc(r.kode)}">Ubah</button>` : '' }
-          ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun', pisahNonaktif: true })}
+          ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun',
+               pisahNonaktif: true, kunci: 'petugas' })}
         </div>`;
-      $('#isiPetugas')._rows = rows;
-    } catch (e) { galat('#isiPetugas', e); }
   }
 
   function editorPetugas(kode) {
@@ -3634,11 +3776,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ]);
       cachePeran = peran.peran;
       cacheKamus = { modul: peran.modul, aksi: peran.aksi, flag: peran.flag };
+      $('#isiPengguna')._user = user;
+      /* Disimpan supaya dialog konfirmasi Hapus bisa menyebut perangkat yang
+         MANA — kode, nama, cabang — tanpa menembak server lagi hanya untuk
+         mengulang data yang barusan digambar. */
+      $('#isiPengguna')._perangkat = perangkat;
+      gambarPengguna();
+    } catch (e) { galat('#isiPengguna', e); }
+  }
 
-      $('#isiPengguna').innerHTML = `
+  function gambarPengguna() {
+    const w = $('#isiPengguna');
+    if (!w) return;
+    const user = w._user || [], perangkat = w._perangkat || [];
+    w.innerHTML = `
         <div class="kartu">
           <div class="bar-alat"><h3 style="margin:0">Pengguna</h3><div style="flex:1"></div>
-            ${bolehIzin('user', 'buat') ? '<button class="tombol utama" id="btnUserBaru">+ Pengguna</button>' : ''}</div>
+            ${bolehIzin('user', 'buat') ? '<button class="tombol utama" id="btnUserBaru">+ Pengguna</button>' : ''}
+            ${menuTindakan({ id: 'menuUser', kunci: 'user', idTombol: 'btnMenuUser',
+                isi: butirNonaktif('user', hitungMati(user)) })}</div>
           ${tabel([
             { judul: 'ID', kunci: 'id_user' },
             { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
@@ -3650,7 +3806,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: '', render: r => `
               <button class="tombol kecil" data-edit-user="${esc(r.id_user)}">Ubah</button>
               ${bolehIzin('user', 'ubah') ? `<button class="tombol kecil" data-reset-pin="${esc(r.id_user)}">Reset PIN</button>` : ''}` }
-          ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true })}
+          ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true, kunci: 'user' })}
         </div>
 
         <div class="kartu">
@@ -3671,7 +3827,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <h3>Perangkat terdaftar</h3>
+          <div class="bar-alat"><h3 style="margin:0">Perangkat terdaftar</h3><div style="flex:1"></div>
+            ${menuTindakan({ id: 'menuPerangkat', kunci: 'perangkat', idTombol: 'btnMenuPerangkat',
+                isi: butirNonaktif('perangkat', hitungMati(perangkat, r => r.status === 'DIBLOKIR')) })}</div>
           <p class="petunjuk">Perangkat baru wajib disetujui sebelum bisa transaksi — ini yang mencegah PIN kasir yang bocor dipakai dari HP pribadi.</p>
           ${tabel([
             { judul: 'Kode', kunci: 'kode' },
@@ -3694,15 +3852,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                  bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI'
                 ? tombolIkon('bahaya', 'Hapus perangkat', IKON_AKSI.hapus,
                     `data-hapus-perangkat="${esc(r.id_perangkat)}"`) : ''}` }
-          ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true,
+          ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true, kunci: 'perangkat',
                nonaktif: r => r.status === 'DIBLOKIR' })}
         </div>`;
-      $('#isiPengguna')._user = user;
-      /* Disimpan supaya dialog konfirmasi Hapus bisa menyebut perangkat yang
-         MANA — kode, nama, cabang — tanpa menembak server lagi hanya untuk
-         mengulang data yang barusan digambar. */
-      $('#isiPengguna')._perangkat = perangkat;
-    } catch (e) { galat('#isiPengguna', e); }
   }
 
   function editorUser(id) {
@@ -3799,23 +3951,31 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatCabang() {
     memuat('#isiCabang');
     try {
-      const rows = await API.daftarCabangAdmin();
-      $('#isiCabang').innerHTML = `
-        <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Cabang</h3><div style="flex:1"></div>
-            ${bolehIzin('cabang', 'buat') ? '<button class="tombol utama" id="btnCabangBaru">+ Cabang baru</button>' : ''}</div>
-          <p class="petunjuk">Setiap cabang punya file database sendiri di Google Drive. Pemisahan inilah yang membuat kasir cabang A tidak pernah menunggu cabang B saat menyimpan transaksi.</p>
-          ${tabel([
-            { judul: 'Kode', kunci: 'kode_cabang' },
-            { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
-            { judul: 'Alamat', kunci: 'alamat' },
-            { judul: 'Telepon', kunci: 'telepon' },
-            { judul: 'Prefix nota', kunci: 'prefix_nota' },
-            { judul: '', render: r => `<button class="tombol kecil" data-edit-cabang="${esc(r.kode_cabang)}">Ubah</button>` }
-          ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true })}
-        </div>`;
-      $('#isiCabang')._rows = rows;
+      $('#isiCabang')._rows = await API.daftarCabangAdmin();
+      gambarCabang();
     } catch (e) { galat('#isiCabang', e); }
+  }
+
+  function gambarCabang() {
+    const w = $('#isiCabang');
+    if (!w) return;
+    const rows = w._rows || [];
+    w.innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat"><h3 style="margin:0">Cabang</h3><div style="flex:1"></div>
+          ${bolehIzin('cabang', 'buat') ? '<button class="tombol utama" id="btnCabangBaru">+ Cabang baru</button>' : ''}
+          ${menuTindakan({ id: 'menuCabang', kunci: 'cabang', idTombol: 'btnMenuCabang',
+              isi: butirNonaktif('cabang', hitungMati(rows)) })}</div>
+        <p class="petunjuk">Setiap cabang punya file database sendiri di Google Drive. Pemisahan inilah yang membuat kasir cabang A tidak pernah menunggu cabang B saat menyimpan transaksi.</p>
+        ${tabel([
+          { judul: 'Kode', kunci: 'kode_cabang' },
+          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
+          { judul: 'Alamat', kunci: 'alamat' },
+          { judul: 'Telepon', kunci: 'telepon' },
+          { judul: 'Prefix nota', kunci: 'prefix_nota' },
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-cabang="${esc(r.kode_cabang)}">Ubah</button>` }
+        ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true, kunci: 'cabang' })}
+      </div>`;
   }
 
   function editorCabang(kode) {
@@ -5487,6 +5647,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* ==================== EVENT (delegasi tunggal) ==================== */
 
   function pasang() {
+    /* PETA PENGGAMBAR ULANG MODE NONAKTIF.
+       Didaftarkan di sini, bukan di sebelah masing-masing layar, supaya
+       tujuh kunci itu terbaca sekaligus — kunci yang salah ketik menghasilkan
+       tombol yang ditekan tanpa terjadi apa-apa, dan itu jenis kerusakan yang
+       paling sulit dilihat. Ujinya membandingkan peta ini dengan seluruh
+       `kunci:` yang dipakai di berkas ini.
+       Layar Produk mereset halamannya: halaman 7 dari 3.500 produk aktif
+       hampir pasti tidak ada di antara 47 yang nonaktif, dan `potongHal`
+       yang menjepitnya diam-diam membuat orang mengira daftarnya melompat. */
+    Object.assign(GAMBAR_NONAKTIF, {
+      produk:    () => { halProduk = 1; gambarProduk(); },
+      pelanggan: gambarMitra,
+      supplier:  gambarMitra,
+      petugas:   gambarPetugas,
+      user:      gambarPengguna,
+      perangkat: gambarPengguna,
+      cabang:    gambarCabang
+    });
+
     /* Klik judul kolom = urutkan. Pendengarnya SATU, di dokumen, bukan dipasang
        ulang tiap kali tabel digambar: seluruh tabel back office dibuat sebagai
        teks HTML yang mengganti innerHTML, jadi pendengar yang dipasang ke
@@ -5567,22 +5746,46 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
-      /* --- produk --- */
-      if (t.closest('#btnMenuProduk')) {
-        const m = $('#menuProduk');
-        const buka = m.hidden;
-        m.hidden = !buka;
-        $('#btnMenuProduk').setAttribute('aria-expanded', String(buka));
-        if (buka) m.querySelector('button')?.focus();
+      /* --- menu tindakan "⋮": SATU penangan untuk tujuh daftar ---
+         Dicari lewat `aria-controls`, bukan lewat daftar id. Penangan yang
+         menghafal id akan melupakan menu kedelapan, dan menu yang tidak pernah
+         bisa dibuka adalah kerusakan yang tidak mengeluarkan satu pun galat. */
+      const pemicuMenu = t.closest('.menu-lain > [aria-controls]');
+      if (pemicuMenu) {
+        const m = document.getElementById(pemicuMenu.getAttribute('aria-controls'));
+        const buka = m && m.hidden;
+        tutupMenuLain();
+        if (m) {
+          m.hidden = !buka;
+          pemicuMenu.setAttribute('aria-expanded', String(!!buka));
+          if (buka) m.querySelector('button')?.focus();
+        }
         return;
       }
       /* Memilih apa pun di dalamnya menutupnya. Butir ekspor pun: unduhannya
          berjalan sendiri, dan menu yang tetap menganga sesudah tindakannya
          selesai terbaca seperti tombol yang tidak jadi menekan. */
-      if (t.closest('#menuProduk')) {
-        const m = $('#menuProduk');
-        setTimeout(() => { m.hidden = true;
-          $('#btnMenuProduk')?.setAttribute('aria-expanded', 'false'); }, 0);
+      const dalamMenu = t.closest('.menu-lain .popover-menu');
+      if (dalamMenu) {
+        const pemicu = document.getElementById(dalamMenu.getAttribute('aria-labelledby'));
+        setTimeout(() => { dalamMenu.hidden = true;
+          pemicu?.setAttribute('aria-expanded', 'false'); }, 0);
+      }
+
+      /* --- mode nonaktif ---
+         Satu tombol untuk tujuh daftar; yang membedakan cuma kuncinya. Fokus
+         dikembalikan ke tombol "⋮" daftar yang bersangkutan SESUDAH gambar
+         ulang, karena tombol yang barusan ditekan — baik butir menunya maupun
+         tombol di spanduk — sudah tidak ada lagi sebagai simpul. */
+      if (d.nonaktif) {
+        const kunci = d.nonaktif;
+        if (modeNonaktif.has(kunci)) modeNonaktif.delete(kunci);
+        else modeNonaktif.add(kunci);
+        tutupMenuLain();
+        const gambar = GAMBAR_NONAKTIF[kunci];
+        if (gambar) gambar();
+        $(`[data-menu-kunci="${kunci}"]`)?.focus();
+        return;
       }
       if (d.hal) {
         const arah = d.hal === 'next' ? 1 : -1;
@@ -6654,9 +6857,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Esc mengembalikan fokus ke tombolnya. Menutup menu lalu meninggalkan
          fokus di elemen yang baru saja disembunyikan membuat Tab berikutnya
          melompat ke tempat yang tidak bisa ditebak siapa pun. */
-      const adaMenu = $('#menuProduk') && !$('#menuProduk').hidden;
+      const menuBuka = menuLainTerbuka();
+      const pemicuBuka = menuBuka &&
+        document.getElementById(menuBuka.getAttribute('aria-labelledby'));
       tutupMenuLain();
-      if (adaMenu) $('#btnMenuProduk')?.focus();
+      pemicuBuka?.focus();
     });
 
     document.addEventListener('click', (e) => {
