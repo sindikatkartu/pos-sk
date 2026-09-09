@@ -103,15 +103,48 @@
     <!-- Menu dibangun dinamis dari hak akses user — lihat MENU di app.js -->
     <nav class="sisi-isi" id="navSisi"></nav>
 
+    <!-- Kaki sidebar: kartu pengguna yang kini jadi PEMICU popover akun.
+         Sampai v1.147.0 kartu ini cuma hiasan dengan satu ikon Keluar di
+         ujungnya, sementara "Akun saya", "Tentang" dan "Perangkat & Printer"
+         menghuni kelompok tersendiri di nav — empat baris urusan pribadi yang
+         berdiri sederajat dengan Persediaan dan Laporan. Sejak v1.148.0
+         ketiganya pindah ke sini. Bantuan TIDAK ikut: kasir baru paling
+         membutuhkannya di hari pertama, saat perannya belum tentu dibekali
+         akses ke menu lain, dan sesuatu yang harus ditemukan dulu di balik
+         popover bukan sesuatu yang bisa diandalkan hari itu.
+
+         Isinya dibangun `bangunPopoverAkun()` ke dalam #popoverIsi; barisan
+         tema dan tombol Keluar ditulis di sini supaya id dan penangannya tidak
+         pernah ikut tergambar ulang. -->
     <div class="sisi-bawah">
-      <div class="kartu-user">
+      <div class="popover-akun" id="popoverAkun" role="menu" aria-labelledby="btnKartuUser" hidden>
+        <div id="popoverIsi"></div>
+        <!-- Tema adalah setelan TOKO, bukan pilihan perangkat: satu tema untuk
+             semua yang masuk. Barisan ini karena itu hanya ditampilkan bagi
+             peran yang memang berizin mengubah setelan — kasir tidak pernah
+             melihatnya. Yang menegakkan tetap server (`wajibIzin` di
+             apiSimpanSetting); baris ini hanya menghindari tombol yang pasti
+             ditolak. -->
+        <div class="popover-pisah sembunyi" id="barisTema">
+          <label class="popover-tema">
+            <input type="checkbox" id="inpTemaGelap">
+            <span>Mode gelap</span>
+          </label>
+          <p class="petunjuk">Berlaku untuk semua perangkat yang masuk.</p>
+        </div>
+        <div class="popover-pisah">
+          <button class="popover-item keluar" id="btnKeluar" role="menuitem">Keluar</button>
+        </div>
+      </div>
+      <button class="kartu-user" id="btnKartuUser" aria-haspopup="menu"
+              aria-expanded="false" aria-controls="popoverAkun">
         <div class="avatar" id="avatarUser">—</div>
         <div class="nm">
           <b id="namaUser">—</b>
           <span id="peranUser">—</span>
         </div>
-        <button class="tombol-ikon keluar" id="btnKeluar" aria-label="Keluar" title="Keluar"></button>
-      </div>
+        <svg class="ikon-svg tanda-popover" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+      </button>
     </div>
   </aside>
 

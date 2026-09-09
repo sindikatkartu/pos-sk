@@ -146,13 +146,24 @@ const MENU = [
   { id: 'sistem',     label: 'Pengaturan Sistem', grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
   { id: 'audit',      label: 'Audit',      grup: 'Sistem',     izin: ['audit', 'lihat'],             admin: true, backoffice: true },
   { id: 'arsip',      label: 'Arsip',      grup: 'Sistem',     izin: ['setting', 'hapus'],           admin: true, backoffice: true },
-  { id: 'akun',       label: 'Akun saya',  grup: 'Akun',       izin: null },  // selalu tampil
-  { id: 'tentang',    label: 'Tentang',    grup: 'Akun',       izin: null },  // selalu tampil
+  /* `popover: true` — tiga baris ini tidak lagi berdiri di nav sejak v1.148.0;
+     mereka menghuni popover kartu pengguna di kaki sidebar. Grupnya tetap
+     'Akun' karena `kelompokMenu` masih memakainya untuk urutan, dan karena
+     mencabut grupnya akan membuat mereka jatuh ke 'Lainnya' kalau suatu hari
+     penyaring popovernya dilepas. */
+  { id: 'akun',       label: 'Akun saya',  grup: 'Akun',       izin: null, popover: true },  // selalu tampil
+  { id: 'tentang',    label: 'Tentang',    grup: 'Akun',       izin: null, popover: true },  // selalu tampil
   // Manual book & SOP — statis dalam aplikasi, jadi tetap terbaca saat internet
   // mati. Selalu tampil karena kasir baru justru paling butuh ini di hari pertama,
   // saat perannya belum tentu dibekali akses ke menu lain.
-  { id: 'bantuan',    label: 'Bantuan',    grup: 'Akun',       izin: null },  // selalu tampil
-  { id: 'pengaturan', label: 'Perangkat & Printer', grup: 'Akun',       izin: null }   // selalu tampil
+  /* Bantuan TIDAK ikut ke popover, atas keputusan pemilik 9 Sep 2026. Alasannya
+     sama dengan alasan ia selalu tampil: kasir baru paling membutuhkannya di
+     hari pertama, dan sesuatu yang harus ditemukan dulu di balik popover bukan
+     sesuatu yang bisa diandalkan hari itu. `mandiri: true` — ia berdiri sendiri
+     di kaki nav, dipisah garis, tanpa judul kelompok yang cuma mengulang
+     namanya sendiri. */
+  { id: 'bantuan',    label: 'Bantuan',    grup: 'Akun',       izin: null, mandiri: true },  // selalu tampil
+  { id: 'pengaturan', label: 'Perangkat & Printer', grup: 'Akun',  izin: null, popover: true }   // selalu tampil
 ];
 
 /** Urutan kelompok di sidebar. Menu bergrup lain (kalau ada) diletakkan di akhir. */
@@ -850,39 +861,130 @@ const bolehLayar = (id) => menuTampil().some(m => m.id === id);
  *  ditulisnya sendiri, supaya tidak ada penggambaran kedua. */
 let layarKini = null;
 
+/* ---------- Kelompok nav yang bisa dilipat --------------------------------
+   Menu OWNER lebih panjang dari layar laptop dan terpotong di tengah sebuah
+   kelompok — `.sisi-isi` sudah punya bayang gulir untuk itu, tapi menggulir
+   bukan jawaban bagi orang yang sepanjang hari cuma memakai dua kelompok.
+
+   Keadaannya per PERANGKAT, bukan per akun: PC kasir dan tablet gudang punya
+   kebiasaan berbeda, dan alasan yang sama sudah dipakai untuk keadaan lipat
+   sidebar. Ditaruh di localStorage, bukan IndexedDB, karena ia dibaca saat
+   nav digambar — sebelum satu pun `await` sempat berjalan. */
+const KUNCI_NAV_GRUP = 'possk_nav_grup';
+
+function bacaLipatGrup() {
+  try { return JSON.parse(localStorage.getItem(KUNCI_NAV_GRUP)) || {}; }
+  catch (e) { return {}; }   /* rusak atau diblokir = semua terbuka */
+}
+function simpanLipatGrup(peta) {
+  try { localStorage.setItem(KUNCI_NAV_GRUP, JSON.stringify(peta)); } catch (e) { /* diblokir */ }
+}
+
 function bangunNav() {
   const daftar = menuTampil();
 
-  $('#navSisi').innerHTML = kelompokMenu(daftar).map((g, i) => {
-    /* Judul kelompok jadi <h2> yang dirujuk <ul>-nya lewat aria-labelledby.
-       Tanpa itu pembaca layar mengumumkan "daftar, 7 butir" tujuh kali tanpa
-       pernah menyebut kelompok mana — dan justru pengelompokan itulah yang
-       membuat menu 23 butir bisa dipakai. */
-    const idGrup = 'navGrup' + i;
-    return `<h2 class="sisi-grup" id="${idGrup}">${esc(g.nama)}</h2>` +
-      `<ul class="sisi-daftar" aria-labelledby="${idGrup}">` +
-      g.isi.map(m =>
-        /* TAUTAN sungguhan, bukan tombol: Ctrl+klik membuka layar itu di tab
-           baru, dan tombol Kembali bekerja. title= tetap dipakai saat sidebar
-           terlipat — labelnya hilang, tooltipnya menggantikan.
-           tabindex=-1 pada semuanya: satu item saja yang boleh menerima Tab
-           (roving tabindex), dan `bukaLayar` yang menentukan mana. */
-        `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1"` +
-        ` title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></a></li>`
-      ).join('') +
-      `</ul>`;
-  }).join('');
+  /* Tiga saringan atas SATU daftar yang sudah disaring hak akses — bukan tiga
+     daftar terpisah. Menu yang lolos izin tapi tidak masuk salah satu dari tiga
+     ini akan HILANG tanpa jejak; itu sebabnya `mandiri` dan `popover` dibaca
+     sebagai pengecualian dari kelompok, bukan sebagai daftar tersendiri. */
+  const diGrup   = daftar.filter(m => !m.popover && !m.mandiri);
+  const mandiri  = daftar.filter(m => m.mandiri);
 
-  /* Alamat yang dibawa masuk MENANG atas layar pertama — itu seluruh gunanya
-     bisa ditautkan. Yang tidak sah (salah ketik, atau layar yang perannya
-     tidak berhak) jatuh ke layar pertama, tanpa pesan galat: orang yang
-     menempel tautan lama tidak sedang melakukan kesalahan. */
-  const awal = idDariHash();
-  bukaLayar(bolehLayar(awal) ? awal : daftar[0].id);
+  /* Kelompok yang memuat layar yang sedang dituju DIPAKSA terbuka. Melipatnya
+     berarti item aktifnya tidak terlihat sama sekali — orang membuka aplikasi
+     dan tidak menemukan tanda di mana dirinya berada. */
+  const tuju = idDariHash();
+  const layarAwal = bolehLayar(tuju) ? tuju : (diGrup[0] || daftar[0]).id;
+  const grupAktif = (daftar.find(m => m.id === layarAwal) || {}).grup;
+  const lipat = bacaLipatGrup();
+
+  const itemHtml = (m) =>
+    /* TAUTAN sungguhan, bukan tombol: Ctrl+klik membuka layar itu di tab
+       baru, dan tombol Kembali bekerja. title= tetap dipakai saat sidebar
+       terlipat — labelnya hilang, tooltipnya menggantikan.
+       tabindex=-1 pada semuanya: satu item saja yang boleh menerima Tab
+       (roving tabindex), dan `bukaLayar` yang menentukan mana. */
+    `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1"` +
+    ` title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></a></li>`;
+
+  $('#navSisi').innerHTML = kelompokMenu(diGrup).map((g, i) => {
+    /* Judul kelompok jadi <h2> berisi <button> yang dirujuk <ul>-nya lewat
+       aria-labelledby. Tanpa itu pembaca layar mengumumkan "daftar, 7 butir"
+       tujuh kali tanpa pernah menyebut kelompok mana — dan justru pengelompokan
+       itulah yang membuat menu sepanjang ini bisa dipakai.
+       Tombolnya <button aria-expanded/aria-controls>, pola disclosure baku:
+       judul yang bisa diklik tapi bukan tombol adalah jebakan bagi keyboard. */
+    const idGrup = 'navGrup' + i, idDaftar = 'navDaftar' + i;
+    const buka = g.nama === grupAktif || lipat[g.nama] !== false;
+    return `<h2 class="sisi-grup">` +
+      `<button class="sisi-grup-tombol" id="${idGrup}" data-grup="${esc(g.nama)}"` +
+      ` aria-expanded="${buka}" aria-controls="${idDaftar}">` +
+      `<svg class="ikon-svg tanda-lipat" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>` +
+      `<span>${esc(g.nama)}</span></button></h2>` +
+      `<ul class="sisi-daftar${buka ? '' : ' tutup'}" id="${idDaftar}" aria-labelledby="${idGrup}">` +
+      g.isi.map(itemHtml).join('') +
+      `</ul>`;
+  }).join('') +
+  /* Item mandiri: berdiri di kaki nav, dipisah garis, TANPA judul kelompok yang
+     cuma akan mengulang namanya sendiri. `aria-label` menggantikan
+     `aria-labelledby` supaya daftarnya tetap punya nama bagi pembaca layar. */
+  (mandiri.length
+    ? `<ul class="sisi-daftar sisi-mandiri" aria-label="Bantuan">` +
+      mandiri.map(itemHtml).join('') + `</ul>`
+    : '');
+
+  bangunPopoverAkun(daftar);
+
+  bukaLayar(layarAwal);
 }
 
-/** Item nav dalam urutan tampil — dipakai roving tabindex dan panah. */
-const itemNav = () => $$('#navSisi a[data-layar]');
+/** Isi popover kartu pengguna: menu pribadi + tema (bila berizin). */
+function bangunPopoverAkun(daftar) {
+  const isi = (daftar || menuTampil()).filter(m => m.popover);
+  $('#popoverIsi').innerHTML = isi.map(m =>
+    `<a class="popover-item" role="menuitem" href="#/${m.id}" data-layar="${m.id}">` +
+    `${svgIkon(m.id)}<span>${esc(m.label)}</span></a>`).join('');
+
+  /* Tema setelan TOKO. Barisannya disembunyikan dari peran yang tidak berhak
+     mengubahnya — bukan ditampilkan lalu ditolak server, karena tombol yang
+     pasti gagal mengajarkan bahwa tombol memang kadang tidak bekerja. */
+  const boleh = bolehIzin('setting', 'ubah');
+  $('#barisTema').classList.toggle('sembunyi', !boleh);
+  if (boleh) $('#inpTemaGelap').checked =
+    String((APP_STATE.setting || {}).tema) === 'gelap';
+}
+
+function bukaPopoverAkun() {
+  $('#popoverAkun').hidden = false;
+  $('#btnKartuUser').setAttribute('aria-expanded', 'true');
+  const f = $('#popoverAkun').querySelector('a, button, input');
+  if (f) f.focus();
+}
+function tutupPopoverAkun(kembalikanFokus) {
+  if ($('#popoverAkun').hidden) return;
+  $('#popoverAkun').hidden = true;
+  $('#btnKartuUser').setAttribute('aria-expanded', 'false');
+  /* Fokus dikembalikan hanya bila ia masih DI DALAM popover. Menutup karena
+     orang mengklik layar lain, lalu merebut fokusnya kembali ke kartu
+     pengguna, adalah kursor yang melompat tanpa sebab. */
+  if (kembalikanFokus && $('#popoverAkun').contains(document.activeElement)) {
+    $('#btnKartuUser').focus();
+  }
+}
+
+/** Item nav yang BENAR-BENAR terjangkau — dipakai roving tabindex dan panah.
+ *
+ *  Item di kelompok yang terlipat dikeluarkan. Panah yang tetap melewatinya
+ *  memindahkan fokus ke elemen yang tidak terlihat: kursornya hilang, dan
+ *  tekanan Enter berikutnya membuka layar yang tidak pernah dilihat orangnya.
+ *
+ *  Diperiksa lewat CLASS, bukan lewat tata letak (`offsetParent`). Saat nav
+ *  digambar ulang, atau selama layar login masih menutupi sidebar, seluruh
+ *  sidebar belum punya tata letak sama sekali — pemeriksaan berbasis tata letak
+ *  akan menjawab "tidak ada satu pun item" dan meninggalkan nav tanpa titik
+ *  masuk Tab. */
+const itemNav = () => $$('#navSisi a[data-layar]')
+  .filter(a => !a.closest('.sisi-daftar')?.classList.contains('tutup'));
 
 /** Hanya SATU item yang boleh bertabindex 0, dan itu titik masuk Tab ke nav. */
 function pindahTitikTab(el) {
@@ -901,7 +1003,10 @@ function bukaLayar(id) {
   if (location.hash !== '#/' + id) location.hash = '#/' + id;
 
   let aktif = null;
-  $$('#navSisi a[data-layar]').forEach(a => {
+  /* Ruang lingkupnya `#sisi`, bukan `#navSisi`: sejak v1.148.0 tiga layar
+     pribadi hidup di popover kartu pengguna, dan tautan di sana berhak atas
+     penanda "sedang di sini" yang sama. */
+  $$('#sisi a[data-layar]').forEach(a => {
     const ini = a.dataset.layar === id;
     a.classList.toggle('aktif', ini);
     /* aria-current MENDAMPINGI class 'aktif', tidak menggantikannya: yang satu
@@ -922,6 +1027,10 @@ function bukaLayar(id) {
   const m = MENU.find(x => x.id === id);
   $('#judulLayar').textContent = m ? m.label : '';
   tutupLaci();
+  /* Fokusnya TIDAK dikembalikan ke kartu pengguna: layar sudah berganti, dan
+     melompatkan kursor kembali ke kaki sidebar sesudahnya tidak menolong
+     siapa pun. */
+  tutupPopoverAkun(false);
 
   if (m && m.admin) return Admin.muat(id);
   if (id === 'riwayat') return gambarRiwayat();
@@ -3823,6 +3932,58 @@ function pasangEvent() {
     bukaLayar(a.dataset.layar);
   });
 
+  /* Melipat kelompok. Tombolnya di dalam <h2>, jadi kliknya ditangkap di sini
+     — bukan dengan penangan per tombol, yang harus dipasang ulang tiap kali
+     nav digambar ulang dan diam-diam menumpuk kalau lupa dilepas. */
+  $('#navSisi').addEventListener('click', e => {
+    const t = e.target.closest('.sisi-grup-tombol');
+    if (!t) return;
+    const daftar = $('#' + t.getAttribute('aria-controls'));
+    const buka = t.getAttribute('aria-expanded') !== 'true';
+    t.setAttribute('aria-expanded', String(buka));
+    daftar.classList.toggle('tutup', !buka);
+    const peta = bacaLipatGrup();
+    peta[t.dataset.grup] = buka;
+    simpanLipatGrup(peta);
+    /* Titik masuk Tab dihitung ulang: item yang baru saja disembunyikan tidak
+       boleh tetap memegangnya, kalau tidak Tab mendarat di elemen tak
+       terlihat. */
+    pindahTitikTab($('#navSisi a[data-layar].aktif'));
+  });
+
+  /* Popover kartu pengguna. */
+  $('#btnKartuUser').addEventListener('click', () =>
+    $('#popoverAkun').hidden ? bukaPopoverAkun() : tutupPopoverAkun(true));
+  /* Klik di LUAR menutupnya. Dipasang di document dengan pemeriksaan
+     `contains`, bukan penangan blur pada popovernya: blur berbunyi juga saat
+     fokus berpindah ke dalam popover itu sendiri. */
+  document.addEventListener('click', e => {
+    if ($('#popoverAkun').hidden) return;
+    if ($('#popoverAkun').contains(e.target) || $('#btnKartuUser').contains(e.target)) return;
+    tutupPopoverAkun(false);
+  });
+
+  /* Tema — setelan TOKO, disimpan ke server. Perangkat lain menjemputnya pada
+     sinkronisasi berikutnya; yang ini menerapkannya seketika supaya orang yang
+     menekannya melihat hasilnya, bukan menunggu tanpa tanda. */
+  $('#inpTemaGelap').addEventListener('change', async (e) => {
+    const nilai = e.target.checked ? 'gelap' : 'terang';
+    const sebelum = (APP_STATE.setting || {}).tema;
+    terapkanTema(nilai);
+    APP_STATE.setting = Object.assign({}, APP_STATE.setting, { tema: nilai });
+    try {
+      await API.simpanSetting({ setting: { tema: nilai } });
+    } catch (x) {
+      /* Gagal disimpan berarti DIKEMBALIKAN, bukan dibiarkan. Tema yang menyala
+         di layar tapi tidak pernah tersimpan akan kembali sendiri pada muat
+         ulang berikutnya, dan orangnya tidak akan pernah tahu kenapa. */
+      terapkanTema(sebelum);
+      APP_STATE.setting = Object.assign({}, APP_STATE.setting, { tema: sebelum });
+      e.target.checked = String(sebelum) === 'gelap';
+      Admin.toast(x.message, 'galat');
+    }
+  });
+
   /* Router. Berbunyi untuk tombol Kembali/Maju, untuk tautan yang ditempel,
      dan untuk hash yang ditulis `bukaLayar` sendiri — yang terakhir berhenti
      di baris `id === layarKini`, jadi tidak ada layar yang tergambar dua kali. */
@@ -3862,7 +4023,10 @@ function pasangEvent() {
     item[j].focus();
   });
   $('#btnLaci').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>';
-  $('#btnKeluar').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="m15.5 16.5 4.5-4.5-4.5-4.5"/><path d="M20 12H9"/></svg>';
+  /* Ikon DAN label. Sampai v1.147.0 tombol ini cuma ikon di kaki sidebar, dan
+     labelnya hidup di `aria-label` saja; di dalam popover ia berdiri sejajar
+     dengan "Akun saya" dan "Tentang", jadi ia harus terbaca seperti mereka. */
+  $('#btnKeluar').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="m15.5 16.5 4.5-4.5-4.5-4.5"/><path d="M20 12H9"/></svg><span>Keluar</span>';
   $('#btnLaci').addEventListener('click', () =>
     $('#sisi').classList.contains('buka') ? tutupLaci() : bukaLaci());
   $('#tiraiSisi').addEventListener('click', tutupLaci);
@@ -3872,6 +4036,7 @@ function pasangEvent() {
   $('#btnLipat').addEventListener('click', () =>
     terapkanLipat(!$('#app').classList.contains('sisi-lipat')));
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !$('#popoverAkun').hidden) { tutupPopoverAkun(true); return; }
     if (e.key === 'Escape' && $('#sisi').classList.contains('buka')) tutupLaci();
     /* Perangkap fokus selama laci terbuka. Laci menutupi seluruh layar di balik
        tirai, jadi Tab yang keluar darinya membawa orang ke tombol dan kolom

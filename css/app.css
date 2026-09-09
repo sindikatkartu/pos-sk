@@ -310,7 +310,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-grup {
   font-size: var(--fs-11); font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
   color: var(--teks-redup); padding: 16px 10px 6px; white-space: nowrap;
-  /* <h2> sejak v1.147.0 — margin bawaan judul akan menggeser seluruh rel. */
+  /* <h2> sejak v1.146.0 — margin bawaan judul akan menggeser seluruh rel. */
   margin: 0;
 }
 /* 4px padding `.sisi-isi` + 14px = 18px di bawah garis — jarak yang SAMA dengan
@@ -318,15 +318,40 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    membuat garisnya terlihat miring walau lurus. */
 .sisi-grup:first-child { padding-top: 14px; }
 
-/* Daftar kelompok: <ul>/<li> sejak v1.147.0 supaya pembaca layar mengumumkan
+/* Daftar kelompok: <ul>/<li> sejak v1.146.0 supaya pembaca layar mengumumkan
    "Penjualan, daftar 5 butir" dan bukan 23 tautan tanpa struktur. Gaya bawaan
    daftarnya dinolkan — yang berubah hanya apa yang terbaca alat bantu, bukan
    satu piksel pun tampilannya. */
 .sisi-daftar { list-style: none; margin: 0; padding: 0; }
+/* Kelompok terlipat. `display:none`, bukan tinggi nol: item yang cuma
+   dipendekkan tetap bisa difokus Tab dan tetap dibacakan pembaca layar —
+   "tersembunyi" yang hanya berlaku bagi mata bukan tersembunyi. */
+.sisi-daftar.tutup { display: none; }
+
+/* Item mandiri (Bantuan) di kaki nav — dipisah garis, tanpa judul kelompok
+   yang cuma mengulang namanya sendiri. */
+.sisi-mandiri {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--garis-rangka);
+}
+
+/* Judul kelompok kini TOMBOL disclosure. Tampilannya dipertahankan persis
+   seperti judul biasa — yang bertambah cuma tanda panah dan sasaran klik. */
+.sisi-grup-tombol {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: transparent; border: 0; color: inherit; cursor: pointer;
+  font: inherit; letter-spacing: inherit; text-transform: inherit;
+  padding: 0; text-align: left;
+}
+.sisi-grup-tombol .tanda-lipat {
+  width: 14px; height: 14px; flex-shrink: 0;
+  transition: transform .12s;
+}
+.sisi-grup-tombol[aria-expanded="true"] .tanda-lipat { transform: rotate(90deg); }
+.sisi-grup-tombol:hover { color: var(--teks); }
 
 /* Item nav mengikuti sidebar pengaturan GitHub: hover abu muda, item aktif
    ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh.
-   `a`, bukan `button`, sejak v1.147.0: alamat tiap layar jadi bisa disebut,
+   `a`, bukan `button`, sejak v1.146.0: alamat tiap layar jadi bisa disebut,
    Ctrl+klik membuka tab baru, dan tombol Kembali peramban bekerja. */
 .sisi-isi .item-nav {
   display: flex; align-items: center; gap: 10px;
@@ -388,7 +413,17 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat .sisi-nama,
 #app.sisi-lipat .sisi-isi .item-nav span,
 #app.sisi-lipat .kartu-user .nm,
+#app.sisi-lipat .tanda-popover,
+#app.sisi-lipat .sisi-grup-tombol span,
 #app.sisi-lipat .sisi-bawah .tombol-ikon.keluar { display: none; }
+/* Terlipat, judul kelompok sudah jadi garis 1px — tombol lipatnya tidak punya
+   apa pun untuk ditekan, dan kelompok yang terlanjur tertutup akan
+   menyembunyikan ikonnya tanpa satu pun cara membukanya kembali. Jadi di rel
+   sempit seluruh kelompok DIPAKSA terbuka; keadaan lipatnya tetap tersimpan
+   dan kembali berlaku begitu sidebarnya dibentangkan. */
+#app.sisi-lipat .sisi-daftar.tutup { display: block; }
+#app.sisi-lipat .sisi-grup-tombol { display: none; }
+#app.sisi-lipat .sisi-mandiri { margin-top: 6px; padding-top: 6px; }
 /* Terlipat, rel hanya selebar 68px: logo DAN tombol lipat tidak muat berdampingan —
    dipaksakan, tombolnya meluber menimpa isi layar. Jadi keduanya ditumpuk di tempat
    yang sama: logo yang terlihat, tombol menggantikannya saat disentuh/di-hover.
@@ -413,6 +448,40 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 #app.sisi-lipat .sisi-grup:first-child { border-top: none; margin-top: 0; padding-top: 0; height: 4px; }
 #app.sisi-lipat .kartu-user { justify-content: center; padding: 0; }
+
+/* ---------- Popover kartu pengguna ---------- */
+/* Ditempel di ATAS kartunya (bottom:100%), bukan di bawah: kartunya sudah
+   menempel di dasar sidebar, jadi popover yang membuka ke bawah akan keluar
+   dari layar. */
+.sisi-bawah { position: relative; }
+.popover-akun {
+  position: absolute; bottom: 100%; left: 8px; right: 8px; margin-bottom: 8px;
+  background: var(--panel); border: 1px solid var(--garis-rangka);
+  border-radius: var(--radius); box-shadow: var(--bayang-4);
+  padding: 6px; z-index: 30;
+}
+.popover-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: transparent; border: 0; color: var(--teks); text-decoration: none;
+  font: inherit; font-size: var(--fs-14); text-align: left; cursor: pointer;
+  padding: 8px 10px; border-radius: var(--radius); white-space: nowrap;
+}
+.popover-item .ikon-svg { color: var(--teks-redup); }
+.popover-item:hover { background: var(--panel-2); }
+.popover-item.keluar:hover { background: var(--panel-2); color: var(--bahaya); }
+.popover-item.keluar:hover .ikon-svg { color: var(--bahaya); }
+.popover-pisah { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--garis-halus); }
+.popover-tema {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  font-size: var(--fs-14); cursor: pointer;
+}
+.popover-akun .petunjuk { padding: 0 10px 6px; margin: 0; }
+
+/* Kartu pengguna kini TOMBOL. Tampilannya dijaga sama; yang bertambah cuma
+   sasaran klik dan tanda panahnya. */
+.kartu-user { border: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.kartu-user:hover { background: var(--panel-2); }
+.tanda-popover { width: 16px; height: 16px; color: var(--teks-redup); flex-shrink: 0; }
 
 /* ---------- Bilah atas ---------- */
 .bar-atas {
@@ -1542,6 +1611,14 @@ input.sudah-hitung {
      `min-height`, bukan `height`: isian yang teksnya membungkus tetap boleh
      tumbuh. Padding ikut disesuaikan supaya teksnya tetap di tengah. */
   .sisi-isi .item-nav { min-height: 40px; padding-top: 8px; padding-bottom: 8px; }
+  /* Judul kelompok kini TOMBOL lipat, jadi ia sasaran sentuh seperti yang lain —
+     bukan pengecualian karena kebetulan berbentuk judul. Padding <h2>-nya
+     dikurangi supaya jarak antar kelompok tidak ikut menggemuk 40px penuh. */
+  .sisi-grup { padding-top: 8px; padding-bottom: 0; }
+  .sisi-grup-tombol { min-height: 40px; }
+  /* Isi popover kartu pengguna. Tautannya <a>, jadi aturan `.sisi-bawah button`
+     di bawah tidak menjangkaunya. */
+  .popover-item, .popover-tema { min-height: 40px; }
   select, input[type=text], input[type=number], input[type=password],
   input[type=date], input[type=month], input[type=tel], input[type=search] {
     min-height: 40px;
