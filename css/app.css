@@ -267,10 +267,18 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    di tepi sidebar, 7px lebih tinggi dari tempat kepala sidebar berakhir — mata
    membacanya sebagai garis yang patah, bukan sebagai dua panel yang berbeda.
    Satu tinggi, satu garis, satu ketinggian: garisnya menyeberang penuh. */
+/* Latarnya `--panel`, SAMA dengan bar atas — bukan `--sisi-bg` seperti sisa
+   sidebar. Diputuskan pemilik 9 Sep 2026 setelah melihat tangkapan layar tema
+   gelap: kepala sidebar satu tingkat lebih gelap dari bar atas di sebelahnya,
+   dan keduanya berdiri di baris yang sama dengan tinggi yang sama, jadi beda
+   satu tingkat itu terbaca sebagai potongan yang lupa diwarnai — bukan sebagai
+   pembagian ruang. Di tema terang keduanya memang sudah putih, jadi aturan ini
+   tidak mengubah apa pun di sana. */
 .sisi-atas {
   display: flex; align-items: center; gap: 10px; position: relative;
   box-sizing: border-box; min-height: var(--tinggi-kepala);
   padding: 0 14px; flex-shrink: 0;
+  background: var(--panel);
   border-bottom: 1px solid var(--garis-rangka);
 }
 /* Tanda merek gelap polos, seperti logo GitHub sendiri — gradien biru tadi
@@ -369,6 +377,58 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   width: 3px; border-radius: 0 6px 6px 0; background: var(--aksen-aktif);   /* aksen "aktif" GitHub */
 }
 .sisi-isi .item-nav.aktif .ikon-svg { color: var(--teks); }
+/* Nama menu memakan sisa lebarnya supaya lencana selalu rata kanan — tanpa
+   `flex:1` angkanya menempel pada nama dan letaknya berbeda tiap baris. */
+.sisi-isi .item-nav .item-nama { flex: 1; min-width: 0; }
+
+/* ==================== LENCANA NAV ====================
+   Angka kecil "berapa yang menunggu tindakan di sana". Abu-abu, BUKAN merah:
+   perangkat yang menunggu persetujuan dan kiriman yang belum diterima adalah
+   pekerjaan biasa, bukan kerusakan. Merah di sidebar akan menyala sepanjang
+   hari kerja normal, dan lencana yang selalu menyala berhenti dibaca.
+   Nomornya rata tengah dengan lebar minimum, jadi 1 dan 12 sama tingginya dan
+   barisnya tidak bergoyang saat angkanya berubah. */
+.sisi-lencana {
+  flex: none; min-width: 20px; box-sizing: border-box;
+  padding: 2px 6px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--garis-rangka);
+  color: var(--teks-redup); font-size: var(--fs-12); font-weight: 600;
+  line-height: 1.5; text-align: center;
+}
+.sisi-isi .item-nav.aktif .sisi-lencana { color: var(--teks); }
+
+/* Teks yang hanya untuk pembaca layar. Bukan `display:none` dan bukan
+   `visibility:hidden` — keduanya mencabutnya dari pohon aksesibilitas, yang
+   persis kebalikan dari yang diminta. */
+.hanya-pembaca {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ==================== FLYOUT SIDEBAR TERLIPAT ====================
+   `position: fixed` — letaknya dihitung app.js. Alasannya di komentar
+   `tampilFlyoutSisi()`: `.sisi-isi` bergulir, jadi apa pun yang digambar di
+   dalam rel 68px itu terpotong di tepinya.
+   z-index di atas laci dan tirai, di bawah modal: ia menempel pada sidebar,
+   dan dialog yang terbuka harus menutupinya. */
+.flyout-sisi {
+  position: fixed; z-index: 70; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 8px;
+  max-width: 260px; padding: 6px 10px;
+  background: var(--panel); color: var(--teks);
+  border: 1px solid var(--garis-kuat); border-radius: var(--radius);
+  box-shadow: var(--bayang-4);
+  font-size: var(--fs-13); white-space: nowrap;
+  pointer-events: none;   /* gelembung penjelas, bukan sasaran klik */
+}
+.flyout-sisi .flyout-nama { font-weight: 600; }
+/* Nama kelompok ikut, karena justru itu yang hilang saat dilipat: judul
+   kelompok berubah jadi garis 1px, jadi "Transfer" kehilangan "Persediaan"
+   yang menjelaskannya. */
+.flyout-sisi .flyout-grup {
+  color: var(--teks-redup); font-size: var(--fs-12);
+}
+.flyout-sisi .flyout-grup::after { content: ' ·'; }
 
 /* Kaki sidebar dikunci ke tinggi yang SAMA dengan kepalanya — `--tinggi-kepala`.
 
@@ -410,8 +470,11 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .tombol-ikon:hover { background: var(--panel-2); color: var(--teks); }
 
 /* --- keadaan terlipat: sisakan ikon, label & judul kelompok disembunyikan --- */
+/* `.item-nama` TIDAK ikut di sini, dan itu keputusan: `display:none`
+   mencabutnya dari pohon aksesibilitas, dan sejak `title=` dibuang (v1.151.0)
+   dialah satu-satunya nama yang dipunyai tautan itu. Ia disembunyikan secara
+   visual beberapa baris di bawah. */
 #app.sisi-lipat .sisi-nama,
-#app.sisi-lipat .sisi-isi .item-nav span,
 #app.sisi-lipat .kartu-user .nm,
 #app.sisi-lipat .tanda-popover,
 #app.sisi-lipat .sisi-grup-tombol span,
@@ -440,6 +503,22 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat #btnLipat:focus-visible { opacity: 1; }
 #app.sisi-lipat .sisi-isi { padding: 4px 8px 14px; }
 #app.sisi-lipat .sisi-isi .item-nav { justify-content: center; padding: 10px 0; }
+/* Terlipat: namanya tetap ADA (dibaca pembaca layar, dan flyout mengambil
+   isinya) tapi tidak memakan satu piksel pun. */
+#app.sisi-lipat .sisi-isi .item-nav .item-nama {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; flex: none;
+}
+/* Lencana jadi TITIK di bahu ikon. Angkanya tidak muat di rel 68px, dan angka
+   yang dipaksa muat akan menutupi ikonnya sendiri — sementara yang perlu
+   diketahui pada lebar ini cuma "ada sesuatu di sini". Angkanya kembali di
+   flyout, satu gerakan tetikus kemudian. */
+#app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
+  position: absolute; top: 6px; right: 12px;
+  min-width: 0; width: 8px; height: 8px; padding: 0;
+  border-radius: 50%; overflow: hidden; text-indent: -99px;
+  background: var(--peringatan); border-color: var(--peringatan);
+}
 #app.sisi-lipat .sisi-isi .item-nav.aktif::before { left: -8px; }
 #app.sisi-lipat .sisi-grup {
   /* Judul kelompok diganti garis pemisah — tetap ada jeda visual, tanpa teks terpotong */
@@ -1561,8 +1640,24 @@ input.sudah-hitung {
   #btnLaci { display: flex; }
   #btnLipat { display: none; }
   /* Saat jadi laci, keadaan "terlipat" tidak berlaku */
-  #app.sisi-lipat .sisi-nama, #app.sisi-lipat .sisi-isi .item-nav span,
+  #app.sisi-lipat .sisi-nama, #app.sisi-lipat .sisi-grup-tombol span,
   #app.sisi-lipat .kartu-user .nm { display: block; }
+  /* Tombol judul kelompoknya ikut kembali. Sebelum v1.151.0 ia tertinggal
+     `display:none` dari aturan mode terlipat, jadi ponsel yang keadaan
+     lipatnya tersimpan menyala menampilkan judul kelompok KOSONG — kotak
+     setinggi teks tanpa satu huruf pun, dan kelompoknya tidak bisa dilipat
+     lagi. Ketahuan saat memindahkan `.item-nav span` dari daftar yang sama. */
+  #app.sisi-lipat .sisi-grup-tombol { display: flex; }
+  /* Jadi laci, "terlipat" tidak berlaku — nama dan lencananya kembali utuh. */
+  #app.sisi-lipat .sisi-isi .item-nav .item-nama {
+    position: static; width: auto; height: auto; margin: 0;
+    overflow: visible; clip: auto; flex: 1; min-width: 0;
+  }
+  #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
+    position: static; width: auto; height: auto; min-width: 20px;
+    padding: 2px 6px; border-radius: 999px; overflow: visible; text-indent: 0;
+    background: var(--panel-2); border-color: var(--garis-rangka);
+  }
   #app.sisi-lipat .sisi-isi .item-nav { justify-content: flex-start; padding: 8px 10px; }
   #app.sisi-lipat .sisi-grup {
     height: auto; padding: 16px 10px 6px; margin: 0; border-top: none; color: var(--teks-redup);

@@ -293,6 +293,11 @@ const API = (() => {
     dashboard:         (d) => panggil('ringkasan_dashboard', d, { timeout: 90000 }),
     daftarProduk:      (d) => panggil('daftar_produk', d, { timeout: 90000 }),
     produkSatu:        (d) => panggil('produk_satu', d),
+    /* `opsi` diteruskan supaya penyegaran berkala bisa lewat sebagai LATAR.
+       Tanpa itu lencana yang menyegar diri tiap beberapa menit menyalakan
+       penanda sibuk dan mengunci layar tanpa ada yang menekan apa pun.
+       Lihat _sibukOrang di atas. */
+    lencanaNav:        (o) => panggil('lencana_nav', {}, o || {}),
     produkTerjual:     (d) => panggil('produk_terjual', d, { timeout: 90000 }),
     simpanProdukLengkap:(d)=> panggil('simpan_produk_lengkap', d),
     nonaktifkanProduk: (d) => panggil('nonaktifkan_produk', d),

@@ -16,7 +16,12 @@ const APP_STATE = {
   bobotPeran: { PENJUAL: 60, PEMASANG: 40 },
   // uuid nota disiapkan saat layar bayar dibuka, bukan saat disimpan: persetujuan
   // diskon menempel pada uuid, jadi nomornya harus sudah ada sebelum diminta.
-  uuidNota: null, otorisasiDiskon: null
+  uuidNota: null, otorisasiDiskon: null,
+  /* Lencana nav: { <id layar>: <berapa yang menunggu tindakan> }. Diisi
+     `tarikLencanaNav()`, dibaca penggambar nav dan flyout. Kosong = tidak ada
+     yang menunggu ATAU belum sempat ditarik; keduanya digambar sama, dan itu
+     disengaja — lihat catatan di `tarikLencanaNav`. */
+  lencanaNav: {}
 };
 
 const $  = (s) => document.querySelector(s);
@@ -900,12 +905,24 @@ function bangunNav() {
 
   const itemHtml = (m) =>
     /* TAUTAN sungguhan, bukan tombol: Ctrl+klik membuka layar itu di tab
-       baru, dan tombol Kembali bekerja. title= tetap dipakai saat sidebar
-       terlipat — labelnya hilang, tooltipnya menggantikan.
+       baru, dan tombol Kembali bekerja.
        tabindex=-1 pada semuanya: satu item saja yang boleh menerima Tab
-       (roving tabindex), dan `bukaLayar` yang menentukan mana. */
-    `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1"` +
-    ` title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></a></li>`;
+       (roving tabindex), dan `bukaLayar` yang menentukan mana.
+
+       TANPA `title=` sejak v1.151.0. Dulu ia yang menggantikan label saat
+       sidebar terlipat; sekarang flyout yang melakukannya, dan dua tooltip
+       untuk satu ikon berarti gelembung peramban muncul menimpa flyout
+       setengah detik kemudian. Namanya tidak hilang bagi pembaca layar:
+       `.item-nama` tetap ADA di dokumen saat terlipat, cuma disembunyikan
+       secara visual — bukan `display:none`, yang mencabutnya dari pohon
+       aksesibilitas.
+
+       Kotak lencananya SELALU digambar, kosong dan `hidden`. Menyisipkan dan
+       mencabut simpul tiap kali angkanya berubah berarti penggambar lencana
+       harus tahu urutan anak `<a>`; menyalakan `hidden` tidak. */
+    `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1">` +
+    `${svgIkon(m.id)}<span class="item-nama">${esc(m.label)}</span>` +
+    `<span class="sisi-lencana" data-lencana="${m.id}" hidden></span></a></li>`;
 
   $('#navSisi').innerHTML = kelompokMenu(diGrup).map((g, i) => {
     /* Judul kelompok jadi <h2> berisi <button> yang dirujuk <ul>-nya lewat
@@ -934,6 +951,10 @@ function bangunNav() {
     : '');
 
   bangunPopoverAkun(daftar);
+  /* Angka yang sudah di tangan dipasang lagi: nav yang digambar ulang lahir
+     tanpa lencana, dan menunggu tarikan berikutnya berarti angkanya berkedip
+     hilang setiap kali menu berubah. */
+  gambarLencanaNav();
 
   bukaLayar(layarAwal);
 }
@@ -972,6 +993,109 @@ function tutupPopoverAkun(kembalikanFokus) {
   }
 }
 
+/* ---------- Lencana nav & flyout mode terlipat (poin 5 & 7) ---------------
+   Dua hal berbeda yang berbagi satu sumber angka, jadi ditulis berdampingan.
+*/
+
+/** Tulis angka lencana ke nav yang SUDAH ada. Tidak menggambar ulang navnya:
+ *  `bangunNav()` memanggil `bukaLayar()` di ujungnya, dan menggambar ulang
+ *  hanya untuk satu angka berarti setiap penyegaran berkala melempar layar
+ *  yang sedang dibuka kembali ke layar awal. */
+function gambarLencanaNav() {
+  const peta = APP_STATE.lencanaNav || {};
+  $$('#navSisi [data-lencana]').forEach(el => {
+    const n = Number(peta[el.dataset.lencana]) || 0;
+    el.hidden = !n;
+    /* Angkanya dipotong di 99+. Lencana empat angka melebarkan dirinya sampai
+       nama menunya terpotong, dan "berapa persisnya" bukan pertanyaan yang
+       dijawab lencana — itu pertanyaan untuk layarnya. */
+    if (n) el.innerHTML = (n > 99 ? '99+' : String(n)) +
+      '<span class="hanya-pembaca"> menunggu tindakan</span>';
+  });
+}
+
+let _lencanaTerakhir = 0;
+
+/**
+ * Tarik angka lencana dari server.
+ *
+ * DIAM saat gagal, dan angka lama DIPERTAHANKAN. Dua alasan: lencana adalah
+ * petunjuk, bukan catatan — kotak merah untuknya melatih orang mengabaikan
+ * kotak merah; dan mengosongkannya saat jaringan tersendat membuat angkanya
+ * berkedip hilang-muncul, yang terbaca sebagai "pekerjaannya sudah beres".
+ *
+ * `latar: true` untuk yang dipicu timer dan perpindahan layar. Tanpa itu
+ * penanda sibuk menyala dan layar mengunci diri sendiri tiap lima menit tanpa
+ * ada yang menekan apa pun — lihat _sibukOrang di api.js.
+ */
+async function tarikLencanaNav(latar) {
+  if (!API.online) return;
+  _lencanaTerakhir = Date.now();
+  try {
+    const d = await API.lencanaNav(latar ? { latar: true } : {});
+    APP_STATE.lencanaNav = d.lencana || {};
+    gambarLencanaNav();
+  } catch (e) { /* sengaja diam — lihat catatan di atas */ }
+}
+
+/** Segarkan setelah berpindah layar, tapi paling cepat sekali per menit.
+ *  Yang dikejar: angka yang turun sesudah orang menyetujui perangkat atau
+ *  menerima kiriman, tanpa perlu satu penangan khusus di tiap layar yang
+ *  mengubahnya — dan tanpa satu permintaan tiap kali menu diklik. */
+function segarkanLencanaNav() {
+  if (Date.now() - _lencanaTerakhir < 60000) return;
+  tarikLencanaNav(true);
+}
+
+let timerLencana = null;
+function mulaiLencanaNav() {
+  /* clearInterval dulu: login kedua di tab yang sama akan menumpuk timer, dan
+     timer yang menumpuk melipatgandakan permintaan tanpa satu pun tanda. */
+  if (timerLencana) clearInterval(timerLencana);
+  tarikLencanaNav(false);
+  timerLencana = setInterval(() => tarikLencanaNav(true), CONFIG.LENCANA_POLL_MS);
+}
+
+/**
+ * FLYOUT saat sidebar terlipat.
+ *
+ * Menggantikan tooltip bawaan peramban, yang punya tiga masalah di rel 68px:
+ * ia baru muncul sesudah jeda satu detik, ia tidak pernah muncul untuk fokus
+ * papan ketik, dan ia tidak bisa memuat apa pun selain teks datar — sementara
+ * yang hilang saat dilipat bukan cuma nama menunya, melainkan juga NAMA
+ * KELOMPOKNYA (judul kelompok berubah jadi garis 1px) dan angka lencananya.
+ *
+ * `position: fixed`, bukan absolut di dalam sidebar. `.sisi-isi` bergulir
+ * dengan `overflow-y:auto`, dan apa pun yang digambar di dalamnya terpotong di
+ * tepi rel selebar 68px itu. Karena fixed, letaknya dihitung dari
+ * getBoundingClientRect tiap kali ditampilkan — dan disembunyikan saat navnya
+ * digulir, karena letak yang dihitung sekali akan tertinggal di belakang.
+ *
+ * `aria-hidden`: namanya sudah diumumkan `.item-nama` yang tetap ada di
+ * dokumen. Mengumumkannya dua kali membuat pembaca layar menyebut tiap menu
+ * dua kali.
+ */
+function tampilFlyoutSisi(a) {
+  const el = $('#flyoutSisi');
+  if (!el || !a || !$('#app').classList.contains('sisi-lipat')) return;
+  const id = a.dataset.layar;
+  const m = MENU.find(x => x.id === id);
+  const n = Number((APP_STATE.lencanaNav || {})[id]) || 0;
+  el.innerHTML =
+    (m && m.grup ? `<span class="flyout-grup">${esc(m.grup)}</span>` : '') +
+    `<span class="flyout-nama">${esc((m && m.label) || a.textContent.trim())}</span>` +
+    (n ? `<span class="sisi-lencana">${n > 99 ? '99+' : n}</span>` : '');
+  el.hidden = false;
+  const r = a.getBoundingClientRect();
+  el.style.top = Math.round(r.top + r.height / 2) + 'px';
+  el.style.left = Math.round(r.right + 8) + 'px';
+}
+
+function sembunyiFlyoutSisi() {
+  const el = $('#flyoutSisi');
+  if (el && !el.hidden) el.hidden = true;
+}
+
 /** Item nav yang BENAR-BENAR terjangkau — dipakai roving tabindex dan panah.
  *
  *  Item di kelompok yang terlipat dikeluarkan. Panah yang tetap melewatinya
@@ -996,6 +1120,8 @@ function pindahTitikTab(el) {
 
 function bukaLayar(id) {
   layarKini = id;
+  sembunyiFlyoutSisi();
+  segarkanLencanaNav();
   /* Hash disamakan DI SINI, bukan di penangan klik menu. Layar juga dibuka
      dari lencana bar atas, dari tombol di dalam layar lain, dan dari susulan
      rilis — kalau hashnya hanya ikut saat menu diklik, alamat di bilah alamat
@@ -1086,6 +1212,10 @@ function tutupLaci() {
  *  punya kebiasaan berbeda, dan tidak ada yang mau melipatnya tiap pagi. */
 async function terapkanLipat(lipat, simpan = true) {
   $('#app').classList.toggle('sisi-lipat', !!lipat);
+  /* Flyout cuma hidup di mode terlipat. Membentangkan sidebar sementara
+     gelembungnya masih terbuka meninggalkannya menggantung di tengah layar,
+     menunjuk item yang sekarang punya labelnya sendiri. */
+  sembunyiFlyoutSisi();
   $('#btnLipat').setAttribute('title', lipat ? 'Bentangkan menu (Ctrl+B)' : 'Lipat menu (Ctrl+B)');
   $('#btnLipat').innerHTML = lipat
     ? '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>'
@@ -1239,6 +1369,7 @@ async function mulaiSesi(d) {
   Sync.mulai();
   Sync.tarikStok();
   Sync.tarikStokSemuaCabang();
+  mulaiLencanaNav();
   await periksaShift();
   await gambarProduk('');
   gambarKeranjang();
@@ -3931,6 +4062,35 @@ function pasangEvent() {
        akan pernah berbunyi. */
     bukaLayar(a.dataset.layar);
   });
+
+  /* FLYOUT mode terlipat. Dipasang SEKALI di sini, bukan per item nav:
+     navnya digambar ulang tiap kali izin atau menu berubah, dan penangan
+     per item harus dipasang ulang tiap kali — yang diam-diam menumpuk kalau
+     satu saja lupa dilepas.
+     `mouseover`/`mouseout` (yang menggelembung), bukan `mouseenter`/`mouseleave`
+     (yang tidak) — pendelegasian menuntut peristiwa yang naik ke wadahnya. */
+  $('#navSisi').addEventListener('mouseover', (e) => {
+    const a = e.target.closest('a[data-layar]');
+    if (a) tampilFlyoutSisi(a);
+  });
+  $('#navSisi').addEventListener('mouseout', (e) => {
+    /* Pindah tetikus DI DALAM satu item (dari ikon ke labelnya) juga menembakkan
+       mouseout. Kalau tujuannya masih item yang sama, gelembungnya jangan
+       ditutup — kalau ditutup, ia berkedip setiap kali kursor bergeser 2px. */
+    const ke = e.relatedTarget;
+    if (ke && ke.closest && ke.closest('#navSisi a[data-layar]') === e.target.closest('a[data-layar]')) return;
+    sembunyiFlyoutSisi();
+  });
+  /* focusin/focusout, bukan focus/blur: yang terakhir tidak menggelembung. */
+  $('#navSisi').addEventListener('focusin', (e) => {
+    const a = e.target.closest('a[data-layar]');
+    if (a) tampilFlyoutSisi(a);
+  });
+  $('#navSisi').addEventListener('focusout', sembunyiFlyoutSisi);
+  /* Digulir = letak yang sudah dihitung sudah salah. Menghitung ulang tiap
+     piksel gulir lebih mahal daripada menutupnya; yang mau melihatnya lagi
+     tinggal berhenti di ikonnya. `passive` supaya gulirnya tidak tersendat. */
+  $('.sisi-isi').addEventListener('scroll', sembunyiFlyoutSisi, { passive: true });
 
   /* Melipat kelompok. Tombolnya di dalam <h2>, jadi kliknya ditangkap di sini
      — bukan dengan penangan per tombol, yang harus dipasang ulang tiap kali

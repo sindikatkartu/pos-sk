@@ -1088,5 +1088,10 @@
 <script src="js/grafik.min.js"></script>
 <script src="js/admin.min.js"></script>
 <script src="js/app.min.js"></script>
+<!-- Flyout sidebar terlipat. DI LUAR <aside class="sisi">, dan itu bukan
+     kerapian: `.sisi-isi` bergulir dengan overflow-y:auto, jadi apa pun yang
+     digambar di dalamnya terpotong di tepi rel selebar 68px. Letaknya dihitung
+     app.js tiap kali ditampilkan. -->
+<div id="flyoutSisi" class="flyout-sisi" role="tooltip" aria-hidden="true" hidden></div>
 </body>
 </html>
