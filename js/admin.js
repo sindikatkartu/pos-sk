@@ -1994,6 +1994,11 @@ const Admin = (() => {
   }
 
   function dialogImpor(entitas = 'produk') {
+    /* Dialog yang dibuka ulang mulai dari kosong. Tanpa ini, berkas yang dibaca
+       pada pembukaan SEBELUMNYA masih tersimpan, dan mencentang "lewati SKU
+       yang sudah terdaftar" akan menggambar pratinjau berkas kemarin di dialog
+       yang layarnya kosong. */
+    barisBerkas = null; barisImpor = []; barisMentah = [];
     bukaModal('Impor data massal', `
       <div class="grup">
         <label>Data yang diimpor</label>
@@ -2018,26 +2023,54 @@ const Admin = (() => {
         <textarea id="imporTeks" rows="7" placeholder="sku	nama	harga_eceran	harga_grosir
 AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
+      <label class="pilih" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0">
+        <input type="checkbox" id="imporLewatiAda" style="margin-top:3px">
+        <span>Lewati SKU yang sudah terdaftar<br>
+          <small class="petunjuk">Untuk berkas katalog PENUH dari pemasok: yang sudah ada dibiarkan
+          apa adanya, yang baru saja yang ditambahkan. Tanpa centang ini, satu SKU yang sudah ada
+          membatalkan seluruh berkas.</small></span>
+      </label>
       <button class="tombol" id="btnPratinjauImpor">Pratinjau</button>
       <p class="petunjuk">Impor bersifat semua-atau-tidak sama sekali: bila ada satu baris bermasalah,
         tidak ada satu pun yang tersimpan. Lebih baik Anda memperbaiki berkasnya daripada menemukan
-        setengah data masuk dan setengah tidak.</p>
+        setengah data masuk dan setengah tidak. Centang di atas hanya melunakkan SATU hal — SKU yang
+        sudah ada — dan tidak pernah menimpa data lama.</p>
       <div id="hasilPratinjau"></div>`,
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" id="btnJalankanImpor" disabled>Impor</button>`);
   }
 
-  let barisImpor = [], barisMentah = [];
+  let barisImpor = [], barisMentah = [], barisBerkas = null;
 
-  function pratinjauImpor(barisSiap) {
+  /**
+   * SKU yang sudah ada menurut salinan lokal. PERKIRAAN, dan sengaja begitu:
+   * `DB.all('produk')` hanya berisi produk AKTIF — itu yang diturunkan
+   * `apiTarikMaster` — sedangkan yang memutuskan dilewati atau tidak adalah
+   * server, yang membaca sheet MASTER/produk seutuhnya termasuk yang nonaktif.
+   * Jadi angka di pratinjau boleh lebih kecil dari kenyataan; ia tidak boleh
+   * lebih besar, dan tidak pernah dipakai untuk membuang baris dari kiriman.
+   */
+  async function skuTerdaftar() {
+    try { return new Set((await DB.all('produk')).map(p => String(p.sku))); }
+    catch (e) { return new Set(); }
+  }
+
+  async function pratinjauImpor(barisSiap) {
     const entitas = nilai('imporEntitas') || 'produk';
+    if (barisSiap) barisBerkas = barisSiap;
     let baris, judul, pisah;
 
-    if (barisSiap) {
-      baris = barisSiap.filter(r => r.some(c => String(c).trim() !== ''));
+    /* Berkas yang sudah dibaca DIINGAT, supaya mencentang "lewati SKU yang
+       sudah terdaftar" bisa menggambar ulang pratinjau tanpa memaksa
+       pemakainya memilih berkasnya sekali lagi. Tempelan teks tetap menang
+       bila ada isinya: itu yang baru saja diketik orangnya. */
+    const teks = ($('#imporTeks')?.value || '').trim();
+    if (!barisSiap && teks) barisBerkas = null;
+
+    if (barisBerkas) {
+      baris = barisBerkas.filter(r => r.some(c => String(c).trim() !== ''));
       judul = baris[0].map(h => String(h).trim().toLowerCase());
     } else {
-      const teks = $('#imporTeks').value.trim();
       if (!teks) return toast('Unggah berkas atau tempel datanya dulu.', 'galat');
       pisah = teks.includes('\t') ? '\t' : ',';
       baris = teks.split(/\r?\n/).filter(b => b.trim()).map(b => b.split(pisah));
@@ -2067,10 +2100,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
     barisMentah = baris;
 
+    /* Hanya produk yang punya opsi ini — impor pelanggan, supplier dan stok
+       awal tidak mengenal `lewati_ada` di server, jadi centangnya tidak boleh
+       ikut mengubah pratinjaunya. */
+    const lewatiAda = entitas === 'produk' && !!$('#imporLewatiAda')?.checked;
+    const sudahAda = lewatiAda ? await skuTerdaftar() : null;
+
     const salah = [];
     const kunci = new Set();
+    let dilewati = 0;
     barisImpor.forEach((r, i) => {
       const no = i + 1;
+      /* Baris yang SKU-nya sudah terdaftar tidak diperiksa isinya sama sekali —
+         ia tidak akan ditulis ke mana pun, jadi nama dan harganya tidak
+         menentukan apa pun. Urutannya sengaja sama dengan server
+         (`apiImporProduk`, 05_Master.gs): pratinjau yang memeriksa apa yang
+         TIDAK diperiksa server akan memerahkan berkas yang sebenarnya lolos,
+         dan pratinjau yang bohong lebih buruk daripada tidak ada pratinjau. */
+      if (sudahAda && r.sku && sudahAda.has(String(r.sku))) { dilewati++; return; }
       if (entitas === 'produk' || entitas === 'stok_awal') {
         if (!r.sku) salah.push(`Baris ${no}: SKU kosong`);
         else if (kunci.has(r.sku)) salah.push(`Baris ${no}: SKU ${r.sku} ganda dalam berkas`);
@@ -2094,21 +2141,39 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${salah.length ? `<div class="pesan galat"><strong>${salah.length} masalah — impor dibatalkan seluruhnya bila diteruskan:</strong>
         <ul style="margin:8px 0 0 16px">${salah.slice(0, 15).map(s => `<li>${esc(s)}</li>`).join('')}</ul>
         ${salah.length > 15 ? `<div style="margin-top:6px">…dan ${salah.length - 15} lainnya</div>` : ''}</div>`
-        : `<div class="pesan sukses">${barisImpor.length} baris siap diimpor.</div>`}
+        : lewatiAda
+          ? `<div class="pesan sukses">${barisImpor.length - dilewati} baris baru siap diimpor.
+             <br><small>${dilewati} baris SKU-nya sudah ada dan akan dilewati. Angka ini perkiraan
+             dari salinan katalog di perangkat ini — produk yang dinonaktifkan tidak terhitung di
+             sini dan baru dilewati oleh server.</small></div>`
+          : `<div class="pesan sukses">${barisImpor.length} baris siap diimpor.</div>`}
       <div style="max-height:220px;overflow:auto">
         ${tabel(judul.slice(0, 6).map(h => ({ judul: h, kunci: h })), barisImpor.slice(0, 30))}
       </div>`;
-    $('#btnJalankanImpor').disabled = salah.length > 0;
+    /* Tidak ada baris baru sama sekali = tidak ada yang bisa dikerjakan tombol
+       Impor. Aman dimatikan dari sini: daftar lokal hanya berisi SEBAGIAN SKU
+       yang sudah ada, jadi hitungan "baru" di layar selalu lebih besar atau
+       sama dengan yang akan ditemukan server — kalau layar bilang nol, server
+       pun nol. */
+    $('#btnJalankanImpor').disabled = salah.length > 0 || barisImpor.length - dilewati === 0;
   }
 
   async function jalankanImpor() {
     $('#btnJalankanImpor').disabled = true;
     const entitas = nilai('imporEntitas') || 'produk';
+    const lewatiAda = entitas === 'produk' && !!$('#imporLewatiAda')?.checked;
     try {
-      const d = await API.imporMaster({ entitas, baris: barisMentah, cabang: APP_STATE.cabang });
-      await Sync.tarikMaster(true);
+      const d = await API.imporMaster({ entitas, baris: barisMentah, cabang: APP_STATE.cabang,
+                                        lewati_ada: lewatiAda });
+      /* Tarik ulang HANYA bila memang ada yang berubah. Impor yang seluruh
+         barisnya dilewati tidak mengubah katalog apa pun, dan `tarikMaster(true)`
+         memaksa unduhan penuh — ongkos yang ditagihkan ke perangkat ini tanpa
+         satu pun perubahan untuk dijemput. */
+      if (d.diimpor > 0) await Sync.tarikMaster(true);
       if (entitas === 'stok_awal') await Sync.tarikStok();
-      await sukses(`${d.diimpor} baris diimpor.`, entitas === 'produk' ? 'produk' : 'mitra');
+      await sukses(d.dilewati
+        ? `${d.diimpor} baris baru diimpor, ${d.dilewati} dilewati karena SKU-nya sudah terdaftar.`
+        : `${d.diimpor} baris diimpor.`, entitas === 'produk' ? 'produk' : 'mitra');
     } catch (e) {
       $('#hasilPratinjau').innerHTML = `<div class="pesan galat">${esc(e.message)}
         ${e.detail ? `<ul style="margin:8px 0 0 16px">${e.detail.slice(0, 15).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
@@ -6214,8 +6279,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         $('#imporKolom').textContent = KOLOM_IMPOR[e.target.value] || '';
         $('#hasilPratinjau').innerHTML = '';
         $('#btnJalankanImpor').disabled = true;
+        /* Berkas yang sudah dibaca DILUPAKAN saat jenis datanya berganti:
+           kolom berkas produk tidak berarti apa-apa untuk impor pelanggan, dan
+           menggambar pratinjau lama di atas jenis baru adalah cara tercepat
+           mengimpor berkas yang salah. */
+        barisBerkas = null;
         return;
       }
+      /* Mencentang/melepas "lewati SKU yang sudah terdaftar" menggambar ulang
+         pratinjau dari berkas yang SAMA — tanpa ini, angka di layar tetap
+         angka aturan yang lama sementara tombol Impor mengirim aturan yang
+         baru. */
+      if (e.target.id === 'imporLewatiAda') { await pratinjauImpor(); return; }
       if (e.target.id === 'imporBerkas') {
         const f = e.target.files[0];
         if (!f) return;
@@ -6228,7 +6303,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             fr.readAsDataURL(f);
           });
           const d = await API.bacaBerkasImpor({ base64: b64, nama: f.name, mime: f.type });
-          pratinjauImpor(d.baris);
+          await pratinjauImpor(d.baris);
         } catch (x) {
           $('#hasilPratinjau').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
         }
