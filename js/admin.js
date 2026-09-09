@@ -2023,7 +2023,8 @@ const Admin = (() => {
         <textarea id="imporTeks" rows="7" placeholder="sku	nama	harga_eceran	harga_grosir
 AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
-      <label class="pilih" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0">
+      <label class="pilih" id="barisLewatiAda" style="display:flex;gap:8px;align-items:flex-start;margin:12px 0${
+        entitas === 'produk' ? '' : ';display:none'}">
         <input type="checkbox" id="imporLewatiAda" style="margin-top:3px">
         <span>Lewati SKU yang sudah terdaftar<br>
           <small class="petunjuk">Untuk berkas katalog PENUH dari pemasok: yang sudah ada dibiarkan
@@ -6284,6 +6285,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            menggambar pratinjau lama di atas jenis baru adalah cara tercepat
            mengimpor berkas yang salah. */
         barisBerkas = null;
+        /* Centangnya DISEMBUNYIKAN, bukan sekadar diabaikan. Opsi yang terlihat
+           tapi tidak berpengaruh mengajarkan hal yang salah: pemakainya
+           mencentangnya untuk impor pelanggan, tidak terjadi apa-apa, dan
+           kepercayaannya pada centang itu ikut hilang untuk impor produk.
+           Nilainya juga dipadamkan supaya tidak ada keadaan tersembunyi yang
+           menyala saat ia kembali ke produk. */
+        {
+          const produk = e.target.value === 'produk';
+          $('#barisLewatiAda').style.display = produk ? 'flex' : 'none';
+          if (!produk) $('#imporLewatiAda').checked = false;
+        }
         return;
       }
       /* Mencentang/melepas "lewati SKU yang sudah terdaftar" menggambar ulang
