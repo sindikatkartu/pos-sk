@@ -103,7 +103,7 @@ const MENU = [
   // fisik, dan selisihnya dibukukan sebagai beban/pendapatan yang tidak pernah ada.
   { id: 'kas',        label: 'Kas',        grup: 'Penjualan',  izin: ['kas', 'buat'] },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
-  { id: 'retur',      label: 'Retur',      grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
+  { id: 'retur',      label: 'Retur Jual', grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
   { id: 'transfer',   label: 'Transfer',   grup: 'Persediaan', izin: ['transfer', 'lihat'],          admin: true, backoffice: true },
@@ -130,16 +130,20 @@ const MENU = [
   // melunasinya.
   { id: 'utang',      label: 'Utang',      grup: 'Relasi',     izin: ['utang', 'lihat'],             admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
-  // Label 'Performa', id tetap 'poin'. Isinya bukan poin saja lagi — ada omzet,
-  // nota, dan peringkat cabang. Id, kunci izin `laporan_poin`, wadah #isiPoin
-  // dan jenis ekspor 'poin' SENGAJA tidak ikut berganti: mengganti id memutus
-  // rute layar, dan mengganti kunci izin mencabut akses semua peran yang punya.
-  { id: 'poin',       label: 'Performa',   grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
+  /* Label 'Poin & Performa' sejak 9 Sep 2026 — dulu 'Poin', lalu 'Performa'.
+     Dua kali berganti karena dua kali salah arah: "Poin" menyempitkan isinya
+     (ada omzet, nota, peringkat cabang), sementara "Performa" menyembunyikan
+     justru hal yang paling dicari orang saat membuka layar ini. Nama yang
+     menyebut keduanya bisa ditemukan lewat kata mana pun. */
+  // Id, kunci izin `laporan_poin`, wadah #isiPoin dan jenis ekspor 'poin'
+  // SENGAJA tidak ikut berganti: mengganti id memutus rute layar, dan
+  // mengganti kunci izin mencabut akses semua peran yang punya.
+  { id: 'poin',       label: 'Poin & Performa', grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
-  { id: 'sistem',     label: 'Setting',    grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
+  { id: 'sistem',     label: 'Pengaturan Sistem', grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
   { id: 'audit',      label: 'Audit',      grup: 'Sistem',     izin: ['audit', 'lihat'],             admin: true, backoffice: true },
   { id: 'arsip',      label: 'Arsip',      grup: 'Sistem',     izin: ['setting', 'hapus'],           admin: true, backoffice: true },
   { id: 'akun',       label: 'Akun saya',  grup: 'Akun',       izin: null },  // selalu tampil
@@ -148,7 +152,7 @@ const MENU = [
   // mati. Selalu tampil karena kasir baru justru paling butuh ini di hari pertama,
   // saat perannya belum tentu dibekali akses ke menu lain.
   { id: 'bantuan',    label: 'Bantuan',    grup: 'Akun',       izin: null },  // selalu tampil
-  { id: 'pengaturan', label: 'Perangkat',  grup: 'Akun',       izin: null }   // selalu tampil
+  { id: 'pengaturan', label: 'Perangkat & Printer', grup: 'Akun',       izin: null }   // selalu tampil
 ];
 
 /** Urutan kelompok di sidebar. Menu bergrup lain (kalau ada) diletakkan di akhir. */
@@ -822,22 +826,95 @@ function kelompokMenu(daftar) {
   return grup.sort((a, b) => urut(a) - urut(b));
 }
 
+/* ---------- Rute #/<layar> ----------------------------------------------
+   Alamat layar dibuat bisa disebut. Sebelum ini seluruh aplikasi tinggal di
+   satu alamat, jadi tidak ada satu pun cara menautkan "buka layar Piutang":
+   tombol Kembali peramban selalu keluar dari aplikasi, memuat ulang halaman
+   selalu melempar ke layar pertama, dan menyuruh orang lewat WhatsApp berarti
+   menuliskan urutan kliknya.
+
+   Dipakai hash, bukan History API, karena aplikasi ini disajikan GitHub Pages
+   sebagai berkas statis: `/piutang` akan dijawab 404 oleh servernya, dan
+   satu-satunya penyelamat adalah service worker yang mungkin belum terpasang
+   pada kunjungan pertama. Hash tidak pernah sampai ke server sama sekali.  */
+const idDariHash = () => (String(location.hash).match(/^#\/([a-z0-9_-]+)$/i) || [])[1] || '';
+
+/* Hash boleh datang dari LUAR — diketik, ditempel dari obrolan, atau tersimpan
+   sebagai bookmark oleh orang yang perannya sejak itu diganti. `bukaLayar`
+   sendiri tidak memeriksa izin dan memang tidak boleh: ia dipanggil dari dalam
+   aplikasi, tempat menunya sudah disaring. Pintu dari luar inilah satu-satunya
+   yang tidak tersaring, jadi penjagaan dipasang di sini. */
+const bolehLayar = (id) => menuTampil().some(m => m.id === id);
+
+/** Layar yang SEDANG tergambar. Dipakai router untuk mengenali hash yang
+ *  ditulisnya sendiri, supaya tidak ada penggambaran kedua. */
+let layarKini = null;
+
 function bangunNav() {
   const daftar = menuTampil();
 
-  $('#navSisi').innerHTML = kelompokMenu(daftar).map(g =>
-    `<div class="sisi-grup">${esc(g.nama)}</div>` +
-    g.isi.map(m =>
-      // title= dipakai saat sidebar terlipat: labelnya hilang, tooltipnya menggantikan.
-      `<button data-layar="${m.id}" title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></button>`
-    ).join('')
-  ).join('');
+  $('#navSisi').innerHTML = kelompokMenu(daftar).map((g, i) => {
+    /* Judul kelompok jadi <h2> yang dirujuk <ul>-nya lewat aria-labelledby.
+       Tanpa itu pembaca layar mengumumkan "daftar, 7 butir" tujuh kali tanpa
+       pernah menyebut kelompok mana — dan justru pengelompokan itulah yang
+       membuat menu 23 butir bisa dipakai. */
+    const idGrup = 'navGrup' + i;
+    return `<h2 class="sisi-grup" id="${idGrup}">${esc(g.nama)}</h2>` +
+      `<ul class="sisi-daftar" aria-labelledby="${idGrup}">` +
+      g.isi.map(m =>
+        /* TAUTAN sungguhan, bukan tombol: Ctrl+klik membuka layar itu di tab
+           baru, dan tombol Kembali bekerja. title= tetap dipakai saat sidebar
+           terlipat — labelnya hilang, tooltipnya menggantikan.
+           tabindex=-1 pada semuanya: satu item saja yang boleh menerima Tab
+           (roving tabindex), dan `bukaLayar` yang menentukan mana. */
+        `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1"` +
+        ` title="${esc(m.label)}">${svgIkon(m.id)}<span>${esc(m.label)}</span></a></li>`
+      ).join('') +
+      `</ul>`;
+  }).join('');
 
-  bukaLayar(daftar[0].id);
+  /* Alamat yang dibawa masuk MENANG atas layar pertama — itu seluruh gunanya
+     bisa ditautkan. Yang tidak sah (salah ketik, atau layar yang perannya
+     tidak berhak) jatuh ke layar pertama, tanpa pesan galat: orang yang
+     menempel tautan lama tidak sedang melakukan kesalahan. */
+  const awal = idDariHash();
+  bukaLayar(bolehLayar(awal) ? awal : daftar[0].id);
+}
+
+/** Item nav dalam urutan tampil — dipakai roving tabindex dan panah. */
+const itemNav = () => $$('#navSisi a[data-layar]');
+
+/** Hanya SATU item yang boleh bertabindex 0, dan itu titik masuk Tab ke nav. */
+function pindahTitikTab(el) {
+  const item = itemNav();
+  if (!item.length) return;
+  item.forEach(x => { x.tabIndex = -1; });
+  (el && item.indexOf(el) !== -1 ? el : item[0]).tabIndex = 0;
 }
 
 function bukaLayar(id) {
-  $$('#navSisi button').forEach(b => b.classList.toggle('aktif', b.dataset.layar === id));
+  layarKini = id;
+  /* Hash disamakan DI SINI, bukan di penangan klik menu. Layar juga dibuka
+     dari lencana bar atas, dari tombol di dalam layar lain, dan dari susulan
+     rilis — kalau hashnya hanya ikut saat menu diklik, alamat di bilah alamat
+     berbohong tepat pada jalur yang paling sering dipakai. */
+  if (location.hash !== '#/' + id) location.hash = '#/' + id;
+
+  let aktif = null;
+  $$('#navSisi a[data-layar]').forEach(a => {
+    const ini = a.dataset.layar === id;
+    a.classList.toggle('aktif', ini);
+    /* aria-current MENDAMPINGI class 'aktif', tidak menggantikannya: yang satu
+       untuk mata (batang biru + huruf tebal), yang satu untuk pembaca layar.
+       Warna dan tebal huruf tidak pernah sampai ke pembaca layar. */
+    if (ini) { a.setAttribute('aria-current', 'page'); aktif = a; }
+    else a.removeAttribute('aria-current');
+  });
+  /* Layar yang tidak punya item nav (dibuka dari dalam layar lain) tetap harus
+     meninggalkan satu titik masuk Tab — kalau tidak, seluruh nav hilang dari
+     jangkauan keyboard sampai layar berganti lagi. */
+  pindahTitikTab(aktif);
+
   $$('.layar').forEach(l => l.classList.remove('aktif'));
   const el = $('#layar' + id[0].toUpperCase() + id.slice(1));
   if (el) el.classList.add('aktif');
@@ -856,15 +933,44 @@ function bukaLayar(id) {
 }
 
 /* ---------- Sidebar: laci (layar sempit) & lipat (layar lebar) ---------- */
+
+/** Elemen yang membuka laci — fokus dikembalikan ke sini saat laci ditutup. */
+let pemicuLaci = null;
+
+/** Yang bisa menerima fokus DI DALAM sidebar, dalam urutan tampil. */
+const fokusSisi = () => Array.from($('#sisi').querySelectorAll(
+  'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+  .filter(el => el.offsetParent !== null || el === document.activeElement);
+
 function bukaLaci() {
+  /* Disimpan SEBELUM fokus dipindahkan. */
+  pemicuLaci = document.activeElement;
   $('#sisi').classList.add('buka');
   $('#tiraiSisi').classList.add('buka');
   $('#btnLaci').setAttribute('aria-expanded', 'true');
+  /* Fokus masuk ke dalam laci. Tanpa ini pembaca layar tetap membaca halaman
+     di belakang tirai, dan Tab pertama membawa orang ke bar atas yang justru
+     sedang tertutup — mereka menekan Enter pada tombol yang tidak terlihat. */
+  const f = fokusSisi();
+  if (f.length) f[0].focus();
 }
 function tutupLaci() {
+  const tadinyaBuka = $('#sisi').classList.contains('buka');
   $('#sisi').classList.remove('buka');
   $('#tiraiSisi').classList.remove('buka');
   $('#btnLaci').setAttribute('aria-expanded', 'false');
+  /* Fokus dikembalikan HANYA kalau lacinya memang tadi terbuka. `tutupLaci()`
+     dipanggil pada tiap pergantian layar, termasuk di layar lebar yang lacinya
+     tidak pernah ada — merebut fokus di sana akan melempar kursor orang keluar
+     dari kolom yang sedang diketiknya. */
+  if (tadinyaBuka && pemicuLaci && document.contains(pemicuLaci)) {
+    /* Kecuali fokusnya sudah dipindahkan ke DALAM layar oleh yang memanggil —
+       `bukaLayar('kasir')` menaruhnya di kotak cari, dan itu tujuan yang lebih
+       baik daripada tombol ☰. */
+    if (!$('#sisi').contains(document.activeElement)) { /* sudah pindah, biarkan */ }
+    else pemicuLaci.focus();
+  }
+  if (tadinyaBuka) pemicuLaci = null;
 }
 
 /** Keadaan lipat diingat per perangkat — PC kasir sempit dan tablet gudang
@@ -2068,7 +2174,7 @@ function bukaBayar() {
   if (!APP_STATE.idShift) {
     /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
        berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
-       tidak ada — dan menu Setting memang tersembunyi bagi kasir. Sekarang
+       tidak ada — dan layar pengaturan sistem memang tersembunyi bagi kasir. Sekarang
        pengguna langsung diantar ke kartu shift-nya. */
     /* Sengaja TIDAK di-await, dan `bukaBayar` sengaja tidak dijadikan async:
        ia dipanggil dari penangan klik DAN dari pintasan F12, dan tidak ada satu
@@ -3618,8 +3724,8 @@ function simbolData(tersediaMm) {
  * dipakai print.js — bukan disalin ulang, supaya pratinjaunya tidak pernah
  * berbeda dari yang benar-benar tercetak.
  *
- * Tombol "Ubah di menu Setting" hanya tampil bila peran ini memang berizin
- * membuka Setting; kasir biasa melihat pratinjaunya tanpa tombol yang mengarah
+ * Tombol "Ubah di Pengaturan Sistem" hanya tampil bila peran ini memang berizin
+ * membukanya; kasir biasa melihat pratinjaunya tanpa tombol yang mengarah
  * ke layar yang toh akan ditolak.
  */
 function gambarPreviewStruk() {
@@ -3701,8 +3807,59 @@ function pasangEvent() {
 
   /* --- navigasi --- */
   $('#navSisi').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if (b) bukaLayar(b.dataset.layar);
+    const a = e.target.closest('a[data-layar]');
+    if (!a) return;
+    /* Klik dengan penyerta dibiarkan sepenuhnya pada peramban — itu "buka di
+       tab baru", dan sejak v1.146.0 item ini memang tautan sungguhan. Menangkap
+       semua klik akan MENCURI perilaku itu dan menggambar layarnya di tab yang
+       sedang dipakai orang. */
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    /* Tidak ada preventDefault: hash tetap ditulis peramban, dan
+       `hashchange` di bawah akan mengenalinya sebagai layar yang SUDAH
+       tergambar lalu berhenti. Yang dikerjakan di sini cuma menggambarnya
+       lebih cepat — dan menutup laci saat item yang diklik ternyata layar
+       yang sedang aktif, di mana hash tidak berubah dan `hashchange` tidak
+       akan pernah berbunyi. */
+    bukaLayar(a.dataset.layar);
+  });
+
+  /* Router. Berbunyi untuk tombol Kembali/Maju, untuk tautan yang ditempel,
+     dan untuk hash yang ditulis `bukaLayar` sendiri — yang terakhir berhenti
+     di baris `id === layarKini`, jadi tidak ada layar yang tergambar dua kali. */
+  window.addEventListener('hashchange', () => {
+    const id = idDariHash();
+    if (!id || id === layarKini) return;
+    if (!bolehLayar(id)) {
+      /* Dikembalikan ke layar terakhir yang sah, BUKAN dibiarkan menggambar
+         layar kosong. Penulisan balik ini memicu `hashchange` sekali lagi,
+         dan yang kedua berhenti sendiri karena id-nya sudah sama dengan
+         layarKini. */
+      if (layarKini) location.hash = '#/' + layarKini;
+      return;
+    }
+    bukaLayar(id);
+  });
+
+  /* Roving tabindex: panah memindahkan fokus DI DALAM nav, Tab keluar darinya.
+     Nav 23 butir yang tiap butirnya menerima Tab berarti 23 tekanan Tab untuk
+     melewati sidebar — itu yang membuat orang berhenti memakai keyboard. */
+  $('#navSisi').addEventListener('keydown', e => {
+    const a = e.target.closest('a[data-layar]');
+    if (!a) return;
+    const item = itemNav();
+    const i = item.indexOf(a);
+    let j = -1;
+    if (e.key === 'ArrowDown')    j = (i + 1) % item.length;
+    else if (e.key === 'ArrowUp') j = (i - 1 + item.length) % item.length;
+    else if (e.key === 'Home')    j = 0;
+    else if (e.key === 'End')     j = item.length - 1;
+    if (j === -1) return;
+    e.preventDefault();
+    /* tabindex ikut BERPINDAH, bukan cuma fokusnya. Kalau hanya fokus yang
+       pindah, Tab keluar lalu masuk lagi akan mendarat di item lama — bukan
+       di tempat orangnya berhenti. */
+    pindahTitikTab(item[j]);
+    item[j].focus();
   });
   $('#btnLaci').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>';
   $('#btnKeluar').innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3"/><path d="m15.5 16.5 4.5-4.5-4.5-4.5"/><path d="M20 12H9"/></svg>';
@@ -3716,6 +3873,20 @@ function pasangEvent() {
     terapkanLipat(!$('#app').classList.contains('sisi-lipat')));
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && $('#sisi').classList.contains('buka')) tutupLaci();
+    /* Perangkap fokus selama laci terbuka. Laci menutupi seluruh layar di balik
+       tirai, jadi Tab yang keluar darinya membawa orang ke tombol dan kolom
+       yang tidak terlihat — mereka mengetik ke tempat yang tidak ada.
+       Hanya berlaku saat `.buka` menyala, dan `.buka` hanya pernah menyala di
+       tata letak laci (≤1024px); di layar lebar penangan ini tidak pernah
+       melakukan apa pun. */
+    if (e.key === 'Tab' && $('#sisi').classList.contains('buka')) {
+      const f = fokusSisi();
+      if (!f.length) return;
+      const awal = f[0], akhir = f[f.length - 1];
+      if (!e.shiftKey && document.activeElement === akhir) { e.preventDefault(); awal.focus(); }
+      else if (e.shiftKey && document.activeElement === awal) { e.preventDefault(); akhir.focus(); }
+      else if (!$('#sisi').contains(document.activeElement)) { e.preventDefault(); awal.focus(); }
+    }
     if (e.key.toLowerCase() === 'b' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
       e.preventDefault();
       terapkanLipat(!$('#app').classList.contains('sisi-lipat'));

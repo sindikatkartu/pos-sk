@@ -310,29 +310,40 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .sisi-grup {
   font-size: var(--fs-11); font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
   color: var(--teks-redup); padding: 16px 10px 6px; white-space: nowrap;
+  /* <h2> sejak v1.146.0 — margin bawaan judul akan menggeser seluruh rel. */
+  margin: 0;
 }
 /* 4px padding `.sisi-isi` + 14px = 18px di bawah garis — jarak yang SAMA dengan
    kartu pertama di sisi kanan. Dua sisi yang mulai pada ketinggian berbeda
    membuat garisnya terlihat miring walau lurus. */
 .sisi-grup:first-child { padding-top: 14px; }
 
+/* Daftar kelompok: <ul>/<li> sejak v1.146.0 supaya pembaca layar mengumumkan
+   "Penjualan, daftar 5 butir" dan bukan 23 tautan tanpa struktur. Gaya bawaan
+   daftarnya dinolkan — yang berubah hanya apa yang terbaca alat bantu, bukan
+   satu piksel pun tampilannya. */
+.sisi-daftar { list-style: none; margin: 0; padding: 0; }
+
 /* Item nav mengikuti sidebar pengaturan GitHub: hover abu muda, item aktif
-   ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh. */
-.sisi-isi button {
+   ditandai batang biru di kiri + huruf tebal — bukan blok warna penuh.
+   `a`, bukan `button`, sejak v1.146.0: alamat tiap layar jadi bisa disebut,
+   Ctrl+klik membuka tab baru, dan tombol Kembali peramban bekerja. */
+.sisi-isi .item-nav {
   display: flex; align-items: center; gap: 10px;
   width: 100%; text-align: left; background: transparent; color: var(--teks);
+  text-decoration: none; cursor: pointer;
   padding: 8px 10px; font-size: var(--fs-14); font-weight: 400; margin-bottom: 2px;
   white-space: nowrap; position: relative;
   transition: background .08s;
 }
-.sisi-isi button .ikon-svg { color: var(--teks-redup); transition: color .08s; }
-.sisi-isi button:hover { background: var(--panel-2); }
-.sisi-isi button.aktif { background: var(--panel-2); font-weight: 600; }
-.sisi-isi button.aktif::before {
+.sisi-isi .item-nav .ikon-svg { color: var(--teks-redup); transition: color .08s; }
+.sisi-isi .item-nav:hover { background: var(--panel-2); }
+.sisi-isi .item-nav.aktif { background: var(--panel-2); font-weight: 600; }
+.sisi-isi .item-nav.aktif::before {
   content: ''; position: absolute; left: -10px; top: 3px; bottom: 3px;
   width: 3px; border-radius: 0 6px 6px 0; background: var(--aksen-aktif);   /* aksen "aktif" GitHub */
 }
-.sisi-isi button.aktif .ikon-svg { color: var(--teks); }
+.sisi-isi .item-nav.aktif .ikon-svg { color: var(--teks); }
 
 /* Kaki sidebar dikunci ke tinggi yang SAMA dengan kepalanya — `--tinggi-kepala`.
 
@@ -375,7 +386,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 
 /* --- keadaan terlipat: sisakan ikon, label & judul kelompok disembunyikan --- */
 #app.sisi-lipat .sisi-nama,
-#app.sisi-lipat .sisi-isi button span,
+#app.sisi-lipat .sisi-isi .item-nav span,
 #app.sisi-lipat .kartu-user .nm,
 #app.sisi-lipat .sisi-bawah .tombol-ikon.keluar { display: none; }
 /* Terlipat, rel hanya selebar 68px: logo DAN tombol lipat tidak muat berdampingan —
@@ -393,8 +404,8 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat .sisi-atas:hover #btnLipat,
 #app.sisi-lipat #btnLipat:focus-visible { opacity: 1; }
 #app.sisi-lipat .sisi-isi { padding: 4px 8px 14px; }
-#app.sisi-lipat .sisi-isi button { justify-content: center; padding: 10px 0; }
-#app.sisi-lipat .sisi-isi button.aktif::before { left: -8px; }
+#app.sisi-lipat .sisi-isi .item-nav { justify-content: center; padding: 10px 0; }
+#app.sisi-lipat .sisi-isi .item-nav.aktif::before { left: -8px; }
 #app.sisi-lipat .sisi-grup {
   /* Judul kelompok diganti garis pemisah — tetap ada jeda visual, tanpa teks terpotong */
   height: 1px; padding: 10px 0 0; margin: 6px 8px 6px; overflow: hidden;
@@ -1366,9 +1377,9 @@ input.sudah-hitung {
   #btnLaci { display: flex; }
   #btnLipat { display: none; }
   /* Saat jadi laci, keadaan "terlipat" tidak berlaku */
-  #app.sisi-lipat .sisi-nama, #app.sisi-lipat .sisi-isi button span,
+  #app.sisi-lipat .sisi-nama, #app.sisi-lipat .sisi-isi .item-nav span,
   #app.sisi-lipat .kartu-user .nm { display: block; }
-  #app.sisi-lipat .sisi-isi button { justify-content: flex-start; padding: 8px 10px; }
+  #app.sisi-lipat .sisi-isi .item-nav { justify-content: flex-start; padding: 8px 10px; }
   #app.sisi-lipat .sisi-grup {
     height: auto; padding: 16px 10px 6px; margin: 0; border-top: none; color: var(--teks-redup);
   }
@@ -1530,7 +1541,7 @@ input.sudah-hitung {
 
      `min-height`, bukan `height`: isian yang teksnya membungkus tetap boleh
      tumbuh. Padding ikut disesuaikan supaya teksnya tetap di tengah. */
-  .sisi-isi button { min-height: 40px; padding-top: 8px; padding-bottom: 8px; }
+  .sisi-isi .item-nav { min-height: 40px; padding-top: 8px; padding-bottom: 8px; }
   select, input[type=text], input[type=number], input[type=password],
   input[type=date], input[type=month], input[type=tel], input[type=search] {
     min-height: 40px;

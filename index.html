@@ -583,7 +583,7 @@
         <div class="kartu">
           <h3>A11. Printer struk</h3>
           <p>Sambungkan printer thermal Bluetooth sekali di menu <strong>Perangkat</strong> — tombol "Hubungkan printer Bluetooth", lalu "Uji cetak" untuk memastikan. Kalau Bluetooth gagal atau belum disambungkan, aplikasi otomatis mencetak lewat jendela print biasa (perlu izin pop-up peramban).</p>
-          <p class="petunjuk">Susunan &amp; isi struk (nama usaha, alamat, footer, lebar kertas) diatur pemilik di menu Setting — bukan di sini, karena berlaku untuk semua cabang sekaligus.</p>
+          <p class="petunjuk">Susunan &amp; isi struk (nama usaha, alamat, footer, lebar kertas) diatur pemilik di Pengaturan Sistem — bukan di sini, karena berlaku untuk semua cabang sekaligus.</p>
           <p class="petunjuk"><strong>Yang bukan struk tidak lewat printer thermal.</strong> Label barcode, laporan, dan bukti transfer antar cabang dicetak lewat <strong>jendela print peramban</strong> ke printer biasa — masing-masing dengan ukuran kertasnya sendiri (label memakai ukuran yang disetel di Perangkat, laporan &amp; transfer memakai A4). Pop-up harus diizinkan untuk situs ini, kalau tidak jendelanya tidak pernah muncul.</p>
         </div>
 
@@ -600,7 +600,7 @@
         <div class="kartu">
           <h3>A13. Kalau ada yang tidak beres</h3>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li><strong>Struk tidak keluar</strong> — cek menu Perangkat &gt; Printer, coba "Uji cetak". Nota tetap tersimpan walau cetaknya gagal.</li>
+            <li><strong>Struk tidak keluar</strong> — cek Perangkat &amp; Printer &gt; Printer, coba "Uji cetak". Nota tetap tersimpan walau cetaknya gagal.</li>
             <li><strong>Lencana merah "nota ditolak"</strong> — klik untuk melihat daftarnya beserta alasan penolakan tiap nota. Nota itu <strong>sudah tercetak di perangkat tapi belum masuk pembukuan</strong>. Tiga penyebab yang paling sering: tanggal notanya jatuh di <strong>periode yang sudah ditutup buku</strong>, izin peran yang belum dicentang, dan <strong>penjualan melebihi stok saat setelan "izinkan stok minus" sedang mati</strong>. Semuanya harus dibereskan di sisi server dulu — tunjukkan ke pemilik.</li>
             <li><strong>Sesudah sebabnya dibereskan, tekan "Kirim ulang" di daftar itu — jangan diketik ulang di kasir.</strong> Kiriman ulang membawa nomor nota, jam, shift, dan pembayaran yang ASLI, jadi struk yang sudah di tangan pelanggan tetap cocok dengan pembukuan; nota yang diketik ulang membawa nomor dan jam hari ini dan tidak akan pernah cocok. Menekannya berkali-kali tidak menggandakan nota — server menolak uuid yang sama dua kali. Kalau ditolak lagi, notanya <strong>langsung</strong> kembali ke daftar merah beserta alasan barunya, tidak menggantung sebagai "menunggu".</li>
             <li><strong>Menu yang biasanya ada hilang</strong> — kemungkinan hak akses peran berubah; keluar lalu masuk lagi supaya izin terbaru terbaca.</li>
@@ -776,8 +776,8 @@
 
           <!-- Pratinjau BACA-SAJA dari kop & footer struk yang berlaku sekarang (setting
                global — nama usaha, alamat, footer, lebar kertas). Diubahnya tetap lewat
-               menu Setting, bukan di sini: setting itu berlaku untuk SEMUA cabang &
-               perangkat, sedangkan halaman Perangkat ini selalu tampil bagi siapa pun
+               Pengaturan Sistem, bukan di sini: setting itu berlaku untuk SEMUA cabang &
+               perangkat, sedangkan halaman Perangkat &amp; Printer ini selalu tampil bagi siapa pun
                yang login di perangkat ini, termasuk kasir. Lihat KONTEKS.md § 4 (rekap
                keputusan) — dua tempat mengubah satu hal berarti yang terakhir menyimpan
                menang tanpa ada yang tahu. -->
@@ -786,7 +786,7 @@
             <div id="previewStruk" style="font-family:'Courier New',monospace;font-size:var(--fs-13);
                  white-space:pre-line;background:var(--panel-2);border:1px solid var(--garis-halus);
                  border-radius:var(--radius);padding:10px;margin-top:6px"></div>
-            <button class="tombol" id="btnKeSettingStruk" style="margin-top:8px">Ubah di menu Setting</button>
+            <button class="tombol" id="btnKeSettingStruk" style="margin-top:8px">Ubah di Pengaturan Sistem</button>
           </div>
         </div>
 
