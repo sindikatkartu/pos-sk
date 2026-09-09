@@ -949,20 +949,6 @@ async function login(pakaiPassword = false) {
     await DB.kvSet('token', d.token);
     await DB.kvSet('sesi', d);
     await DB.kvSet('cabang_terakhir', d.cabang);
-    /* CABANG KERJA — cabang tempat sesi ini DIMULAI, dan satu-satunya tempat ia
-       ditulis adalah di sini: sesudah login yang sungguhan.
-
-       `gantiCabang` sengaja TIDAK menyentuhnya, dan itu seluruh mekanismenya.
-       Berpindah cabang memuat ulang halaman, lalu sesinya dipulihkan dengan
-       cabang yang baru — kalau nilai ini ikut ditulis di sana, ia akan selalu
-       sama dengan cabang aktif dan Mode Tinjau tidak akan pernah menyala
-       sekali pun.
-
-       Untuk benar-benar BEKERJA di cabang lain: keluar, lalu masuk lagi. Login
-       berikutnya membawa `cabang_terakhir`, jadi ia mendarat di cabang itu dan
-       nilai ini ikut berpindah. Gesekan itu memang yang diinginkan — 'saya cuma
-       melihat' dan 'saya berjualan di sini' tidak boleh sama mudahnya. */
-    await DB.kvSet('cabang_kerja', d.cabang);
     await laporkanKeluarPaksa();
     await mulaiSesi(d);
   } catch (e) {
@@ -998,10 +984,6 @@ async function login(pakaiPassword = false) {
 async function mulaiSesi(d) {
   APP_STATE.user = d.user;
   APP_STATE.cabang = d.cabang;
-  /* Bawaannya cabang sesi ini sendiri: perangkat yang belum pernah menyimpannya
-     (login pertama, atau sesi lama yang dipulihkan offline) tidak boleh mendadak
-     masuk Mode Tinjau atas keadaan yang tidak pernah dipilih siapa pun. */
-  APP_STATE.cabangKerja = await DB.kvGet('cabang_kerja', d.cabang);
   APP_STATE.daftarCabang = d.daftar_cabang || [d.cabang];
   APP_STATE.izin = d.izin || {};
   APP_STATE.flag = d.flag || {};
@@ -1032,14 +1014,12 @@ async function mulaiSesi(d) {
 
   await terapkanLipat(await DB.kvGet('sisi_lipat', false), false);
   bangunNav();
-  pasangPemilihCabang();
   $('#btnTutupBuku').classList.toggle('sembunyi', !APP_STATE.flag.tutup_buku);
 
   await muatMaster();
-  /* SESUDAH muatMaster(), bukan di sebelah pasangPemilihCabang() di atas:
-     daftar cabang lengkapnya (`daftarCabangSemua`) baru terisi di dalamnya,
-     dari store lokal `cabang_list`. Dipasang lebih awal, dropdownnya kosong
-     dan penyaringnya tidak pernah muncul. */
+  /* SESUDAH muatMaster(): daftar cabang lengkapnya (`daftarCabangSemua`) baru
+     terisi di dalamnya, dari store lokal `cabang_list`. Dipasang lebih awal,
+     dropdownnya kosong dan penyaringnya tidak pernah muncul. */
   pasangPilihCabangLaporan();
   Sync.mulai();
   Sync.tarikStok();
@@ -1132,182 +1112,37 @@ function bacaSettingKeState() {
   APP_STATE.bobotPeran = (sah && jml > 0) ? bersih : { PENJUAL: 60, PEMASANG: 40 };
 }
 
-/**
- * Pemilih cabang di header — ganti cabang aktif TANPA login ulang.
- *
- * Diminta pemilik 6 Sep 2026: "owner & manager tidak terkunci disatu cabang,
- * karena owner cakupan akses tidak terbatas". Sampai hari itu cabang aktif
- * ditentukan sekali saat login, dan satu-satunya cara pindah adalah keluar
- * lalu masuk lagi.
- *
- * MUNCUL hanya kalau dua-duanya benar: perannya ber-flag `akses_lintas_cabang`
- * DAN akunnya memang punya lebih dari satu cabang. Dropdown berisi satu pilihan
- * bukan pilihan, ia hiasan yang mengundang klik yang tidak menghasilkan apa-apa.
- * Servernya tetap memeriksa keduanya sendiri (apiGantiCabang) — yang di sini
- * cuma kenyamanan, bukan pengamanan.
- *
- * SELURUH HALAMAN DIMUAT ULANG sesudah berhasil, dan itu disengaja. Cabang
- * menyentuh hampir semua yang ada di memori: katalog stok, shift yang sedang
- * terbuka, kas, daftar transfer, nomor nota. Menyegarkan satu per satu berarti
- * mendaftar semuanya dan melupakan satu — dan yang terlupa akan menampilkan
- * angka cabang lama tanpa menyebut dirinya lama.
- */
-function pasangPemilihCabang() {
-  const el = $('#selCabangAktif');
-  if (!el) return;
-  const daftar = (APP_STATE.daftarCabang || []).slice().sort(urutNama);
-  if (!APP_STATE.flag.akses_lintas_cabang || daftar.length < 2) return;   // tetap tersembunyi
+/* PEMILIH CABANG & MODE TINJAU DICABUT — 9 Sep 2026, atas permintaan pemilik.
 
-  el.innerHTML = daftar.map(c =>
-    `<option value="${esc(c)}"${c === APP_STATE.cabang ? ' selected' : ''}>${esc(c)}</option>`).join('');
-  /* Yang dibuka BARISNYA, bukan dropdownnya sendiri — labelnya ikut. Dulu di
-     sini `el.classList.remove('sembunyi')` sementara lencana #lncCabang di bar
-     atas dibiarkan tampil: cabangnya tergambar dua kali dalam dua chip
-     berbentuk sama, satu mati satu hidup. */
-  $('#barisCabang').classList.remove('sembunyi');
+   Yang dicabut: `pasangPemilihCabang`, `modeTinjau`, `tanyaTinjau`,
+   `gambarModeTinjau`, `APP_STATE.cabangKerja`, dan kunci kv `cabang_kerja`.
 
-  el.addEventListener('change', async () => {
-    const tujuan = el.value;
-    const semula = APP_STATE.cabang;
-    if (tujuan === semula) return;
+   Sebab pertama, dari lapangan: dropdown pramuniaga di layar kasir berisi
+   petugas CABANG LAIN, dan tidak ada yang bisa menjelaskannya dari layar.
+   Mekanismenya — `apiTarikMaster` menyaring `petugas` menurut `sesi.cabang`,
+   jadi muatannya per cabang; tapi kunci cachenya `versi_master` yang GLOBAL.
+   Berpindah cabang tidak mengubah nomor versi, jadi tarikan berikutnya dijawab
+   "tidak ada perubahan" dan perangkat itu menyimpan daftar petugas cabang
+   tempat ia kebetulan terakhir menarik master. Racun yang menetap sampai ada
+   yang menekan Tarik ulang data master — dan tidak ada satu pun tanda di layar
+   yang menyebut sebabnya. Jebakan yang sama persis dengan §105.
 
-    /* ANTREAN KIRIM TIDAK LAGI MENGUNCI PERPINDAHAN — dan hilangnya penjaga itu
-       disengaja, bukan kelalaian.
-     *
-     * v1.110.0 menolak pindah cabang selama antrean berisi, karena
-     * `Sync.kirim()` waktu itu mengirim seluruh antrean dengan `cabang:
-     * APP_STATE.cabang` — cabang saat MENGIRIM, bukan saat notanya dibuat.
-     * Penolakan itu menutup pintu yang baru dibuat pemilih cabang; ia tidak
-     * pernah menutup cacatnya, sebab keluar-lalu-masuk menempuh jalan yang sama.
-     *
-     * Sejak v1.114.0 tiap baris outbox membawa cabangnya sendiri dan dikirim
-     * per kelompok cabang. Nota SK01 tetap mendarat di SK01 walau layarnya
-     * sudah SK02 — dan dropdown ini hanya muncul untuk akun ber-flag
-     * `akses_lintas_cabang`, yaitu akun yang memang berhak mengirimkannya.
-     *
-     * Membiarkan penolakannya berdiri sesudah itu bukan kehati-hatian
-     * tambahan, melainkan gesekan yang menghukum tepat orang yang paling
-     * sering pindah cabang, atas bahaya yang sudah tidak ada. Penjaga yang
-     * tidak lagi menjaga apa pun juga mengajarkan hal yang salah: orang
-     * berikutnya akan mengira perpindahan cabang masih rawan. */
+   Sebab kedua: cabang aktif per SESI memang bukan pola yang dipakai toko ini.
+   Melihat cabang lain sudah tersedia lewat penyaring cabang di Dashboard,
+   Stok, dan Laporan — laporan lintas cabang, operasional satu cabang. Untuk
+   BEKERJA di cabang lain: keluar, lalu masuk lagi; login membawa
+   `cabang_terakhir` dan servernya yang menentukan.
 
-    if (Keranjang.baris.length && !(await Admin.tanya('Pindah cabang?',
-          '<p class="petunjuk">Keranjang kasir yang belum dibayar akan hilang.</p>',
-          { ya: 'Pindah', jenis: 'bahaya' }))) {
-      el.value = semula;
-      return;
-    }
-
-    el.disabled = true;
-    try {
-      await API.gantiCabang({ cabang: tujuan });
-      /* Ditulis SESUDAH server menerima: kalau ditulis lebih dulu lalu
-         servernya menolak, login berikutnya dari perangkat ini akan mencoba
-         cabang yang memang tidak boleh. */
-      await DB.kvSet('cabang_terakhir', tujuan);
-      location.reload();
-    } catch (e) {
-      el.value = semula;
-      el.disabled = false;
-      Admin.toast('Gagal pindah cabang: ' + (e.message || e), 'galat');
-    }
-  });
-}
-
-/* ==================== MODE TINJAU ====================
- *
- * Dua peran bawaan — Owner dan Manajer Area — punya `akses_lintas_cabang`
- * SEKALIGUS izin `kasir` dan `shift` penuh. Artinya keduanya bisa berpindah ke
- * cabang lain lalu berjualan di sana dengan hak penuh, dan alurnya justru
- * mendorong ke situ: di cabang tujuan belum ada shift, menekan Bayar menawarkan
- * "Buka shift", satu ketukan lagi ada shift menggantung di laci orang lain
- * dengan kas awal dari perangkat yang salah.
- *
- * Mode Tinjau memisahkan "saya melihat cabang itu" dari "saya bekerja di cabang
- * itu". Yang dimatikan HANYA yang membuat dokumen di zona kasir: bayar, buka
- * shift, tutup shift, catat kas. Melihat, mencari, membaca riwayat, dan seluruh
- * menu back office tetap terbuka — justru itu gunanya.
- *
- * INI PAGAR LAYAR, BUKAN PAGAR SERVER, dan itu harus dikatakan terang-terangan.
- * Sesudah `gantiCabang`, server memang menganggap sesi ini berada di cabang
- * tujuan dan akan menerima notanya. Yang menahan cuma app.js. Pagar servernya
- * butuh sesi mengingat cabang asalnya sendiri — pekerjaan lain, belum
- * dikerjakan, dan jangan dianggap sudah ada.
- */
-function modeTinjau() {
-  return !!APP_STATE.cabangKerja && APP_STATE.cabang !== APP_STATE.cabangKerja;
-}
-
-/**
- * Tanya sekali sebelum sebuah dokumen dibuat di cabang yang sedang ditinjau.
- *
- * BERTANYA, BUKAN MENOLAK — dan itu koreksi atas rancangan pertama.
- *
- * Versi pertama memblokirnya sama sekali. Yang membatalkannya: mencatat
- * transaksi ke cabang lain adalah alur yang MEMANG DIRANCANG di ERP, bukan
- * celah yang ditoleransi. Manual Accurate menyebutnya lugas — "bagi pengguna
- * yang memiliki akses ke beberapa cabang, perlu melakukan pemilihan nama
- * cabang-nya" saat memasukkan transaksi. Yang dikontrol bukan di cabang mana
- * orangnya duduk, melainkan cabang mana yang boleh ia akses. NetSuite sama:
- * peran dibatasi ke subsidiary tertentu, dan bertransaksi di semua subsidiary
- * yang tercakup peran itu normal.
- *
- * Artinya server di sini SUDAH benar menurut norma itu: `apiGantiCabang`
- * memeriksa flag `akses_lintas_cabang` DAN keanggotaan cabang di daftar akun.
- * Owner yang punya SK02 di daftarnya memang berhak menyimpan nota di SK02.
- * Memblokirnya akan menghukum pekerjaan yang sah — menutup shift kasir yang
- * pulang mendadak, mengoreksi nota di cabang sebelah, mencatat kas di sana.
- *
- * Yang berbahaya bukan 'bertransaksi di cabang lain', melainkan melakukannya
- * TANPA SADAR. Jadi yang dipasang pertanyaan, bukan tembok.
- *
- * @return {Promise<boolean>} true kalau boleh lanjut (termasuk saat tidak
- *   sedang meninjau — di cabang sendiri tidak ada yang perlu ditanyakan).
- */
-function tanyaTinjau(apa) {
-  if (!modeTinjau()) return Promise.resolve(true);
-  return Admin.tanya('Catat di cabang ' + APP_STATE.cabang + '?',
-    `<div class="pesan peringatan">Anda sedang meninjau <strong>${esc(APP_STATE.cabang)}</strong>,
-       sementara cabang kerja Anda <strong>${esc(APP_STATE.cabangKerja)}</strong>.
-       ${esc(apa)} akan tercatat di ${esc(APP_STATE.cabang)}, bukan di
-       ${esc(APP_STATE.cabangKerja)}.</div>`,
-    { ya: 'Catat di ' + APP_STATE.cabang, jenis: 'bahaya' });
-}
-
-/**
- * Gambar seluruh akibat Mode Tinjau dari SATU keadaan.
- *
- * Dipanggil sesudah sesi mulai dan setiap kali keadaan shift digambar ulang:
- * `gambarKeadaanShift` menyalakan kembali tombol shift menurut ada-tidaknya
- * shift, jadi mematikannya sekali di awal saja akan hidup lagi sendiri.
- */
-function gambarModeTinjau() {
-  const tinjau = modeTinjau();
-  const lnc = $('#lncCabang');
-  if (lnc) {
-    lnc.className = 'lencana' + (tinjau ? ' kuning' : '');
-    lnc.title = tinjau ? 'Sedang meninjau cabang ' + APP_STATE.cabang
-                       + ' — cabang kerja Anda ' + APP_STATE.cabangKerja : '';
-  }
-  const p = $('#pesanTinjau');
-  if (p) {
-    p.classList.toggle('sembunyi', !tinjau);
-    if (tinjau) p.innerHTML = '<strong>Mode tinjau — cabang ' + esc(APP_STATE.cabang)
-      + '.</strong> Cabang kerja Anda ' + esc(APP_STATE.cabangKerja) + '. Nota, shift,'
-      + ' dan kas yang disimpan dari sini tercatat di ' + esc(APP_STATE.cabang)
-      + ' — dan akan ditanyakan dulu.';
-  }
-  /* TIDAK ADA TOMBOL YANG DIMATIKAN DI SINI, dan itu disengaja.
-
-     Versi pertama mematikan Buka shift, Tutup shift, dan Simpan kas. Itu lebih
-     ketat daripada praktik ERP — bertransaksi di cabang yang memang boleh
-     diakses adalah alur yang dirancang, bukan kecelakaan (lihat `tanyaTinjau`).
-     Yang tersisa di sini cuma yang memberi tahu: lencana cabang berubah kuning,
-     dan spanduk di panel keranjang menyebut cabang mana yang akan tercatat.
-     Penjagaannya pindah ke pertanyaan, di titik dokumennya dibuat. */
-}
+   `apiGantiCabang` di server DIBIARKAN. Ia tidak lagi punya pemanggil dari
+   layar, dan mencabut endpoint yang masih dirujuk uji server hanya menambah
+   risiko tanpa menambah keamanan apa pun. */
 
 async function muatMaster() {
+  /* Penanda versinya membawa cabang sejak v1.144.0 (05_Master.gs), jadi
+     perangkat yang cabangnya berganti otomatis menarik ulang — termasuk yang
+     sudah terlanjur menyimpan daftar petugas cabang lain. Tidak ada tambalan
+     sekali-jalan di sini: dua mekanisme untuk satu aturan cepat atau lambat
+     berselisih, dan yang di server berlaku untuk SEMUA perangkat sekaligus. */
   try { await Sync.tarikMaster(); }
   catch (e) { console.warn('Master tidak dapat ditarik:', e.message); }
 
@@ -2230,20 +2065,6 @@ function simpanTim() {
 /* ==================== PEMBAYARAN ==================== */
 function bukaBayar() {
   if (Keranjang.kosong) return;
-  /* Ditanyakan DI SINI, sebelum layar bayar terbuka — bukan di Selesaikan.
-     Kasir yang sudah mengetik uang diterima dan kembaliannya lalu ditanya
-     'cabang mana?' sudah terlanjur berdiri di depan pembeli. */
-  if (modeTinjau()) {
-    tanyaTinjau('Nota ini').then(ya => { if (ya) lanjutBukaBayar(); });
-    return;
-  }
-  lanjutBukaBayar();
-}
-
-/** Badan `bukaBayar` yang sesungguhnya — dipisah supaya bisa dipanggil sesudah
-    pertanyaan cabang dijawab, tanpa membuat `bukaBayar` sendiri async (ia
-    dipanggil dari pintasan F12 juga). */
-function lanjutBukaBayar() {
   if (!APP_STATE.idShift) {
     /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
        berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
@@ -2753,10 +2574,6 @@ function gambarKeadaanShift() {
   $('#grupKasAwal').classList.toggle('sembunyi', !perluBuka);
   $('#btnBukaShift').classList.toggle('sembunyi', !perluBuka);
   $('#btnTutupShift').classList.toggle('sembunyi', perluBuka);
-  /* Digambar ULANG di sini, bukan sekali di awal: dua baris di atas menghidupkan
-     kembali tombol shift menurut ada-tidaknya shift, dan tanpa panggilan ini
-     Mode Tinjau padam sendiri pada penggambaran berikutnya. */
-  gambarModeTinjau();
   const h = APP_STATE.hasilTutupShift;
   $('#infoShift').innerHTML = (APP_STATE.idShift
     ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`
@@ -2879,7 +2696,6 @@ async function simpanKasBaru() {
   if (!akun) return Admin.toast('Pilih akun lawannya dulu.', 'galat');
   if (!(jumlah > 0)) return Admin.toast('Jumlah harus lebih dari nol.', 'galat');
   if (!ket) return Admin.toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang keluar.', 'galat');
-  if (!(await tanyaTinjau('Catatan kas ini'))) return;
 
   const b = $('#btnSimpanKas');
   b.classList.add('sibuk');
@@ -4286,7 +4102,6 @@ function pasangEvent() {
     if (!APP_STATE.idShift && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); menujuBukaShift(); }
   });
   $('#btnBukaShift').addEventListener('click', async () => {
-    if (!(await tanyaTinjau('Shift ini'))) return;
     try {
       const d = await API.bukaShift({ kas_awal: angkaDari($('#inpKasAwal').value) });
       APP_STATE.idShift = d.id_shift;
@@ -4331,11 +4146,6 @@ function pasangEvent() {
   $('#kasJumlah').addEventListener('keydown', e => { if (e.key === 'Enter') $('#kasKeterangan').focus(); });
   $('#kasKeterangan').addEventListener('keydown', e => { if (e.key === 'Enter') simpanKasBaru(); });
   $('#btnKonfirmasiTutup').addEventListener('click', async () => {
-    /* Ditanyakan di sini, BUKAN di tombol Tutup shift. Tombol itu sudah
-       punya pertanyaannya sendiri untuk nota tertahan, dan dua pertanyaan
-       berturut-turut melatih orang menekan Ya tanpa membaca (§108). Di
-       antara keduanya ada pengisian kas fisik, jadi ini bukan beruntun. */
-    if (!(await tanyaTinjau('Penutupan shift ini'))) return;
     try {
       const d = await API.tutupShift({ id_shift: APP_STATE.idShift,
         kas_fisik: angkaDari($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
