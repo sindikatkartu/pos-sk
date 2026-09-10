@@ -934,6 +934,20 @@ main { flex: 1; overflow: hidden; position: relative; }
   display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px;
   padding: 12px 0; border-bottom: 1px solid var(--garis);
 }
+
+/* Daftar nota ditahan (v1.163.0) — di modal umum. Satu baris per tahanan:
+   ciri/judul + ringkas di kiri, dua tombol di kanan; di layar sempit tombolnya
+   turun ke bawah supaya tetap selebar jari. Tahanan lewat hari diredupkan. */
+.daftar-tahanan { display: grid; gap: 8px; }
+.tahanan {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; border: 1px solid var(--garis); border-radius: var(--radius); background: var(--panel);
+}
+.tahanan.lewat .tahanan-info { opacity: .7; }
+.tahanan-info { min-width: 0; flex: 1 1 200px; }
+.tahanan-info .judul { font-weight: 600; overflow-wrap: anywhere; }
+.tahanan-info .rinci { font-size: var(--fs-13); color: var(--teks-redup); margin-top: 2px; }
+.tahanan-aksi { display: flex; gap: 8px; flex: 0 0 auto; }
 .baris-item:last-child { border-bottom: none; }
 .baris-item .judul { font-weight: 600; font-size: var(--fs-14); letter-spacing: -.1px; }
 .baris-item .rinci { font-size: var(--fs-12); color: var(--teks-redup); margin-top: 4px; }
@@ -1871,6 +1885,10 @@ input.sudah-hitung {
 }
 
 @media (max-width: 620px) {
+  /* Nota ditahan: dua tombolnya turun ke baris sendiri, masing-masing setengah
+     lebar kartu — selebar jari, bukan dua tombol kecil berdempetan. */
+  .tahanan-aksi { flex: 1 1 100%; }
+  .tahanan-aksi .tombol { flex: 1; }
   .bar-atas h1 { font-size: var(--fs-15); }
   .lencana { padding: 4px 8px; font-size: var(--fs-11); }
   #lncUser { display: none; }   /* nama pengguna tetap ada di kaki sidebar */

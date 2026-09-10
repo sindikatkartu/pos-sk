@@ -1197,7 +1197,7 @@ function bukaLayar(id) {
   if (id === 'shift') return periksaShift();
   if (id === 'kas') return muatKas();
   if (id === 'tentang') return gambarTentang();
-  if (id === 'kasir') $('#inpCari').focus();
+  if (id === 'kasir') { $('#inpCari').focus(); Tahanan.segarkanLencana(); }
 }
 
 /* ---------- Sidebar: laci (layar sempit) & lipat (layar lebar) ---------- */
@@ -1830,6 +1830,197 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
     Admin.toast(e.message, 'galat');
   }
 }
+
+/* ==================== NOTA DITAHAN ====================
+ *
+ * Diminta kasir lewat pemilik, 10 Sep 2026: "hold/keep transaksi yang belum
+ * selesai karena urusan belum selesai dengan pembeli, sehingga ada yang
+ * memotong antrean". Keranjang yang sedang dilayani disimpan sebentar, kasir
+ * melayani orang berikutnya, lalu keranjang tadi dilanjutkan.
+ *
+ * Keputusan pemilik (AskUserQuestion, hari yang sama):
+ *   1. Disimpan DI PERANGKAT INI (IndexedDB `kv`, kunci `nota_tahan`) — bukan
+ *      sheet di server. Tahanan hanya bermakna di kasir yang sama pada hari
+ *      yang sama; tidak butuh sinkron, tidak membebani server, tetap jalan
+ *      saat internet mati, dan bertahan walau tab ditutup.
+ *   2. Dibuang saat TUTUP SHIFT — kasir diberi tahu jumlahnya sebelum
+ *      menutup. Tahanan bukan nota: tidak ada nomor nota, poin, stok, atau
+ *      HPP yang tersentuh sampai Bayar ditekan seperti biasa.
+ *   3. "Lanjutkan" saat keranjang aktif masih berisi → keranjang aktif
+ *      DITAHAN dulu otomatis (tukar), tidak ditumpuk, tidak dibuang diam-diam.
+ *
+ * Yang disimpan adalah RUJUKAN baris (sku, varian, satuan, qty, diskon,
+ * harga manual, tim), bukan objek produk beserta harganya. Saat dilanjutkan,
+ * tiap baris dibangun ulang lewat `Keranjang.tambah` dari katalog SEKARANG:
+ * harga yang berubah selama ditahan mengikuti harga baru (kasir diberi tahu),
+ * SKU yang sudah nonaktif / tidak dijual di cabang ini dilepas dengan toast.
+ * Stok TIDAK dipesan saat ditahan — menahan stok membuat barang "hilang" dari
+ * kasir lain untuk transaksi yang belum tentu jadi.
+ *
+ * Paling banyak TAHANAN_MAKS per perangkat: daftar yang bisa tumbuh tanpa
+ * batas berubah jadi tempat sampah, dan yang ke-11 hampir pasti sudah pergi.
+ */
+const TAHANAN_MAKS = 10;
+const Tahanan = (() => {
+  const KUNCI = 'nota_tahan';
+  const daftar = async () => {
+    const d = await DB.kvGet(KUNCI, []);
+    return Array.isArray(d) ? d : [];
+  };
+  const simpan = (d) => DB.kvSet(KUNCI, d);
+
+  /** Potret keranjang aktif — cukup untuk dibangun ulang, tanpa objek produk. */
+  function potret(label) {
+    const t = Keranjang.total();
+    const now = new Date();
+    return {
+      id: 'T' + now.getTime() + Math.floor(Math.random() * 1000),
+      waktu: now.toISOString(), tanggal: tanggalLokal(now),
+      jam: now.toTimeString().substring(0, 5),
+      label: String(label || '').trim().slice(0, 40),
+      cabang: APP_STATE.cabang || '', id_user: APP_STATE.user?.id_user || '',
+      level: Keranjang.level,
+      pelanggan: Keranjang.pelanggan ? { kode: Keranjang.pelanggan.kode, nama: Keranjang.pelanggan.nama } : null,
+      diskon_nota: Keranjang.diskonNota,
+      petugas_nota: Keranjang.petugasNota.slice(),
+      pemasang_nota: Keranjang.pemasangNota,
+      baris: Keranjang.baris.map(b => ({
+        sku: b.sku, kode_varian: b.kode_varian || '', nama: b.nama, qty: b.qty, satuan: b.satuan,
+        harga_satuan: b.harga_satuan, harga_manual: !!b.hargaManual, diskon: b.diskon || 0,
+        tim: (b.tim || []).map(x => ({ kode: x.kode }))
+      })),
+      jumlah_item: t.jumlah_item, total: t.total
+    };
+  }
+
+  /** Simpan keranjang aktif sebagai tahanan, lalu kosongkan keranjang. */
+  async function tahan(label) {
+    if (Keranjang.kosong) { Admin.toast('Keranjang kosong — tidak ada yang ditahan.', 'galat'); return null; }
+    const d = await daftar();
+    if (d.length >= TAHANAN_MAKS) {
+      Admin.toast(`Sudah ${TAHANAN_MAKS} nota ditahan. Lanjutkan atau buang salah satu dulu.`, 'galat');
+      return null;
+    }
+    const t = potret(label);
+    d.unshift(t);
+    await simpan(d);
+    kosongkanLayarKeranjang();
+    gambarLencana(d.length);
+    return t;
+  }
+
+  /** Keranjang + kolom-kolom bar alat yang mengikutinya, dikosongkan bersama. */
+  function kosongkanLayarKeranjang() {
+    Keranjang.kosongkan();
+    $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran';
+    gambarPilihanPetugas(); gambarKeranjang();
+    gambarProduk($('#inpCari').value);
+  }
+
+  /**
+   * Bangun ulang keranjang dari sebuah tahanan. Keranjang aktif yang masih
+   * berisi ditahan lebih dulu (keputusan 3). Mengembalikan ringkasan yang
+   * dilepas / berubah supaya pemanggil bisa memberi tahu kasir.
+   */
+  async function lanjutkan(id) {
+    let d = await daftar();
+    const t = d.find(x => x.id === id);
+    if (!t) { Admin.toast('Nota tahanan itu sudah tidak ada.', 'galat'); gambarLencana(d.length); return null; }
+    if (!Keranjang.kosong) {
+      /* Ditulis ke daftar yang SAMA, sebelum yang dilanjutkan dicabut — kalau
+         daftarnya penuh, yang dilanjutkan memberi tempatnya sendiri. */
+      d = d.filter(x => x.id !== id);
+      d.unshift(potret(''));
+    } else {
+      d = d.filter(x => x.id !== id);
+    }
+    await simpan(d);
+
+    Keranjang.kosongkan();
+    /* Pelanggan dulu (ia bisa membawa level harga), lalu level yang tersimpan
+       — urutan ini yang membuat level pilihan kasir menang atas level bawaan
+       pelanggan, persis seperti saat ia mengisinya. */
+    const pel = t.pelanggan?.kode ? await DB.get('pelanggan', t.pelanggan.kode) : null;
+    Keranjang.setPelanggan(pel || null);
+    Keranjang.setLevel(t.level || 'eceran');
+    const hilang = [], berubah = [];
+    for (const b of t.baris || []) {
+      const p = await DB.get('produk', b.sku);
+      if (!p || !produkDijualDiSini(p)) { hilang.push(b.nama || b.sku); continue; }
+      const varian = b.kode_varian ? (p.varian || []).find(v => v.kode === b.kode_varian) || null : null;
+      try {
+        const nb = Keranjang.tambah(p, { qty: b.qty, satuan: b.satuan, varian,
+                                         daftarSatuan: p.satuan_lain || [], daftarTier: p.tier || [] });
+        if (b.harga_manual && APP_STATE.flag.ubah_harga_saat_jual) Keranjang.ubahHarga(nb.id, b.harga_satuan);
+        else if (nb.harga_satuan !== b.harga_satuan) berubah.push(b.nama || b.sku);
+        if (b.diskon > 0) Keranjang.ubahDiskon(nb.id, b.diskon);
+        if ((b.tim || []).length) Keranjang.setTimBaris(nb.id, b.tim);
+      } catch (e) {
+        hilang.push(b.nama || b.sku);
+      }
+    }
+    Keranjang.setDiskonNota(t.diskon_nota || 0);
+    Keranjang.setPetugasNota(t.petugas_nota || []);
+    Keranjang.setPemasangNota(t.pemasang_nota || '');
+
+    $('#selPelanggan').value = pel ? pel.kode : '';
+    $('#selLevel').value = Keranjang.level;
+    gambarPilihanPetugas(); gambarKeranjang();
+    gambarProduk($('#inpCari').value);
+    gambarLencana(d.length);
+    return { tahanan: t, hilang, berubah };
+  }
+
+  async function buang(id) {
+    const d = (await daftar()).filter(x => x.id !== id);
+    await simpan(d);
+    gambarLencana(d.length);
+    return d;
+  }
+
+  async function buangSemua() {
+    await simpan([]);
+    gambarLencana(0);
+  }
+
+  async function jumlah() { return (await daftar()).length; }
+
+  /** Lencana "Tahanan · n" di bar alat kasir; disembunyikan bila nol. */
+  function gambarLencana(n) {
+    const l = $('#lncTahanan');
+    if (!l) return;
+    l.textContent = `Tahanan · ${n}`;
+    l.classList.toggle('sembunyi', !(n > 0));
+  }
+  async function segarkanLencana() { gambarLencana(await jumlah()); }
+
+  const judulTahanan = (t) => t.label || (t.pelanggan?.nama) || (t.baris?.[0]?.nama || '') + (t.baris?.length > 1 ? ` +${t.baris.length - 1}` : '');
+
+  /** Daftar tahanan di modal umum: Lanjutkan / Buang per baris. */
+  async function bukaDaftar() {
+    const d = await daftar();
+    const hariIni = tanggalLokal(new Date());
+    const isi = d.length ? `<div class="daftar-tahanan">${d.map(t => `
+      <div class="tahanan ${t.tanggal !== hariIni ? 'lewat' : ''}" data-id="${esc(t.id)}">
+        <div class="tahanan-info">
+          <div class="judul">${esc(judulTahanan(t))}</div>
+          <div class="rinci">${esc(t.jam)}${t.tanggal !== hariIni ? ' · <span class="lencana kuning">kemarin</span>' : ''}
+            · ${t.jumlah_item} item · <strong>${rp(t.total)}</strong>
+            ${t.pelanggan?.nama && t.label ? ' · ' + esc(t.pelanggan.nama) : ''}</div>
+        </div>
+        <div class="tahanan-aksi">
+          <button class="tombol kecil" data-tahan-buang="${esc(t.id)}">Buang</button>
+          <button class="tombol kecil utama" data-tahan-lanjut="${esc(t.id)}">Lanjutkan</button>
+        </div>
+      </div>`).join('')}</div>`
+      : '<p class="petunjuk" style="text-align:center;padding:20px 0">Tidak ada nota yang ditahan.</p>';
+    Admin.modal('Nota ditahan',
+      `<p class="petunjuk" style="margin-top:0">Tersimpan di perangkat ini saja dan dibuang saat shift ditutup.
+         Harga dihitung ulang dari katalog saat dilanjutkan.</p>${isi}`);
+  }
+
+  return { daftar, tahan, lanjutkan, buang, buangSemua, jumlah, gambarLencana, segarkanLencana, bukaDaftar, kosongkanLayarKeranjang };
+})();
 
 /* ==================== KERANJANG ==================== */
 
@@ -4896,10 +5087,60 @@ function pasangEvent() {
     if (!Keranjang.kosong && !(await Admin.tanya('Kosongkan keranjang?',
           '<p class="petunjuk">Seluruh baris, pelanggan, dan pramuniaga nota ini dilepas.</p>',
           { ya: 'Kosongkan', jenis: 'bahaya' }))) return;
-    Keranjang.kosongkan(); $('#selPelanggan').value = ''; $('#selLevel').value = 'eceran';
-    gambarPilihanPetugas(); gambarKeranjang();
+    Tahanan.kosongkanLayarKeranjang();
   });
   $('#pegangan').addEventListener('click', () => $('#panelKeranjang').classList.toggle('buka'));
+
+  /* --- nota ditahan --- */
+  const tahanSekarang = async () => {
+    if (Keranjang.kosong) return Admin.toast('Keranjang kosong — tidak ada yang ditahan.', 'galat');
+    /* Batasnya diperiksa SEBELUM bertanya — mengetik ciri pembeli lalu ditolak
+       adalah dua langkah yang terbuang di depan antrean. */
+    if ((await Tahanan.jumlah()) >= TAHANAN_MAKS) {
+      return Admin.toast(`Sudah ${TAHANAN_MAKS} nota ditahan. Lanjutkan atau buang salah satu dulu.`, 'galat');
+    }
+    /* Satu isian opsional, Enter langsung menyimpan: antreannya sedang
+       menunggu, tapi tanpa ciri apa pun tiga tahanan "2 item" tidak bisa
+       dibedakan lima menit kemudian. */
+    const label = await Admin.tanya('Tahan nota ini?',
+      '<p class="petunjuk">Keranjang dikosongkan untuk pembeli berikutnya; nota ini bisa dilanjutkan dari lencana <strong>Tahanan</strong>.</p>',
+      { isian: 'Ciri pembeli, mis. "bapak jaket hitam" (opsional)', ya: 'Tahan' });
+    if (label === null) return;
+    const t = await Tahanan.tahan(label);
+    if (!t) return;
+    /* Di HP panel keranjang (lembar bawah) dilipat lagi: keranjangnya kosong,
+       dan yang dibutuhkan untuk pembeli berikutnya adalah daftar produk. */
+    $('#panelKeranjang').classList.remove('buka');
+    Admin.toast(`Nota ditahan (${t.jumlah_item} item, ${rp(t.total)}).`, 'sukses');
+  };
+  $('#btnTahan').addEventListener('click', tahanSekarang);
+  $('#lncTahanan').addEventListener('click', () => Tahanan.bukaDaftar());
+  $('#lncTahanan').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); Tahanan.bukaDaftar(); }
+  });
+  document.addEventListener('click', async e => {
+    const lanjut = e.target.closest('[data-tahan-lanjut]');
+    const buang = e.target.closest('[data-tahan-buang]');
+    if (!lanjut && !buang) return;
+    if (buang) {
+      if (!(await Admin.tanya('Buang nota tahanan ini?',
+            '<p class="petunjuk">Barisnya hilang dari perangkat ini. Stok dan nota tidak tersentuh.</p>',
+            { ya: 'Buang', jenis: 'bahaya' }))) return;
+      await Tahanan.buang(buang.dataset.tahanBuang);
+      return Tahanan.bukaDaftar();
+    }
+    const adaIsi = !Keranjang.kosong;
+    const r = await Tahanan.lanjutkan(lanjut.dataset.tahanLanjut);
+    Admin.tutupModal();
+    if (!r) return;
+    $('#panelKeranjang').classList.add('buka');
+    const pesan = [];
+    if (adaIsi) pesan.push('keranjang sebelumnya ikut ditahan');
+    if (r.berubah.length) pesan.push('harga berubah: ' + r.berubah.join(', '));
+    if (r.hilang.length) pesan.push('dilepas (tidak dijual lagi di sini): ' + r.hilang.join(', '));
+    Admin.toast('Nota dilanjutkan' + (pesan.length ? ' — ' + pesan.join(' · ') : '.'),
+                r.hilang.length ? 'galat' : 'sukses');
+  });
 
   /* --- detail item --- */
   let itemAktif = null;
@@ -5061,6 +5302,15 @@ function pasangEvent() {
                Angka kas sistem bisa belum lengkap.</div>`,
             { ya: 'Lanjutkan', jenis: 'bahaya' }))) return;
     }
+    /* Nota yang DITAHAN ikut dibuang bersama shift (keputusan pemilik 10 Sep
+       2026) — dan itu disebut SEBELUM menutup, bukan sesudahnya. */
+    const ditahan = await Tahanan.jumlah();
+    if (ditahan > 0) {
+      if (!(await Admin.tanya('Tutup shift sekarang?',
+            `<div class="pesan peringatan">Masih ada ${ditahan} nota ditahan di perangkat ini.
+               Semuanya akan dibuang saat shift ditutup — lanjutkan atau bayar dulu bila masih ditunggu pembelinya.</div>`,
+            { ya: 'Lanjutkan', jenis: 'bahaya' }))) return;
+    }
     $('#tsHasil').innerHTML = '';
     $('#tiraiTutupShift').classList.add('tampil');
   });
@@ -5076,6 +5326,7 @@ function pasangEvent() {
         kas_fisik: angkaDari($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
       APP_STATE.idShift = null;
       await DB.kvSet('id_shift', null);
+      await Tahanan.buangSemua();
       /* Hasilnya dipindah ke layar Shift, lalu modalnya ditutup.
          Membiarkan modal terbuka setelah berhasil membuat orang mengira prosesnya
          belum selesai — dan menutupnya begitu saja akan membuang angka selisih,
@@ -5409,6 +5660,7 @@ function pasangEvent() {
   document.addEventListener('keydown', e => {
     if (e.key === 'F2') { e.preventDefault(); $('#inpCari').focus(); $('#inpCari').select(); }
     if (e.key === 'F12') { e.preventDefault(); bukaBayar(); }
+    if (e.key === 'F9' && $('#layarKasir').classList.contains('aktif')) { e.preventDefault(); $('#btnTahan').click(); }
     if (e.key === 'Escape') $$('.tirai').forEach(t => t.classList.remove('tampil'));
     if (e.key === 'Enter' && $('#tiraiBayar').classList.contains('tampil')
         && !$('#btnSelesaikan').disabled && e.target.tagName !== 'SELECT') {

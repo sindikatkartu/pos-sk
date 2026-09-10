@@ -221,6 +221,12 @@
                 role="button" tabindex="0"
                 title="Tarik ulang data master supaya daftar petugas ikut turun">Pramuniaga kosong · segarkan</span>
           <span class="lencana" id="lncJumlahProduk"></span>
+          <!-- Nota yang DITAHAN di perangkat ini (v1.163.0) — jalan kembali ke
+               keranjang yang disimpan sebentar karena pembelinya belum selesai.
+               Diletakkan di bar alat, bukan di panel keranjang: di HP panel itu
+               terlipat, dan jumlah tahanan harus terlihat tanpa membukanya. -->
+          <span class="lencana kuning bisa-klik sembunyi" id="lncTahanan" role="button" tabindex="0"
+                title="Nota yang ditahan di perangkat ini — klik untuk melanjutkan">Tahanan · 0</span>
         </div>
         <div class="daftar-produk" id="daftarProduk"></div>
       </div>
@@ -233,7 +239,13 @@
         <div class="keranjang-atas">
           <div style="display:flex;justify-content:space-between;align-items:center">
             <strong>Keranjang</strong>
-            <button class="tombol" id="btnKosongkan" style="padding:6px 12px;font-size:var(--fs-13)">Kosongkan</button>
+            <div style="display:flex;gap:8px">
+              <!-- Tahan = simpan keranjang ini di perangkat, layani pembeli
+                   berikutnya, lanjutkan nanti dari lencana Tahanan. F9. -->
+              <button class="tombol" id="btnTahan" style="padding:6px 12px;font-size:var(--fs-13)"
+                      title="Tahan nota ini untuk dilanjutkan nanti (F9)">Tahan</button>
+              <button class="tombol" id="btnKosongkan" style="padding:6px 12px;font-size:var(--fs-13)">Kosongkan</button>
+            </div>
           </div>
         </div>
         <div class="keranjang-isi" id="isiKeranjang">
@@ -616,6 +628,17 @@
             <li>Label sisa berganti sendiri antara <strong>Kembali</strong> dan <strong>Kurang</strong>. Tombol Selesaikan mati bila kurang bayar tanpa metode piutang.</li>
           </ul>
           <p class="petunjuk">Pintasan: <strong>F12</strong> membuka layar Bayar.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>A7b. Menahan nota (pembeli belum selesai)</h3>
+          <p>Pembeli masih menimbang sementara antrean menunggu? Tekan <strong>Tahan</strong> di panel keranjang (atau <strong>F9</strong>), isi ciri pembeli bila perlu (mis. "bapak jaket hitam"), Enter. Keranjang langsung kosong untuk pembeli berikutnya; nota tadi tersimpan di lencana <strong>Tahanan · n</strong> di bar alat kasir.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Lanjutkan</strong> mengembalikan seluruh baris, pelanggan, level harga, diskon, dan pramuniaga. Kalau keranjang sedang berisi, isinya ikut ditahan otomatis (tukar) — tidak ada yang hilang.</li>
+            <li>Harga dihitung ulang dari katalog saat dilanjutkan; produk yang sudah nonaktif atau tidak dijual di cabang ini dilepas dan disebutkan.</li>
+            <li>Tahanan <strong>bukan nota</strong>: tidak ada nomor nota, poin, stok, atau HPP yang tersentuh sampai Bayar. Stok tidak dipesan.</li>
+            <li>Tersimpan <strong>di perangkat ini saja</strong> (tetap ada walau aplikasi ditutup, tetap bekerja tanpa internet), paling banyak 10. Semuanya <strong>dibuang saat Tutup shift</strong> — jumlahnya disebutkan sebelum shift ditutup.</li>
+          </ul>
         </div>
 
         <div class="kartu">
