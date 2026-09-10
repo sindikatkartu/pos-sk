@@ -1924,6 +1924,11 @@ input.sudah-hitung {
   .bar-alat-menu > .saringan > * { width: 100%; max-width: none !important; min-width: 0; }
   /* Dua kolom tanggal kustom Laporan berbagi satu baris, sama lebar. */
   .rentang-kustom > .kolom-tgl, .rentang-kustom > input[type=date] { width: auto; flex: 1 1 0; }
+  /* Bar alat Dashboard: dropdown periode & cabang berdampingan, keterangan
+     rentang di bawahnya selebar keduanya — dua dropdown bertumpuk memakan
+     satu kotak KPI di HP. */
+  .bar-alat.bar-dash { grid-template-columns: 1fr 1fr; }
+  .bar-alat.bar-dash > .keterangan-dash { grid-column: 1 / -1; }
   .bar-alat-menu > .aksi { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .bar-alat-menu > .aksi > .tombol { width: 100%; }
   /* `max-width` juga dinolkan, bukan hanya `width`. Lebar tiap kendali diberikan

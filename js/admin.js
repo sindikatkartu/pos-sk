@@ -295,7 +295,7 @@ const Admin = (() => {
     </div>`; };
 
   const rangkaDashboard = () => { $('#isiDashboard').innerHTML = `
-    <div class="bar-alat rapat"><span class="rangka tinggi" style="width:150px"></span></div>
+    <div class="bar-alat rapat bar-dash"><span class="rangka tinggi" style="width:150px"></span>${bolehCabangDash() ? '<span class="rangka tinggi" style="width:130px"></span>' : ''}</div>
     <!-- Bentuknya memakai .mini yang SAMA dengan kartu KPI sungguhan, bukan
          kotak karangan sendiri: rangka yang ukurannya berbeda dari isinya
          membuat layar melompat tepat saat datanya tiba, dan lompatan itu
@@ -640,8 +640,49 @@ const Admin = (() => {
    * layar — dan bagian bawahnya tidak pernah dibaca.
    */
   let periodeDash = 'hari';
+  /** Cabang yang ditampilkan dashboard: '*' = semua (perilaku lama), atau satu kode. */
+  let cabangDash = '*';
 
   const LABEL_PERIODE = { hari: 'Hari ini', kemarin: 'Kemarin', '7': '7 hari', '30': '30 hari', bulan: 'Bulan berjalan' };
+
+  /**
+   * Dropdown cabang dashboard (v1.159, diminta pemilik 10 Sep 2026). Hanya
+   * untuk akun lintas cabang dengan lebih dari satu cabang — aturan yang sama
+   * dengan penyaring cabang Laporan: dropdown berisi satu pilihan adalah
+   * hiasan. `daftarKodeCabang()` sudah dipakai formulir produk.
+   */
+  const bolehCabangDash = () =>
+    !!APP_STATE.flag?.akses_lintas_cabang && daftarKodeCabang().length > 1;
+  const pilihCabangDash = () => bolehCabangDash()
+    ? `<select id="cabangDash" style="width:auto" title="Cabang">
+        <option value="*" ${cabangDash === '*' ? 'selected' : ''}>Semua cabang</option>
+        ${daftarKodeCabang().map(c => `<option value="${esc(c)}" ${cabangDash === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+      </select>` : '';
+
+  /**
+   * Rentang tanggal dashboard dalam bentuk RINGKAS — untuk ponsel.
+   *
+   * Dulu "10/09/2026 – 10/09/2026 · dibanding 09/09/2026 – 09/09/2026" memakan
+   * dua baris di HP (pemilik, 10 Sep 2026). Satu hari ditulis sekali; rentang
+   * dalam tahun yang sama menyebut tahunnya sekali di ujung; pembandingnya
+   * tanpa tahun bila tahunnya sama dengan rentang utama. Contoh:
+   *   "10/09/2026 · vs 09/09"  ·  "04/09 – 10/09/2026 · vs 28/08 – 03/09".
+   * Tanggal tetap DD/MM seperti seluruh aplikasi.
+   */
+  function ringkasRentang(dari, sampai, tanpaTahun) {
+    const u = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? { t: m[1], hb: m[3] + '/' + m[2] } : null; };
+    const a = u(dari), b = u(sampai);
+    if (!a || !b) return tglTampil(dari) + ' – ' + tglTampil(sampai);
+    const thn = tanpaTahun ? '' : '/' + b.t;
+    if (a.t + a.hb === b.t + b.hb) return a.hb + thn;
+    if (a.t === b.t) return a.hb + ' – ' + b.hb + thn;
+    return tglTampil(dari) + ' – ' + tglTampil(sampai);
+  }
+  function keteranganRentangDash(d) {
+    const thn = (v) => String(v || '').slice(0, 4);
+    const tahunSama = thn(d.dari) === thn(d.sampai) && thn(d.dari) === thn(d.dari_lalu) && thn(d.dari) === thn(d.sampai_lalu);
+    return `${ringkasRentang(d.dari, d.sampai)} · vs ${ringkasRentang(d.dari_lalu, d.sampai_lalu, tahunSama)}`;
+  }
 
   /**
    * Selisih terhadap periode pembanding, sebagai lencana.
@@ -760,7 +801,7 @@ const Admin = (() => {
       /* `bagian: 'inti'` — server lama yang belum mengenalnya membalas bentuk
          penuh, dan itu ditangani: kalau peringkat dan stoknya sudah ikut,
          bagian berat tidak ditarik lagi. */
-      const d = await API.dashboard({ periode: periodeDash, bagian: 'inti' });
+      const d = await API.dashboard({ periode: periodeDash, cabang: cabangDash, bagian: 'inti' });
       if (tiket !== tiketDash) return;
       /**
        * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
@@ -786,13 +827,13 @@ const Admin = (() => {
       const adaMargin = k.laba_kotor !== undefined;
 
       $('#isiDashboard').innerHTML = `
-        <div class="bar-alat rapat">
+        <div class="bar-alat rapat bar-dash">
           <select id="periodeDash" style="width:auto">
             ${Object.keys(LABEL_PERIODE).map(x =>
               `<option value="${x}" ${x === periodeDash ? 'selected' : ''}>${LABEL_PERIODE[x]}</option>`).join('')}
           </select>
-          <span class="petunjuk" style="margin:0">${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}
-            · dibanding ${esc(tglTampil(d.dari_lalu))} – ${esc(tglTampil(d.sampai_lalu))}</span>
+          ${pilihCabangDash()}
+          <span class="petunjuk keterangan-dash" style="margin:0" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</span>
         </div>
 
         ${petakMini([
@@ -894,7 +935,7 @@ const Admin = (() => {
 
   async function muatDashboardBerat(tiket, adaMargin) {
     try {
-      const b = await API.dashboard({ periode: periodeDash, bagian: 'berat' }, { latar: true });
+      const b = await API.dashboard({ periode: periodeDash, cabang: cabangDash, bagian: 'berat' }, { latar: true });
       if (tiket !== tiketDash) return;
       isiBagianBerat(b, adaMargin);
     } catch (e) {
@@ -7090,6 +7131,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          dan menyalin perhitungan itu ke perangkat berarti dua tempat menghitung
          satu angka. */
       if (e.target.id === 'periodeDash') { periodeDash = e.target.value; muatDashboard(); return; }
+      if (e.target.id === 'cabangDash')  { cabangDash = e.target.value; muatDashboard(); return; }
       if (e.target.id === 'imporEntitas') {
         $('#imporKolom').textContent = KOLOM_IMPOR[e.target.value] || '';
         $('#hasilPratinjau').innerHTML = '';
