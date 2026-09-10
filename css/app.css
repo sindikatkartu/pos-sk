@@ -60,6 +60,14 @@
   --peringatan-lembut: #fbf3e7;
   --peringatan-garis:  #e8c48c;
   --bahaya:        #cf2222;
+  /* Dua rona TAMBAHAN untuk petak ikon KPI dashboard (10 Sep 2026). Enam angka
+     memakai enam warna supaya mata menemukan "piutang" tanpa membaca labelnya;
+     biru, hijau, kuning, merah sudah ada, dua ini melengkapi. Tidak dipakai
+     untuk makna lain — ungu bukan "bahaya", teal bukan "sukses". */
+  --ungu:          #6d4fc2;
+  --ungu-lembut:   #efeafb;
+  --teal:          #0f766e;
+  --teal-lembut:   #e3f3f1;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #fbe7e7;
   --bahaya-garis:  #f0a9a9;
@@ -190,6 +198,10 @@ html[data-tema="gelap"] {
   --peringatan-lembut: #221c13;
   --peringatan-garis:  #5c4413;
   --bahaya:        #e87474;
+  --ungu:          #b39cf0;
+  --ungu-lembut:   #26213a;
+  --teal:          #5fc9be;
+  --teal-lembut:   #16302d;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #221313;
   --bahaya-garis:  #5c2626;
@@ -1024,6 +1036,18 @@ main { flex: 1; overflow: hidden; position: relative; }
 .tombol.peringatan:active { filter: brightness(.95); }
 .tombol.penuh { width: 100%; }
 
+/* ==================== SPANDUK VERSI BARU ====================
+   Di atas segalanya kecuali modal, tepat di bawah garis muat. Warna panel
+   biasa dengan garis aksen di bawah — bukan latar warna penuh: ia
+   pemberitahuan yang boleh ditunda, bukan peringatan. */
+.spanduk-versi {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 75;
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 14px; background: var(--panel); color: var(--teks);
+  border-bottom: 2px solid var(--utama); box-shadow: var(--bayang-4);
+  font-size: var(--fs-13);
+}
+
 /* ==================== CARI DI BANTUAN ====================
    Menempel di atas saat digulir: 27 bagian berarti hasil yang ditemukan sering
    berada jauh di bawah kotak carinya, dan mengetik ulang kata kunci menuntut
@@ -1385,7 +1409,36 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .mini {
   background: var(--panel); border: 1px solid var(--garis-halus);
   border-radius: var(--radius); padding: 10px 12px; min-width: 0;
+  position: relative;
 }
+/* Ikon di SUDUT KANAN ATAS, absolut — tidak menambah tinggi kotak dan tidak
+   memakan lebar angka. Dua percobaan sebelumnya: di sisi kiri seluruh kotak,
+   angkanya terpotong ("Rp 952.…"); sebaris dengan label, kotaknya tumbuh
+   dari 85 ke 93px dan melanggar ukuran padat yang dipesan pemilik (< 90px,
+   dijaga uji-dashboard.mjs). Di sudut, baris labelnya memang punya ruang —
+   label KPI pendek — dan angkanya tetap selebar kotak. */
+.mini-kepala { min-width: 0; padding-right: 32px; }
+.mini-kepala .mini-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-ikon {
+  position: absolute; top: 8px; right: 8px;
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel-2); color: var(--teks-redup);
+}
+.mini-ikon .ikon-svg { width: 14px; height: 14px; }
+.mini-ikon.biru   { background: var(--utama-lembut);      color: var(--utama); }
+.mini-ikon.hijau  { background: var(--sukses-lembut);     color: var(--sukses); }
+.mini-ikon.kuning { background: var(--peringatan-lembut); color: var(--peringatan); }
+.mini-ikon.merah  { background: var(--bahaya-lembut);     color: var(--bahaya); }
+.mini-ikon.ungu   { background: var(--ungu-lembut);       color: var(--ungu); }
+.mini-ikon.teal   { background: var(--teal-lembut);       color: var(--teal); }
+/* Kotak yang jadi TAUTAN: warna teksnya diwarisi (bukan biru tautan), dan
+   hover mengangkatnya sedikit — cukup untuk mengatakan "bisa ditekan", tidak
+   sampai membuatnya terbaca sebagai tombol. */
+a.mini-tautan { color: inherit; text-decoration: none; cursor: pointer;
+                transition: border-color .08s, box-shadow .08s; }
+a.mini-tautan:hover { border-color: var(--garis-kuat); box-shadow: var(--bayang-1); }
+a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2px; }
 .mini-label { font-size: var(--fs-12); color: var(--teks-redup); line-height: 1.3; }
 /* `tabular-nums` supaya deretan angka di beberapa kotak tetap sejajar lebarnya
    dan tidak bergoyang tiap kali datanya berubah. */
@@ -2308,6 +2361,7 @@ body.tunggu .sisi button:not(.sibuk) { opacity: .62; }
     --sukses-garis: #999999;
     --peringatan: #000000; --peringatan-lembut: #ffffff; --peringatan-garis: #999999;
     --bahaya: #000000; --bahaya-lembut: #ffffff; --bahaya-garis: #999999;
+    --ungu: #000000; --ungu-lembut: #ffffff; --teal: #000000; --teal-lembut: #ffffff;
     --bayang-1: none; --bayang-2: none; --bayang-3: none; --bayang-4: none;
     --cincin: none; --tirai: transparent; --gulir-bayang: transparent;
     --tombol-tekan: #ffffff; --logo-bg: #000000; --logo-teks: #ffffff;

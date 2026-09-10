@@ -263,7 +263,7 @@ const Admin = (() => {
          (Tanpa petik-balik: blok ini ada di dalam template literal.) -->
     <div class="petak-mini" aria-busy="true" aria-label="Memuat ringkasan">
       ${Array.from({ length: 6 }, () => `<div class="mini">
-        <div class="mini-label"><span class="rangka" style="width:70px"></span></div>
+        <div class="mini-kepala"><span class="mini-ikon"></span><div class="mini-label"><span class="rangka" style="width:70px"></span></div></div>
         <div class="mini-nilai"><span class="rangka tinggi" style="width:110px"></span></div>
         <div class="mini-ekor"><span class="rangka" style="width:48px"></span></div>
       </div>`).join('')}
@@ -646,23 +646,82 @@ const Admin = (() => {
      kosong di dalam kotak bergaris terbaca seperti isi yang gagal dimuat.
      Tingginya dipesan di CSS (`.mini-ekor { min-height }`), bukan dengan
      mengarang teks pengisi: tidak ada angka palsu yang bisa dikutip orang. */
-  const kotakMini = (label, nilai, ekor) => `<div class="mini">
-      <div class="mini-label">${esc(label)}</div>
+  /* Ikon KPI: satu petak berwarna per angka. Warnanya bukan hiasan — enam
+     kotak yang bentuknya persis sama dibaca dengan MEMBACA labelnya satu per
+     satu; dengan warna dan ikon, mata menemukan "piutang" tanpa membaca.
+     Diminta pemilik 10 Sep 2026 ("sentuhan text dan icon warna warni").
+     Goresan 1.8, viewBox 24, sama dengan ikon menu di app.js. */
+  const IKON_KPI = {
+    omzet:   '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>',
+    nota:    '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    rata:    '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/><circle cx="12" cy="8" r="1"/><circle cx="12" cy="16" r="1"/>',
+    laba:    '<circle cx="9" cy="9" r="6"/><path d="M15 9a6 6 0 1 1-6 6"/>',
+    margin:  '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+    piutang: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>',
+    nilai:   '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+    hari:    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    mati:    '<path d="M4 7h16v13H4z"/><path d="M4 7l2-3h12l2 3"/><path d="M9 13l6 4M15 13l-6 4"/>',
+    kritis:  '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>'
+  };
+  const ikonKpi = (nama, warna) => nama && IKON_KPI[nama]
+    ? `<span class="mini-ikon ${warna || ''}" aria-hidden="true"><svg class="ikon-svg" viewBox="0 0 24 24">${IKON_KPI[nama]}</svg></span>`
+    : '';
+
+  /* Baris ekor SELALU digambar, walau kosong. Kotak yang punya pembanding
+     isinya 28px lebih tinggi daripada yang tidak, dan karena satu baris kotak
+     tingginya disamakan, yang tanpa pembanding berlubang di dalam — ruang
+     kosong di dalam kotak bergaris terbaca seperti isi yang gagal dimuat.
+     Tingginya dipesan di CSS (`.mini-ekor { min-height }`), bukan dengan
+     mengarang teks pengisi: tidak ada angka palsu yang bisa dikutip orang.
+
+     `opsi.ke` menjadikan kotaknya TAUTAN ke layar yang menjelaskan angkanya
+     (omzet → Riwayat, piutang → Piutang, stok menipis → Stok). Hanya kalau
+     perannya berhak membuka layar itu — kotak yang mengantar ke halaman kosong
+     lebih buruk daripada kotak yang diam. */
+  const LABEL_LAYAR = { riwayat: 'Riwayat', piutang: 'Piutang', stok: 'Stok', laporan: 'Laporan' };
+  const kotakMini = (label, nilai, ekor, opsi) => {
+    const o = opsi || {};
+    const ke = o.ke && typeof bolehLayar === 'function' && bolehLayar(o.ke) ? o.ke : '';
+    /* Ikon berdiri SEBARIS dengan label, bukan di sisi angka. Percobaan
+       pertama menaruhnya di kiri seluruh kotak, dan pada enam kotak sebaris
+       di 1044px angkanya terpotong jadi "Rp 952.…" — petak 32px + celah
+       memakan lebar yang dulu dipakai tiga angka terakhir. Di baris label
+       ruangnya memang tersisa, dan angkanya kembali selebar kotak. */
+    const isi = `<div class="mini-kepala">${ikonKpi(o.ikon, o.warna)}<div class="mini-label">${esc(label)}</div></div>
       <div class="mini-nilai">${nilai}</div>
-      <div class="mini-ekor">${ekor || ''}</div>
-    </div>`;
+      <div class="mini-ekor">${ekor || ''}</div>`;
+    return ke
+      ? `<a class="mini mini-tautan" href="#/${ke}" data-layar="${ke}" title="Buka ${esc(LABEL_LAYAR[ke] || ke)}">${isi}</a>`
+      : `<div class="mini">${isi}</div>`;
+  };
 
   /** Tabel peringkat: ringkas, tanpa kepala tebal, angka rata kanan. */
-  const kartuPeringkat = (judul, kolom, baris, kosong) => `
-    <div class="kartu rapat">
+  /* `id` opsional: kartu yang diisi BELAKANGAN (bagian berat dashboard)
+     digambar ulang lewat outerHTML dan harus membawa id-nya sendiri. Kartunya
+     tetap anak LANGSUNG petaknya — wadah pembungkus tambahan membuat baris
+     petak tidak lagi terbaca sebagai baris oleh uji-ruang, dan jaraknya
+     terukur 32px padahal yang tergambar 16px. */
+  const kartuPeringkat = (judul, kolom, baris, kosong, id) => `
+    <div class="kartu rapat"${id ? ` id="${id}"` : ''}>
       <h4>${esc(judul)}</h4>
       ${tabel(kolom, baris || [], { kosong: kosong || 'Belum ada data' })}
     </div>`;
 
+  /* Tiket penggambaran: berganti tiap kali dashboard dimuat. Bagian berat yang
+     ditarik di latar untuk periode LAMA tidak boleh menimpa layar periode baru
+     yang sudah tergambar — tanpa tiket, mengganti periode dua kali cepat
+     berakhir dengan peringkat 30 hari di bawah judul "Hari ini". */
+  let tiketDash = 0;
+
   async function muatDashboard() {
     rangkaDashboard();
+    const tiket = ++tiketDash;
     try {
-      const d = await API.dashboard({ periode: periodeDash });
+      /* `bagian: 'inti'` — server lama yang belum mengenalnya membalas bentuk
+         penuh, dan itu ditangani: kalau peringkat dan stoknya sudah ikut,
+         bagian berat tidak ditarik lagi. */
+      const d = await API.dashboard({ periode: periodeDash, bagian: 'inti' });
+      if (tiket !== tiketDash) return;
       /**
        * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
        * di-deploy ulang, permintaan pertama mengenai celah propagasi dan jawabannya
@@ -697,15 +756,20 @@ const Admin = (() => {
         </div>
 
         ${petakMini([
-          kotakMini('Omzet', rp(k.omzet), lencanaSelisih(k.omzet, l.omzet)),
-          kotakMini('Nota', k.nota, lencanaSelisih(k.nota, l.nota)),
-          kotakMini('Rata-rata/nota', rp(k.rata_nota || 0), lencanaSelisih(k.rata_nota, l.rata_nota)),
-          adaMargin ? kotakMini('Laba kotor', rp(k.laba_kotor), lencanaSelisih(k.laba_kotor, l.laba_kotor)) : '',
+          kotakMini('Omzet', rp(k.omzet), lencanaSelisih(k.omzet, l.omzet),
+            { ikon: 'omzet', warna: 'biru', ke: 'riwayat' }),
+          kotakMini('Nota', k.nota, lencanaSelisih(k.nota, l.nota),
+            { ikon: 'nota', warna: 'ungu', ke: 'riwayat' }),
+          kotakMini('Rata-rata/nota', rp(k.rata_nota || 0), lencanaSelisih(k.rata_nota, l.rata_nota),
+            { ikon: 'rata', warna: 'teal' }),
+          adaMargin ? kotakMini('Laba kotor', rp(k.laba_kotor), lencanaSelisih(k.laba_kotor, l.laba_kotor),
+            { ikon: 'laba', warna: 'hijau', ke: 'laporan' }) : '',
           adaMargin ? kotakMini('Margin', (k.margin || 0).toFixed(1) + '%',
-            lencanaPoin(k.margin, l.margin)) : '',
+            lencanaPoin(k.margin, l.margin), { ikon: 'margin', warna: 'hijau' }) : '',
           kotakMini('Piutang beredar', rp(pi.total || 0),
             (pi.d1_30 + pi.d30plus) > 0
-              ? `<span class="delta turun">${rp(pi.d1_30 + pi.d30plus)} lewat tempo</span>` : '')
+              ? `<span class="delta turun">${rp(pi.d1_30 + pi.d30plus)} lewat tempo</span>` : '',
+            { ikon: 'piutang', warna: 'kuning', ke: 'piutang' })
         ].join(''))}
 
         <div class="petak-2">
@@ -728,16 +792,8 @@ const Admin = (() => {
         </div>
 
         <div class="petak-2">
-          ${kartuPeringkat('Produk terlaris', [
-            { judul: 'Produk', kunci: 'nama' },
-            { judul: 'Qty', kunci: 'qty', angka: true },
-            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
-          ], pk.produk, 'Belum ada penjualan')}
-          ${kartuPeringkat('Kategori', [
-            { judul: 'Kategori', kunci: 'nama' },
-            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) },
-            ...(adaMargin ? [{ judul: 'Margin', angka: true, render: r => (r.margin || 0).toFixed(1) + '%' }] : [])
-          ], pk.kategori, 'Belum ada penjualan')}
+          ${rangkaKartuPeringkat('Produk terlaris', 'wadahPeringkatProduk')}
+          ${rangkaKartuPeringkat('Kategori', 'wadahPeringkatKategori')}
           ${kartuPeringkat('Petugas', [
             { judul: 'Nama', kunci: 'nama' },
             { judul: 'Poin', kunci: 'poin', angka: true },
@@ -750,43 +806,7 @@ const Admin = (() => {
           ], pk.cabang || d.per_cabang, 'Belum ada transaksi')}
         </div>
 
-        <div class="kartu rapat">
-          <h4>Kesehatan stok <span class="petunjuk" style="font-weight:400">· cabang ${esc(APP_STATE.cabang)}</span></h4>
-          ${petakMini([
-            kotakMini('Nilai persediaan', rp(st.nilai || 0)),
-            /* "Hari persediaan" = nilai stok dibagi HPP per hari. Tanpa penjualan
-               sama sekali jawabannya bukan nol melainkan tidak terhingga — server
-               mengirim null, dan di sini ditulis '—'. */
-            kotakMini('Hari persediaan', st.hari_persediaan === null || st.hari_persediaan === undefined
-              ? '—' : st.hari_persediaan + ' hari'),
-            kotakMini('Nilai barang mati', rp(st.nilai_mati || 0),
-              st.jumlah_mati ? `<span class="delta turun">${st.jumlah_mati} SKU tak terjual</span>` : ''),
-            kotakMini('Stok menipis', String(st.jumlah_kritis || 0),
-              st.jumlah_kritis ? '<span class="delta turun">perlu dipesan</span>'
-                               : '<span class="delta naik">aman</span>')
-          ].join(''))}
-          <!-- Jaraknya dari margin-bottom milik .petak-mini di atasnya, bukan dari
-               margin-top di sini: dua sumber jarak untuk satu celah selalu berakhir
-               jadi 26px yang tidak diputuskan siapa pun. -->
-          <div class="petak-2">
-            <div>
-              <div class="petunjuk">Stok menyentuh ambang minimum</div>
-              ${tabel([
-                { judul: 'Produk', kunci: 'nama' },
-                { judul: 'Stok', kunci: 'qty', angka: true },
-                { judul: 'Min', kunci: 'stok_min', angka: true }
-              ], st.kritis || [], { kosong: 'Tidak ada' })}
-            </div>
-            <div>
-              <div class="petunjuk">Bernilai besar tapi tidak terjual periode ini</div>
-              ${tabel([
-                { judul: 'Produk', kunci: 'nama' },
-                { judul: 'Stok', kunci: 'qty', angka: true },
-                { judul: 'Nilai', angka: true, render: r => rp(r.nilai) }
-              ], st.mati || [], { kosong: 'Semua produk berstok terjual' })}
-            </div>
-          </div>
-        </div>
+        ${rangkaKartuStok('wadahStokDash')}
 
         ${(d.shift_terbuka || []).length ? `<div class="kartu rapat"><h4>Shift masih terbuka
           <span class="lencana kuning">${d.shift_terbuka.length}</span></h4>
@@ -822,8 +842,95 @@ const Admin = (() => {
         });
       }
       muatGrafik(30);
+
+      /* Bagian berat. Kalau server (lama) sudah mengirimnya, langsung diisi;
+         kalau tidak, ditarik di LATAR — layar sudah bisa dibaca, dan mengunci
+         tombol selama peringkat dihitung berarti mengunci layar yang sudah
+         selesai. */
+      if (pk.produk && d.stok && d.stok.kritis) isiBagianBerat(d, adaMargin);
+      else muatDashboardBerat(tiket, adaMargin);
     } catch (e) { galat('#isiDashboard', e); }
   }
+
+  async function muatDashboardBerat(tiket, adaMargin) {
+    try {
+      const b = await API.dashboard({ periode: periodeDash, bagian: 'berat' }, { latar: true });
+      if (tiket !== tiketDash) return;
+      isiBagianBerat(b, adaMargin);
+    } catch (e) {
+      if (tiket !== tiketDash) return;
+      /* Gagalnya bagian berat TIDAK merobohkan dashboard yang sudah tergambar.
+         Tiga kartunya diberi pesan, sisanya tetap terbaca. */
+      ['wadahPeringkatProduk', 'wadahPeringkatKategori', 'wadahStokDash'].forEach(id => {
+        const el = $('#' + id);
+        if (el) el.outerHTML = `<div class="kartu rapat" id="${id}"><p class="pesan galat" style="margin:0">Peringkat &amp; stok gagal dimuat — ${esc(e.message)}</p></div>`;
+      });
+    }
+  }
+
+  /** Isi tiga kartu yang datang belakangan: dua peringkat dan kesehatan stok. */
+  function isiBagianBerat(b, adaMargin) {
+    const pk = (b && b.peringkat) || {};
+    const st = (b && b.stok) || {};
+    const cap = b && b.diperbarui
+      ? `<span class="petunjuk" style="font-weight:400">· per ${esc(b.diperbarui)}</span>` : '';
+    const wp = $('#wadahPeringkatProduk'), wk = $('#wadahPeringkatKategori'), ws = $('#wadahStokDash');
+    if (wp) wp.outerHTML = kartuPeringkat('Produk terlaris', [
+      { judul: 'Produk', kunci: 'nama' },
+      { judul: 'Qty', kunci: 'qty', angka: true },
+      { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
+    ], pk.produk, 'Belum ada penjualan', 'wadahPeringkatProduk');
+    if (wk) wk.outerHTML = kartuPeringkat('Kategori', [
+      { judul: 'Kategori', kunci: 'nama' },
+      { judul: 'Omzet', angka: true, render: r => rp(r.omzet) },
+      ...(adaMargin ? [{ judul: 'Margin', angka: true, render: r => (r.margin || 0).toFixed(1) + '%' }] : [])
+    ], pk.kategori, 'Belum ada penjualan', 'wadahPeringkatKategori');
+    if (ws) ws.outerHTML = kartuStokDash(st, cap, 'wadahStokDash');
+  }
+
+  /** Kartu "Kesehatan stok" — dipisah supaya bisa digambar belakangan. */
+  function kartuStokDash(st, cap, id) {
+    return `<div class="kartu rapat"${id ? ` id="${id}"` : ''}>
+      <h4>Kesehatan stok <span class="petunjuk" style="font-weight:400">· cabang ${esc(APP_STATE.cabang)}</span> ${cap || ''}</h4>
+      ${petakMini([
+        kotakMini('Nilai persediaan', rp(st.nilai || 0), '', { ikon: 'nilai', warna: 'biru' }),
+        kotakMini('Hari persediaan', st.hari_persediaan === null || st.hari_persediaan === undefined
+          ? '—' : st.hari_persediaan + ' hari', '', { ikon: 'hari', warna: 'teal' }),
+        kotakMini('Nilai barang mati', rp(st.nilai_mati || 0),
+          st.jumlah_mati ? `<span class="delta turun">${st.jumlah_mati} SKU tak terjual</span>` : '',
+          { ikon: 'mati', warna: 'ungu' }),
+        kotakMini('Stok menipis', String(st.jumlah_kritis || 0),
+          st.jumlah_kritis ? '<span class="delta turun">perlu dipesan</span>'
+                           : '<span class="delta naik">aman</span>',
+          { ikon: 'kritis', warna: st.jumlah_kritis ? 'merah' : 'hijau', ke: 'stok' })
+      ].join(''))}
+      <div class="petak-2">
+        <div>
+          <div class="petunjuk">Stok menyentuh ambang minimum</div>
+          ${tabel([
+            { judul: 'Produk', kunci: 'nama' },
+            { judul: 'Stok', kunci: 'qty', angka: true },
+            { judul: 'Min', kunci: 'stok_min', angka: true }
+          ], st.kritis || [], { kosong: 'Tidak ada' })}
+        </div>
+        <div>
+          <div class="petunjuk">Bernilai besar tapi tidak terjual periode ini</div>
+          ${tabel([
+            { judul: 'Produk', kunci: 'nama' },
+            { judul: 'Stok', kunci: 'qty', angka: true },
+            { judul: 'Nilai', angka: true, render: r => rp(r.nilai) }
+          ], st.mati || [], { kosong: 'Semua produk berstok terjual' })}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* Rangka untuk kartu yang datang belakangan. Bentuknya kartu sungguhan
+     dengan judul yang sudah terbaca — orang tahu APA yang sedang dimuat. */
+  const rangkaKartuPeringkat = (judul, id) => `<div class="kartu rapat" id="${id}" aria-busy="true">
+      <h4>${esc(judul)}</h4>${rangkaBaris(4, ['84%', '66%', '76%', '58%'])}</div>`;
+  const rangkaKartuStok = (id) => `<div class="kartu rapat" id="${id}" aria-busy="true">
+      <h4>Kesehatan stok</h4>${rangkaBaris(5, ['80%', '62%', '90%', '70%', '54%'])}</div>`;
 
   /* Muatan grafik terakhir, disimpan supaya perubahan tema bisa menggambar ulang
      TANPA memanggil server lagi. SVG yang sudah tergambar tidak ikut berubah

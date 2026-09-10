@@ -82,6 +82,17 @@
      lihat pasangPenandaSibuk() di app.js. Tidak perlu dipasang per tombol. -->
 <div id="garisMuat" aria-hidden="true"></div>
 
+<!-- Spanduk "versi baru sudah terpasang". Alasannya di catatan `pantauVersiBaru`
+     app.js: sesudah terbit, muat pertama menjalankan build LAMA sementara SW
+     baru memasang dirinya di belakang; yang baru baru dipakai pada muat ulang
+     BERIKUTNYA. Tanpa spanduk ini orang menguji perbaikan pada build yang belum
+     berisi perbaikannya. Di luar #app supaya terlihat juga di layar masuk. -->
+<div id="spandukVersi" class="spanduk-versi" role="status" hidden>
+  <span>Versi baru sudah terpasang. Muat ulang untuk memakainya.</span>
+  <button class="tombol kecil utama" id="btnMuatUlangVersi">Muat ulang</button>
+  <button class="tombol kecil" id="btnNantiVersi">Nanti</button>
+</div>
+
 <div id="app" class="sembunyi">
 
   <!-- ---------- SIDEBAR ----------

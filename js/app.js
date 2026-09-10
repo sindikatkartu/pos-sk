@@ -5202,11 +5202,52 @@ function pasangEvent() {
   });
 }
 
+/* ==================== VERSI BARU ====================
+ * sw.js memakai skipWaiting + clients.claim, jadi SW baru mengambil alih pada
+ * muat pertama sesudah terbit — tapi halaman yang SEDANG terbuka sudah
+ * terlanjur menjalankan JS/CSS lama dari cache lama. Yang baru dipakai pada
+ * muat ulang berikutnya. Dibuktikan 10 Sep 2026 di peramban pemilik: muat
+ * pertama CONFIG.VERSI 1.149.0 dengan cache bernama possk-v1.153.0; muat kedua
+ * baru 1.153.0. Tiga laporan "masih nyangkut" berturut-turut lahir dari sini:
+ * perbaikannya sudah terbit, yang diuji build sebelumnya.
+ *
+ * TIDAK memuat ulang sendiri. Kasir yang sedang mengetik nota tidak boleh
+ * kehilangan keranjangnya karena toko menerbitkan versi baru. Spanduk + tombol,
+ * dan tombolnya bertanya dulu kalau keranjang berisi.
+ */
+function pantauVersiBaru() {
+  if (!('serviceWorker' in navigator)) return;
+  /* Dicatat SEBELUM register(): ada pengendali berarti ini bukan kunjungan
+     pertama, jadi `controllerchange` berikutnya adalah PEMBARUAN. Pada kunjungan
+     pertama controllerchange juga berbunyi (clients.claim), dan spanduk
+     "versi baru" pada kunjungan pertama adalah kebohongan. */
+  const adaPengendali = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW gagal:', e));
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (adaPengendali) tampilSpandukVersi();
+  });
+}
+
+function tampilSpandukVersi() {
+  const el = $('#spandukVersi');
+  if (el) el.hidden = false;
+}
+
+async function muatUlangVersiBaru() {
+  if (typeof Keranjang !== 'undefined' && !Keranjang.kosong) {
+    const ya = await Admin.tanya('Keranjang masih berisi',
+      '<p class="petunjuk">Memuat ulang akan mengosongkan keranjang yang sedang dikerjakan. Selesaikan notanya dulu, atau muat ulang sekarang.</p>',
+      { ya: 'Muat ulang sekarang', batal: 'Selesaikan nota dulu' });
+    if (!ya) return;
+  }
+  location.reload();
+}
+
 /* ==================== MULAI ==================== */
 (async function mulai() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW gagal:', e));
-  }
+  pantauVersiBaru();
+  $('#btnMuatUlangVersi')?.addEventListener('click', muatUlangVersiBaru);
+  $('#btnNantiVersi')?.addEventListener('click', () => { $('#spandukVersi').hidden = true; });
   await DB.buka();
   pasangEvent();
   Admin.pasang();

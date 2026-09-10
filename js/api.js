@@ -290,7 +290,10 @@ const API = (() => {
     hapusPerangkat:  (d) => panggil('hapus_perangkat', d),
 
     /* --- back office --- */
-    dashboard:         (d) => panggil('ringkasan_dashboard', d, { timeout: 90000 }),
+    /* `o` diteruskan supaya bagian BERAT bisa ditarik sebagai latar sesudah
+       bagian inti tergambar — tanpa itu layar mengunci diri selama peringkat
+       dan stok dihitung, padahal angkanya sudah bisa dibaca. */
+    dashboard:         (d, o) => panggil('ringkasan_dashboard', d, Object.assign({ timeout: 90000 }, o || {})),
     daftarProduk:      (d) => panggil('daftar_produk', d, { timeout: 90000 }),
     produkSatu:        (d) => panggil('produk_satu', d),
     /* `opsi` diteruskan supaya penyegaran berkala bisa lewat sebagai LATAR.
