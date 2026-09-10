@@ -663,10 +663,12 @@ const Admin = (() => {
    * Rentang tanggal dashboard dalam bentuk RINGKAS — untuk ponsel.
    *
    * Dulu "10/09/2026 – 10/09/2026 · dibanding 09/09/2026 – 09/09/2026" memakan
-   * dua baris di HP (pemilik, 10 Sep 2026). Satu hari ditulis sekali; rentang
-   * dalam tahun yang sama menyebut tahunnya sekali di ujung; pembandingnya
-   * tanpa tahun bila tahunnya sama dengan rentang utama. Contoh:
-   *   "10/09/2026 · vs 09/09"  ·  "04/09 – 10/09/2026 · vs 28/08 – 03/09".
+   * dua baris di HP (pemilik, 10 Sep 2026). Satu hari ditulis sekali; bila
+   * KEEMPAT tanggal setahun, tahunnya disebut SEKALI di ujung dalam kurung
+   * (bentuk yang diminta pemilik: "10/09 · vs 09/09 (2026)"). Contoh:
+   *   "10/09 · vs 09/09 (2026)"  ·  "04/09 – 10/09 · vs 28/08 – 03/09 (2026)".
+   * Lintas tahun tetap menulis tahun di tiap rentang supaya tidak menyesatkan:
+   *   "01/01 – 07/01/2026 · vs 25/12 – 31/12/2025".
    * Tanggal tetap DD/MM seperti seluruh aplikasi.
    */
   function ringkasRentang(dari, sampai, tanpaTahun) {
@@ -680,8 +682,10 @@ const Admin = (() => {
   }
   function keteranganRentangDash(d) {
     const thn = (v) => String(v || '').slice(0, 4);
-    const tahunSama = thn(d.dari) === thn(d.sampai) && thn(d.dari) === thn(d.dari_lalu) && thn(d.dari) === thn(d.sampai_lalu);
-    return `${ringkasRentang(d.dari, d.sampai)} · vs ${ringkasRentang(d.dari_lalu, d.sampai_lalu, tahunSama)}`;
+    const tahun = thn(d.dari);
+    const tahunSama = /^\d{4}$/.test(tahun) && tahun === thn(d.sampai) && tahun === thn(d.dari_lalu) && tahun === thn(d.sampai_lalu);
+    const inti = `${ringkasRentang(d.dari, d.sampai, tahunSama)} · vs ${ringkasRentang(d.dari_lalu, d.sampai_lalu, tahunSama)}`;
+    return tahunSama ? `${inti} (${tahun})` : inti;
   }
 
   /**

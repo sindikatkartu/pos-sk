@@ -1485,7 +1485,14 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .kartu.rapat h4 { margin: 0 0 8px; font-size: var(--fs-14); font-weight: 650; }
 .kartu.rapat table { font-size: var(--fs-13); }
 .kartu.rapat th, .kartu.rapat td { padding: 6px 10px; }
-.bar-alat.rapat { margin-bottom: 10px; gap: 10px; align-items: center; }
+/* `margin-bottom` = `--irama` (16px), bukan 10px. Bilah alat Dasbor adalah
+   satu-satunya blok di layar itu yang jaraknya ke bawah bukan 16px: enam kotak
+   ringkasan berjarak 16px satu sama lain, kotak ke kartu di bawahnya 16px — dan
+   bilah alat ke kotak pertama 10px. Di HP, tempat keterangan rentang jatuh ke
+   baris kedua bilah alat, kotak pertama tampak MENEMPEL ke keterangan itu.
+   Dievaluasi atas permintaan pemilik 10 Sep 2026; diukur 10 → 16. `gap` 10px
+   tetap: itu jarak ANTAR isi bilah alat, sama dengan `.bar-alat` lain. */
+.bar-alat.rapat { margin-bottom: var(--irama); gap: 10px; align-items: center; }
 
 .umur-piutang { margin-top: 10px; font-size: var(--fs-13); }
 .umur-piutang > div {
