@@ -51,7 +51,13 @@ const Admin = (() => {
      mentah keduanya diurutkan menurut teks selnya. `opsi.urut` ({judul, arah})
      menandai judul yang sedang mengurutkan pada tabel yang digambar ulang
      tiap kali diurutkan (daftar berhalaman) — pada tabel lain penandanya
-     dipasang `urutkanTabel` langsung ke elemennya. */
+     dipasang `urutkanTabel` langsung ke elemennya.
+
+     `opsi.lebar` ({judul: px}) mengunci lebar kolom lewat `width` pada <th>
+     — lihat `lebarKolomDaftar`: daftar berhalaman digambar ulang tiap urut,
+     pindah halaman, dan ketikan; tanpa ini lebar kolomnya mengikuti 100 baris
+     yang kebetulan tampil dan seluruh tabel bergeser beberapa piksel tiap
+     kali (pemilik, 10 Sep 2026: "tabelnya lari-lari"). */
   const nilaiUrut = (k, r) => k.kunci ? r[k.kunci] : k.nilai ? k.nilai(r) : undefined;
   const tabelPolos = (kolom, baris, opsi = {}) => `
     <div class="gulir-x${opsi.kelasWadah ? ' ' + opsi.kelasWadah : ''}">
@@ -60,6 +66,7 @@ const Admin = (() => {
         k.judul ? ' bisa-urut' : ''}"${k.judul ? ` data-urut-kol="${i}"` : ''}${
         opsi.urut && k.judul && opsi.urut.judul === k.judul
           ? ` data-arah="${opsi.urut.arah}" aria-sort="${opsi.urut.arah === 'naik' ? 'ascending' : 'descending'}"` : ''
+        }${opsi.lebar && (opsi.lebar[k.judul || '#' + i]) ? ` style="width:${opsi.lebar[k.judul || '#' + i]}px"` : ''
         }>${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
         kolom.map(k => `<td data-l="${esc(k.judul)}"${
@@ -111,6 +118,87 @@ const Admin = (() => {
       ? angkaUrut(nilai(a)) - angkaUrut(nilai(b))
       : urutNama(nilai(a), nilai(b))));
     rows.forEach(r => tbody.appendChild(r));
+  }
+
+  /**
+   * LEBAR KOLOM TETAP untuk daftar berhalaman — dihitung dari SELURUH baris.
+   *
+   * Tabel HTML berlayout otomatis menentukan lebar kolom dari isi yang ADA:
+   * kolom Modal selebar "Rp 6.000" di halaman satu, selebar "Rp 16.500" di
+   * halaman dua. Daftar berhalaman digambar ulang tiap urut, pindah halaman,
+   * dan ketikan — dan setiap kali itu seluruh kolom bergeser beberapa piksel.
+   * Pemilik melihatnya sesudah v1.161.0 di laptop: "tabelnya lari-lari".
+   *
+   * Jalan keluarnya bukan `table-layout: fixed` dengan lebar tebakan — kolom
+   * yang ditebak terlalu sempit memotong angkanya. Lebar tiap kolom diukur
+   * dari nilai TERLEBAR di seluruh daftar (bukan 100 yang tampil), sekali per
+   * daftar, lalu dipasang sebagai `width` pada <th>: layout otomatis tetap
+   * bebas melebar bila ada isi yang lebih lebar, tapi tidak pernah menyempit
+   * lagi — jadi tidak ada halaman yang lebih sempit dari halaman lain.
+   * Kolom `lentur` (Nama) sengaja tidak dikunci: ia yang menyerap sisa lebar.
+   *
+   * Diukur dengan canvas, bukan dengan menggambar 3.500 sel: teks unik per
+   * kolom biasanya ratusan, dan angkanya ditulis dengan `tabular-nums`, jadi
+   * setiap digit diukur sebagai "0" (lebar digit tabular semuanya sama).
+   * Hasilnya di-cache per larik baris + susunan kolom; larik baru (tarik
+   * ulang) = hitung ulang.
+   */
+  const LEBAR_KOLOM = new WeakMap();
+  function lebarKolomDaftar(kolom, semua, wadah) {
+    if (!semua || !semua.length || !wadah) return null;
+    const tanda = kolom.map(k => k.judul + (k.tanda ? ':' + k.tanda() : '')).join('|');
+    const ada = LEBAR_KOLOM.get(semua);
+    if (ada && ada.tanda === tanda) return kunciKolomTanpaJudul(kolom, ada.lebar, wadah);
+    /* Font <th>/<td> dibaca dari sel sungguhan yang ditempel sebentar di wadah,
+       supaya ukuran huruf mengikuti tema dan kartu tempatnya berada. */
+    const probe = document.createElement('table');
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+    probe.innerHTML = '<thead><tr><th class="angka bisa-urut">0</th></tr></thead><tbody><tr><td class="angka">0</td></tr></tbody>';
+    wadah.appendChild(probe);
+    const fontDari = (el) => { const c = getComputedStyle(el); return `${c.fontStyle} ${c.fontWeight} ${c.fontSize} ${c.fontFamily}`; };
+    const fontTh = fontDari(probe.querySelector('th')), fontTd = fontDari(probe.querySelector('td'));
+    const padTd = (() => { const c = getComputedStyle(probe.querySelector('td')); return parseFloat(c.paddingLeft) + parseFloat(c.paddingRight); })();
+    probe.remove();
+    const ctx = document.createElement('canvas').getContext('2d');
+    const ukur = (font, t) => { ctx.font = font; return ctx.measureText(t).width; };
+    const lebar = {};
+    for (const k of kolom) {
+      if (!k.judul || k.lentur) continue;
+      /* Judul + panah urut (12px) — kepala tabel pun tidak boleh lebih sempit. */
+      let maks = ukur(fontTh, k.judul) + 12;
+      let markup = false;
+      const unik = new Set();
+      for (const r of semua) {
+        const html = k.render ? String(k.render(r)) : k.tgl ? String(tglTampil(r[k.kunci])) : String(r[k.kunci] ?? '');
+        if (html.indexOf('<') !== -1) markup = true;
+        unik.add(html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());
+      }
+      for (const t of unik) {
+        const w = ukur(fontTd, k.angka ? t.replace(/\d/g, '0') : t);
+        if (w > maks) maks = w;
+      }
+      /* Lencana (stok menipis/habis) menambah padding & tepi di sekitar angkanya. */
+      lebar[k.judul] = Math.ceil(maks + padTd + (markup ? 18 : 0) + 1);
+    }
+    LEBAR_KOLOM.set(semua, { tanda, lebar });
+    return lebar;
+  }
+  /* Lajur tombol (tanpa judul) tidak bisa diukur dari teksnya — lebarnya
+     ditentukan tombol dan apakah keduanya sebaris atau bertumpuk, dan itu
+     pilihan peramban menurut lebar layar. Jadi ia dikunci dari lebar yang
+     SUDAH tergambar: begitu tabelnya ada, lebar <th> tanpa judul dibaca dan
+     dipakai untuk penggambaran berikutnya. Tanpa ini sisa lebar dibagi antara
+     Nama dan lajur tombol menurut isi halaman — bergeser sepersekian piksel
+     tiap gambar ulang. Kuncinya `#indeks`, karena judulnya kosong. */
+  function kunciKolomTanpaJudul(kolom, lebar, wadah) {
+    const ths = wadah.querySelectorAll('thead th');
+    if (ths.length !== kolom.length) return lebar;
+    kolom.forEach((k, i) => {
+      if (k.judul || lebar['#' + i]) return;
+      const w = ths[i].getBoundingClientRect().width;
+      if (w > 0) lebar['#' + i] = w;
+    });
+    return lebar;
   }
 
   /* ==================== MODE NONAKTIF ====================
@@ -1685,7 +1773,7 @@ const Admin = (() => {
   function susunKolomProduk(modal, saring, kolomAktif) {
     return [
           { judul: 'SKU', kunci: 'sku' },
-          { judul: 'Nama', nilai: r => r.nama || '', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}${lencanaCabangProduk(r)}
+          { judul: 'Nama', lentur: true, nilai: r => r.nama || '', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}${lencanaCabangProduk(r)}
             <div class="meta-kecil">${esc([r.kategori, r.merek, r.tipe_hp].filter(Boolean).join(' · '))}</div>` },
           ...(modal ? [{ judul: 'Modal', angka: true, nilai: r => Number(r.harga_beli_terakhir) || 0, render: r => rp(r.harga_beli_terakhir) }] : []),
           { judul: 'Eceran', angka: true, nilai: r => Number(r.harga_eceran) || 0, render: r => rp(r.harga_eceran) },
@@ -1696,7 +1784,7 @@ const Admin = (() => {
              yang tidak kelihatan adalah daftar yang urutannya tidak bisa
              dipercaya siapa pun. */
           ...(saring.butuhTerjual ? [{
-            judul: 'Terjual', angka: true, nilai: r => terjualProduk.qty[r.sku] || 0,
+            judul: 'Terjual', angka: true, nilai: r => terjualProduk.qty[r.sku] || 0, tanda: () => terjualProduk.kunci,
             render: r => String(terjualProduk.qty[r.sku] || 0)
           }] : []),
           ...(kolomAktif ? [kolomAktif] : []),
@@ -1718,7 +1806,13 @@ const Admin = (() => {
         /* TANPA `pisahNonaktif`: layar ini memisahkannya lebih awal, di
            `katalogDasar()`, karena paginasinya harus menghitung baris yang
            benar-benar digambar. Lihat catatan di sana. */
-    return tabel(kolom, baris, { urut: halProduk.urut,
+    /* Lebar diukur dari SELURUH katalog (`cacheProduk`, termasuk yang
+       nonaktif), bukan dari hasil saringan: mengetik di kolom cari pun tidak
+       boleh menggeser kolom. */
+    /* `#isiProduk`, bukan `#wadahTabelProduk`: pada penggambaran PERTAMA
+       wadahnya belum ada (masih teks HTML) — dan halaman pertama pun harus
+       sudah terkunci, kalau tidak klik pertama tetap menggeser. */
+    return tabel(kolom, baris, { urut: halProduk.urut, lebar: lebarKolomDaftar(kolom, cacheProduk, $('#isiProduk')),
           kosong: (kueriProduk || kategoriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
             : (modeNonaktif.has('produk')
@@ -2991,7 +3085,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   const susunKolomStokLintas = (cabang) => [
     { judul: 'SKU', kunci: 'sku' },
-    { judul: 'Nama', kunci: 'nama' },
+    { judul: 'Nama', kunci: 'nama', lentur: true },
     ...cabang.map(c => ({
       judul: c, angka: true, kunci: 'c_' + c,
       render: r => r['c_' + c] > 0
@@ -3002,7 +3096,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       render: r => `<strong>${r.total}</strong>` }
   ];
   const tabelStokLintas = (rows, kolom) => tabel(kolom, rows,
-    { urut: halStok.urut, kosong: 'Belum ada satu pun produk di katalog' });
+    { urut: halStok.urut, lebar: lebarKolomDaftar(kolom, $('#isiStok')?._rows, $('#isiStok')),
+      kosong: 'Belum ada satu pun produk di katalog' });
 
   /**
    * Layar Stok versi SELURUH CABANG.
@@ -3196,7 +3291,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   const susunKolomStok = (punyaNilai) => [
     { judul: 'SKU', kunci: 'sku' },
-    { judul: 'Nama', kunci: 'nama' },
+    { judul: 'Nama', kunci: 'nama', lentur: true },
     { judul: 'Varian', nilai: r => r.kode_varian || '', render: r => esc(r.kode_varian || '—') },
     { judul: 'Stok', angka: true, nilai: r => Number(r.qty) || 0, render: r => lencanaStok(r.qty, r.stok_min) },
     { judul: 'Min', kunci: 'stok_min', angka: true },
@@ -3210,7 +3305,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Nilai', angka: true, nilai: r => Number(r.nilai) || 0, render: r => rp(r.nilai) }] : []),
     { judul: '', render: r => `<button class="tombol kecil" data-kartu-stok="${esc(r.sku)}">Kartu stok</button>` }
   ];
-  const tabelStok = (rows, kolom) => tabel(kolom, rows, { urut: halStok.urut, kosong: 'Belum ada mutasi stok' });
+  const tabelStok = (rows, kolom) => tabel(kolom, rows,
+    { urut: halStok.urut, lebar: lebarKolomDaftar(kolom, $('#isiStok')?._rows, $('#isiStok')), kosong: 'Belum ada mutasi stok' });
 
   async function lihatKartuStok(sku) {
     bukaModal('Kartu stok — ' + sku, '<div id="isiKartuStok">Memuat…</div>');
