@@ -34,6 +34,14 @@
   try {
     var t = localStorage.getItem('possk_tema');
     if (t === 'gelap') document.documentElement.dataset.tema = 'gelap';
+    /* Warna bilah status ponsel ikut dipasang DI SINI, bukan hanya di app.js.
+       Aplikasi yang dipasang ke layar utama (standalone) membaca theme-color
+       saat halaman dimuat; yang diubah app.js belakangan tidak selalu diikuti.
+       Dilaporkan pemilik 10 Sep 2026: bilah status putih di atas aplikasi
+       gelap. Nilainya = token --panel tiap tema (app.css) — ada uji yang
+       menjaga keduanya sepakat. */
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', t === 'gelap' ? '#30302e' : '#ffffff');
   } catch (e) { /* penyimpanan diblokir: tetap terang sampai app.js jalan */ }
 </script>
 </head>

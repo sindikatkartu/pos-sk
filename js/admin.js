@@ -2239,16 +2239,32 @@ const Admin = (() => {
    * ATAS kotak kalau ruang di bawah lebih sempit — daftar yang menjulur keluar
    * layar sama saja dengan daftar yang isinya tidak bisa dibaca.
    */
+  /** Kotak pencarian selebar ini atau kurang dianggap SEMPIT: panelnya
+   *  melebar ke seluruh baris. 320px ≈ lebar kotak di tablet 800px; di HP
+   *  kotaknya cuma ~200px dan nama produk dua baris patah jadi lima. */
+  const KOTAK_SEMPIT_PX = 320;
+
   function tempatkanHasil(kotak) {
     const wadah = kotak.parentElement.querySelector('.hasil-prd');
     if (!wadah || wadah.classList.contains('sembunyi')) return;
     const r = kotak.getBoundingClientRect();
+    /* Lebar panel: selebar kotaknya di layar lebar, tapi selebar SELURUH
+       BARIS (`.baris-anak`: kotak + varian + qty + hapus) bila kotaknya
+       sempit. Dilaporkan pemilik 10 Sep 2026 dari HP: di layar Permintaan
+       kotaknya seperempat baris, dan daftar selebar itu memotong
+       "TG Privacy iPhone XSMAX / iPhone 11PROMAX" jadi lima baris yang tidak
+       terbaca. Kiri panel = kiri baris, dan tidak pernah melewati tepi layar. */
+    const baris = kotak.closest('.baris-anak');
+    const rb = baris ? baris.getBoundingClientRect() : r;
+    const sempit = r.width < KOTAK_SEMPIT_PX && rb.width > r.width;
+    const kiri = sempit ? rb.left : r.left;
+    const lebar = Math.min(sempit ? rb.width : r.width, window.innerWidth - kiri - 8);
     const ruangBawah = window.innerHeight - r.bottom - 8;
     const ruangAtas = r.top - 8;
     const keAtas = ruangBawah < 150 && ruangAtas > ruangBawah;
     const ruang = Math.max(120, keAtas ? ruangAtas : ruangBawah);
-    wadah.style.left = r.left + 'px';
-    wadah.style.width = r.width + 'px';
+    wadah.style.left = kiri + 'px';
+    wadah.style.width = lebar + 'px';
     wadah.style.maxHeight = Math.min(290, ruang) + 'px';
     if (keAtas) {
       wadah.style.top = 'auto';

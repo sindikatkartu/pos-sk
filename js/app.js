@@ -1449,9 +1449,17 @@ function terapkanTema(nilai) {
   else       delete document.documentElement.dataset.tema;
 
   /* Bilah alamat peramban dan bilah status Android ikut warnanya. Tanpa ini,
-     aplikasi gelap masih dibingkai putih di layar penuh. */
+     aplikasi gelap masih dibingkai putih di layar penuh. Nilainya dibaca dari
+     token `--panel` yang SEDANG berlaku — warna bilah atas aplikasi — bukan
+     angka tersendiri: sampai v1.157 di sini tertulis warna hampir hitam, lebih gelap
+     dari bilah atas (#30302e), jadi bilah statusnya terlihat sebagai pita
+     lain. Pemasang di <head> index.html memasang nilai yang sama lebih awal,
+     untuk aplikasi yang dipasang ke layar utama. */
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', gelap ? '#0d1117' : '#ffffff');
+  if (meta) {
+    const panel = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
+    meta.setAttribute('content', panel || (gelap ? '#30302e' : '#ffffff'));
+  }
 
   try { localStorage.setItem('possk_tema', sesudah); } catch (e) { /* diblokir */ }
 
