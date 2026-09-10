@@ -590,10 +590,6 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .popover-item.keluar:hover { background: var(--panel-2); color: var(--bahaya); }
 .popover-item.keluar:hover .ikon-svg { color: var(--bahaya); }
 .popover-pisah { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--garis-halus); }
-.popover-tema {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  font-size: var(--fs-14); cursor: pointer;
-}
 .popover-akun .petunjuk { padding: 0 10px 6px; margin: 0; }
 
 /* Kartu pengguna kini TOMBOL. Tampilannya dijaga sama; yang bertambah cuma
@@ -1605,6 +1601,18 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
 
 .bar-alat { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+/* Judul di dalam bar alat: tanpa margin, dari kelas — bukan `style="margin:0"`
+   yang dulu diulang di tiga belas tempat. */
+.bar-alat > h3, .bar-alat > h4 { margin: 0; }
+/* Ikon di dalam tombol bar alat: 16px, sewarna huruf tombolnya. */
+.bar-alat .tombol .ikon-svg, .aksi .tombol .ikon-svg { width: 16px; height: 16px; color: currentColor; }
+/* Kotak cari berikon kaca pembesar. Ikonnya latar CSS supaya id dan penangan
+   input-nya tidak berubah — tidak ada elemen baru yang harus dilewati Tab. */
+.input-cari {
+  padding-left: 32px !important;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2373726c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>");
+  background-repeat: no-repeat; background-position: 10px center; background-size: 16px 16px;
+}
 /* Tombol aksi dikelompokkan supaya PINDAH BARIS BERSAMA-SAMA. Dengan pengganjal
    `flex:1` lepas seperti dulu, "+ Produk baru" turun ke baris kedua sementara
    "Ekspor" tertinggal di baris pertama — dua tombol sederajat di dua baris
@@ -1982,7 +1990,7 @@ input.sudah-hitung {
   .sisi-grup-tombol { min-height: 40px; }
   /* Isi popover kartu pengguna. Tautannya <a>, jadi aturan `.sisi-bawah button`
      di bawah tidak menjangkaunya. */
-  .popover-item, .popover-tema { min-height: 40px; }
+  .popover-item { min-height: 40px; }
   select, input[type=text], input[type=number], input[type=password],
   input[type=date], input[type=month], input[type=tel], input[type=search] {
     min-height: 40px;

@@ -959,20 +959,15 @@ function bangunNav() {
   bukaLayar(layarAwal);
 }
 
-/** Isi popover kartu pengguna: menu pribadi + tema (bila berizin). */
+/** Isi popover kartu pengguna: menu pribadi saja.
+ *  Pemilih tema dicabut dari sini 10 Sep 2026 (pemilik): satu tempat saja, di
+ *  Pengaturan > Setelan toko. Yang diterapkan ke layar tetap `terapkanTema`,
+ *  dipanggil saat master ditarik. */
 function bangunPopoverAkun(daftar) {
   const isi = (daftar || menuTampil()).filter(m => m.popover);
   $('#popoverIsi').innerHTML = isi.map(m =>
     `<a class="popover-item" role="menuitem" href="#/${m.id}" data-layar="${m.id}">` +
     `${svgIkon(m.id)}<span>${esc(m.label)}</span></a>`).join('');
-
-  /* Tema setelan TOKO. Barisannya disembunyikan dari peran yang tidak berhak
-     mengubahnya — bukan ditampilkan lalu ditolak server, karena tombol yang
-     pasti gagal mengajarkan bahwa tombol memang kadang tidak bekerja. */
-  const boleh = bolehIzin('setting', 'ubah');
-  $('#barisTema').classList.toggle('sembunyi', !boleh);
-  if (boleh) $('#inpTemaGelap').checked =
-    String((APP_STATE.setting || {}).tema) === 'gelap';
 }
 
 function bukaPopoverAkun() {
@@ -4322,27 +4317,6 @@ function pasangEvent() {
     if ($('#popoverAkun').hidden) return;
     if ($('#popoverAkun').contains(e.target) || $('#btnKartuUser').contains(e.target)) return;
     tutupPopoverAkun(false);
-  });
-
-  /* Tema — setelan TOKO, disimpan ke server. Perangkat lain menjemputnya pada
-     sinkronisasi berikutnya; yang ini menerapkannya seketika supaya orang yang
-     menekannya melihat hasilnya, bukan menunggu tanpa tanda. */
-  $('#inpTemaGelap').addEventListener('change', async (e) => {
-    const nilai = e.target.checked ? 'gelap' : 'terang';
-    const sebelum = (APP_STATE.setting || {}).tema;
-    terapkanTema(nilai);
-    APP_STATE.setting = Object.assign({}, APP_STATE.setting, { tema: nilai });
-    try {
-      await API.simpanSetting({ setting: { tema: nilai } });
-    } catch (x) {
-      /* Gagal disimpan berarti DIKEMBALIKAN, bukan dibiarkan. Tema yang menyala
-         di layar tapi tidak pernah tersimpan akan kembali sendiri pada muat
-         ulang berikutnya, dan orangnya tidak akan pernah tahu kenapa. */
-      terapkanTema(sebelum);
-      APP_STATE.setting = Object.assign({}, APP_STATE.setting, { tema: sebelum });
-      e.target.checked = String(sebelum) === 'gelap';
-      Admin.toast(x.message, 'galat');
-    }
   });
 
   /* Router. Berbunyi untuk tombol Kembali/Maju, untuk tautan yang ditempel,

@@ -130,19 +130,9 @@
     <div class="sisi-bawah">
       <div class="popover-akun" id="popoverAkun" role="menu" aria-labelledby="btnKartuUser" hidden>
         <div id="popoverIsi"></div>
-        <!-- Tema adalah setelan TOKO, bukan pilihan perangkat: satu tema untuk
-             semua yang masuk. Barisan ini karena itu hanya ditampilkan bagi
-             peran yang memang berizin mengubah setelan — kasir tidak pernah
-             melihatnya. Yang menegakkan tetap server (`wajibIzin` di
-             apiSimpanSetting); baris ini hanya menghindari tombol yang pasti
-             ditolak. -->
-        <div class="popover-pisah sembunyi" id="barisTema">
-          <label class="popover-tema">
-            <input type="checkbox" id="inpTemaGelap">
-            <span>Mode gelap</span>
-          </label>
-          <p class="petunjuk">Berlaku untuk semua perangkat yang masuk.</p>
-        </div>
+        <!-- Pemilih tema DICABUT dari popover 10 Sep 2026 atas permintaan pemilik:
+             satu tempat saja, di Pengaturan > Setelan toko. Dua sakelar untuk
+             satu setelan membuat orang bertanya-tanya mana yang berlaku. -->
         <div class="popover-pisah">
           <button class="popover-item keluar" id="btnKeluar" role="menuitem">Keluar</button>
         </div>
@@ -295,7 +285,7 @@
           <strong>nomor lengkap</strong> — nomor separuh tidak menampilkan apa pun, dan
           setiap cetak ulang nota di luar shift ini tercatat.</p>
         <div class="bar-alat">
-          <input type="text" id="cariNotaRiwayat" placeholder="mis. SK01-20260829-0007" style="max-width:320px">
+          <input type="text" class="input-cari" id="cariNotaRiwayat" placeholder="mis. SK01-20260829-0007" style="max-width:320px">
           <button class="tombol" id="btnCariNotaRiwayat">Cari</button>
         </div>
         <div id="hasilNotaLama"></div>
@@ -536,7 +526,7 @@
              `type=search` supaya peramban memberi tombol silang bawaannya. -->
         <div class="kartu cari-bantuan">
           <label class="hanya-pembaca" for="cariBantuan">Cari di bantuan</label>
-          <input type="search" id="cariBantuan" autocomplete="off"
+          <input type="search" class="input-cari" id="cariBantuan" autocomplete="off"
                  placeholder="Cari di bantuan — mis. diskon, shift, garansi, retur…">
           <p class="petunjuk" id="hasilBantuan" aria-live="polite" role="status"></p>
         </div>
@@ -647,7 +637,7 @@
           <p>Keduanya ada di menu <strong>Retur</strong>, dan bukan hal yang sama:</p>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Void nota</strong> (tombol merah kanan atas) — untuk nota yang <strong>salah dibuat</strong>. Seluruh nota dibatalkan: stok kembali ke lapisan asalnya, jurnal dibalik, piutangnya batal, poin petugasnya dibatalkan. Wajib mengisi <strong>alasan minimal 5 karakter</strong>. Tidak bisa diurungkan, dan hanya peran berizin yang melihat tombolnya.</li>
-            <li><strong>+ Retur baru</strong> — untuk barang yang <strong>benar terjual lalu dikembalikan</strong>. Penjualan aslinya tetap tercatat; returnya muncul terpisah di laporan.</li>
+            <li><strong>Retur baru</strong> — untuk barang yang <strong>benar terjual lalu dikembalikan</strong>. Penjualan aslinya tetap tercatat; returnya muncul terpisah di laporan.</li>
           </ul>
           <p>Pada retur, pilih <strong>Penyelesaian</strong>: <strong>Kembali uang</strong> atau <strong>Tukar barang</strong> (wajib mengisi minimal satu barang pengganti). Per barang pilih kondisi <strong>layak jual</strong> atau <strong>rusak</strong> — yang rusak tidak kembali ke stok jual, tapi jejaknya tetap tercatat. <strong>Alasan retur wajib diisi.</strong></p>
           <p class="petunjuk">Kalau pembeli kehilangan struk, ada tautan <strong>Lanjut tanpa nota</strong>. Boleh dipakai, tapi modal barangnya jadi perkiraan — laba historisnya bisa sedikit meleset. Nota yang sudah di-void tidak bisa diretur; pencarian pun tidak akan menemukannya lagi.</p>
@@ -724,7 +714,7 @@
 
         <div class="kartu">
           <h3>B3. Transfer antar cabang</h3>
-          <p>Dua langkah dan dua orang: cabang asal menekan <strong>+ Kirim barang</strong>, cabang tujuan menekan <strong>Terima barang</strong>. Statusnya <strong>DIKIRIM</strong> → <strong>DITERIMA</strong>.</p>
+          <p>Dua langkah dan dua orang: cabang asal menekan <strong>Kirim barang</strong>, cabang tujuan menekan <strong>Terima barang</strong>. Statusnya <strong>DIKIRIM</strong> → <strong>DITERIMA</strong>.</p>
           <p>Kalau jumlah yang diterima kurang dari yang dikirim, dokumennya berstatus <strong>SELISIH</strong> dan kekurangannya otomatis dibukukan sebagai barang hilang <strong>di cabang pengirim</strong>. Barang yang hilang di jalan tidak bisa lolos diam-diam.</p>
           <p><strong>Mencetak buktinya.</strong> Tombol <strong>Detail</strong> pada baris riwayat membuka rinciannya, dan di situ ada tombol <strong>Cetak</strong> — keluar satu lembar <strong>A4</strong> lewat jendela print peramban (perlu izin pop-up), untuk arsip fisik. Isinya nomor dokumen, status, cabang asal &amp; tujuan, siapa yang mengirim dan menerima beserta jamnya, catatan kedua belah pihak, dan rincian barangnya. Kolom <strong>Diterima</strong> dan <strong>Selisih</strong> hanya ikut tercetak kalau barangnya memang sudah diterima — dokumen yang baru dikirim tidak mencetak kolom kosong. <strong>Harga modal tidak pernah ikut tercetak</strong>, walau peran Anda boleh melihatnya di layar.</p>
           <p class="petunjuk">Membatalkan hanya bisa di cabang asal, hanya selagi berstatus DIKIRIM, dan hanya oleh peran yang berizin. Yang sudah diterima tidak bisa dibatalkan.</p>
@@ -732,7 +722,7 @@
 
         <div class="kartu">
           <h3>B4. Permintaan barang ke gudang</h3>
-          <p>Menu <strong>Permintaan</strong> adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi. Pemilik, manajer, atau kepala cabang menekan <strong>+ Minta barang</strong>, memilih <strong>gudang asal</strong> dan <strong>cabang tujuan</strong>, lalu menuliskan barang yang dibutuhkan. Membuatnya <strong>tidak</strong> menggerakkan stok dan tidak membuat jurnal apa pun.</p>
+          <p>Menu <strong>Permintaan</strong> adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi. Pemilik, manajer, atau kepala cabang menekan <strong>Minta barang</strong>, memilih <strong>gudang asal</strong> dan <strong>cabang tujuan</strong>, lalu menuliskan barang yang dibutuhkan. Membuatnya <strong>tidak</strong> menggerakkan stok dan tidak membuat jurnal apa pun.</p>
           <p>Admin gudang membuka menu yang sama dan melihat kartu <strong>Menunggu disiapkan gudang Anda</strong>. Tombol <strong>Siapkan</strong> membuka daftar barangnya beserta kolom <strong>Sisa</strong>; isi jumlah yang <em>benar-benar disiapkan</em> — boleh kurang dari yang diminta. Menekan <strong>Siapkan &amp; kirim</strong> langsung membuat dokumen <strong>Transfer</strong> (B3), lengkap dengan FIFO dan jurnalnya, dan cabang tujuan tetap harus menekan <strong>Terima barang</strong> di menu Transfer.</p>
           <p><strong>Memantau pekerjaannya.</strong> Kolom <strong>Kemajuan</strong> menulis "sudah / diminta" dalam pcs, dan statusnya salah satu dari: <strong>MENUNGGU</strong> (gudang belum menyiapkan apa pun), <strong>SEBAGIAN</strong> (sudah dikirim sebagian, sisanya masih ditunggu), <strong>SELESAI</strong> (setiap baris sudah terpenuhi), <strong>DIBATALKAN</strong>. Tombol <strong>Detail</strong> menunjukkan dokumen transfer mana saja yang memenuhinya.</p>
           <p class="petunjuk">Statusnya <strong>dihitung dari dokumen transfernya</strong>, bukan disimpan. Karena itu transfer yang dibatalkan membuat permintaannya kembali menunggu dengan sendirinya — barangnya memang kembali ke gudang. Konsekuensi lain: <strong>SELESAI</strong> menuntut SETIAP baris terpenuhi; kelebihan pada satu barang tidak menutupi barang lain yang belum dikirim.</p>

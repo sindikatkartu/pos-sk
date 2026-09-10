@@ -224,7 +224,47 @@ const Admin = (() => {
     return tabelPolos(kolom, rows.filter(r => !mati_p(r)), utama);
   };
 
-  const memuat = (el) => { $(el).innerHTML = '<div class="kartu">Memuat…</div>'; };
+  /* ==================== IKON BAR ALAT ====================
+     Diminta pemilik 10 Sep 2026: "rapihkan tools bar disemua menu ... jika
+     diperlukan tambahkan icon supaya lebih interaktif". Satu kamus kecil,
+     goresan 1.8 / viewBox 24 — sama dengan ikon menu di app.js, supaya tombol
+     dan menunya terbaca sebagai satu keluarga. Tombol "+ X" memakai ikon plus
+     sungguhan, bukan karakter "+": karakter itu berbeda lebar di tiap font dan
+     duduk lebih rendah dari huruf di sebelahnya. */
+  const IKON_ALAT = {
+    tambah:   '<path d="M12 5v14M5 12h14"/>',
+    cari:     '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    segarkan: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
+    kirim:    '<path d="M4 12h13"/><path d="m13 6 6 6-6 6"/>',
+    terima:   '<path d="M12 4v13"/><path d="m6 11 6 6 6-6"/><path d="M4 20h16"/>',
+    tampil:   '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>',
+    hapus:    '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>'
+  };
+  const ikonAlat = (nama) => IKON_ALAT[nama]
+    ? `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON_ALAT[nama]}</svg>` : '';
+  /** Tombol tindakan utama berikon plus. `label` TANPA "+" — plusnya ikonnya. */
+  const tombolTambah = (id, label, kelas) =>
+    `<button class="tombol utama ${kelas || ''}" id="${id}">${ikonAlat('tambah')}<span>${esc(label)}</span></button>`;
+
+  /**
+   * `memuat()` — rangka, bukan kata "Memuat…". Diminta pemilik 10 Sep 2026
+   * untuk "menu-menu besar seperti stok": tiru rangka layar Produk. Daripada
+   * satu rangka khusus per layar, yang ini GENERIK dan dipakai kedelapan belas
+   * pemanggil sekaligus: satu bar alat dan satu kartu berisi baris-baris.
+   * Produk dan Dashboard tetap punya rangkanya sendiri karena bentuk isinya
+   * memang berbeda (dua kotak bar alat; enam kotak KPI). Yang lain bentuknya
+   * persis ini. Rangka TIDAK mempercepat apa pun — ia mengganti "berapa lama
+   * lagi?" dengan "apa yang akan muncul", dan layarnya tidak melompat saat
+   * datanya tiba. `rangkaBaris` didefinisikan di bawah; dipanggil saat
+   * runtime, jadi urutannya aman. */
+  const memuat = (el) => { $(el).innerHTML = `
+    <div class="kartu"><div class="rangka-alat">
+      ${['260px', '160px', '140px'].map(w =>
+        `<span class="rangka tinggi" style="width:${w}"></span>`).join('')}
+    </div></div>
+    <div class="kartu" aria-busy="true" aria-label="Memuat">
+      ${rangkaBaris(8, ['90%', '72%', '84%', '66%'])}
+    </div>`; };
 
   /**
    * RANGKA (skeleton) — bentuk layar yang sedang datang, bukan kata "Memuat…".
@@ -601,7 +641,7 @@ const Admin = (() => {
    */
   let periodeDash = 'hari';
 
-  const LABEL_PERIODE = { hari: 'Hari ini', '7': '7 hari', '30': '30 hari', bulan: 'Bulan berjalan' };
+  const LABEL_PERIODE = { hari: 'Hari ini', kemarin: 'Kemarin', '7': '7 hari', '30': '30 hari', bulan: 'Bulan berjalan' };
 
   /**
    * Selisih terhadap periode pembanding, sebagai lencana.
@@ -819,7 +859,7 @@ const Admin = (() => {
 
         <div class="kartu grafik rapat">
           <div class="bar-alat">
-            <h4 style="margin:0">Tren penjualan</h4>
+            <h4>Tren penjualan</h4>
             <div style="flex:1"></div>
             <select id="grafikHari" style="width:auto">
               <option value="14">14 hari</option>
@@ -1125,7 +1165,58 @@ const Admin = (() => {
      Yang dipotong hanya YANG DIGAMBAR: cari, saring kategori, saring baris dan
      ekspor tetap bekerja atas SELURUH katalog seperti sebelumnya. */
   const BARIS_PER_HAL = 100;
-  let halProduk = 1;
+
+  /**
+   * PAGINASI BERSAMA — satu mesin untuk setiap daftar besar (v1.155.0).
+   *
+   * Lahir di layar Produk (v1.149.0) sebagai tiga fungsi + satu variabel
+   * `halProduk`. Pemilik lalu meminta yang sama untuk Stok, dan menyalin
+   * ketiganya berarti dua penjepit halaman yang suatu hari berbeda. Sekarang
+   * `buatHalaman(nama)` mengembalikan satu objek per daftar; tombolnya
+   * membawa `data-hal-untuk="<nama>"` supaya satu penangan klik melayani
+   * semuanya, dan `GAMBAR_HALAMAN[nama]` yang tahu cara menggambar ulang
+   * daftar itu.
+   *
+   * Halaman DIJEPIT setiap potong: mengetik di kolom cari bisa membuat halaman
+   * 12 tidak ada lagi, dan halaman kosong terbaca sebagai "tidak ada yang
+   * cocok" yang salah.
+   */
+  function buatHalaman(nama, label) {
+    const h = {
+      nama, kini: 1,
+      reset() { h.kini = 1; },
+      geser(arah) { h.kini += arah; },
+      potong(baris) {
+        const maks = Math.max(1, Math.ceil(baris.length / BARIS_PER_HAL));
+        if (h.kini > maks) h.kini = maks;
+        if (h.kini < 1) h.kini = 1;
+        return baris.slice((h.kini - 1) * BARIS_PER_HAL, h.kini * BARIS_PER_HAL);
+      },
+      /* Bilah halaman. Disembunyikan kalau semuanya muat di satu halaman —
+         kendali yang tidak pernah bisa ditekan cuma menambah yang harus dibaca. */
+      pager(total) {
+        const maks = Math.ceil(total / BARIS_PER_HAL);
+        if (maks <= 1) return '';
+        const dari = (h.kini - 1) * BARIS_PER_HAL + 1;
+        const sampai = Math.min(h.kini * BARIS_PER_HAL, total);
+        return `
+      <nav class="pager" aria-label="Halaman ${esc(label)}">
+        <button class="tombol kecil" data-hal="prev" data-hal-untuk="${nama}" ${h.kini <= 1 ? 'disabled' : ''}
+          aria-label="Halaman sebelumnya">‹ Sebelumnya</button>
+        <span class="pager-teks" aria-live="polite">
+          ${dari}–${sampai} · halaman ${h.kini}/${maks}
+        </span>
+        <button class="tombol kecil" data-hal="next" data-hal-untuk="${nama}" ${h.kini >= maks ? 'disabled' : ''}
+          aria-label="Halaman berikutnya">Berikutnya ›</button>
+      </nav>`;
+      }
+    };
+    return h;
+  }
+  const halProduk = buatHalaman('produk', 'daftar produk');
+  const halStok   = buatHalaman('stok', 'daftar stok');
+  /* nama -> { gambar(), wadah } — penangan klik tombol halaman membacanya. */
+  const GAMBAR_HALAMAN = {};
   /* `qty` peta SKU → jumlah terjual; `kunci` menandai rentang MANA yang sudah
      di tangan. Dulu penandanya cuma `siap` (benar/salah) — itu cukup selama
      rentangnya tetap, tapi begitu rentangnya bisa diganti, peta 30 hari akan
@@ -1319,7 +1410,7 @@ const Admin = (() => {
                daftar, sementara tindakan adalah pasangan.
                (Tanpa petik-balik: blok ini ada di dalam template literal.) -->
           <div class="saringan">
-            <input type="text" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueriProduk)}" style="max-width:300px">
+            <input type="text" class="input-cari" id="cariProduk" placeholder="Cari SKU, nama, merek, tipe HP…" value="${esc(kueriProduk)}" style="max-width:300px">
             <select id="filterKategori" style="max-width:180px">${opsiKategori(d.kategori_ada, kategoriProduk)}</select>
             <select id="saringProduk" style="max-width:160px" title="Saring baris">
               ${SARING_PRODUK.map(s => `<option value="${s.id}" ${s.id === saringProduk ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
@@ -1338,7 +1429,7 @@ const Admin = (() => {
           </div>
           <div class="aksi">
             ${bolehIzin('produk', 'buat')
-              ? `<button class="tombol utama" id="btnProdukBaru">+ Produk baru</button>` : ''}
+              ? tombolTambah('btnProdukBaru', 'Produk baru') : ''}
             ${menuLainProduk()}
           </div>
         </div>
@@ -1369,38 +1460,10 @@ const Admin = (() => {
   function isiTabelProduk(baris, modal, saring, kolomAktif, hitung) {
     return (modeNonaktif.has('produk') ? spandukNonaktif('produk') : '') +
       `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
-      tabelProduk(potongHal(baris), modal, saring, kolomAktif) +
-      pagerProduk(baris.length);
+      tabelProduk(halProduk.potong(baris), modal, saring, kolomAktif) +
+      halProduk.pager(baris.length);
   }
 
-  /** Baris untuk halaman yang sedang dilihat. Menjepit halamannya sekalian:
-   *  mengetik di kolom cari bisa membuat halaman 12 tidak ada lagi, dan
-   *  halaman kosong terbaca sebagai "tidak ada produk cocok" yang salah. */
-  function potongHal(baris) {
-    const maks = Math.max(1, Math.ceil(baris.length / BARIS_PER_HAL));
-    if (halProduk > maks) halProduk = maks;
-    if (halProduk < 1) halProduk = 1;
-    return baris.slice((halProduk - 1) * BARIS_PER_HAL, halProduk * BARIS_PER_HAL);
-  }
-
-  /** Bilah halaman. Disembunyikan kalau semuanya muat di satu halaman —
-   *  kendali yang tidak pernah bisa ditekan cuma menambah yang harus dibaca. */
-  function pagerProduk(total) {
-    const maks = Math.ceil(total / BARIS_PER_HAL);
-    if (maks <= 1) return '';
-    const dari = (halProduk - 1) * BARIS_PER_HAL + 1;
-    const sampai = Math.min(halProduk * BARIS_PER_HAL, total);
-    return `
-      <nav class="pager" aria-label="Halaman daftar produk">
-        <button class="tombol kecil" data-hal="prev" ${halProduk <= 1 ? 'disabled' : ''}
-          aria-label="Halaman sebelumnya">‹ Sebelumnya</button>
-        <span class="pager-teks" aria-live="polite">
-          ${dari}–${sampai} · halaman ${halProduk}/${maks}
-        </span>
-        <button class="tombol kecil" data-hal="next" ${halProduk >= maks ? 'disabled' : ''}
-          aria-label="Halaman berikutnya">Berikutnya ›</button>
-      </nav>`;
-  }
 
   /**
    * Hanya TABEL-nya yang digambar ulang saat orang mengetik di kolom cari.
@@ -1655,7 +1718,7 @@ const Admin = (() => {
       <div class="petak-tunggal" style="max-width:none">
         <div class="grup">
           <label for="labCari">Tambah produk</label>
-          <input type="text" id="labCari" placeholder="Cari SKU, nama, merek, tipe HP…" autocomplete="off">
+          <input type="text" class="input-cari" id="labCari" placeholder="Cari SKU, nama, merek, tipe HP…" autocomplete="off">
           <div id="labHasil" class="hasil-stiker sembunyi"></div>
         </div>
         <div class="grup">
@@ -2745,7 +2808,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ]);
       const cabang = APP_STATE.daftarCabangSemua.slice().sort(urutNama);
       const rows = barisStokLintas(stokMentah, produk, cabang);
-      const tampil = katStok ? rows.filter(r => r.kategori === katStok) : rows;
       const kategoriAda = [...new Set(produk.map(p => (p.kategori || '').trim()).filter(Boolean))].sort();
 
       $('#isiStok').innerHTML = `
@@ -2756,15 +2818,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="nilai">${rows.reduce((a, r) => a + r.total, 0)}</div></div>
         </div>
         <div class="kartu">
-          <div class="bar-alat">
-            <input type="text" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
-            <select id="stokKategori" style="max-width:200px">${opsiKategori(kategoriAda, katStok)}</select>
-            <select id="stokLingkup" style="max-width:170px">
-              <option value="sini">Cabang ${esc(APP_STATE.cabang)}</option>
-              <option value="semua" selected>Semua cabang</option>
-            </select>
-            <div style="flex:1"></div>
-            <button class="tombol" id="btnSegarkanStokLintas">Hitung ulang</button>
+          <div class="bar-alat bar-alat-menu">
+            <div class="saringan">
+              <input type="text" class="input-cari" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
+              <select id="stokKategori" style="max-width:200px">${opsiKategori(kategoriAda, katStok)}</select>
+              <select id="stokLingkup" style="max-width:170px">
+                <option value="sini">Cabang ${esc(APP_STATE.cabang)}</option>
+                <option value="semua" selected>Semua cabang</option>
+              </select>
+            </div>
+            <div class="aksi">
+              <button class="tombol" id="btnSegarkanStokLintas">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
+            </div>
           </div>
           <p class="petunjuk" style="margin:0 0 10px">
             Angka ini <strong>ringkasan tersimpan di perangkat ini</strong>, diperbarui
@@ -2772,11 +2837,42 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             dan memutuskan kirim-mengirim; sebelum menjanjikan barang ke pelanggan,
             tekan Hitung ulang.
           </p>
-          <div id="tabelStok">${tabelStokLintas(tampil, cabang)}</div>
+          <div id="tabelStok"></div>
         </div>`;
       $('#isiStok')._rows = rows;
       $('#isiStok')._cabang = cabang;
+      halStok.reset();
+      gambarBarisStok();
     } catch (e) { galat('#isiStok', e); }
+  }
+
+  /**
+   * Tabel stok digambar dari baris yang SUDAH di tangan, 100 baris per halaman.
+   *
+   * Diminta pemilik 10 Sep 2026: "tampilkan 100 katalog saja, tapi search box
+   * nya tetap berfungsi ke semua katalog". Saringan (kata kunci + kategori)
+   * bekerja atas SELURUH `_rows`; yang dipotong 100 hanya yang digambar.
+   * Alasannya sama dengan layar Produk (§122): 3.500 <tr> tidak hilang saat
+   * pindah layar dan setiap layar lain ikut memikulnya. */
+  function gambarBarisStok() {
+    const wadah = $('#isiStok');
+    const tabelEl = $('#tabelStok');
+    if (!wadah || !tabelEl) return;
+    const q = ($('#cariStok')?.value || '').toLowerCase().trim();
+    const kat = $('#stokKategori')?.value || '';
+    const semua = wadah._rows || [];
+    const rows = semua.filter(r =>
+      (!kat || r.kategori === kat) &&
+      (!q || (r.sku + ' ' + r.nama).toLowerCase().includes(q)));
+    const hitung = rows.length === semua.length
+      ? `${semua.length} baris`
+      : `${rows.length} dari ${semua.length} baris`;
+    tabelEl.innerHTML =
+      `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
+      (stokLintas
+        ? tabelStokLintas(halStok.potong(rows), wadah._cabang || [])
+        : tabelStok(halStok.potong(rows), wadah._punyaNilai)) +
+      halStok.pager(rows.length);
   }
 
   async function muatStok(katStok = '') {
@@ -2837,10 +2933,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          baris teratas bisa saja produk diam yang memang tidak punya `nilai`, dan
          kolom Nilai lenyap dari layar peran yang berhak melihatnya. */
       const punyaNilai = bergerak[0]?.nilai !== undefined;
-      /* Tabelnya HARUS ikut disaring. Dropdown yang menampilkan "Casing" di atas
-         tabel berisi seluruh kategori lebih buruk daripada saringan yang tereset:
-         yang satu jujur mengaku lupa, yang satu berbohong. */
-      const tampil = katStok ? rows.filter(r => r.kategori === katStok) : rows;
+      /* Tabelnya disaring `gambarBarisStok()` dari nilai dropdown yang sudah
+         terpilih — dropdown yang menampilkan "Casing" di atas tabel berisi
+         seluruh kategori lebih buruk daripada saringan yang tereset. */
 
       $('#isiStok').innerHTML = `
         ${/* `petak-4` — ambang kolomnya 160px, bukan 180px. Sejak kartu "Belum
@@ -2861,21 +2956,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="nilai">${rows.filter(r => r.qty <= r.stok_min).length}</div></div>
         </div>
         <div class="kartu">
-          <div class="bar-alat">
-            <input type="text" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
-            <select id="stokKategori" style="max-width:200px">${opsiKategori(stok.kategori_ada || [], katStok)}</select>
-            ${bolehStokLintas() ? `<select id="stokLingkup" style="max-width:170px">
-              <option value="sini" selected>Cabang ${esc(APP_STATE.cabang)}</option>
-              <option value="semua">Semua cabang</option>
-            </select>` : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
-            <span class="lencana hijau">HPP: FIFO</span>
-            <div style="flex:1"></div>
-            ${tombolEkspor('stok', { cabang: APP_STATE.cabang })}
+          <div class="bar-alat bar-alat-menu">
+            <div class="saringan">
+              <input type="text" class="input-cari" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
+              <select id="stokKategori" style="max-width:200px">${opsiKategori(stok.kategori_ada || [], katStok)}</select>
+              ${bolehStokLintas() ? `<select id="stokLingkup" style="max-width:170px">
+                <option value="sini" selected>Cabang ${esc(APP_STATE.cabang)}</option>
+                <option value="semua">Semua cabang</option>
+              </select>` : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
+              <span class="lencana hijau">HPP: FIFO</span>
+            </div>
+            <div class="aksi">
+              ${tombolEkspor('stok', { cabang: APP_STATE.cabang })}
+            </div>
           </div>
-          <div id="tabelStok">${tabelStok(tampil, punyaNilai)}</div>
+          <div id="tabelStok"></div>
         </div>`;
       $('#isiStok')._rows = rows;
       $('#isiStok')._punyaNilai = punyaNilai;
+      halStok.reset();
+      gambarBarisStok();
     } catch (e) { galat('#isiStok', e); }
   }
 
@@ -2946,7 +3046,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat">
             <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
             <div style="flex:1"></div>
-            ${bolehIzin('pembelian', 'buat') ? '<button class="tombol utama" id="btnPembelianBaru">+ Pembelian baru</button>' : ''}
+            ${bolehIzin('pembelian', 'buat') ? tombolTambah('btnPembelianBaru', 'Pembelian baru') : ''}
           </div>
         </div>
         <div class="kartu">
@@ -3260,8 +3360,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.innerHTML = `
       ${pel ? `
       <div class="kartu">
-        <div class="bar-alat"><h3 style="margin:0">Pelanggan</h3><div style="flex:1"></div>
-          ${bolehIzin('pelanggan', 'buat') ? '<button class="tombol utama" id="btnPelangganBaru">+ Pelanggan</button>' : ''}
+        <div class="bar-alat"><h3>Pelanggan</h3><div style="flex:1"></div>
+          ${bolehIzin('pelanggan', 'buat') ? tombolTambah('btnPelangganBaru', 'Pelanggan') : ''}
           ${menuTindakan({ id: 'menuPelanggan', kunci: 'pelanggan', idTombol: 'btnMenuPelanggan',
               isi: butirNonaktif('pelanggan', hitungMati(pel)) })}</div>
         ${tabel([
@@ -3279,8 +3379,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       ${sup ? `
       <div class="kartu">
-        <div class="bar-alat"><h3 style="margin:0">Supplier</h3><div style="flex:1"></div>
-          ${bolehIzin('supplier', 'buat') ? '<button class="tombol utama" id="btnSupplierBaru">+ Supplier</button>' : ''}
+        <div class="bar-alat"><h3>Supplier</h3><div style="flex:1"></div>
+          ${bolehIzin('supplier', 'buat') ? tombolTambah('btnSupplierBaru', 'Supplier') : ''}
           ${menuTindakan({ id: 'menuSupplier', kunci: 'supplier', idTombol: 'btnMenuSupplier',
               isi: butirNonaktif('supplier', hitungMati(sup)) })}</div>
         ${tabel([
@@ -3414,8 +3514,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Petugas / pramuniaga</h3><div style="flex:1"></div>
-            ${bolehIzin('petugas', 'buat') ? '<button class="tombol utama" id="btnPetugasBaru">+ Petugas</button>' : ''}
+          <div class="bar-alat"><h3>Petugas / pramuniaga</h3><div style="flex:1"></div>
+            ${bolehIzin('petugas', 'buat') ? tombolTambah('btnPetugasBaru', 'Petugas') : ''}
             ${menuTindakan({ id: 'menuPetugas', kunci: 'petugas', idTombol: 'btnMenuPetugas',
                 isi: butirNonaktif('petugas', hitungMati(rows)) })}</div>
           <p class="petunjuk">Nama di daftar inilah yang muncul di layar kasir saat menutup nota.
@@ -3632,7 +3732,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Peringkat cabang</h3>
+          <div class="bar-alat"><h3>Peringkat cabang</h3>
             <div style="flex:1"></div>
             <label style="margin:0">Urutkan</label>${pilihUrut('urutCabang', URUT_CABANG, urutCabang)}</div>
           ${tabel([
@@ -3650,7 +3750,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Peringkat per petugas</h3>
+          <div class="bar-alat"><h3>Peringkat per petugas</h3>
             <div style="flex:1"></div>
             <label style="margin:0">Urutkan</label>${pilihUrut('urutPetugas', URUT_PETUGAS, urutPetugas)}
             ${tombolEkspor('poin', { dari: nilai('poinDari'), sampai: nilai('poinSampai') })}</div>
@@ -3713,7 +3813,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Daftar piutang — total ${rp(d.total)}</h3>
+          <div class="bar-alat"><h3>Daftar piutang — total ${rp(d.total)}</h3>
             <div style="flex:1"></div>${tombolEkspor('piutang')}</div>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
@@ -3776,7 +3876,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Utang ke supplier — total ${rp(d.total)}</h3>
+          <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3>
             <div style="flex:1"></div>${tombolEkspor('utang')}</div>
           <p class="petunjuk">Hanya pembelian bertipe <strong>Kredit (utang)</strong> yang muncul di sini.
              Pembelian yang dibayar Tunai atau Transfer sudah lunas saat dicatat.</p>
@@ -3898,8 +3998,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const user = w._user || [], perangkat = w._perangkat || [];
     w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Pengguna</h3><div style="flex:1"></div>
-            ${bolehIzin('user', 'buat') ? '<button class="tombol utama" id="btnUserBaru">+ Pengguna</button>' : ''}
+          <div class="bar-alat"><h3>Pengguna</h3><div style="flex:1"></div>
+            ${bolehIzin('user', 'buat') ? tombolTambah('btnUserBaru', 'Pengguna') : ''}
             ${menuTindakan({ id: 'menuUser', kunci: 'user', idTombol: 'btnMenuUser',
                 isi: butirNonaktif('user', hitungMati(user)) })}</div>
           ${tabel([
@@ -3917,8 +4017,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Peran &amp; hak akses</h3><div style="flex:1"></div>
-            ${bolehIzin('user', 'ubah') ? '<button class="tombol utama" id="btnPeranBaru">+ Peran baru</button>' : ''}</div>
+          <div class="bar-alat"><h3>Peran &amp; hak akses</h3><div style="flex:1"></div>
+            ${bolehIzin('user', 'ubah') ? tombolTambah('btnPeranBaru', 'Peran baru') : ''}</div>
           <p class="petunjuk">Peran menentukan menu apa yang muncul dan aksi apa yang diizinkan. Peran OWNER sengaja dikunci agar sistem tidak bisa terkunci dari dirinya sendiri.</p>
           ${tabel([
             { judul: 'Kode', kunci: 'kode_peran' },
@@ -3934,7 +4034,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Perangkat terdaftar</h3><div style="flex:1"></div>
+          <div class="bar-alat"><h3>Perangkat terdaftar</h3><div style="flex:1"></div>
             ${menuTindakan({ id: 'menuPerangkat', kunci: 'perangkat', idTombol: 'btnMenuPerangkat',
                 isi: butirNonaktif('perangkat', hitungMati(perangkat, r => r.status === 'DIBLOKIR')) })}</div>
           <p class="petunjuk">Perangkat baru wajib disetujui sebelum bisa transaksi — ini yang mencegah PIN kasir yang bocor dipakai dari HP pribadi.</p>
@@ -4069,8 +4169,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const rows = w._rows || [];
     w.innerHTML = `
       <div class="kartu">
-        <div class="bar-alat"><h3 style="margin:0">Cabang</h3><div style="flex:1"></div>
-          ${bolehIzin('cabang', 'buat') ? '<button class="tombol utama" id="btnCabangBaru">+ Cabang baru</button>' : ''}
+        <div class="bar-alat"><h3>Cabang</h3><div style="flex:1"></div>
+          ${bolehIzin('cabang', 'buat') ? tombolTambah('btnCabangBaru', 'Cabang baru') : ''}
           ${menuTindakan({ id: 'menuCabang', kunci: 'cabang', idTombol: 'btnMenuCabang',
               isi: butirNonaktif('cabang', hitungMati(rows)) })}</div>
         <p class="petunjuk">Setiap cabang punya file database sendiri di Google Drive. Pemisahan inilah yang membuat kasir cabang A tidak pernah menunggu cabang B saat menyimpan transaksi.</p>
@@ -4409,7 +4509,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const rows = await API.logAudit({ batas: 300 });
       $('#isiAudit').innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Jejak audit</h3>
+          <div class="bar-alat"><h3>Jejak audit</h3>
             <div style="flex:1"></div>${tombolEkspor('audit')}</div>
           <p class="petunjuk">Catatan setiap perubahan penting. Tidak bisa dihapus dari dalam aplikasi.</p>
           ${tabel([
@@ -4442,11 +4542,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#isiDiskon').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
-            <h3 style="margin:0">Diskon</h3>
+            <h3>Diskon</h3>
             <div style="flex:1"></div>
             <input type="date" id="dskDari" value="${awalBulan}" style="width:auto">
             <input type="date" id="dskSampai" value="${hariIni}" style="width:auto">
-            <button class="tombol utama" id="btnMuatDiskon">Tampilkan</button>
+            <button class="tombol utama" id="btnMuatDiskon">${ikonAlat('tampil')}<span>Tampilkan</span></button>
           </div>
           <p class="petunjuk">Persentase dihitung dari total diskon (baris + nota) terhadap nilai bruto.
             Kolom <strong>Disetujui</strong> berisi nama atasan yang menyetujui diskon di atas batas peran kasirnya.</p>
@@ -4477,7 +4577,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <div class="bar-alat"><h3 style="margin:0">Per kasir</h3>
+          <div class="bar-alat"><h3>Per kasir</h3>
             <div style="flex:1"></div>${tombolEkspor('diskon_kasir', { dari: $('#dskDari').value, sampai: $('#dskSampai').value })}</div>
           ${tabel([
             { judul: 'Kasir', kunci: 'nama' },
@@ -4523,7 +4623,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
             ${menunggu.length ? `<span class="lencana kuning">${menunggu.length} menunggu diterima</span>` : ''}
             <div style="flex:1"></div>
-            ${bolehIzin('transfer', 'buat') ? '<button class="tombol utama" id="btnTransferBaru">+ Kirim barang</button>' : ''}
+            ${bolehIzin('transfer', 'buat') ? tombolTambah('btnTransferBaru', 'Kirim barang') : ''}
           </div>
           <p class="petunjuk">Transfer berjalan dua langkah. Saat <strong>dikirim</strong>, stok keluar dari cabang asal dan nilainya
             masuk ke akun <em>Persediaan Dalam Perjalanan</em>. Saat cabang tujuan <strong>menerima</strong>, nilainya pindah ke
@@ -4780,7 +4880,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${antre.length ? `<span class="lencana kuning">${antre.length} menunggu disiapkan</span>` : ''}
             <div style="flex:1"></div>
             ${bolehIzin('permintaan', 'buat')
-              ? '<button class="tombol utama" id="btnPermintaanBaru">+ Minta barang</button>' : ''}
+              ? tombolTambah('btnPermintaanBaru', 'Minta barang') : ''}
           </div>
           <p class="petunjuk">Permintaan barang adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi:
             membuatnya tidak menggerakkan stok dan tidak membuat jurnal. Saat gudang menekan <strong>Siapkan</strong>,
@@ -4981,7 +5081,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${berjalan
               ? `<button class="tombol utama" data-lanjut-opname="${esc(berjalan.uuid)}">
                    Lanjutkan ${esc(berjalan.no_dokumen)} (${esc(berjalan.status)})</button>`
-              : '<button class="tombol utama" id="btnOpnameBaru">+ Mulai opname</button>'}
+              : tombolTambah('btnOpnameBaru', 'Mulai opname')}
           </div>
           <p class="petunjuk">Stok sistem dikunci pada <strong>detik barang itu dihitung</strong>, bukan saat diposting.
             Jadi toko boleh tetap berjualan selama opname — penjualan yang terjadi setelah suatu barang dihitung
@@ -5104,7 +5204,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${d.buta ? '<span class="lencana kuning">mode buta</span>' : ''}
         <span class="lencana" id="opProgres">${d.item.length} / ${semua.length} dihitung</span>
         <div style="flex:1"></div>
-        <input type="text" id="opCari" placeholder="Saring daftar…" style="max-width:200px">
+        <input type="text" class="input-cari" id="opCari" placeholder="Saring daftar…" style="max-width:200px">
       </div>
       ${d.buta ? '<p class="petunjuk">Stok sistem sengaja tidak ditampilkan. Hitung apa adanya — selisih baru terlihat setelah Anda menekan "Selesai menghitung".</p>' : ''}
       <div style="max-height:52vh;overflow:auto" id="wadahHitung">
@@ -5217,7 +5317,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>
             ${bolehIzin('penjualan', 'ubah') && APP_STATE.flag.void_transaksi
               ? '<button class="tombol bahaya" id="btnVoidNota">Void nota</button>' : ''}
-            <button class="tombol utama" id="btnReturBaru">+ Retur baru</button>
+            ${tombolTambah('btnReturBaru', 'Retur baru')}
           </div>
           <p class="petunjuk"><strong>Retur berbeda dengan Void.</strong> Void dipakai bila transaksinya memang salah — seluruh nota
             dibalik seolah tidak pernah terjadi. Retur dipakai bila transaksinya benar dan pelanggan mengembalikan barang belakangan;
@@ -5466,7 +5566,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat">
             <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
             <div style="flex:1"></div>
-            <button class="tombol utama" id="btnReturBeliBaru">+ Retur ke supplier</button>
+            ${tombolTambah('btnReturBeliBaru', 'Retur ke supplier')}
           </div>
           <p class="petunjuk">Ada dua angka yang dicatat terpisah, dan biasanya memang berbeda:
             <strong>nilai klaim</strong> (harga beli asli — yang ditagihkan ke supplier) dan
@@ -5763,8 +5863,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        Layar Produk mereset halamannya: halaman 7 dari 3.500 produk aktif
        hampir pasti tidak ada di antara 47 yang nonaktif, dan `potongHal`
        yang menjepitnya diam-diam membuat orang mengira daftarnya melompat. */
+    Object.assign(GAMBAR_HALAMAN, {
+      produk: { halaman: halProduk, wadah: '#wadahTabelProduk', gambar: gambarBarisProduk },
+      stok:   { halaman: halStok,   wadah: '#tabelStok',        gambar: gambarBarisStok }
+    });
     Object.assign(GAMBAR_NONAKTIF, {
-      produk:    () => { halProduk = 1; gambarProduk(); },
+      produk:    () => { halProduk.reset(); gambarProduk(); },
       pelanggan: gambarMitra,
       supplier:  gambarMitra,
       petugas:   gambarPetugas,
@@ -5896,12 +6000,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (d.hal) {
         const arah = d.hal === 'next' ? 1 : -1;
-        halProduk += arah;
-        gambarBarisProduk();
+        const g = GAMBAR_HALAMAN[d.halUntuk];
+        if (!g) return;
+        g.halaman.geser(arah);
+        g.gambar();
         /* Digulirkan ke kepala tabel, bukan dibiarkan di tempat: menekan
            "Berikutnya" di kaki halaman lalu tetap berada di kaki berarti
            melihat baris 200 dari halaman baru, bukan baris 101. */
-        $('#wadahTabelProduk')?.scrollIntoView({ block: 'start', behavior: 'auto' });
+        $(g.wadah)?.scrollIntoView({ block: 'start', behavior: 'auto' });
         return;
       }
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
@@ -6763,7 +6869,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            mengetik saat sedang di halaman 12 menampilkan halaman 12 dari hasil
            yang baru — yang hampir selalu kosong, dan terbaca sebagai "tidak ada
            produk cocok" padahal cocoknya ada di halaman 1. */
-        halProduk = 1;
+        halProduk.reset();
         gambarBarisProduk();
         return;
       }
@@ -6784,7 +6890,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            elemennya tidak diganti — dulu ia harus, dan pengguna papan ketik
            terkunci di kategori pertama setiap kali lupa. */
         kategoriProduk = e.target.value;
-        halProduk = 1;
+        halProduk.reset();
         gambarBarisProduk();
         return;
       }
@@ -6810,7 +6916,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            tidak mengubah bentuk apa pun. */
         if (id === 'kolomProduk') kolomProduk = e.target.value;
         else saringProduk = e.target.value;
-        halProduk = 1;   /* jumlah barisnya berubah — lihat catatan di kolom cari */
+        halProduk.reset();   /* jumlah barisnya berubah — lihat catatan di kolom cari */
         /* Penyaring yang butuh data penjualan menariknya SEKARANG. Penjaga
            "jangan tarik dua kali" ada DI DALAM `muatTerjual()`, satu tempat
            saja — penjaga kedua di sini akan membuat penjaga yang sebenarnya
@@ -6847,15 +6953,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return muatStok($('#stokKategori')?.value || '');
       }
       if (e.target.id === 'cariStok' || e.target.id === 'stokKategori') {
-        const q = ($('#cariStok')?.value || '').toLowerCase();
-        const kat = $('#stokKategori')?.value || '';
-        const wadah = $('#isiStok');
-        const rows = (wadah._rows || []).filter(r =>
-          (!kat || r.kategori === kat) &&
-          (r.sku + ' ' + r.nama).toLowerCase().includes(q));
-        $('#tabelStok').innerHTML = stokLintas
-          ? tabelStokLintas(rows, wadah._cabang || [])
-          : tabelStok(rows, wadah._punyaNilai);
+        halStok.reset();     // saringan berubah = mulai dari halaman pertama
+        gambarBarisStok();
       }
       if (e.target.closest('#barisBeli') || ['beliDiskon', 'beliPpn'].includes(e.target.id)) {
         hitungTotalBeli();
