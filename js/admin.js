@@ -2806,6 +2806,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /** Layar Stok sedang menampilkan seluruh cabang berjajar, bukan cabang ini. */
   let stokLintas = false;
+  /**
+   * Cabang yang stoknya sedang ditampilkan di tampilan satu-cabang; '' = cabang
+   * sesi. Diminta pemilik 10 Sep 2026: "stok lingkup, tambahkan cabang lainnya
+   * bukan cuma SK01". Servernya sudah menerima `p.cabang` dan memeriksa haknya
+   * sendiri lewat `wajibCabang()` — yang ditambah cuma pilihannya.
+   */
+  let stokCabang = '';
+  const cabangStokKini = () => stokCabang || APP_STATE.cabang;
+
+  /** Isi dropdown lingkup: cabang ini, tiap cabang lain, lalu semua cabang. */
+  function opsiLingkupStok(terpilih) {
+    const lain = APP_STATE.daftarCabangSemua.slice().sort(urutNama)
+      .filter(c => c !== APP_STATE.cabang);
+    return `<option value="sini" ${terpilih === 'sini' ? 'selected' : ''}>Cabang ${esc(APP_STATE.cabang)}</option>` +
+      lain.map(c => `<option value="cabang:${esc(c)}" ${terpilih === 'cabang:' + c ? 'selected' : ''}>Cabang ${esc(c)}</option>`).join('') +
+      `<option value="semua" ${terpilih === 'semua' ? 'selected' : ''}>Semua cabang</option>`;
+  }
 
   /** Boleh melihat perbandingan antar cabang? Servernya tetap memeriksa sendiri. */
   const bolehStokLintas = () =>
@@ -2897,10 +2914,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="saringan">
               <input type="text" class="input-cari" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
               <select id="stokKategori" style="max-width:200px">${opsiKategori(kategoriAda, katStok)}</select>
-              <select id="stokLingkup" style="max-width:170px">
-                <option value="sini">Cabang ${esc(APP_STATE.cabang)}</option>
-                <option value="semua" selected>Semua cabang</option>
-              </select>
+              <select id="stokLingkup" style="max-width:170px">${opsiLingkupStok('semua')}</select>
             </div>
             <div class="aksi">
               <button class="tombol" id="btnSegarkanStokLintas">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
@@ -2976,7 +2990,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        * dan izin `stok · lihat` yang menjaganya. Jadi peran itu tidak lagi
        * kehilangan nama produk seperti pada audit 5 Sep 2026.
        */
-      const stok = await API.stokTerkini({ cabang: APP_STATE.cabang, dengan_produk: true });
+      const stok = await API.stokTerkini({ cabang: cabangStokKini(), dengan_produk: true });
       const bergerak = stok.stok.filter(s => !s.diam);
 
       /**
@@ -3035,14 +3049,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="saringan">
               <input type="text" class="input-cari" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
               <select id="stokKategori" style="max-width:200px">${opsiKategori(stok.kategori_ada || [], katStok)}</select>
-              ${bolehStokLintas() ? `<select id="stokLingkup" style="max-width:170px">
-                <option value="sini" selected>Cabang ${esc(APP_STATE.cabang)}</option>
-                <option value="semua">Semua cabang</option>
-              </select>` : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
+              ${bolehStokLintas()
+                ? `<select id="stokLingkup" style="max-width:170px">${opsiLingkupStok(stokCabang ? 'cabang:' + stokCabang : 'sini')}</select>`
+                : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
               <span class="lencana hijau">HPP: FIFO</span>
             </div>
             <div class="aksi">
-              ${tombolEkspor('stok', { cabang: APP_STATE.cabang })}
+              ${tombolEkspor('stok', { cabang: cabangStokKini() })}
             </div>
           </div>
           <div id="tabelStok"></div>
@@ -7024,7 +7037,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Lingkupnya digambar ULANG dari awal, bukan disaring: kolomnya sendiri
          yang berbeda antara "cabang ini" dan "semua cabang". */
       if (e.target.id === 'stokLingkup') {
-        stokLintas = e.target.value === 'semua';
+        const v = e.target.value;
+        stokLintas = v === 'semua';
+        stokCabang = v.startsWith('cabang:') ? v.slice(7) : '';
         return muatStok($('#stokKategori')?.value || '');
       }
       if (e.target.id === 'cariStok' || e.target.id === 'stokKategori') {

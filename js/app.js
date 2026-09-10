@@ -2948,23 +2948,13 @@ async function periksaShift() {
  * shift" untuk shift yang barusan ditutup — dan tombol itu masih bisa dipencet.
  */
 function gambarKeadaanShift() {
-  const lnc = $('#lncShift');
   const perluBuka = !APP_STATE.idShift;
-  lnc.textContent = perluBuka ? 'Shift belum dibuka' : 'Shift aktif';
-  lnc.className = 'lencana ' + (perluBuka ? 'kuning bisa-klik' : 'hijau');
-  /* Pagar yang sama, digambar juga di panel keranjang — dari keadaan yang
-     SAMA, bukan dari salinan kedua. Lencana di pojok kanan atas benar, tapi
-     ia berada di ujung layar yang berlawanan dari tombol Bayar; yang dibaca
-     kasir saat pembeli sudah menyodorkan uang adalah panel keranjang. */
+  /* Lencana "Shift belum dibuka" di bilah atas DICABUT 10 Sep 2026 (pemilik):
+     pagarnya sudah ada di layar bayar dan di logout, dan pergantian shift
+     selalu lewat logout. Yang tersisa adalah pagar di panel keranjang — di
+     ujung layar yang dibaca kasir saat pembeli sudah menyodorkan uang — dan
+     kartu Shift itu sendiri. */
   $('#pesanShiftKasir')?.classList.toggle('sembunyi', !perluBuka);
-  /* Saat belum dibuka, lencana ini jadi jalan pintas — bukan sekadar keterangan. */
-  if (perluBuka) {
-    lnc.setAttribute('role', 'button');
-    lnc.setAttribute('tabindex', '0');
-    lnc.title = 'Klik untuk membuka shift';
-  } else {
-    lnc.removeAttribute('role'); lnc.removeAttribute('tabindex'); lnc.removeAttribute('title');
-  }
   /* Tombol yang tidak relevan pada state saat ini disembunyikan, bukan cuma
      diblokir saat diklik — supaya kasir tidak perlu menebak tombol mana yang
      "beneran aktif" saat keduanya sama-sama terlihat bisa dipencet. */
@@ -5028,10 +5018,6 @@ function pasangEvent() {
   $('#otAlasan').addEventListener('keydown', e => { if (e.key === 'Enter') kirimOtorisasiDiskon(); });
 
   /* --- shift --- */
-  $('#lncShift').addEventListener('click', () => { if (!APP_STATE.idShift) menujuBukaShift(); });
-  $('#lncShift').addEventListener('keydown', (e) => {
-    if (!APP_STATE.idShift && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); menujuBukaShift(); }
-  });
   $('#btnBukaShift').addEventListener('click', async () => {
     try {
       const d = await API.bukaShift({ kas_awal: angkaDari($('#inpKasAwal').value) });

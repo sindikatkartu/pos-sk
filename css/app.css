@@ -1828,7 +1828,6 @@ input.sudah-hitung {
   .bar-atas { padding: 0 12px; }
   .layar { padding: 14px; }
   .panel-produk { padding: 14px; }
-  #lncShift { display: none; }
 }
 
 @media (max-width: 900px) {
@@ -1868,6 +1867,12 @@ input.sudah-hitung {
   .bar-atas h1 { font-size: var(--fs-15); }
   .lencana { padding: 4px 8px; font-size: var(--fs-11); }
   #lncUser { display: none; }   /* nama pengguna tetap ada di kaki sidebar */
+  /* Lencana sinkron boleh MENYUSUT dengan elipsis, bukan terpotong oleh
+     pembungkusnya: "⚠ 2 nota cabang SK02, SK03" di 360px melewati tepi layar.
+     Sebagai butir flex ia harus berisi blok (bukan inline-flex) supaya
+     text-overflow berlaku; titiknya jadi inline-block agar tetap sebaris. */
+  #lncSync { display: block; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+  #lncSync::before { display: inline-block; vertical-align: middle; margin: -2px 6px 0 0; }
 
   /* ---- Kartu statistik: DUA per baris ----
      `minmax(180px, 1fr)` butuh 372px untuk dua kolom, dan HP tegak yang paling
@@ -2008,9 +2013,16 @@ input.sudah-hitung {
     min-width: 40px; min-height: 40px;
   }
   .pecahan .cip { height: 40px; }
-  /* Lencana yang bisa diklik adalah tombol yang menyamar; ia butuh area tekan
-     yang sama, tanpa ikut menggemukkan lencana biasa di dalam tabel. */
-  .lencana.bisa-klik { min-height: 40px; padding-left: 12px; padding-right: 12px; }
+  /* Lencana yang bisa diklik (sinkron merah "nota ditolak") adalah tombol
+     yang menyamar; ia butuh area tekan 40px — tapi TIDAK boleh berubah rupa.
+     Sampai v1.156 ia dipaksa `min-height: 40px`, jadi berdiri 10px lebih
+     tinggi dari lencana cabang di sebelahnya; pemilik melihatnya di HP
+     (10 Sep 2026). Area tekannya sekarang pseudo-elemen tak terlihat yang
+     melampaui tepi lencana: 30px lencana + 2×7px = 44px, rupanya tetap. */
+  .lencana.bisa-klik { position: relative; }
+  .lencana.bisa-klik::after {
+    content: ''; position: absolute; left: -4px; right: -4px; top: -7px; bottom: -7px;
+  }
 }
 
 /* Landscape pendek (HP dimiringkan): tinggi layar mahal, rapatkan bilah atas. */

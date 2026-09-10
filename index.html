@@ -158,7 +158,10 @@
       <!-- Kode cabang sesi ini. KABAR, bukan kendali — pemilih cabang dicabut
            9 Sep 2026; lihat KONTEKS §114. Cabang ditentukan sekali saat login. -->
       <span class="lencana" id="lncCabang">—</span>
-      <span class="lencana" id="lncShift">Shift belum dibuka</span><!-- jadi tombol saat shift belum dibuka: lihat periksaShift() -->
+      <!-- Lencana shift DICABUT 10 Sep 2026 atas permintaan pemilik: pagarnya
+           sudah ada di layar bayar (shift belum dibuka -> tidak bisa lanjut) dan
+           di logout (wajib tutup shift), dan pergantian shift selalu lewat logout.
+           Keadaan shift tetap tergambar di kartu Shift dan panel keranjang. -->
       <span class="lencana" id="lncSync">Memeriksa…</span>
       <span class="lencana polos sembunyi" id="lncUser">—</span>
     </div>
@@ -233,10 +236,10 @@
           <div class="total-baris"><span>Diskon</span><span id="tDiskon">Rp 0</span></div>
           <div class="total-baris" id="brsPpn" style="display:none"><span>PPN</span><span id="tPpn">Rp 0</span></div>
           <div class="total-baris besar"><span>TOTAL</span><span id="tTotal">Rp 0</span></div>
-          <!-- Pagar shift, dibawa ke tempat keputusannya diambil. Lencana di pojok
-               kanan atas tidak salah, tapi jaraknya nyaris selebar layar dari tombol
-               Bayar — dan yang dibaca kasir saat pembeli menyodorkan uang adalah
-               panel ini. Tombol Bayar SENGAJA tidak dimatikan: jalur konfirmasinya
+          <!-- Pagar shift, dibawa ke tempat keputusannya diambil. Dulu ada juga
+               lencana di pojok kanan atas (dicabut 10 Sep 2026); yang dibaca kasir
+               saat pembeli menyodorkan uang adalah panel ini — kini satu-satunya
+               penanda shift di luar kartu Shift. Tombol Bayar SENGAJA tidak dimatikan: jalur konfirmasinya
                di bukaBayar() tetap satu-satunya yang tahu keadaan sebenarnya saat
                internet mati, dan mematikan tombol berdasarkan keadaan yang mungkin
                basi berarti menahan penjualan yang sah. -->
@@ -689,6 +692,7 @@
             <li><strong>Terlaris</strong> dan <strong>Tidak laku</strong> memunculkan <strong>dua kolom tanggal</strong> di sebelahnya — rentang penjualan yang dihitung, bawaannya 30 hari terakhir. Gantilah rentangnya sesuai yang ingin dilihat; angka terjualnya ditarik ulang untuk rentang yang baru. "Tidak laku" berarti tidak terjual satu pun <em>di rentang itu</em>, bukan tidak pernah terjual.</li>
             <li><strong>Produk nonaktif tidak lagi ada di dropdown penyaring.</strong> Tempatnya sekarang blok <strong>Nonaktif</strong> yang bisa dibuka-tutup di bawah daftar — selalu ada, tanpa perlu mengganti penyaring.</li>
             <li>Kolom pencarian <strong>menyaring di perangkat</strong>, bukan menembak server tiap huruf. Karena itu hasilnya muncul seketika dan kursor tidak pernah lepas di tengah orang mengetik.</li>
+            <li><strong>Layar Stok</strong>: dropdown lingkup memilih <strong>cabang ini</strong>, <strong>tiap cabang lain</strong> satu per satu (angkanya dihitung server untuk cabang itu), atau <strong>Semua cabang</strong> berjajar dari ringkasan yang tersimpan di perangkat. Tombol Ekspor mengikuti cabang yang sedang ditampilkan. Pilihan cabang lain hanya untuk akun berakses lintas cabang.</li>
             <li><strong>Impor massal</strong> bisa mengisi Produk, Pelanggan, Supplier, dan Stok awal — termasuk kolom <strong>poin_satuan</strong>, jadi poin ratusan produk bisa disetel dari berkas. Unduh templatenya dulu, lalu tekan <strong>Pratinjau</strong> sebelum menjalankan.</li>
           </ul>
           <p class="petunjuk">Impor bersifat <strong>semua-atau-tidak sama sekali</strong>: satu baris bermasalah membatalkan seluruh berkas. Impor hanya <strong>menambah produk baru</strong> — SKU yang sudah ada ditolak, jadi mengubah poin produk lama tetap lewat layar.</p>
