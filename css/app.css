@@ -1676,6 +1676,11 @@ label.cek.kartu-cek {
   background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
   padding: 12px 14px; margin: 0; box-shadow: var(--bayang-1);
 }
+/* Centang cabang di formulir produk: satu baris yang membungkus, bukan satu
+   centang per baris — tiga sampai lima kode pendek tidak butuh lima baris. */
+.pilih-cabang-produk { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.pilih-cabang-produk label.cek { margin-bottom: 0; }
+.pilih-cabang-produk label.cek:has(input:disabled) { opacity: .55; }
 
 /* Baris tab. Di layar sempit ia MENGGULIR MENDATAR, tidak memampatkan diri:
    lima tab yang dipaksa muat di 390px membuat judulnya patah dua baris dan tab
@@ -1912,6 +1917,8 @@ input.sudah-hitung {
      dirinya — dua tindakan itu tetap satu baris walau di HP. */
   .bar-alat-menu > .saringan { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .bar-alat-menu > .saringan > * { width: 100%; max-width: none !important; min-width: 0; }
+  /* Dua kolom tanggal kustom Laporan berbagi satu baris, sama lebar. */
+  .rentang-kustom > .kolom-tgl, .rentang-kustom > input[type=date] { width: auto; flex: 1 1 0; }
   .bar-alat-menu > .aksi { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .bar-alat-menu > .aksi > .tombol { width: 100%; }
   /* `max-width` juga dinolkan, bukan hanya `width`. Lebar tiap kendali diberikan
@@ -2396,14 +2403,17 @@ body.tunggu .sisi button:not(.sibuk) { opacity: .62; }
   svg circle, svg rect { fill: #000 !important; stroke: #000 !important; }
 }
 
-/* Bar penyaring cetak. Bukan tombol: ini daftar centang yang dibaca sekilas,
-   jadi bentuknya mengikuti label biasa dan bukan pil berwarna. */
-.pilih-cetak { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; min-width: 0; }
-.cip-cetak {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: var(--fs-13); color: var(--teks-2); white-space: nowrap; cursor: pointer;
-}
-.cip-cetak input { margin: 0; }
+/* Bar alat Laporan (v1.156): tanggal kustom berdiri sebaris dengan dropdown
+   periode, muncul hanya saat "Kustom" dipilih. Lebarnya dipatok supaya dua
+   kolom tanggal tidak melar memenuhi baris. */
+.rentang-kustom { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+/* `rapikanTanggal()` membungkus tiap kolom tanggal dalam `.kolom-tgl` selebar
+   100% — di sini pembungkusnya yang dipatok, bukan kolomnya. */
+.rentang-kustom > .kolom-tgl, .rentang-kustom > input[type=date] { width: 140px; flex: 0 0 140px; }
+.pemisah-rentang { color: var(--teks-redup); }
+/* Dialog "Cetak laporan": centang bagian, dua kolom bila muat. */
+.pilih-bagian-cetak { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 2px 16px; margin: 8px 0 4px; }
+.pilih-bagian-cetak label.cek { margin-bottom: 6px; }
 
 /* ==================== LAYAR PENGATURAN SISTEM ====================
    Tiga belas setelan yang berderet dalam satu petak tanpa pengelompokan

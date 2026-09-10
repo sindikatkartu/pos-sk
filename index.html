@@ -315,60 +315,55 @@
 
     <!-- ---------- LAPORAN ---------- -->
     <section class="layar" id="layarLaporan">
-      <div class="kartu tanpa-cetak">
-        <h3>Laporan penjualan</h3>
-        <!-- Tombol rentang cepat: yang dibuka orang hampir selalu salah satu
-             dari lima ini, dan mengetik dua tanggal untuk "kemarin" adalah
-             pekerjaan yang tidak perlu ada. Kolom tanggalnya tetap ada untuk
-             rentang yang tidak umum. -->
-        <div class="bar-alat" id="lapCepat">
-          <button class="tombol" data-lap-cepat="hari">Hari ini</button>
-          <button class="tombol" data-lap-cepat="kemarin">Kemarin</button>
-          <button class="tombol" data-lap-cepat="7">7 hari</button>
-          <button class="tombol" data-lap-cepat="30">30 hari</button>
-          <button class="tombol" data-lap-cepat="bulan">Bulan ini</button>
-          <button class="tombol" data-lap-cepat="bulan_lalu">Bulan lalu</button>
-        </div>
-        <div class="baris2" style="max-width:520px;margin-top:10px">
-          <div><label>Dari</label><input type="date" id="lapDari"></div>
-          <div><label>Sampai</label><input type="date" id="lapSampai"></div>
-        </div>
-        <!-- Penyaring cabang. Barisnya sendiri, dan TERSEMBUNYI untuk akun yang
-             cuma berhak atas satu cabang: dropdown berisi satu pilihan adalah
-             hiasan yang mengundang klik tanpa hasil. Diisi pasangPilihCabangLaporan()
-             di app.js. Bawaannya "Semua cabang" — sama persis dengan yang
-             ditampilkan layar ini sebelum penyaring ini ada. -->
-        <div class="baris2 sembunyi" style="max-width:520px;margin-top:10px" id="grupLapCabang">
-          <div><label>Cabang</label><select id="lapCabang"></select></div>
-        </div>
-        <div class="bar-alat" style="margin-top:12px">
-          <button class="tombol utama" id="btnLaporan">Tampilkan</button>
-          <button class="tombol" id="btnCetakLaporan">Cetak</button>
+      <!-- BAR ALAT LAPORAN (v1.156). Dirombak atas permintaan pemilik 10 Sep
+           2026 mengikuti bentuk yang sama dengan layar lain: SATU baris —
+           dropdown periode, tanggal kustom (hanya saat "Kustom"), penyaring
+           cabang, lalu tindakan di kanan. Tidak ada tombol Tampilkan: mengganti
+           periode, tanggal, atau cabang langsung memuat, seperti dropdown
+           periode di Dashboard. Enam tombol rentang cepat yang dulu memakan dua
+           baris jadi satu dropdown. -->
+      <div class="kartu">
+        <div class="bar-alat bar-alat-menu tanpa-cetak">
+          <div class="saringan">
+            <h3>Laporan penjualan</h3>
+            <select id="lapPeriode" style="max-width:150px" title="Periode laporan">
+              <option value="hari">Hari ini</option>
+              <option value="kemarin">Kemarin</option>
+              <option value="7">7 hari terakhir</option>
+              <option value="30">30 hari terakhir</option>
+              <option value="bulan">Bulan ini</option>
+              <option value="bulan_lalu">Bulan lalu</option>
+              <option value="kustom">Kustom…</option>
+            </select>
+            <span class="rentang-kustom" id="lapKustom" hidden>
+              <input type="date" id="lapDari" title="Dari tanggal">
+              <span class="pemisah-rentang">–</span>
+              <input type="date" id="lapSampai" title="Sampai tanggal">
+            </span>
+            <!-- Penyaring cabang, TERSEMBUNYI untuk akun yang cuma berhak atas
+                 satu cabang. Diisi pasangPilihCabangLaporan() di app.js. -->
+            <span id="grupLapCabang" class="sembunyi"><select id="lapCabang" style="max-width:150px" title="Cabang"></select></span>
+          </div>
+          <div class="aksi">
+            <span id="lapEkspor"></span>
+            <button class="tombol" id="btnCetakLaporan" title="Cetak laporan lengkap (A4)">
+              <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>
+              Cetak
+            </button>
+          </div>
         </div>
 
         <!-- TAB. Tiap tab menarik datanya SENDIRI saat pertama dibuka, bukan
              semuanya sekaligus: riwayat nota sebulan ramai ratusan baris, dan
              orang yang cuma ingin melihat omzet tidak boleh ikut menunggunya.
-             Yang sudah pernah dibuka tidak ditarik lagi selama rentangnya sama. -->
-        <div class="tab-modal" id="tabLaporan" style="margin-top:16px;margin-bottom:0">
+             Yang sudah pernah dibuka tidak ditarik lagi selama rentangnya sama.
+             Cetak menarik tab yang belum dibuka SEKALI, saat mencetak. -->
+        <div class="tab-modal tanpa-cetak" id="tabLaporan" style="margin-top:4px;margin-bottom:0">
           <button data-tab-lap="ringkas" class="aktif">Ringkasan</button>
           <button data-tab-lap="nota">Riwayat transaksi</button>
           <button data-tab-lap="shift">Per shift</button>
           <button data-tab-lap="petugas">Per petugas</button>
           <button data-tab-lap="void">Void</button>
-        </div>
-      </div>
-
-      <!-- Penyaring cetak: laporan sebulan bisa sepuluh halaman, dan yang
-           dibutuhkan biasanya dua tabel. Dibangun ulang tiap kali tab digambar. -->
-      <div class="kartu tanpa-cetak sembunyi" id="kartuPilihCetak">
-        <div class="bar-alat">
-          <strong>Yang ikut dicetak</strong>
-          <div id="pilihCetak" class="pilih-cetak"></div>
-          <div class="kanan">
-            <button class="tombol kecil" id="btnCetakSemua">Pilih semua</button>
-            <button class="tombol kecil" id="btnCetakTakSatu">Kosongkan</button>
-          </div>
         </div>
       </div>
 
@@ -689,7 +684,8 @@
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Tim &amp; poin</strong> hanya berisi <strong>Poin per satuan dasar</strong>. Nilainya dikalikan qty dasar: 12 pcs × 3 poin = 36 poin. Boleh pecahan (0,5). <strong>Mengisi poin otomatis memunculkan tombol + Pemasang</strong> di layar kasir — tidak ada yang perlu dicentang. Poin 0 berarti produk ini tidak berpoin; omzetnya tetap tercatat atas nama petugasnya.</li>
             <li>Di daftar produk, dropdown <strong>Tampilkan</strong> memilih satu kolom tambahan — Poin (bawaan), Margin, Turunan, Stok min, Barcode, atau Satuan. Margin hanya muncul untuk peran yang boleh melihat harga modal.</li>
-            <li>Dropdown di sebelahnya <strong>menyaring baris</strong>: Semua produk, <strong>Terlaris</strong>, <strong>Tidak laku</strong>, <strong>Berpoin</strong>, dan <strong>Tanpa poin</strong>. Pakai "Tanpa poin" untuk memeriksa produk mana yang poinnya belum disetel.</li>
+            <li>Dropdown di sebelahnya <strong>menyaring baris</strong>: Semua produk, <strong>Terlaris</strong>, <strong>Tidak laku</strong>, <strong>Berpoin</strong>, <strong>Tanpa poin</strong>, dan <strong>Khusus cabang</strong>. Pakai "Tanpa poin" untuk memeriksa produk mana yang poinnya belum disetel; "Khusus cabang" menampilkan SKU yang hanya dijual di cabang tertentu.</li>
+            <li><strong>Dijual di cabang</strong> (tab Umum): bawaannya <strong>Semua cabang</strong>. Lepaskan centang itu lalu pilih cabangnya bila barang hanya dijual di satu-dua cabang — kasir cabang lain tidak akan melihat SKU-nya, dan server menolak nota yang memuatnya. Stok, transfer, dan pembelian tidak dibatasi; cabang baru otomatis mendapat semua SKU "Semua cabang". Di daftar, SKU seperti ini berlencana <strong>hanya SK01</strong>. Lewat impor massal, isi kolom <strong>cabang</strong> dengan <code>SK01,SK03</code>; kosong berarti semua cabang.</li>
             <li><strong>Terlaris</strong> dan <strong>Tidak laku</strong> memunculkan <strong>dua kolom tanggal</strong> di sebelahnya — rentang penjualan yang dihitung, bawaannya 30 hari terakhir. Gantilah rentangnya sesuai yang ingin dilihat; angka terjualnya ditarik ulang untuk rentang yang baru. "Tidak laku" berarti tidak terjual satu pun <em>di rentang itu</em>, bukan tidak pernah terjual.</li>
             <li><strong>Produk nonaktif tidak lagi ada di dropdown penyaring.</strong> Tempatnya sekarang blok <strong>Nonaktif</strong> yang bisa dibuka-tutup di bawah daftar — selalu ada, tanpa perlu mengganti penyaring.</li>
             <li>Kolom pencarian <strong>menyaring di perangkat</strong>, bukan menembak server tiap huruf. Karena itu hasilnya muncul seketika dan kursor tidak pernah lepas di tengah orang mengetik.</li>
@@ -769,13 +765,13 @@
           <h3>B8. Laporan, Performa, Keuangan, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Dashboard</strong> — nota &amp; omzet hari ini, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis.</li>
-            <li><strong>Laporan</strong> — satu rentang tanggal, <strong>lima tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Tombol rentang cepat — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu — ada di atas kolom tanggalnya.</li>
-            <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti rentang lalu menekan <strong>Tampilkan</strong> membuat semuanya segar kembali.</li>
+            <li><strong>Laporan</strong> — satu rentang tanggal, <strong>lima tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
+            <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti periode, tanggal, atau cabang <strong>langsung memuat ulang</strong> — tidak ada tombol Tampilkan.</li>
             <li><strong>Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
             <li><strong>Keuangan</strong> — Laba Rugi, Neraca, <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis), dan Tutup buku.</li>
             <li><strong>Diskon</strong> — berapa banyak diskon diberikan, oleh kasir siapa, dan mana yang lewat batas sehingga butuh persetujuan.</li>
           </ul>
-          <p><strong>Mencetak laporan.</strong> Tombol <strong>Cetak</strong> mencetak apa yang sedang terlihat di layar — jadi pilih dulu tabnya, baru cetak. Di atas hasilnya ada baris <strong>Yang ikut dicetak</strong>: centang tabel mana saja yang perlu, karena laporan sebulan bisa sepuluh halaman sementara yang dibutuhkan biasanya dua tabel. <strong>Pilih semua</strong> dan <strong>Kosongkan</strong> ada di ujung kanannya. Hasil cetaknya selalu <strong>hitam-putih</strong>, juga ketika aplikasi sedang bertema gelap.</p>
+          <p><strong>Mencetak laporan.</strong> Tombol <strong>Cetak</strong> menyusun <strong>dokumen A4</strong> di jendela sendiri — bukan memotret layar. Sebelum mencetak, centang bagian mana yang ikut: Ringkasan, Riwayat transaksi, Per shift, Per petugas, Void; bagian yang belum pernah dibuka ditarik dulu dari server. Dokumennya berkop nama usaha, periode, cabang, dan siapa yang mencetak, lalu seluruh tabel tiap bagian dalam tabel bergaris hitam-putih — termasuk tabel lebar yang di layar harus digulir. Kalau jendelanya tidak muncul, izinkan pop-up untuk situs ini. Tombol <strong>Ekspor</strong> di sebelahnya mengunduh Ringkasan sebagai Excel/PDF/CSV.</p>
           <p class="petunjuk">Di Performa, <strong>omzet petugas adalah porsinya</strong>, bukan nilai nota penuh: nota 100.000 yang dikerjakan berdua terbagi menurut bobot peran. Bila ada nota yang terjual tanpa petugas, layar itu menuliskan sendiri berapa omzet yang belum terklaim.</p>
         </div>
 

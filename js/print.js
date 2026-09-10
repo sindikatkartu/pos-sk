@@ -347,29 +347,30 @@ const Struk = (() => {
   }
 
   /**
-   * Cetak DOKUMEN A4 lewat jendela peramban. Bukan struk.
-   *
-   * Tidak ada ESC/POS, tidak ada printer Bluetooth, tidak ada lebar kertas dari
-   * setelan. Yang lewat sini dokumen arsip — bukti, rekap, surat — yang masuk
-   * map admin, bukan kertas yang diserahkan ke pembeli. Menumpangkannya pada
-   * `cetakHtml` akan memaksa dokumen A4 memakai `@page 58mm` dan font monospasi
-   * struk; tabel apa pun akan patah di kolom ketiga.
-   *
-   * Penanganan pop-up yang diblokir SAMA dengan jalur struk, dan disengaja:
-   * tanpa itu `w.document` melempar TypeError yang tersamar jadi "gagal cetak"
-   * tanpa sebab yang bisa dibaca.
-   *
-   * `isiHtml` dipasang APA ADANYA — penyusunnya yang wajib meloloskan setiap
-   * nilai lewat `esc()`. Nama produk di toko ini memuat `"` (`TG Bening 6.1"`)
-   * dan `&`; satu saja yang lolos mentah akan memotong tabelnya di tengah.
+   * Buka jendela dokumen KOSONG bertulisan "Menyusun…" — dipanggil SEBELUM
+   * await pertama. Izin pop-up peramban terikat pada klik pengguna, dan klik
+   * itu sudah kedaluwarsa begitu pemanggilnya menunggu server; jendela yang
+   * dibuka sesudah await diblokir diam-diam di peramban kiosk. Isinya
+   * dipasang `isiJendelaDokumen()` belakangan.
    */
-  function cetakDokumen(judul, isiHtml) {
+  function bukaJendelaDokumen(judul) {
     const j = String(judul == null ? '' : judul)
       .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     const w = window.open('', '_blank', 'width=860,height=900');
     if (!w) throw new Error('Jendela cetak diblokir peramban — izinkan pop-up untuk situs ini.');
     w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${j}</title>
-<style>
+<style>body{font-family:Arial,Helvetica,sans-serif;color:#555;padding:24px}</style></head>
+<body><p>Menyusun ${j}…</p></body></html>`);
+    w.document.close();
+    return w;
+  }
+
+  /**
+   * Gaya dokumen A4. SATU untuk semua dokumen arsip — transfer, laporan —
+   * supaya kertas yang keluar dari sistem ini seragam. Hitam-putih, tabel
+   * bergaris, angka rata kanan.
+   */
+  const GAYA_DOKUMEN = `
   @page { size: A4 portrait; margin: 14mm; }
   * { box-sizing: border-box; }
   /* Dokumen arsip dicetak HITAM-PUTIH: latar abu judul tabel ikut tercetak hanya
@@ -380,6 +381,8 @@ const Struk = (() => {
          -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   h1 { font-size: 15pt; margin: 0; }
   h2 { font-size: 12pt; margin: 12px 0 8px; padding-top: 8px; border-top: 2px solid #000; }
+  h2.judul-dok { border-top: none; padding-top: 0; margin: 10px 0 6px; font-size: 13pt; }
+  h3 { font-size: 10.5pt; margin: 12px 0 4px; break-after: avoid; page-break-after: avoid; }
   .sub { margin: 2px 0 0; font-size: 9pt; }
   table { width: 100%; border-collapse: collapse; }
   table.info td { padding: 2px 8px 2px 0; vertical-align: top; }
@@ -389,11 +392,58 @@ const Struk = (() => {
   table.isi th { background: #e8e8e8; text-align: left; }
   table.isi td.n, table.isi th.n { text-align: right; white-space: nowrap; }
   table.isi tfoot td { font-weight: bold; }
+  table.isi.rapat th, table.isi.rapat td { font-size: 8pt; padding: 3px 4px; }
+  table.isi td.kosong { color: #555; font-style: italic; }
+  table.isi thead { display: table-header-group; }
+  table.isi tr { break-inside: avoid; page-break-inside: avoid; }
+  /* Kotak angka ringkas: deret kotak bergaris, empat sebaris. */
+  .kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 4px; }
+  .kpi > div { border: 1px solid #000; padding: 5px 8px; }
+  .kpi .k { display: block; font-size: 8.5pt; color: #333; }
+  .kpi b { display: block; font-size: 12pt; margin-top: 1px; }
+  .kpi .e { display: block; font-size: 8pt; color: #555; }
+  .bagian { break-inside: auto; }
+  .bagian + .bagian { margin-top: 14px; }
+  .kode-redup { color: #555; font-size: 8pt; }
+  .lencana { font-weight: bold; }
   .kaki { margin-top: 14px; padding-top: 5px; border-top: 1px solid #000; font-size: 8.5pt; }
-</style></head><body>${isiHtml}</body></html>`);
+`;
+
+  /**
+   * Pasang isi ke jendela yang sudah dibuka `bukaJendelaDokumen()`, lalu cetak.
+   *
+   * `isiHtml` dipasang APA ADANYA — penyusunnya yang wajib meloloskan setiap
+   * nilai lewat `esc()`. Nama produk di toko ini memuat `"` (`TG Bening 6.1"`)
+   * dan `&`; satu saja yang lolos mentah akan memotong tabelnya di tengah.
+   */
+  function isiJendelaDokumen(w, judul, isiHtml) {
+    const j = String(judul == null ? '' : judul)
+      .replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    /* Tanpa document.open() eksplisit: dokumen yang sudah ditutup dibuka ulang
+       sendiri oleh document.write berikutnya (langkah "document open" di
+       spesifikasi HTML), dan isi "Menyusun…" tadi terhapus bersamanya. */
+    w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${j}</title>
+<style>${GAYA_DOKUMEN}</style></head><body>${isiHtml}</body></html>`);
     w.document.close();
     w.focus();
     setTimeout(() => { w.print(); }, 250);
+  }
+
+  /**
+   * Cetak DOKUMEN A4 lewat jendela peramban. Bukan struk.
+   *
+   * Tidak ada ESC/POS, tidak ada printer Bluetooth, tidak ada lebar kertas dari
+   * setelan. Yang lewat sini dokumen arsip — bukti, rekap, surat — yang masuk
+   * map admin, bukan kertas yang diserahkan ke pembeli. Menumpangkannya pada
+   * `cetakHtml` akan memaksa dokumen A4 memakai `@page 58mm` dan font monospasi
+   * struk; tabel apa pun akan patah di kolom ketiga.
+   *
+   * Dua langkah di atas dijadikan satu: untuk pemanggil yang isinya sudah di
+   * tangan saat tombol ditekan (dokumen Transfer). Laporan penjualan memakai
+   * keduanya terpisah karena harus menarik data dulu.
+   */
+  function cetakDokumen(judul, isiHtml) {
+    isiJendelaDokumen(bukaJendelaDokumen(judul), judul, isiHtml);
   }
 
   /** Cetak dengan jalur terbaik yang tersedia; tidak pernah menggagalkan transaksi. */
@@ -417,7 +467,7 @@ const Struk = (() => {
     return 'html';
   }
 
-  return { cetak, cetakHtml, cetakDokumen, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
+  return { cetak, cetakHtml, cetakDokumen, bukaJendelaDokumen, isiJendelaDokumen, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
            pastikanTersambung, lepasPrinter,
            baris, rupiah,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };

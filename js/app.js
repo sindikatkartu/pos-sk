@@ -1187,6 +1187,11 @@ function bukaLayar(id) {
   tutupPopoverAkun(false);
 
   if (m && m.admin) return Admin.muat(id);
+  /* Laporan memuat sendiri saat pertama dibuka, dengan periode yang terpilih
+     di dropdown (bawaannya Hari ini) — layar laporan yang terbuka kosong dan
+     menunggu ditekan adalah langkah yang tidak perlu ada. Pembukaan berikutnya
+     membiarkan rentang yang sedang dilihat. */
+  if (id === 'laporan' && !LAP.dari) return terapkanPeriodeLaporan($('#lapPeriode')?.value || 'hari');
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
   if (id === 'shift') return periksaShift();
@@ -1624,8 +1629,26 @@ function tandaiKendaliKasir() {
   tandai($('#selPetugas'), $('#selPetugas')?.value);
 }
 
+/**
+ * true bila produk boleh dijual di cabang yang sedang aktif di perangkat ini.
+ *
+ * Lapis KEDUA. Yang pertama di server: `apiTarikMaster` sudah tidak mengirim
+ * SKU khusus cabang lain, dan penanda versinya memuat kode cabang sehingga
+ * berpindah cabang menarik ulang katalog. Lapis ini menjaga jendela di antara
+ * keduanya — cabang baru dipilih, katalog lama masih di IndexedDB — supaya
+ * barang yang tidak dijual di sini tidak sempat masuk keranjang, lalu ditolak
+ * server saat sinkron. Kosong atau '*' = semua cabang.
+ */
+function produkDijualDiSini(p) {
+  const c = String(p?.cabang || '').trim();
+  if (!c || c === '*') return true;
+  const kini = String(APP_STATE.cabang || '').trim().toUpperCase();
+  if (!kini) return true;
+  return c.split(',').some(k => k.trim().toUpperCase() === kini);
+}
+
 async function gambarProduk(kueri) {
-  const semuaProduk = await DB.all('produk');
+  const semuaProduk = (await DB.all('produk')).filter(produkDijualDiSini);
   const stok = await DB.all('stok');
   const petaStok = Object.fromEntries(stok.map(s => [s.key, s.qty]));
   /* BEDAKAN "belum tahu" dari "nol".
@@ -3173,8 +3196,26 @@ async function laporkanKeluarPaksa() {
  */
 
 /** Isi kolom tanggal dari tombol rentang cepat. */
-function rentangCepatLaporan(jenis) {
-  const hariIni = new Date();
+/* ==================== LAYAR LAPORAN: PERIODE ====================
+ *
+ * Dirombak 10 Sep 2026 atas permintaan pemilik: "tools bar diperingkas,
+ * opsi hari ini dan lain-lain dibuat dropdown, tombol Tampilkan dievaluasi".
+ *
+ * Hasil evaluasinya: tombol Tampilkan DIHAPUS. Ia ada karena dulu orang harus
+ * mengisi dua tanggal lalu menekan sesuatu; dengan dropdown periode, memilih
+ * "Bulan lalu" sudah menyebut rentangnya lengkap, dan menuntut satu tekanan
+ * lagi hanya menambah langkah tanpa menambah informasi. Dashboard sudah
+ * memakai pola yang sama sejak lama. Tanggal kustom pun memuat sendiri begitu
+ * keduanya terisi dan urutannya masuk akal.
+ */
+
+/**
+ * Rentang tanggal untuk satu pilihan dropdown periode; null untuk 'kustom'
+ * (tanggalnya diketik, bukan dihitung). `kini` hanya untuk uji.
+ */
+function rentangPeriodeLaporan(jenis, kini) {
+  if (jenis === 'kustom') return null;
+  const hariIni = kini ? new Date(kini) : new Date();
   const f = (d) => tanggalLokal(d);
   const mundur = (n) => { const d = new Date(hariIni); d.setDate(d.getDate() - n); return d; };
   let dari = hariIni, sampai = hariIni;
@@ -3186,8 +3227,23 @@ function rentangCepatLaporan(jenis) {
     dari = new Date(hariIni.getFullYear(), hariIni.getMonth() - 1, 1);
     sampai = new Date(hariIni.getFullYear(), hariIni.getMonth(), 0);   // hari 0 = akhir bulan lalu
   }
-  $('#lapDari').value = f(dari);
-  $('#lapSampai').value = f(sampai);
+  return { dari: f(dari), sampai: f(sampai) };
+}
+
+/**
+ * Terapkan pilihan periode: isi kedua tanggal (atau buka kolom kustom), lalu
+ * muat. Satu-satunya jalan masuk dari dropdown maupun dari pembukaan layar.
+ */
+function terapkanPeriodeLaporan(jenis) {
+  const sel = $('#lapPeriode');
+  if (sel && sel.value !== jenis) sel.value = jenis;
+  const r = rentangPeriodeLaporan(jenis);
+  const kustom = $('#lapKustom');
+  if (kustom) kustom.hidden = !!r;
+  if (r) {
+    $('#lapDari').value = r.dari;
+    $('#lapSampai').value = r.sampai;
+  }
   return tampilkanLaporan();
 }
 
@@ -3217,6 +3273,9 @@ function selisihLaporan(kini, lalu) {
  * antar tab tidak boleh menembak server lagi. Mengganti rentang membuang
  * semuanya — data satu rentang yang dipakai untuk rentang lain adalah angka
  * yang terlihat masuk akal dan sepenuhnya keliru.
+ *
+ * Cetak (v1.156) adalah pengecualian yang disengaja: ia menarik tab yang belum
+ * pernah dibuka, karena dokumen A4-nya memuat kelima bagian.
  */
 const LAP = { dari: '', sampai: '', cabang: '*', tab: 'ringkas', data: {} };
 
@@ -3235,6 +3294,15 @@ const LAP_TARIK = {
   petugas: (par) => API.laporanPoin({ ...par }),
   void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' })
 };
+
+/* Urutan dan judul bagian — dipakai tab di layar DAN dokumen cetak. */
+const LAP_BAGIAN = [
+  { id: 'ringkas', judul: 'Ringkasan' },
+  { id: 'nota',    judul: 'Riwayat transaksi' },
+  { id: 'shift',   judul: 'Per shift' },
+  { id: 'petugas', judul: 'Per petugas' },
+  { id: 'void',    judul: 'Void' }
+];
 
 /**
  * Penyaring cabang layar Laporan.
@@ -3269,26 +3337,80 @@ function pasangPilihCabangLaporan() {
     daftar.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
   grup.classList.remove('sembunyi');
 
-  /* Digambar ulang SEKETIKA, tidak menunggu tombol Tampilkan. Layar ini
-     menyimpan hasil tiap tab selama rentangnya sama; mengganti cabang tanpa
-     membuang simpanan itu membuat angka cabang lama tetap terpampang di bawah
-     nama cabang yang baru — angka yang terlihat masuk akal dan sepenuhnya
-     keliru. `tampilkanLaporan()` membuang seluruh simpanan itu. */
+  /* Digambar ulang SEKETIKA. Layar ini menyimpan hasil tiap tab selama
+     rentangnya sama; mengganti cabang tanpa membuang simpanan itu membuat
+     angka cabang lama tetap terpampang di bawah nama cabang yang baru — angka
+     yang terlihat masuk akal dan sepenuhnya keliru. `tampilkanLaporan()`
+     membuang seluruh simpanan itu. */
   el.addEventListener('change', () => {
     if (!LAP.dari || !LAP.sampai) { LAP.cabang = el.value; return; }
     tampilkanLaporan();
   });
 }
 
+/** Teks cabang yang sedang dilaporkan, untuk kop dokumen. */
+function labelCabangLaporan() {
+  if (LAP.cabang && LAP.cabang !== '*') return LAP.cabang;
+  return APP_STATE.flag.akses_lintas_cabang ? 'Semua cabang' : (APP_STATE.cabang || '—');
+}
+
+function gambarPetunjukLaporan(teks) {
+  $('#hasilLaporan').innerHTML = `<div class="kartu"><p class="petunjuk">${esc(teks)}</p></div>`;
+}
+
+/**
+ * Tombol Ekspor di bar alat ikut rentang yang sedang tampil. Digambar ulang
+ * tiap kali rentangnya berganti — parameternya dibekukan ke dalam atribut
+ * tombol, jadi tombol lama akan mengunduh rentang lama.
+ */
+function gambarEksporLaporan() {
+  const w = $('#lapEkspor');
+  if (!w) return;
+  w.innerHTML = (LAP.dari && LAP.sampai)
+    ? Admin.tombolEkspor('penjualan', { dari: LAP.dari, sampai: LAP.sampai }) : '';
+}
+
+/**
+ * Muat ulang seluruh laporan dari kedua kolom tanggal. Tidak ada tombol yang
+ * memanggilnya lagi — pemicunya dropdown periode, kolom tanggal kustom, dan
+ * penyaring cabang. Tanggal yang belum lengkap atau terbalik tidak menembak
+ * server; petunjuknya ditulis di tempat hasilnya.
+ */
 async function tampilkanLaporan() {
-  LAP.dari = $('#lapDari').value;
-  LAP.sampai = $('#lapSampai').value;
+  const dari = $('#lapDari').value, sampai = $('#lapSampai').value;
+  if (!dari || !sampai) return gambarPetunjukLaporan('Isi kedua tanggal untuk menampilkan laporan.');
+  if (dari > sampai) return gambarPetunjukLaporan('Tanggal "dari" melewati tanggal "sampai" — periksa kembali.');
+  LAP.dari = dari;
+  LAP.sampai = sampai;
   /* Jatuh ke '*' bila penyaringnya tersembunyi. Aman untuk semua peran:
      server menerjemahkan '*' menjadi "seluruh cabang aktif" HANYA bagi yang
      berbendera lintas cabang, dan menjadi cabang sesi bagi yang tidak. */
   LAP.cabang = $('#lapCabang')?.value || '*';
   LAP.data = {};                 // rentang atau cabang baru: seluruh tab basi
+  gambarEksporLaporan();
   return gambarTabLaporan(LAP.tab);
+}
+
+/** Rangka pemuatan: bentuknya kartu angka + tabel, sama seperti isi tab. */
+const rangkaLaporan = () => `
+  <div class="petak petak-4" aria-busy="true" aria-label="Memuat laporan">
+    ${Array.from({ length: 4 }, () => `<div class="kartu statistik">
+      <div class="label"><span class="rangka" style="width:70px"></span></div>
+      <div class="nilai"><span class="rangka tinggi" style="width:110px"></span></div>
+      <div class="mini-ekor"><span class="rangka" style="width:48px"></span></div></div>`).join('')}
+  </div>
+  <div class="kartu" aria-busy="true">
+    <span class="rangka" style="width:120px"></span>
+    ${Array.from({ length: 8 }, (_, i) =>
+      `<div class="rangka-baris"><span class="rangka" style="width:${['92%', '78%', '86%', '70%'][i % 4]}"></span></div>`).join('')}
+  </div>`;
+
+/** Tarik data satu tab bila belum ada di simpanan; simpanannya per rentang. */
+async function tarikTabLaporan(tab) {
+  if (!LAP.data[tab]) {
+    LAP.data[tab] = await LAP_TARIK[tab]({ dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang });
+  }
+  return LAP.data[tab];
 }
 
 async function gambarTabLaporan(tab) {
@@ -3296,26 +3418,28 @@ async function gambarTabLaporan(tab) {
   LAP.tab = tab;
   $$('#tabLaporan button').forEach(b => b.classList.toggle('aktif', b.dataset.tabLap === tab));
   const w = $('#hasilLaporan');
-  if (!LAP.dari || !LAP.sampai) {
-    w.innerHTML = '<div class="kartu"><p class="petunjuk">Pilih rentang tanggal lalu tekan Tampilkan.</p></div>';
-    $('#kartuPilihCetak').classList.add('sembunyi');
-    return;
-  }
+  if (!LAP.dari || !LAP.sampai) return gambarPetunjukLaporan('Pilih periode di atas untuk menampilkan laporan.');
   if (!LAP.data[tab]) {
-    w.innerHTML = '<div class="kartu">Memuat…</div>';
+    w.innerHTML = rangkaLaporan();
+    /* Balapan tab: yang tiba belakangan untuk tab yang sudah ditinggalkan
+       tidak boleh menimpa tab yang sedang dibuka. */
+    const tiket = { tab, dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
     try {
-      LAP.data[tab] = await LAP_TARIK[tab]({ dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang });
+      await tarikTabLaporan(tab);
     } catch (e) {
+      if (tiketLaporanBasi(tiket)) return;
       w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
-      $('#kartuPilihCetak').classList.add('sembunyi');
       return;
     }
+    if (tiketLaporanBasi(tiket)) return;
   }
   const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
                    petugas: gambarLapPetugas, void: gambarLapVoid }[tab];
   gambar(w, LAP.data[tab]);
-  pasangPilihCetak();
 }
+
+const tiketLaporanBasi = (t) =>
+  t.tab !== LAP.tab || t.dari !== LAP.dari || t.sampai !== LAP.sampai || t.cabang !== LAP.cabang;
 
 /* Kotak dan tabel dipakai kelima tab — satu bentuk, bukan lima yang mirip. */
 const lapKotak = (label, nilai, ekor) => `<div class="kartu statistik">
@@ -3323,14 +3447,11 @@ const lapKotak = (label, nilai, ekor) => `<div class="kartu statistik">
   <div class="mini-ekor" title="${esc(String(ekor || '').replace(/<[^>]*>/g, ''))}">${ekor || ''}</div></div>`;
 
 /**
- * Satu kartu tabel laporan.
- *
- * `data-cetak` adalah kunci penyaring cetak: tiap kartu yang punya atribut ini
- * muncul sebagai satu centang di bar "Yang ikut dicetak". Judulnya dipakai apa
- * adanya sebagai label centangnya, jadi tidak ada daftar kedua yang harus
- * diingat manusia setiap kali ada tabel baru.
+ * Satu kartu tabel laporan. Kolomnya `{ judul, angka?, render(baris) }` —
+ * bentuk yang SAMA dipakai `tabelCetakLaporan`, jadi tabel di layar dan di
+ * kertas tidak pernah punya dua daftar kolom yang harus dijaga sepakat.
  */
-const lapTabel = (judul, kolom, baris, kosong) => `<div class="kartu" data-cetak="${esc(judul)}">
+const lapTabel = (judul, kolom, baris, kosong) => `<div class="kartu" data-bagian="${esc(judul)}">
   <h3>${esc(judul)}</h3>
   ${baris.length ? `<div class="gulir-x"><table>
     <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
@@ -3338,118 +3459,263 @@ const lapTabel = (judul, kolom, baris, kosong) => `<div class="kartu" data-cetak
       `<td class="${k.angka ? 'angka' : ''}" data-l="${esc(k.judul)}">${k.render(b)}</td>`).join('')}</tr>`).join('')}</tbody>
   </table></div>` : `<p class="petunjuk">${esc(kosong)}</p>`}</div>`;
 
+/* ---------- Definisi kolom: SATU tempat untuk layar dan cetak ---------- */
+
+const KOLOM_LAP = {
+  perHari: () => [
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Nota', angka: true, render: x => x.nota },
+    { judul: 'Omzet', angka: true, render: x => rp(x.total) }
+  ],
+  perKasir: () => [
+    { judul: 'Kasir', render: x => kasirTampil(x) },
+    { judul: 'Nota', angka: true, render: x => x.nota },
+    { judul: 'Omzet', angka: true, render: x => rp(x.total) }
+  ],
+  perMetode: () => [
+    { judul: 'Metode', render: x => esc(String(x.metode).toUpperCase()) },
+    { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
+    { judul: 'Biaya MDR', angka: true, render: x => rp(x.mdr) },
+    { judul: 'Netto', angka: true, render: x => rp(x.jumlah - x.mdr) }
+  ],
+  perCabang: (d) => [
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Nota', angka: true, render: x => x.nota },
+    { judul: 'Omzet', angka: true, render: x => rp(x.total) },
+    { judul: 'Retur', angka: true, render: x => rp(x.retur) },
+    ...((d.per_cabang || [])[0]?.laba_kotor !== undefined
+      ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor) }] : [])
+  ],
+  produk: (d) => [
+    { judul: 'SKU', render: x => esc(x.sku) },
+    { judul: 'Nama', render: x => esc(x.nama) },
+    { judul: 'Qty', angka: true, render: x => x.qty },
+    { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+    ...((d.produk_teratas || [])[0]?.margin_persen !== undefined
+      ? [{ judul: 'Margin', angka: true, render: x => x.margin_persen + '%' }] : [])
+  ],
+  retur: () => [
+    { judul: 'Dokumen', render: x => esc(x.no_dokumen) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Nota asal', render: x => esc(x.no_nota_asal) },
+    { judul: 'Jenis', render: x => esc(x.jenis) },
+    { judul: 'Nilai', angka: true, render: x => rp(x.nilai_retur) },
+    { judul: 'Alasan', render: x => esc(x.alasan) }
+  ],
+  batal: () => [
+    { judul: 'No Nota', render: x => esc(x.no_nota) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Jam', render: x => esc(x.jam) },
+    { judul: 'Kasir', render: x => kasirTampil(x) },
+    { judul: 'Nilai', angka: true, render: x => rp(x.total) },
+    { judul: 'Alasan', render: x => esc(x.alasan_batal) }
+  ],
+  piutang: () => [
+    { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Jatuh tempo', render: x => esc(x.jatuh_tempo ? tglTampil(x.jatuh_tempo) : '—') },
+    { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
+    { judul: 'Sisa', angka: true, render: x => rp(x.sisa) },
+    { judul: 'Status', render: x => esc(x.status) }
+  ],
+  nota: (d) => [
+    { judul: 'No nota', render: x => esc(x.no_nota) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Jam', render: x => esc(x.jam) },
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Kasir', render: x => esc(x.nama_kasir) },
+    { judul: 'Shift', render: x => esc(x.id_shift || '—') },
+    { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan || 'umum') },
+    { judul: 'Item', angka: true, render: x => x.baris_item + ' / ' + x.qty_item },
+    { judul: 'Diskon', angka: true, render: x => rp(x.diskon) },
+    { judul: 'Total', angka: true, render: x => rp(x.total) },
+    ...((d.nota || []).some(n => n.laba_kotor !== undefined)
+      ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor || 0) }] : []),
+    { judul: 'Bayar', render: x => esc((x.metode || x.tipe_bayar || '—').toUpperCase()) }
+  ],
+  shift: () => [
+    { judul: 'Shift', render: x => esc(x.id_shift) },
+    { judul: 'Cabang', render: x => esc(x.cabang || '—') },
+    { judul: 'Petugas', render: x => esc(x.nama) },
+    /* Lewat `waktuTampil`, bukan dipotong sendiri: `substring(0,16)` di sini
+       menampilkan `2026-08-24 20:10` — ISO mentah, satu-satunya bentuk
+       tanggal yang berbeda dari seluruh aplikasi. */
+    { judul: 'Buka', render: x => esc(waktuTampil(x.buka)) },
+    { judul: 'Tutup', render: x => esc(x.tutup ? waktuTampil(x.tutup) : '—') },
+    { judul: 'Nota', angka: true, render: x => x.jumlah_nota },
+    { judul: 'Penjualan', angka: true, render: x => rp(x.total_penjualan) },
+    { judul: 'Kas awal', angka: true, render: x => rp(x.kas_awal) },
+    { judul: 'Kas sistem', angka: true, render: x => rp(x.kas_sistem) },
+    { judul: 'Kas fisik', angka: true, render: x => rp(x.kas_fisik) },
+    /* Selisih diberi warna karena inilah satu-satunya kolom yang dicari orang
+       saat membuka tabel ini. Nol tidak diwarnai — warna yang selalu menyala
+       berhenti berarti apa-apa. */
+    { judul: 'Selisih', angka: true, render: x => {
+        const v = Number(x.selisih) || 0;
+        if (Math.abs(v) < 0.5) return rp(0);
+        return `<span class="${v < 0 ? 'bahaya' : 'peringatan'}">${rp(v)}</span>`;
+      } },
+    { judul: 'Status', render: x => x.status === 'BUKA'
+        ? '<span class="lencana kuning">BUKA</span>' : esc(x.status) }
+  ],
+  petugas: (d) => [
+    { judul: 'Kode', render: x => esc(x.kode) },
+    { judul: 'Nama', render: x => esc(x.nama) },
+    { judul: 'Peran', render: x => esc((x.per_peran || [])
+        .map(p => p.peran + ' ' + p.poin).join(' · ') || '—') },
+    { judul: 'Klaim', angka: true, render: x => x.klaim },
+    { judul: 'Nota', angka: true, render: x => x.nota },
+    { judul: 'Poin', angka: true, render: x => x.poin },
+    { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+    ...((d.petugas || []).some(x => x.laba !== undefined)
+      ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba || 0) }] : [])
+  ],
+  petugasCabang: () => [
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Nota', angka: true, render: x => x.nota },
+    { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
+    { judul: 'Omzet diklaim', angka: true, render: x => rp(x.omzet_klaim) },
+    { judul: 'Poin', angka: true, render: x => x.poin },
+    { judul: 'Petugas', angka: true, render: x => x.petugas }
+  ],
+  void: () => [
+    { judul: 'No nota', render: x => esc(x.no_nota) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Jam', render: x => esc(x.jam) },
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Kasir', render: x => esc(x.nama_kasir) },
+    { judul: 'Shift', render: x => esc(x.id_shift || '—') },
+    { judul: 'Nilai', angka: true, render: x => rp(x.total) },
+    { judul: 'Dibatalkan oleh', render: x => esc(x.dibatalkan_oleh || '—') },
+    /* Server mengirim `yyyy-MM-dd HH:mm:ss`; yang tampil harus DD/MM/YYYY
+       seperti seluruh aplikasi. */
+    { judul: 'Waktu batal', render: x => esc(x.dibatalkan_pada ? waktuTampil(x.dibatalkan_pada) : '—') },
+    { judul: 'Alasan', render: x => esc(x.alasan_batal || '—') }
+  ],
+  voidItem: () => [
+    { judul: 'No nota', render: x => esc(x.no_nota) },
+    { judul: 'SKU', render: x => esc(x.sku) },
+    { judul: 'Nama', render: x => esc(x.nama) },
+    { judul: 'Qty', angka: true, render: x => x.qty + ' ' + esc(x.satuan || '') },
+    { judul: 'Harga', angka: true, render: x => rp(x.harga) },
+    { judul: 'Subtotal', angka: true, render: x => rp(x.subtotal) }
+  ]
+};
+
+/* Barang pada nota void, satu baris per item, dengan nomor notanya. */
+const barisItemVoid = (rows) => rows.flatMap(n => (n.item || []).map(i => ({ ...i, no_nota: n.no_nota })));
+
+/* ---------- Angka ringkas: satu daftar untuk kartu layar dan kotak cetak ---------- */
+
+/** [{ label, nilai(html), ekor(html) }] untuk tab Ringkasan. */
+function angkaRingkasLaporan(d) {
+  const r = d.ringkas, l = d.lalu || {};
+  const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
+  const daftar = [
+    { label: 'Jumlah nota', nilai: r.jumlah_nota, ekor: selisihLaporan(r.jumlah_nota, l.jumlah_nota) },
+    { label: 'Omzet kotor', nilai: rp(r.total), ekor: selisihLaporan(r.total, l.total) },
+    { label: 'Retur', nilai: '−' + rp(r.retur_nilai),
+      ekor: r.jumlah_retur ? r.jumlah_retur + ' dokumen' : 'tidak ada' },
+    { label: 'Penjualan bersih', nilai: rp(r.penjualan_bersih), ekor: '' }
+  ];
+  if (r.laba_kotor !== undefined) {
+    daftar.push({ label: 'Laba kotor', nilai: rp(r.laba_kotor), ekor: selisihLaporan(r.laba_kotor, l.laba_kotor) });
+  }
+  daftar.push(
+    { label: 'Diskon', nilai: rp(r.diskon), ekor: '' },
+    { label: 'Nota batal', nilai: r.jumlah_batal, ekor: r.jumlah_batal ? rp(r.nilai_batal) : '' },
+    { label: 'Piutang lahir', nilai: rp(pi.total),
+      ekor: pi.sisa ? `<span class="delta turun">${rp(pi.sisa)} belum lunas</span>` : 'lunas semua' }
+  );
+  return daftar;
+}
+
+function angkaNotaLaporan(d) {
+  const r = d.ringkas || {};
+  return [
+    { label: 'Nota', nilai: r.nota || 0, ekor: d.terpotong ? 'daftar dipotong' : '' },
+    { label: 'Barang keluar', nilai: r.item || 0, ekor: '' },
+    { label: 'Omzet', nilai: rp(r.total || 0), ekor: r.diskon ? 'diskon ' + rp(r.diskon) : '' },
+    { label: 'Nota batal', nilai: r.batal || 0, ekor: r.batal ? rp(r.nilai_batal) : 'tidak ada' }
+  ];
+}
+
+function angkaShiftLaporan(d) {
+  const rows = d.shift || [];
+  const jml = (f) => rows.reduce((a, b) => a + (Number(b[f]) || 0), 0);
+  const selisihAda = rows.filter(x => Math.abs(Number(x.selisih) || 0) > 0.5);
+  return [
+    { label: 'Shift', nilai: rows.length, ekor: rows.filter(x => x.status === 'BUKA').length + ' masih buka' },
+    { label: 'Nota', nilai: jml('jumlah_nota'), ekor: '' },
+    { label: 'Penjualan', nilai: rp(jml('total_penjualan')), ekor: '' },
+    { label: 'Selisih kas', nilai: rp(jml('selisih')),
+      ekor: selisihAda.length ? selisihAda.length + ' shift tidak pas' : 'semua pas' }
+  ];
+}
+
+function angkaPetugasLaporan(d) {
+  const rk = d.ringkas || {}, petugas = d.petugas || [];
+  return [
+    { label: 'Petugas', nilai: rk.petugas || petugas.length, ekor: '' },
+    { label: 'Klaim', nilai: rk.klaim || 0, ekor: (rk.nota || 0) + ' nota diklaim' },
+    { label: 'Poin', nilai: rk.poin || 0, ekor: '' },
+    { label: 'Omzet diklaim', nilai: rp(rk.omzet || 0), ekor: rk.laba !== undefined ? 'laba ' + rp(rk.laba) : '' }
+  ];
+}
+
+function angkaVoidLaporan(d) {
+  const rows = d.nota || [];
+  const nilai = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
+  const perOrang = {};
+  rows.forEach(n => {
+    const k = n.dibatalkan_oleh || '(tidak tercatat)';
+    perOrang[k] = (perOrang[k] || 0) + 1;
+  });
+  return [
+    { label: 'Nota dibatalkan', nilai: rows.length, ekor: '' },
+    { label: 'Nilai', nilai: rp(nilai), ekor: '' },
+    { label: 'Barang kembali', nilai: rows.reduce((a, b) => a + (b.item || []).length, 0), ekor: 'baris nota' },
+    { label: 'Pembatal', nilai: Object.keys(perOrang).length,
+      ekor: Object.keys(perOrang).slice(0, 2).map(k => esc(k) + ' ' + perOrang[k] + 'x').join(' · ') }
+  ];
+}
+
+const petakAngka = (daftar, kelas) =>
+  `<div class="petak ${kelas || ''}">${daftar.map(a => lapKotak(a.label, a.nilai, a.ekor)).join('')}</div>`;
+
 function gambarLapRingkas(w, d) {
-  {
-    const r = d.ringkas;
-    const l = d.lalu || {};
-    const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
-    /* Baris ekor selalu digambar — alasannya sama dengan `kotakMini` di
-       admin.js: satu baris kartu angka tingginya disamakan, jadi kartu yang
-       tidak punya pembanding berlubang di dalam. */
-    const kotak = lapKotak, tabel = lapTabel;
-
-    w.innerHTML = `
-      <div class="kartu tanpa-cetak"><div class="bar-alat"><strong>Unduh laporan ini</strong>
-        <div style="flex:1"></div>
-        ${Admin.tombolEkspor('penjualan', { dari: LAP.dari, sampai: LAP.sampai })}
-      </div></div>
-
+  const tabel = lapTabel;
+  const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
+  w.innerHTML = `
       <div class="kartu">
         <h3>${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}</h3>
         <p class="petunjuk" style="margin-top:-4px">Dibanding ${
           esc(tglTampil(d.rentang_lalu.dari))} – ${esc(tglTampil(d.rentang_lalu.sampai))}</p>
       </div>
 
-      <div class="petak" data-cetak="Angka ringkas">
-        ${kotak('Jumlah nota', r.jumlah_nota, selisihLaporan(r.jumlah_nota, l.jumlah_nota))}
-        ${kotak('Omzet kotor', rp(r.total), selisihLaporan(r.total, l.total))}
-        ${kotak('Retur', '−' + rp(r.retur_nilai),
-                r.jumlah_retur ? r.jumlah_retur + ' dokumen' : 'tidak ada')}
-        ${kotak('Penjualan bersih', rp(r.penjualan_bersih))}
-        ${r.laba_kotor !== undefined
-          ? kotak('Laba kotor', rp(r.laba_kotor), selisihLaporan(r.laba_kotor, l.laba_kotor)) : ''}
-        ${kotak('Diskon', rp(r.diskon))}
-        ${kotak('Nota batal', r.jumlah_batal, r.jumlah_batal ? rp(r.nilai_batal) : '')}
-        ${kotak('Piutang lahir', rp(pi.total),
-                pi.sisa ? `<span class="delta turun">${rp(pi.sisa)} belum lunas</span>` : 'lunas semua')}
-      </div>
+      ${petakAngka(angkaRingkasLaporan(d))}
 
-      <div class="kartu" data-cetak="Tren harian"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
+      <div class="kartu" data-bagian="Tren harian"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
 
-      ${tabel('Per hari', [
-        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
-        { judul: 'Nota', angka: true, render: x => x.nota },
-        { judul: 'Omzet', angka: true, render: x => rp(x.total) }
-      ], d.per_hari || [], 'Tidak ada penjualan di rentang ini.')}
+      ${tabel('Per hari', KOLOM_LAP.perHari(), d.per_hari || [], 'Tidak ada penjualan di rentang ini.')}
+      ${tabel('Per kasir', KOLOM_LAP.perKasir(), d.per_kasir || [], 'Tidak ada penjualan di rentang ini.')}
+      ${tabel('Per metode bayar', KOLOM_LAP.perMetode(), d.per_metode || [], 'Belum ada pembayaran.')}
+      ${tabel('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.')}
+      ${tabel('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
+      ${tabel('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.')}
+      ${tabel('Nota dibatalkan', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang dibatalkan.')}
+      ${tabel('Piutang yang lahir di periode ini', KOLOM_LAP.piutang(), pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.')}`;
 
-      ${tabel('Per kasir', [
-        { judul: 'Kasir', render: x => kasirTampil(x) },
-        { judul: 'Nota', angka: true, render: x => x.nota },
-        { judul: 'Omzet', angka: true, render: x => rp(x.total) }
-      ], d.per_kasir || [], 'Tidak ada penjualan di rentang ini.')}
-
-      ${tabel('Per metode bayar', [
-        { judul: 'Metode', render: x => esc(String(x.metode).toUpperCase()) },
-        { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
-        { judul: 'Biaya MDR', angka: true, render: x => rp(x.mdr) },
-        { judul: 'Netto', angka: true, render: x => rp(x.jumlah - x.mdr) }
-      ], d.per_metode || [], 'Belum ada pembayaran.')}
-
-      ${tabel('Per cabang', [
-        { judul: 'Cabang', render: x => esc(x.cabang) },
-        { judul: 'Nota', angka: true, render: x => x.nota },
-        { judul: 'Omzet', angka: true, render: x => rp(x.total) },
-        ...(d.per_cabang[0]?.laba_kotor !== undefined
-          ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor) }] : [])
-      ], d.per_cabang || [], 'Tidak ada data.')}
-
-      ${tabel('Produk terlaris', [
-        { judul: 'SKU', render: x => esc(x.sku) },
-        { judul: 'Nama', render: x => esc(x.nama) },
-        { judul: 'Qty', angka: true, render: x => x.qty },
-        { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
-        ...(d.produk_teratas[0]?.margin_persen !== undefined
-          ? [{ judul: 'Margin', angka: true, render: x => x.margin_persen + '%' }] : [])
-      ], (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
-
-      ${tabel('Retur', [
-        { judul: 'Dokumen', render: x => esc(x.no_dokumen) },
-        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
-        { judul: 'Nota asal', render: x => esc(x.no_nota_asal) },
-        { judul: 'Jenis', render: x => esc(x.jenis) },
-        { judul: 'Nilai', angka: true, render: x => rp(x.nilai_retur) },
-        { judul: 'Alasan', render: x => esc(x.alasan) }
-      ], d.retur || [], 'Tidak ada retur di rentang ini.')}
-
-      ${tabel('Nota dibatalkan', [
-        { judul: 'No Nota', render: x => esc(x.no_nota) },
-        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
-        { judul: 'Jam', render: x => esc(x.jam) },
-        { judul: 'Kasir', render: x => kasirTampil(x) },
-        { judul: 'Nilai', angka: true, render: x => rp(x.total) },
-        { judul: 'Alasan', render: x => esc(x.alasan_batal) }
-      ], d.batal || [], 'Tidak ada nota yang dibatalkan.')}
-
-      ${tabel('Piutang yang lahir di periode ini', [
-        { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan) },
-        { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
-        { judul: 'Jatuh tempo', render: x => esc(x.jatuh_tempo ? tglTampil(x.jatuh_tempo) : '—') },
-        { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
-        { judul: 'Sisa', angka: true, render: x => rp(x.sisa) },
-        { judul: 'Status', render: x => esc(x.status) }
-      ], pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.')}`;
-
-    /* Grafik digambar SESUDAH innerHTML, bukan disisipkan sebagai teks: wadahnya
-       baru ada setelah rangkanya terpasang. */
-    const hari = d.per_hari || [];
-    if (hari.length) {
-      Grafik.garis($('#wadahLapTren'), {
-        tanggal: hari.map(x => x.tanggal),
-        seri: [{ nama: 'Omzet', data: hari.map(x => x.total) }]
-      });
-    } else {
-      $('#wadahLapTren').innerHTML = '<p class="grafik-kosong">Belum ada penjualan pada rentang ini</p>';
-    }
+  /* Grafik digambar SESUDAH innerHTML, bukan disisipkan sebagai teks: wadahnya
+     baru ada setelah rangkanya terpasang. */
+  const hari = d.per_hari || [];
+  if (hari.length) {
+    Grafik.garis($('#wadahLapTren'), {
+      tanggal: hari.map(x => x.tanggal),
+      seri: [{ nama: 'Omzet', data: hari.map(x => x.total) }]
+    });
+  } else {
+    $('#wadahLapTren').innerHTML = '<p class="grafik-kosong">Belum ada penjualan pada rentang ini</p>';
   }
 }
 
@@ -3465,20 +3731,14 @@ function gambarLapRingkas(w, d) {
  * sudah ada adalah menunggu yang tidak perlu ada.
  */
 function gambarLapNota(w, d) {
-  const r = d.ringkas || {};
   w.innerHTML = `
-    <div class="petak petak-4" data-cetak="Angka riwayat">
-      ${lapKotak('Nota', r.nota || 0, d.terpotong ? 'daftar dipotong' : '')}
-      ${lapKotak('Barang keluar', r.item || 0)}
-      ${lapKotak('Omzet', rp(r.total || 0), r.diskon ? 'diskon ' + rp(r.diskon) : '')}
-      ${lapKotak('Nota batal', r.batal || 0, r.batal ? rp(r.nilai_batal) : 'tidak ada')}
-    </div>
+    ${petakAngka(angkaNotaLaporan(d), 'petak-4')}
     ${d.terpotong ? `<div class="pesan peringatan">Daftarnya dipotong pada
        ${d.batas} baris dari ${d.jumlah_cocok} nota yang cocok. Persempit
        rentang tanggalnya untuk melihat sisanya.</div>` : ''}
     <div class="kartu tanpa-cetak">
       <div class="bar-alat">
-        <input type="text" id="lapNotaCari" placeholder="Cari no nota / kasir / pelanggan…"
+        <input type="text" class="input-cari" id="lapNotaCari" placeholder="Cari no nota / kasir / pelanggan…"
                style="max-width:280px">
         <select id="lapNotaShift" style="max-width:230px"></select>
         <select id="lapNotaKasir" style="max-width:200px"></select>
@@ -3513,21 +3773,8 @@ function gambarLapNotaTabel(d) {
     (!sh || n.id_shift === sh) && (!ks || n.id_user === ks) &&
     (!q || (n.no_nota + ' ' + n.nama_kasir + ' ' + n.kode_pelanggan).toLowerCase().includes(q)));
 
-  const adaLaba = (d.nota || []).some(n => n.laba_kotor !== undefined);
-  $('#lapNotaTabel').innerHTML = lapTabel('Riwayat transaksi', [
-    { judul: 'No nota', render: x => esc(x.no_nota) },
-    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
-    { judul: 'Jam', render: x => esc(x.jam) },
-    { judul: 'Cabang', render: x => esc(x.cabang) },
-    { judul: 'Kasir', render: x => esc(x.nama_kasir) },
-    { judul: 'Shift', render: x => esc(x.id_shift || '—') },
-    { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan || 'umum') },
-    { judul: 'Item', angka: true, render: x => x.baris_item + ' / ' + x.qty_item },
-    { judul: 'Diskon', angka: true, render: x => rp(x.diskon) },
-    { judul: 'Total', angka: true, render: x => rp(x.total) },
-    ...(adaLaba ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor || 0) }] : []),
-    { judul: 'Bayar', render: x => esc((x.metode || x.tipe_bayar || '—').toUpperCase()) }
-  ], baris, 'Tidak ada nota pada rentang ini.');
+  $('#lapNotaTabel').innerHTML = lapTabel('Riwayat transaksi', KOLOM_LAP.nota(d), baris,
+                                          'Tidak ada nota pada rentang ini.');
 
   const h = $('#lapNotaHitung');
   if (h) {
@@ -3535,91 +3782,31 @@ function gambarLapNotaTabel(d) {
       ? `${baris.length} nota`
       : `${baris.length} dari ${(d.nota || []).length} nota`;
   }
-  pasangPilihCetak();
 }
 
 /* ---------- Tab: per shift ---------- */
 
 function gambarLapShift(w, d) {
-  const rows = d.shift || [];
-  const jml = (f) => rows.reduce((a, b) => a + (Number(b[f]) || 0), 0);
-  const selisihAda = rows.filter(x => Math.abs(Number(x.selisih) || 0) > 0.5);
   w.innerHTML = `
-    <div class="petak petak-4" data-cetak="Angka shift">
-      ${lapKotak('Shift', rows.length,
-                 rows.filter(x => x.status === 'BUKA').length + ' masih buka')}
-      ${lapKotak('Nota', jml('jumlah_nota'))}
-      ${lapKotak('Penjualan', rp(jml('total_penjualan')))}
-      ${lapKotak('Selisih kas', rp(jml('selisih')),
-                 selisihAda.length ? selisihAda.length + ' shift tidak pas' : 'semua pas')}
-    </div>
-    ${lapTabel('Per shift', [
-      { judul: 'Shift', render: x => esc(x.id_shift) },
-      { judul: 'Cabang', render: x => esc(x.cabang || '—') },
-      { judul: 'Petugas', render: x => esc(x.nama) },
-      /* Lewat `waktuTampil`, bukan dipotong sendiri: `substring(0,16)` di sini
-         menampilkan `2026-08-24 20:10` — ISO mentah, satu-satunya bentuk
-         tanggal yang berbeda dari seluruh aplikasi. */
-      { judul: 'Buka', render: x => esc(waktuTampil(x.buka)) },
-      { judul: 'Tutup', render: x => esc(x.tutup ? waktuTampil(x.tutup) : '—') },
-      { judul: 'Nota', angka: true, render: x => x.jumlah_nota },
-      { judul: 'Penjualan', angka: true, render: x => rp(x.total_penjualan) },
-      { judul: 'Kas awal', angka: true, render: x => rp(x.kas_awal) },
-      { judul: 'Kas sistem', angka: true, render: x => rp(x.kas_sistem) },
-      { judul: 'Kas fisik', angka: true, render: x => rp(x.kas_fisik) },
-      /* Selisih diberi warna karena inilah satu-satunya kolom yang dicari orang
-         saat membuka tabel ini. Nol tidak diwarnai — warna yang selalu menyala
-         berhenti berarti apa-apa. */
-      { judul: 'Selisih', angka: true, render: x => {
-          const v = Number(x.selisih) || 0;
-          if (Math.abs(v) < 0.5) return rp(0);
-          return `<span class="${v < 0 ? 'bahaya' : 'peringatan'}">${rp(v)}</span>`;
-        } },
-      { judul: 'Status', render: x => x.status === 'BUKA'
-          ? '<span class="lencana kuning">BUKA</span>' : esc(x.status) }
-    ], rows, 'Tidak ada shift pada rentang ini.')}`;
+    ${petakAngka(angkaShiftLaporan(d), 'petak-4')}
+    ${lapTabel('Per shift', KOLOM_LAP.shift(), d.shift || [], 'Tidak ada shift pada rentang ini.')}`;
 }
 
 /* ---------- Tab: per petugas ---------- */
 
+/** Kalimat bobot peran, mis. "PENJUAL 60% · PEMASANG 40%". */
+const kalimatBobot = (bobot) => Object.keys(bobot || {}).length
+  ? Object.keys(bobot).map(k => esc(k) + ' ' + bobot[k] + '%').join(' · ') : 'Belum diatur.';
+
 function gambarLapPetugas(w, d) {
-  const rk = d.ringkas || {};
-  const petugas = d.petugas || [];
-  const bobot = d.bobot || {};
   w.innerHTML = `
-    <div class="petak petak-4" data-cetak="Angka petugas">
-      ${lapKotak('Petugas', rk.petugas || petugas.length)}
-      ${lapKotak('Klaim', rk.klaim || 0, (rk.nota || 0) + ' nota diklaim')}
-      ${lapKotak('Poin', rk.poin || 0)}
-      ${lapKotak('Omzet diklaim', rp(rk.omzet || 0),
-                 rk.laba !== undefined ? 'laba ' + rp(rk.laba) : '')}
-    </div>
-    <div class="kartu" data-cetak="Bobot peran">
+    ${petakAngka(angkaPetugasLaporan(d), 'petak-4')}
+    <div class="kartu" data-bagian="Bobot peran">
       <h3>Bobot peran</h3>
-      <p class="petunjuk">${Object.keys(bobot).length
-        ? Object.keys(bobot).map(k => esc(k) + ' ' + bobot[k] + '%').join(' · ')
-        : 'Belum diatur.'}</p>
+      <p class="petunjuk">${kalimatBobot(d.bobot)}</p>
     </div>
-    ${lapTabel('Per petugas', [
-      { judul: 'Kode', render: x => esc(x.kode) },
-      { judul: 'Nama', render: x => esc(x.nama) },
-      { judul: 'Peran', render: x => esc((x.per_peran || [])
-          .map(p => p.peran + ' ' + p.poin).join(' · ') || '—') },
-      { judul: 'Klaim', angka: true, render: x => x.klaim },
-      { judul: 'Nota', angka: true, render: x => x.nota },
-      { judul: 'Poin', angka: true, render: x => x.poin },
-      { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
-      ...(petugas.some(x => x.laba !== undefined)
-        ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba || 0) }] : [])
-    ], petugas, 'Belum ada klaim petugas pada rentang ini.')}
-    ${lapTabel('Per cabang', [
-      { judul: 'Cabang', render: x => esc(x.cabang) },
-      { judul: 'Nota', angka: true, render: x => x.nota },
-      { judul: 'Omzet', angka: true, render: x => rp(x.omzet) },
-      { judul: 'Omzet diklaim', angka: true, render: x => rp(x.omzet_klaim) },
-      { judul: 'Poin', angka: true, render: x => x.poin },
-      { judul: 'Petugas', angka: true, render: x => x.petugas }
-    ], d.per_cabang || [], 'Tidak ada data.')}`;
+    ${lapTabel('Per petugas', KOLOM_LAP.petugas(d), d.petugas || [], 'Belum ada klaim petugas pada rentang ini.')}
+    ${lapTabel('Per cabang', KOLOM_LAP.petugasCabang(), d.per_cabang || [], 'Tidak ada data.')}`;
 }
 
 /* ---------- Tab: void ---------- */
@@ -3633,75 +3820,145 @@ function gambarLapPetugas(w, d) {
  */
 function gambarLapVoid(w, d) {
   const rows = d.nota || [];
-  const nilai = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
-  const perOrang = {};
-  rows.forEach(n => {
-    const k = n.dibatalkan_oleh || '(tidak tercatat)';
-    perOrang[k] = (perOrang[k] || 0) + 1;
-  });
   w.innerHTML = `
-    <div class="petak petak-4" data-cetak="Angka void">
-      ${lapKotak('Nota dibatalkan', rows.length)}
-      ${lapKotak('Nilai', rp(nilai))}
-      ${lapKotak('Barang kembali', rows.reduce((a, b) => a + (b.item || []).length, 0), 'baris nota')}
-      ${lapKotak('Pembatal', Object.keys(perOrang).length,
-                 Object.keys(perOrang).slice(0, 2).map(k => esc(k) + ' ' + perOrang[k] + 'x').join(' · '))}
-    </div>
-    ${lapTabel('Riwayat void', [
-      { judul: 'No nota', render: x => esc(x.no_nota) },
-      { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
-      { judul: 'Jam', render: x => esc(x.jam) },
-      { judul: 'Cabang', render: x => esc(x.cabang) },
-      { judul: 'Kasir', render: x => esc(x.nama_kasir) },
-      { judul: 'Shift', render: x => esc(x.id_shift || '—') },
-      { judul: 'Nilai', angka: true, render: x => rp(x.total) },
-      { judul: 'Dibatalkan oleh', render: x => esc(x.dibatalkan_oleh || '—') },
-      /* Server mengirim `yyyy-MM-dd HH:mm:ss`; yang tampil harus DD/MM/YYYY
-         seperti seluruh aplikasi. */
-      { judul: 'Waktu batal', render: x => esc(x.dibatalkan_pada ? waktuTampil(x.dibatalkan_pada) : '—') },
-      { judul: 'Alasan', render: x => esc(x.alasan_batal || '—') }
-    ], rows, 'Tidak ada nota yang dibatalkan pada rentang ini.')}
-    ${lapTabel('Barang pada nota yang dibatalkan', [
-      { judul: 'No nota', render: x => esc(x.no_nota) },
-      { judul: 'SKU', render: x => esc(x.sku) },
-      { judul: 'Nama', render: x => esc(x.nama) },
-      { judul: 'Qty', angka: true, render: x => x.qty + ' ' + esc(x.satuan || '') },
-      { judul: 'Harga', angka: true, render: x => rp(x.harga) },
-      { judul: 'Subtotal', angka: true, render: x => rp(x.subtotal) }
-    ], rows.flatMap(n => (n.item || []).map(i => ({ ...i, no_nota: n.no_nota }))),
-       'Tidak ada rincian barang.')}`;
+    ${petakAngka(angkaVoidLaporan(d), 'petak-4')}
+    ${lapTabel('Riwayat void', KOLOM_LAP.void(), rows, 'Tidak ada nota yang dibatalkan pada rentang ini.')}
+    ${lapTabel('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(rows),
+               'Tidak ada rincian barang.')}`;
 }
 
-/* ---------- Penyaring cetak ----------
+/* ==================== CETAK LAPORAN: DOKUMEN A4 ====================
  *
- * Laporan sebulan bisa sepuluh halaman sementara yang dibutuhkan dua tabel.
- * Daftarnya dibangun DARI HALAMAN — tiap blok ber-`data-cetak` jadi satu
- * centang, judulnya jadi labelnya. Tidak ada daftar kedua yang harus diingat
- * setiap kali ada tabel baru; tabel yang lupa didaftarkan tidak bisa terjadi.
+ * Sampai v1.155 tombol Cetak memanggil pencetakan peramban atas halaman aplikasi
+ * itu sendiri, dengan `@media print` yang menyembunyikan sidebar dan bar alat.
+ * Pemilik melaporkannya (10 Sep 2026): "hasil cetak makin tidak jelas, tidak
+ * lengkap". Sebabnya bukan satu: yang tercetak hanya tab yang sedang terbuka;
+ * tabel lebar dipotong oleh wadah gulir; kartu angka mewarisi tata letak
+ * layar yang tidak pernah dirancang untuk kertas; dan setiap perubahan CSS
+ * layar diam-diam mengubah hasil cetaknya.
  *
- * Pilihannya diingat per nama blok, jadi berpindah tab tidak menyalakan lagi
- * tabel yang barusan dimatikan.
+ * Sekarang cetak MENYUSUN DOKUMENNYA SENDIRI — jendela A4 lewat jalur yang
+ * sama dengan dokumen Transfer (`Struk.cetakDokumen`): kop usaha, periode,
+ * cabang, siapa yang mencetak dan kapan, lalu kelima bagian laporan berurutan
+ * dalam tabel bergaris. Tab yang belum pernah dibuka ditarik dulu, sekali,
+ * lalu masuk simpanan yang sama dengan tab di layar. Kolomnya `KOLOM_LAP`,
+ * satu daftar dengan yang di layar; angkanya `angka*Laporan`, juga satu.
+ *
+ * Bagian mana yang ikut dipilih di dialog sebelum mencetak — pengganti bar
+ * centang "Yang ikut dicetak" yang dulu. Pilihannya diingat selama layar hidup.
  */
-const CETAK_MATI = new Set();
+const CETAK_LAP_PILIH = new Set(LAP_BAGIAN.map(b => b.id));
 
-function pasangPilihCetak() {
-  const blok = $$('#hasilLaporan [data-cetak]');
-  const bar = $('#pilihCetak');
-  const kartu = $('#kartuPilihCetak');
-  if (!bar || !kartu) return;
-  kartu.classList.toggle('sembunyi', blok.length === 0);
-  bar.innerHTML = blok.map(b => {
-    const nama = b.dataset.cetak;
-    return `<label class="cip-cetak"><input type="checkbox" data-cetak-pilih="${esc(nama)}"
-      ${CETAK_MATI.has(nama) ? '' : 'checked'}> ${esc(nama)}</label>`;
-  }).join('');
-  terapkanPilihCetak();
+/** Tabel dokumen cetak: kolom yang sama dengan `lapTabel`, gaya `table.isi`. */
+function tabelCetakLaporan(judul, kolom, baris, kosong) {
+  const kepala = kolom.map(k => `<th class="${k.angka ? 'n' : ''}">${esc(k.judul)}</th>`).join('');
+  const badan = baris.length
+    ? baris.map(b => `<tr>${kolom.map(k => `<td class="${k.angka ? 'n' : ''}">${k.render(b)}</td>`).join('')}</tr>`).join('')
+    : `<tr><td colspan="${kolom.length}" class="kosong">${esc(kosong)}</td></tr>`;
+  return `<h3>${esc(judul)}</h3>
+    <table class="isi ${kolom.length > 7 ? 'rapat' : ''}"><thead><tr>${kepala}</tr></thead><tbody>${badan}</tbody></table>`;
 }
 
-function terapkanPilihCetak() {
-  $$('#hasilLaporan [data-cetak]').forEach(b => {
-    b.classList.toggle('tanpa-cetak', CETAK_MATI.has(b.dataset.cetak));
-  });
+/** Deret kotak angka di kertas. */
+const kotakCetakLaporan = (daftar) => `<div class="kpi">${daftar.map(a =>
+  `<div><span class="k">${esc(a.label)}</span><b>${a.nilai}</b>${a.ekor ? `<span class="e">${a.ekor}</span>` : ''}</div>`).join('')}</div>`;
+
+/* Penyusun tiap bagian: (data) -> html. */
+const CETAK_LAP_BAGIAN = {
+  ringkas: (d) => {
+    const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
+    return kotakCetakLaporan(angkaRingkasLaporan(d)) +
+      `<p class="sub">Dibanding periode sebelumnya ${esc(tglTampil(d.rentang_lalu.dari))} – ${esc(tglTampil(d.rentang_lalu.sampai))}</p>` +
+      tabelCetakLaporan('Per hari', KOLOM_LAP.perHari(), d.per_hari || [], 'Tidak ada penjualan di rentang ini.') +
+      tabelCetakLaporan('Per kasir', KOLOM_LAP.perKasir(), d.per_kasir || [], 'Tidak ada penjualan di rentang ini.') +
+      tabelCetakLaporan('Per metode bayar', KOLOM_LAP.perMetode(), d.per_metode || [], 'Belum ada pembayaran.') +
+      tabelCetakLaporan('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.') +
+      tabelCetakLaporan('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 50), 'Belum ada penjualan.') +
+      tabelCetakLaporan('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.') +
+      tabelCetakLaporan('Nota dibatalkan', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang dibatalkan.') +
+      tabelCetakLaporan('Piutang yang lahir di periode ini', KOLOM_LAP.piutang(), pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.');
+  },
+  nota: (d) => kotakCetakLaporan(angkaNotaLaporan(d)) +
+    (d.terpotong ? `<p class="sub">Daftar dipotong pada ${d.batas} baris dari ${d.jumlah_cocok} nota yang cocok.</p>` : '') +
+    tabelCetakLaporan('Riwayat transaksi', KOLOM_LAP.nota(d), d.nota || [], 'Tidak ada nota pada rentang ini.'),
+  shift: (d) => kotakCetakLaporan(angkaShiftLaporan(d)) +
+    tabelCetakLaporan('Per shift', KOLOM_LAP.shift(), d.shift || [], 'Tidak ada shift pada rentang ini.'),
+  petugas: (d) => kotakCetakLaporan(angkaPetugasLaporan(d)) +
+    `<p class="sub">Bobot peran: ${kalimatBobot(d.bobot)}</p>` +
+    tabelCetakLaporan('Per petugas', KOLOM_LAP.petugas(d), d.petugas || [], 'Belum ada klaim petugas pada rentang ini.') +
+    tabelCetakLaporan('Per cabang', KOLOM_LAP.petugasCabang(), d.per_cabang || [], 'Tidak ada data.'),
+  void: (d) => kotakCetakLaporan(angkaVoidLaporan(d)) +
+    tabelCetakLaporan('Riwayat void', KOLOM_LAP.void(), d.nota || [], 'Tidak ada nota yang dibatalkan pada rentang ini.') +
+    tabelCetakLaporan('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(d.nota || []), 'Tidak ada rincian barang.')
+};
+
+/**
+ * Dokumen lengkap. `bagian` = daftar id yang ikut, urutannya mengikuti
+ * LAP_BAGIAN, bukan urutan centang. Setiap nilai sudah diloloskan `esc()` di
+ * penyusun kolomnya; yang menerima (`Struk.cetakDokumen`) memasangnya apa
+ * adanya.
+ */
+function dokumenLaporan(bagian, kini) {
+  const s = APP_STATE.setting || {};
+  const t = kini ? new Date(kini) : new Date();
+  const info = (k, v) => `<tr><td class="k">${esc(k)}</td><td>${v}</td></tr>`;
+  const kop = `<h1>${esc(String(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase())}</h1>` +
+    (s.alamat_usaha ? `<p class="sub">${esc(s.alamat_usaha)}</p>` : '') +
+    `<h2 class="judul-dok">Laporan Penjualan</h2>
+    <table class="info">
+      ${info('Periode', esc(tglTampil(LAP.dari)) + ' – ' + esc(tglTampil(LAP.sampai)))}
+      ${info('Cabang', esc(labelCabangLaporan()))}
+      ${info('Dicetak', esc(tglTampil(tanggalLokal(t))) + ' ' + esc(String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0')) +
+              ' oleh ' + esc(APP_STATE.user?.nama || '—'))}
+    </table>`;
+  const isi = LAP_BAGIAN.filter(b => bagian.includes(b.id)).map(b =>
+    `<section class="bagian"><h2>${esc(b.judul)}</h2>${CETAK_LAP_BAGIAN[b.id](LAP.data[b.id])}</section>`).join('');
+  const kaki = `<div class="kaki">POS ${esc(String(s.nama_usaha || 'Sindikat Kartu'))} · v${esc(CONFIG.VERSI)} · ${esc(tglTampil(LAP.dari))} – ${esc(tglTampil(LAP.sampai))}</div>`;
+  return kop + isi + kaki;
+}
+
+/** Dialog pilih bagian, lalu cetak. Dipanggil tombol Cetak di bar alat. */
+function bukaDialogCetakLaporan() {
+  if (!LAP.dari || !LAP.sampai) return Admin.toast('Pilih periode dulu sebelum mencetak.', 'galat');
+  Admin.modal('Cetak laporan', `
+    <p class="petunjuk">Dokumen A4 berisi bagian yang dicentang, untuk periode
+      <strong>${esc(tglTampil(LAP.dari))} – ${esc(tglTampil(LAP.sampai))}</strong>
+      (${esc(labelCabangLaporan())}). Bagian yang belum pernah dibuka ditarik dulu dari server.</p>
+    <div class="pilih-bagian-cetak">
+      ${LAP_BAGIAN.map(b => `<label class="cek"><input type="checkbox" data-cetak-bagian="${b.id}"
+        ${CETAK_LAP_PILIH.has(b.id) ? 'checked' : ''}> ${esc(b.judul)}</label>`).join('')}
+    </div>`,
+    `<button class="tombol" data-tutup="1">Batal</button>
+     <button class="tombol utama" id="btnCetakLaporanJalan">Cetak</button>`);
+}
+
+/**
+ * Jalankan cetak. Jendelanya dibuka SEBELUM await pertama — izin pop-up
+ * peramban terikat pada klik, dan klik itu sudah kedaluwarsa begitu kita
+ * menunggu server. Isinya diisi belakangan; kalau tarikan gagal, jendelanya
+ * ditutup lagi supaya tidak ada tab kosong yang tertinggal.
+ */
+async function jalankanCetakLaporan() {
+  const pilih = $$('[data-cetak-bagian]').filter(c => c.checked).map(c => c.dataset.cetakBagian);
+  if (!pilih.length) return Admin.toast('Centang minimal satu bagian.', 'galat');
+  CETAK_LAP_PILIH.clear();
+  pilih.forEach(id => CETAK_LAP_PILIH.add(id));
+  let jendela;
+  try {
+    jendela = Struk.bukaJendelaDokumen('Laporan Penjualan');
+  } catch (e) {
+    return Admin.toast(e.message, 'galat');
+  }
+  Admin.tutupModal();
+  try {
+    await API.tugas(async () => {
+      for (const id of pilih) await tarikTabLaporan(id);
+    });
+  } catch (e) {
+    try { jendela.close(); } catch (_) { /* jendela sudah ditutup orangnya */ }
+    return Admin.toast('Gagal menarik data laporan — ' + e.message, 'galat');
+  }
+  Struk.isiJendelaDokumen(jendela, 'Laporan Penjualan ' + LAP.dari + ' – ' + LAP.sampai, dokumenLaporan(pilih));
 }
 
 /**
@@ -4976,16 +5233,18 @@ function pasangEvent() {
   });
 
   /* --- laporan --- */
-  $('#btnLaporan').addEventListener('click', tampilkanLaporan);
-  $('#lapCepat').addEventListener('click', e => {
-    const j = e.target.dataset?.lapCepat;
-    if (j) rentangCepatLaporan(j);
+  /* Tidak ada tombol Tampilkan (v1.156): dropdown periode, kedua kolom tanggal
+     kustom, dan penyaring cabang masing-masing memuat sendiri. */
+  $('#lapPeriode').addEventListener('change', e => terapkanPeriodeLaporan(e.target.value));
+  ['#lapDari', '#lapSampai'].forEach(id => $(id).addEventListener('change', () => {
+    if ($('#lapPeriode').value === 'kustom') tampilkanLaporan();
+  }));
+  /* Cetak: dialog pilih bagian, lalu dokumen A4 di jendela sendiri — bukan
+     pencetakan peramban atas halaman aplikasi. Lihat "CETAK LAPORAN: DOKUMEN A4". */
+  $('#btnCetakLaporan').addEventListener('click', bukaDialogCetakLaporan);
+  document.addEventListener('click', e => {
+    if (e.target.closest('#btnCetakLaporanJalan')) jalankanCetakLaporan();
   });
-  /* Mencetak lewat peramban, bukan membuat PDF sendiri: yang keluar persis apa
-     yang dilihat di layar, dan aturan @media print di app.css yang memutuskan
-     bagian mana yang ikut. Membuat PDF sendiri berarti tata letak kedua yang
-     harus dijaga agar tidak berbeda dari yang pertama. */
-  $('#btnCetakLaporan').addEventListener('click', () => window.print());
 
   /* Tab laporan. Datanya ditarik di `gambarTabLaporan`, sekali per tab per
      rentang — lihat komentar di sana. */
@@ -4994,25 +5253,13 @@ function pasangEvent() {
     if (t) gambarTabLaporan(t.dataset.tabLap);
   });
 
-  /* Penyaring cetak + penyaring di dalam tab riwayat. Keduanya delegasi di sini
-     karena isinya digambar ulang terus-menerus. */
+  /* Penyaring di dalam tab riwayat: delegasi, karena isinya digambar ulang
+     terus-menerus. */
   document.addEventListener('input', e => {
-    if (e.target.dataset && e.target.dataset.cetakPilih !== undefined) {
-      const nama = e.target.dataset.cetakPilih;
-      if (e.target.checked) CETAK_MATI.delete(nama); else CETAK_MATI.add(nama);
-      return terapkanPilihCetak();
-    }
     if (['lapNotaCari', 'lapNotaShift', 'lapNotaKasir'].includes(e.target.id)) {
       const d = LAP.data[LAP.tab];
       if (d) gambarLapNotaTabel(d);
     }
-  });
-  $('#btnCetakSemua').addEventListener('click', () => {
-    CETAK_MATI.clear(); pasangPilihCetak();
-  });
-  $('#btnCetakTakSatu').addEventListener('click', () => {
-    $$('#hasilLaporan [data-cetak]').forEach(b => CETAK_MATI.add(b.dataset.cetak));
-    pasangPilihCetak();
   });
   $('#btnLabaRugi').addEventListener('click', tampilkanLabaRugi);
   $('#btnNeraca').addEventListener('click', tampilkanNeraca);

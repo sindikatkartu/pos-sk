@@ -1132,7 +1132,11 @@ const Admin = (() => {
     { id: 'tak_laku', label: 'Tidak laku', butuhTerjual: true,
       lolos: r => !(terjualProduk.qty[r.sku] > 0) },
     { id: 'berpoin', label: 'Berpoin', lolos: r => Number(r.poin_satuan) > 0 },
-    { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) }
+    { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) },
+    /* SKU yang dibatasi ke cabang tertentu (v1.156). Yang '*' — dijual di
+       semua cabang — sengaja tidak punya saringannya sendiri: itu hampir
+       seluruh katalog, dan "semua kecuali sedikit" bukan daftar yang dicari. */
+    { id: 'khusus_cabang', label: 'Khusus cabang', lolos: r => produkDibatasi(r) }
     /* Pilihan "Nonaktif" dibuang: produk nonaktif sekarang punya tempatnya
        sendiri di bawah daftar. Dua jalan menuju hal yang sama hanya membuat
        orang bertanya-tanya apakah keduanya menunjukkan isi yang berbeda. */
@@ -1563,10 +1567,22 @@ const Admin = (() => {
     });
   }
 
+  /** true bila SKU ini hanya dijual di cabang tertentu (kolom `cabang` bukan '*'). */
+  function produkDibatasi(r) {
+    const c = String(r?.cabang || '').trim();
+    return !!c && c !== '*';
+  }
+
+  /** Lencana "hanya SK01" di sebelah nama; kosong untuk SKU semua cabang. */
+  function lencanaCabangProduk(r) {
+    if (!produkDibatasi(r)) return '';
+    return ` <span class="lencana polos" title="Hanya dijual di cabang ${esc(r.cabang)}">hanya ${esc(r.cabang)}</span>`;
+  }
+
   function tabelProduk(baris, modal, saring, kolomAktif) {
     return tabel([
           { judul: 'SKU', kunci: 'sku' },
-          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
+          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}${lencanaCabangProduk(r)}
             <div class="meta-kecil">${esc([r.kategori, r.merek, r.tipe_hp].filter(Boolean).join(' · '))}</div>` },
           ...(modal ? [{ judul: 'Modal', angka: true, render: r => rp(r.harga_beli_terakhir) }] : []),
           { judul: 'Eceran', angka: true, render: r => rp(r.harga_eceran) },
@@ -1978,6 +1994,7 @@ const Admin = (() => {
           <div class="grup"><label>Harga grosir</label><input type="text" inputmode="numeric" class="uang" id="pGrosir" value="${ribuan(p?.harga_grosir || 0)}"></div>
         </div>
         <label class="cek"><input type="checkbox" id="pAktif" ${p?.aktif !== false ? 'checked' : ''}> Produk aktif</label>
+        ${blokCabangProduk(p?.cabang)}
         ${baru ? '' : '<p class="petunjuk">Harga beli tidak bisa diubah dari sini — ia dihitung ulang otomatis setiap ada pembelian, supaya HPP dan laba tetap sahih.</p>'}
       </div>
 
@@ -2378,6 +2395,56 @@ const Admin = (() => {
    */
   const KOLOM_OTOMATIS = ['aktif', 'level_harga'];
 
+  /* ---------- Cabang tempat SKU boleh dijual (v1.156) ----------
+   *
+   * Diminta pemilik 10 Sep 2026: ada barang yang hanya dijual di salah satu
+   * cabang, dan akan ada cabang grosir dengan katalog sendiri. Nilainya satu
+   * kolom teks di master: '*' (bawaan, semua cabang) atau 'SK01,SK03'.
+   *
+   * Daftar cabangnya dari `daftarCabangSemua` (store lokal `cabang_list`),
+   * jatuh ke daftar dari jawaban login bila store itu belum terisi — alasan
+   * yang sama dengan penyaring cabang di layar Laporan. Kode yang tersimpan
+   * di produk tapi tidak ada di daftar TETAP digambar (tercentang): kalau
+   * dibuang diam-diam, menekan Simpan akan mencabut cabang itu tanpa jejak.
+   */
+  function daftarKodeCabang() {
+    const sumber = (APP_STATE.daftarCabangSemua && APP_STATE.daftarCabangSemua.length)
+      ? APP_STATE.daftarCabangSemua : (APP_STATE.daftarCabang || []);
+    return sumber.slice().sort(urutNama);
+  }
+
+  function blokCabangProduk(nilai) {
+    const c = String(nilai || '*').trim() || '*';
+    const semua = c === '*';
+    const dipilih = semua ? [] : c.split(',').map(k => k.trim().toUpperCase()).filter(Boolean);
+    const kode = daftarKodeCabang().map(k => String(k).toUpperCase());
+    dipilih.forEach(k => { if (!kode.includes(k)) kode.push(k); });
+    return `<div class="grup" id="grupCabangProduk" style="margin-top:12px">
+      <label>Dijual di cabang</label>
+      <div class="pilih-cabang-produk">
+        <label class="cek"><input type="checkbox" id="pCabangSemua" ${semua ? 'checked' : ''}> Semua cabang</label>
+        ${kode.map(k => `<label class="cek"><input type="checkbox" class="pCabang" value="${esc(k)}"
+          ${dipilih.includes(k) ? 'checked' : ''} ${semua ? 'disabled' : ''}> ${esc(k)}</label>`).join('')}
+      </div>
+      <p class="petunjuk" style="margin-top:6px">Kasir cabang yang tidak dicentang tidak akan melihat SKU ini,
+        dan server menolak nota yang memuatnya. Stok, transfer, dan pembelian tidak dibatasi.
+        Cabang baru otomatis mendapat semua SKU "Semua cabang".</p>
+    </div>`;
+  }
+
+  /** '*' bila Semua cabang dicentang; daftar kode bila tidak; null bila tidak ada satu pun. */
+  function kumpulCabangProduk() {
+    if (!$('#pCabangSemua')) return undefined;          // formulir tanpa blok ini
+    if ($('#pCabangSemua').checked) return '*';
+    const pilih = $$('.pCabang:checked').map(c => c.value);
+    return pilih.length ? pilih.sort().join(',') : null;
+  }
+
+  function terapkanCabangSemua() {
+    const semua = $('#pCabangSemua')?.checked;
+    $$('.pCabang').forEach(c => { c.disabled = !!semua; });
+  }
+
   async function simpanProduk() {
     const body = {
       sku: nilai('pSku'), barcode: nilai('pBarcode'), nama: nilai('pNama'),
@@ -2393,6 +2460,7 @@ const Admin = (() => {
       // Berbeda dari butuh_tim: ini tidak mewajibkan apa pun, hanya membuat
       // layar bayar BERTANYA siapa pemasangnya.
       butuh_pasang: centang('pButuhPasang'),
+      cabang: kumpulCabangProduk(),
       satuan: kumpulkanAnak('satuan'), tier: kumpulkanAnak('tier'),
       varian: kumpulkanAnak('varian'), kompatibel: kumpulkanAnak('kompatibel'),
       /* Cap waktu salinan yang dibuka layar ini. Server membandingkannya dengan
@@ -2401,6 +2469,12 @@ const Admin = (() => {
       diubah: nilai('pDiubah')
     };
     if (!body.sku || !body.nama) return toast('SKU dan nama wajib diisi.', 'galat');
+    /* null = tidak satu pun cabang dicentang. Server akan menormalkannya jadi
+       '*' — kebalikan dari yang dimaksud — jadi ditolak di sini, dengan kalimat
+       yang menyebut kedua jalan keluarnya. */
+    if (body.cabang === null) {
+      return toast('Pilih minimal satu cabang, atau centang "Semua cabang".', 'galat');
+    }
     const kotakPesan = $('#pesanProduk');
     if (kotakPesan) kotakPesan.innerHTML = '';
     try {
@@ -2468,7 +2542,8 @@ const Admin = (() => {
 
   const KOLOM_IMPOR = {
     produk: 'sku, barcode, nama, kategori, merek, tipe_hp, satuan_dasar, harga_beli_terakhir, ' +
-            'harga_eceran, harga_grosir, stok_min, poin_satuan — wajib: sku, nama, harga_eceran',
+            'harga_eceran, harga_grosir, stok_min, poin_satuan, deskripsi, kata_kunci, ' +
+            'cabang (kosong = semua; "SK01,SK03" = hanya di sana) — wajib: sku, nama, harga_eceran',
     pelanggan: 'nama, telepon, alamat, level_harga, limit_kredit, termin_hari — wajib: nama',
     supplier: 'nama, kontak, telepon, alamat, termin_hari — wajib: nama',
     stok_awal: 'sku, qty, hpp — semuanya wajib'
@@ -6977,6 +7052,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     document.addEventListener('change', async (e) => {
       if (e.target.id === 'grafikHari') { muatGrafik(Number(e.target.value)); return; }
+      if (e.target.id === 'pCabangSemua') { terapkanCabangSemua(); return; }
       /* Periode dashboard menembak ulang API — beda dengan penyaring layar Produk
          yang menggambar ulang dari data di tangan. Di sini memang harus: omzet,
          peringkat, dan pembandingnya semua dihitung server per rentang tanggal,
