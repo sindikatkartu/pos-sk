@@ -44,15 +44,26 @@ const Admin = (() => {
 
      Kolom tanpa judul (lajur tombol Ubah) tidak diberi penanda: tidak ada yang
      bisa diurutkan dari kolom tombol, dan judul kosong yang bisa diklik hanya
-     membuat orang mengira ada yang rusak. */
+     membuat orang mengira ada yang rusak.
+
+     `nilai(r)` (v1.161.0) adalah nilai mentah untuk kolom `render` — kolom Poin
+     menggambar '—' untuk 0 dan Eceran menggambar 'Rp 34.000'; tanpa nilai
+     mentah keduanya diurutkan menurut teks selnya. `opsi.urut` ({judul, arah})
+     menandai judul yang sedang mengurutkan pada tabel yang digambar ulang
+     tiap kali diurutkan (daftar berhalaman) — pada tabel lain penandanya
+     dipasang `urutkanTabel` langsung ke elemennya. */
+  const nilaiUrut = (k, r) => k.kunci ? r[k.kunci] : k.nilai ? k.nilai(r) : undefined;
   const tabelPolos = (kolom, baris, opsi = {}) => `
     <div class="gulir-x${opsi.kelasWadah ? ' ' + opsi.kelasWadah : ''}">
     <table>
       <thead><tr>${kolom.map((k, i) => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}${
-        k.judul ? ' bisa-urut' : ''}"${k.judul ? ` data-urut-kol="${i}"` : ''}>${esc(k.judul)}</th>`).join('')}</tr></thead>
+        k.judul ? ' bisa-urut' : ''}"${k.judul ? ` data-urut-kol="${i}"` : ''}${
+        opsi.urut && k.judul && opsi.urut.judul === k.judul
+          ? ` data-arah="${opsi.urut.arah}" aria-sort="${opsi.urut.arah === 'naik' ? 'ascending' : 'descending'}"` : ''
+        }>${esc(k.judul)}</th>`).join('')}</tr></thead>
       <tbody>${baris.length ? baris.map(r => `<tr ${opsi.dataAttr ? opsi.dataAttr(r) : ''}>${
         kolom.map(k => `<td data-l="${esc(k.judul)}"${
-          k.kunci ? ` data-urut="${esc(r[k.kunci] ?? '')}"` : ''} class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
+          (k.kunci || k.nilai) ? ` data-urut="${esc(nilaiUrut(k, r) ?? '')}"` : ''} class="${k.angka ? 'angka' : ''} ${k.kelas || ''}">${
           k.render ? k.render(r) : k.tgl ? esc(tglTampil(r[k.kunci])) : esc(r[k.kunci] ?? '')}</td>`).join('')
       }</tr>`).join('')
         : `<tr><td colspan="${kolom.length}" style="text-align:center;color:var(--teks-redup);padding:28px">${esc(opsi.kosong || 'Belum ada data')}</td></tr>`}
@@ -1138,23 +1149,24 @@ const Admin = (() => {
    * dropdown, satu kolom, tanpa kotak centang yang harus dibuka-tutup.
    */
   const KOLOM_PRODUK = [
-    { id: 'poin', judul: 'Poin', angka: true,
+    { id: 'poin', judul: 'Poin', angka: true, nilai: r => Number(r.poin_satuan) || 0,
       // Angka telanjang, bukan "2 poin": kolomnya sudah bernama Poin, dan
       // satuan yang diulang di tiap baris justru memperlambat membaca.
       render: r => Number(r.poin_satuan) > 0 ? String(r.poin_satuan) : '—' },
-    { id: 'margin', judul: 'Margin', angka: true, butuhModal: true,
+    { id: 'margin', judul: 'Margin', angka: true, butuhModal: true, nilai: r => Number(r.margin_eceran) || 0,
       render: r => (r.margin_eceran || 0).toFixed(1) + '%' },
     /* Sejak v1.149.0 daftar hanya membawa JUMLAHNYA, dan itu pun hanya kalau
        kolom ini sedang dipakai — pola yang sama dengan kolom "Terjual".
        `butuhTurunan` yang memicu penarikannya. */
-    { id: 'turunan', judul: 'Turunan', butuhTurunan: true, render: r => [
+    { id: 'turunan', judul: 'Turunan', butuhTurunan: true,
+      nilai: r => (r.n_satuan || 0) + (r.n_tier || 0) + (r.n_varian || 0), render: r => [
         r.n_satuan ? `<span class="lencana">${r.n_satuan} satuan</span>` : '',
         r.n_tier ? `<span class="lencana">${r.n_tier} tier</span>` : '',
         r.n_varian ? `<span class="lencana">${r.n_varian} varian</span>` : ''
       ].filter(Boolean).join(' ') || '—' },
-    { id: 'stok_min', judul: 'Stok min', angka: true, render: r => String(r.stok_min ?? 0) },
-    { id: 'barcode', judul: 'Barcode', render: r => esc(r.barcode || '') || '—' },
-    { id: 'satuan_dasar', judul: 'Satuan', render: r => esc(r.satuan_dasar || 'pcs') }
+    { id: 'stok_min', judul: 'Stok min', angka: true, nilai: r => Number(r.stok_min) || 0, render: r => String(r.stok_min ?? 0) },
+    { id: 'barcode', judul: 'Barcode', nilai: r => r.barcode || '', render: r => esc(r.barcode || '') || '—' },
+    { id: 'satuan_dasar', judul: 'Satuan', nilai: r => r.satuan_dasar || 'pcs', render: r => esc(r.satuan_dasar || 'pcs') }
   ];
 
   /**
@@ -1229,12 +1241,51 @@ const Admin = (() => {
    * Halaman DIJEPIT setiap potong: mengetik di kolom cari bisa membuat halaman
    * 12 tidak ada lagi, dan halaman kosong terbaca sebagai "tidak ada yang
    * cocok" yang salah.
+   *
+   * URUTAN ikut tinggal di sini (v1.161.0). `urutkanTabel` menyusun ulang
+   * <tr> yang ada di layar — dan di daftar berhalaman yang ada di layar cuma
+   * 100 dari 3.500 baris. Pemilik mengkliknya 10 Sep 2026 di Produk →
+   * Poin: "terbesar ke terkecil" menampilkan 4, 4, 4 … padahal yang berpoin
+   * 10 ada di halaman lain. Jadi untuk daftar berhalaman, urutannya adalah
+   * KEADAAN (`h.urut` = {judul, arah}) yang dipakai `h.urutkan()` atas
+   * SELURUH baris sebelum dipotong 100 — dan pindah halaman, mengetik di
+   * kolom cari, atau mengganti saringan tidak menghilangkannya. Klik judul
+   * yang sama membalik arahnya; halaman kembali ke 1 karena "halaman 12 dari
+   * urutan baru" bukan yang dicari siapa pun.
    */
   function buatHalaman(nama, label) {
     const h = {
-      nama, kini: 1,
+      nama, kini: 1, urut: null,
       reset() { h.kini = 1; },
       geser(arah) { h.kini += arah; },
+      putarUrut(judul) {
+        const naik = !(h.urut && h.urut.judul === judul && h.urut.arah === 'naik');
+        h.urut = { judul, arah: naik ? 'naik' : 'turun' };
+        h.kini = 1;
+      },
+      /* Salinan `baris` yang urut menurut `h.urut`, dengan definisi kolom yang
+         sama dengan yang menggambar tabelnya — nilai mentah (`kunci`/`nilai`)
+         dibandingkan sebagai angka bila kolomnya `angka` atau nilainya memang
+         angka (Turunan: jumlah satuan+tier+varian), selebihnya sebagai nama;
+         kolom yang cuma punya `render` jatuh ke teks gambarnya tanpa tag HTML. Tanpa urutan, atau judulnya sedang tidak ada di tabel
+         (kolom Poin diganti Margin), barisnya dikembalikan apa adanya. */
+      urutkan(baris, kolom) {
+        const u = h.urut;
+        const k = u && kolom.find(x => x.judul && x.judul === u.judul);
+        if (!k) return baris;
+        const nilai = (r) => {
+          const v = nilaiUrut(k, r);
+          if (v !== undefined) return v;
+          return k.render ? String(k.render(r)).replace(/<[^>]*>/g, '').trim() : '';
+        };
+        const angka = (v) => typeof v === 'number' ? v : angkaUrut(v);
+        const arah = u.arah === 'naik' ? 1 : -1;
+        return baris.slice().sort((a, b) => {
+          const x = nilai(a), y = nilai(b);
+          return arah * (k.angka || (typeof x === 'number' && typeof y === 'number')
+            ? angka(x) - angka(y) : urutNama(x, y));
+        });
+      },
       potong(baris) {
         const maks = Math.max(1, Math.ceil(baris.length / BARIS_PER_HAL));
         if (h.kini > maks) h.kini = maks;
@@ -1507,10 +1558,14 @@ const Admin = (() => {
    * (`#lapNotaHitung`), dan uji layar Produk mencari lewat kelas itu.
    */
   function isiTabelProduk(baris, modal, saring, kolomAktif, hitung) {
+    /* Diurutkan atas SELURUH baris yang cocok, BARU dipotong 100 — kalau
+       dibalik, "Poin terbesar" cuma terbesar di halaman ini. */
+    const kolom = susunKolomProduk(modal, saring, kolomAktif);
+    const urut = halProduk.urutkan(baris, kolom);
     return (modeNonaktif.has('produk') ? spandukNonaktif('produk') : '') +
       `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
-      tabelProduk(halProduk.potong(baris), modal, saring, kolomAktif) +
-      halProduk.pager(baris.length);
+      tabelProduk(halProduk.potong(urut), kolom) +
+      halProduk.pager(urut.length);
   }
 
 
@@ -1624,21 +1679,24 @@ const Admin = (() => {
     return ` <span class="lencana polos" title="Hanya dijual di cabang ${esc(r.cabang)}">hanya ${esc(r.cabang)}</span>`;
   }
 
-  function tabelProduk(baris, modal, saring, kolomAktif) {
-    return tabel([
+  /* Definisi kolom DIPISAH dari penggambarnya supaya pengurut halaman
+     (`halProduk.urutkan`) membaca definisi yang persis sama dengan yang
+     menggambar — dua daftar kolom cepat atau lambat berbeda satu kolom. */
+  function susunKolomProduk(modal, saring, kolomAktif) {
+    return [
           { judul: 'SKU', kunci: 'sku' },
-          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}${lencanaCabangProduk(r)}
+          { judul: 'Nama', nilai: r => r.nama || '', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}${lencanaCabangProduk(r)}
             <div class="meta-kecil">${esc([r.kategori, r.merek, r.tipe_hp].filter(Boolean).join(' · '))}</div>` },
-          ...(modal ? [{ judul: 'Modal', angka: true, render: r => rp(r.harga_beli_terakhir) }] : []),
-          { judul: 'Eceran', angka: true, render: r => rp(r.harga_eceran) },
-          { judul: 'Grosir', angka: true, render: r => rp(r.harga_grosir) },
-          { judul: 'Stok', angka: true, render: r => lencanaStok(r.stok, r.stok_min) },
+          ...(modal ? [{ judul: 'Modal', angka: true, nilai: r => Number(r.harga_beli_terakhir) || 0, render: r => rp(r.harga_beli_terakhir) }] : []),
+          { judul: 'Eceran', angka: true, nilai: r => Number(r.harga_eceran) || 0, render: r => rp(r.harga_eceran) },
+          { judul: 'Grosir', angka: true, nilai: r => Number(r.harga_grosir) || 0, render: r => rp(r.harga_grosir) },
+          { judul: 'Stok', angka: true, nilai: r => Number(r.stok) || 0, render: r => lencanaStok(r.stok, r.stok_min) },
           /* Kolom Terjual muncul SENDIRI saat penyaringnya dipakai, tanpa perlu
              memilihnya lagi di dropdown kolom. Daftar yang diurut menurut angka
              yang tidak kelihatan adalah daftar yang urutannya tidak bisa
              dipercaya siapa pun. */
           ...(saring.butuhTerjual ? [{
-            judul: 'Terjual', angka: true,
+            judul: 'Terjual', angka: true, nilai: r => terjualProduk.qty[r.sku] || 0,
             render: r => String(terjualProduk.qty[r.sku] || 0)
           }] : []),
           ...(kolomAktif ? [kolomAktif] : []),
@@ -1654,10 +1712,14 @@ const Admin = (() => {
              kode yang sama dan tidak ada lagi "yang salah" untuk discan. */
           { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` +
               ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>` }
+    ];
+  }
+  function tabelProduk(baris, kolom) {
         /* TANPA `pisahNonaktif`: layar ini memisahkannya lebih awal, di
            `katalogDasar()`, karena paginasinya harus menghitung baris yang
            benar-benar digambar. Lihat catatan di sana. */
-        ], baris, { kosong: (kueriProduk || kategoriProduk || saringProduk)
+    return tabel(kolom, baris, { urut: halProduk.urut,
+          kosong: (kueriProduk || kategoriProduk || saringProduk)
             ? 'Tidak ada produk cocok'
             : (modeNonaktif.has('produk')
                 ? 'Tidak ada produk yang nonaktif'
@@ -2927,7 +2989,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * tidak ada"; yang benar adalah "barangnya tidak ada di sana", dan itu justru
    * jawaban yang dicari orang saat membuka layar ini.
    */
-  const tabelStokLintas = (rows, cabang) => tabel([
+  const susunKolomStokLintas = (cabang) => [
     { judul: 'SKU', kunci: 'sku' },
     { judul: 'Nama', kunci: 'nama' },
     ...cabang.map(c => ({
@@ -2938,7 +3000,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     })),
     { judul: 'TOTAL', angka: true, kunci: 'total',
       render: r => `<strong>${r.total}</strong>` }
-  ], rows, { kosong: 'Belum ada satu pun produk di katalog' });
+  ];
+  const tabelStokLintas = (rows, kolom) => tabel(kolom, rows,
+    { urut: halStok.urut, kosong: 'Belum ada satu pun produk di katalog' });
 
   /**
    * Layar Stok versi SELURUH CABANG.
@@ -3017,12 +3081,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const hitung = rows.length === semua.length
       ? `${semua.length} baris`
       : `${rows.length} dari ${semua.length} baris`;
+    /* Urut dulu atas SELURUH baris yang cocok, baru dipotong 100 — sama
+       dengan layar Produk (lihat `buatHalaman`). */
+    const kolom = stokLintas ? susunKolomStokLintas(wadah._cabang || []) : susunKolomStok(wadah._punyaNilai);
+    const urut = halStok.urutkan(rows, kolom);
     tabelEl.innerHTML =
       `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
-      (stokLintas
-        ? tabelStokLintas(halStok.potong(rows), wadah._cabang || [])
-        : tabelStok(halStok.potong(rows), wadah._punyaNilai)) +
-      halStok.pager(rows.length);
+      (stokLintas ? tabelStokLintas(halStok.potong(urut), kolom) : tabelStok(halStok.potong(urut), kolom)) +
+      halStok.pager(urut.length);
   }
 
   async function muatStok(katStok = '') {
@@ -3128,22 +3194,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#isiStok', e); }
   }
 
-  const tabelStok = (rows, punyaNilai) => tabel([
+  const susunKolomStok = (punyaNilai) => [
     { judul: 'SKU', kunci: 'sku' },
     { judul: 'Nama', kunci: 'nama' },
-    { judul: 'Varian', render: r => esc(r.kode_varian || '—') },
-    { judul: 'Stok', angka: true, render: r => lencanaStok(r.qty, r.stok_min) },
+    { judul: 'Varian', nilai: r => r.kode_varian || '', render: r => esc(r.kode_varian || '—') },
+    { judul: 'Stok', angka: true, nilai: r => Number(r.qty) || 0, render: r => lencanaStok(r.qty, r.stok_min) },
     { judul: 'Min', kunci: 'stok_min', angka: true },
     ...(punyaNilai ? [
       // Dengan FIFO, satu SKU bisa punya beberapa harga modal. Kolom ini menunjukkan
       // rata-rata tertimbangnya, dan menandai bila stoknya terdiri dari beberapa lapisan.
-      { judul: 'HPP rata2', angka: true, render: r => rp(r.hpp) +
+      { judul: 'HPP rata2', angka: true, nilai: r => Number(r.hpp) || 0, render: r => rp(r.hpp) +
           (r.jumlah_lapisan > 1
             ? `<div class="meta-kecil">${r.jumlah_lapisan} lapisan · ${rp(r.hpp_min)}–${rp(r.hpp_maks)}</div>`
             : '') },
-      { judul: 'Nilai', angka: true, render: r => rp(r.nilai) }] : []),
+      { judul: 'Nilai', angka: true, nilai: r => Number(r.nilai) || 0, render: r => rp(r.nilai) }] : []),
     { judul: '', render: r => `<button class="tombol kecil" data-kartu-stok="${esc(r.sku)}">Kartu stok</button>` }
-  ], rows, { kosong: 'Belum ada mutasi stok' });
+  ];
+  const tabelStok = (rows, kolom) => tabel(kolom, rows, { urut: halStok.urut, kosong: 'Belum ada mutasi stok' });
 
   async function lihatKartuStok(sku) {
     bukaModal('Kartu stok — ' + sku, '<div id="isiKartuStok">Memuat…</div>');
@@ -6033,7 +6100,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        kelihatan sampai ada yang mengklik dan tidak terjadi apa-apa. */
     document.addEventListener('click', (e) => {
       const th = e.target.closest('th[data-urut-kol]');
-      if (th) urutkanTabel(th);
+      if (!th) return;
+      /* Daftar berhalaman mengurutkan SELURUH barisnya lewat keadaan halaman,
+         lalu digambar ulang — menyusun ulang 100 <tr> yang kebetulan tampil
+         bukan mengurutkan (lihat `buatHalaman`). */
+      const g = Object.values(GAMBAR_HALAMAN).find(x => th.closest(x.wadah));
+      if (g) { g.halaman.putarUrut(th.textContent.trim()); g.gambar(); return; }
+      urutkanTabel(th);
     });
 
     /* JARING PENGAMAN untuk seluruh penangan klik aksi back office.
