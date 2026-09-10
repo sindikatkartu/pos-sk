@@ -14,6 +14,19 @@
      Service Worker dan tidak ada yang bisa gagal diambil saat pemasangan. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%232563eb'/%3E%3Ctext x='256' y='330' font-family='system-ui,sans-serif' font-size='200' font-weight='800' fill='white' text-anchor='middle'%3ESK%3C/text%3E%3C/svg%3E">
 <link rel="manifest" href="manifest.webmanifest">
+<!-- iPhone/iPad (v1.164.0). Safari iOS MENGABAIKAN ikon SVG di manifest:
+     tanpa apple-touch-icon PNG, ikon di layar utama adalah tangkapan layar
+     halaman. `apple-mobile-web-app-capable` = terbuka tanpa bilah alamat
+     (versi iOS lama tidak membaca `display` manifest); `mobile-web-app-capable`
+     bentuk bakunya. Bilah status `default`: putih = --panel tema terang, dan
+     iOS 15+ mengikuti theme-color di atas; `black-translucent` sengaja TIDAK
+     dipakai — ia menaruh bilah status di atas isi, dan seluruh tata letak
+     harus diberi safe-area yang tidak bisa diuji dari sini. -->
+<link rel="apple-touch-icon" sizes="180x180" href="ikon/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="POS SK">
 <!-- Yang diunduh peramban bundel yang SUDAH diminify; sumber terbacanya tetap
      ada di repo yang sama (`css/app.css`, `js/*.js`) dan itulah yang disunting.
      `uji/bangun.mjs` yang membangunnya, dan `deploy.sh` menolak terbit kalau ada
@@ -686,6 +699,16 @@
             <li>Begitu internet kembali, nota terkirim otomatis dalam beberapa detik.</li>
             <li>Menu back office (Produk, Laporan, dan lainnya) sengaja tidak bisa dibuka offline, supaya tidak ada yang mengubah master berdasarkan data basi.</li>
             <li>Keluar (logout) <strong>selalu ditanyakan dulu</strong> — satu pertanyaan, bukan beruntun: kalau ada nota yang belum terkirim atau shift yang menggantung, keterangannya ikut di dalam pertanyaan yang sama. Keluar tetap <strong>ditolak</strong> selama shift masih terbuka saat online; offline, keluar boleh setelah konfirmasi dan tercatat untuk dilaporkan saat kembali online.</li>
+          </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>A12b. Memasang aplikasi di HP / tablet</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Android (Chrome):</strong> buka alamat aplikasi → menu ⋮ → <strong>Instal aplikasi</strong> / "Tambahkan ke layar utama". Chrome juga menawarkannya sendiri.</li>
+            <li><strong>iPhone / iPad (Safari):</strong> buka alamat aplikasi → tombol <strong>Bagikan</strong> (kotak dengan panah ke atas) → <strong>Tambah ke Layar Utama</strong>. Tidak ada tawaran otomatis di iOS — harus lewat menu itu. Ikon "SK" biru dan nama <strong>POS SK</strong> muncul di layar utama; terbuka tanpa bilah alamat.</li>
+            <li>Di iPhone <strong>printer Bluetooth tidak bisa dipakai</strong> — Safari iOS tidak mendukung Web Bluetooth. Cetak lewat jendela cetak biasa (AirPrint) saja. Ini batasan Apple, bukan aplikasi.</li>
+            <li>Di iPhone, Safari <strong>menghapus data situs yang tidak dibuka 7 hari</strong>. Perangkat kasir harian aman; perangkat cadangan yang jarang dibuka bisa kehilangan nota yang belum terkirim — buka aplikasinya minimal seminggu sekali sampai "Tersinkron".</li>
           </ul>
         </div>
 
