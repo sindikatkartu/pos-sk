@@ -129,6 +129,7 @@
   --fs-21: 21px;
   --fs-24: 24px;   /* angka statistik */
   --fs-28: 28px;   /* total besar di layar bayar */
+  --fs-32: 32px;   /* Kembalian di layar bayar - angka yang paling dicari mata */
 
   --radius:    6px;   /* GitHub memakai 6px hampir di mana-mana */
   --radius-lg: 6px;
@@ -1191,6 +1192,59 @@ label {
 .modal .aksi-modal { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .modal .aksi-modal .tombol { flex: 1 1 120px; padding: 12px 16px; }
 .modal.lebar { max-width: 880px; }
+
+/* ==================== LAYAR BAYAR ====================
+   Kembalian dulu duduk di ujung isi modal, dan modal ini panjang: di HP
+   390x844 isinya 1174px, di laptop kecil 1280x800 masih 994px. Akibatnya angka
+   yang paling dicari mata kasir - sambil memegang uang pembeli - justru yang
+   harus digulir dulu. Baris pintasan uang lebih parah: ia mulai di piksel 830
+   dari layar setinggi 844, jadi fiturnya ADA tapi tidak pernah terlihat, dan
+   kasir mengetik angkanya sendiri padahal tidak perlu.
+
+   Membesarkan fontnya saja MEMPERBURUK - itu memanjangkan modalnya dan
+   mendorong Kembalian makin jauh ke bawah. Jadi kakinya yang dikeluarkan dari
+   aliran yang menggulir. Lihat KONTEKS.md 140. */
+.modal-bayar { display: flex; flex-direction: column; padding-bottom: 0; }
+.modal-bayar > h3 { flex: none; }
+/* `min-height:0` WAJIB. Tanpanya anak flex menolak menyusut di bawah tinggi
+   isinya, kotak ini memanjang sepenuh isi, dan kakinya terdorong keluar layar
+   lagi - persis keadaan yang sedang diperbaiki. */
+.byr-isi {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  margin: 0 -22px; padding: 0 22px;
+}
+.byr-kaki {
+  flex: none; background: var(--panel);
+  border-top: 1px solid var(--garis);
+  margin: 0 -22px; padding: 12px 22px 18px;
+}
+.byr-kaki .aksi-modal { margin-top: 12px; }
+/* Kekhususan: `.total-baris.besar` (0,2,0) mengalahkan `.byr-sisa` (0,1,0),
+   jadi fontnya tetap 28px walau di sini ditulis 32. Diukur, bukan dikira -
+   potret pertama sesudah perbaikan masih melaporkan 28px. */
+.byr-kaki .total-baris.besar.byr-sisa { font-size: var(--fs-32); border-top: none; margin-top: 2px; padding-top: 2px; }
+
+.byr-opsional { margin-bottom: 12px; }
+/* Segitiga bawaan peramban sengaja DIBIARKAN: ia sudah dikenal orang sebagai
+   "ada isi yang dilipat", dan menggantinya dengan ikon sendiri cuma menambah
+   satu hal yang bisa salah di peramban lama. */
+.byr-opsional > summary {
+  cursor: pointer; padding: 8px 10px;
+  font-size: var(--fs-13); font-weight: 600; color: var(--teks-redup);
+  border: 1px dashed var(--garis); border-radius: var(--radius);
+}
+.byr-opsional[open] > summary { margin-bottom: 10px; }
+.byr-opsional > summary:focus-visible { outline: none; box-shadow: var(--cincin); }
+
+/* Cip pecahan dirapatkan - deretannya panjang dan wujudnya boros. Kotak
+   `.pesan` sengaja TIDAK disentuh: jaraknya milik `--irama`, dan v1.77.0
+   sudah membuktikan apa jadinya kalau jarak vertikal punya lebih dari satu
+   sumber. Penjaga di uji.js menolaknya, dan penolakan itu benar. */
+.byr-isi .pecahan { gap: 5px; margin: -2px 0 10px; }
+/* Tingginya TETAP 34px. Sempat dirapatkan ke 31px dan penjaga sasaran jari di
+   uji-bayar.mjs menolaknya - kasir memencet ini dengan jari sambil memegang
+   uang, bukan dengan kursor. Yang boleh dirapatkan hanya lebar dan celahnya. */
+.byr-isi .pecahan .cip { min-width: 58px; padding: 0 9px; }
 
 /* ==================== LOGIN ==================== */
 .layar-login {

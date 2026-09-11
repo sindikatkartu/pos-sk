@@ -2659,6 +2659,26 @@ function simpanTim() {
 }
 
 /* ==================== PEMBAYARAN ==================== */
+/**
+ * Buka sendiri lipatan "Opsional" begitu isinya tidak lagi kosong.
+ *
+ * Diskon nota dan Garansi dilipat sejak v1.166 karena jarang dipakai dan
+ * menempati bagian paling atas layar. Tapi nilai yang SUDAH terisi lalu
+ * tersembunyi adalah nilai yang terlupa - dan lupa memberi diskon lebih mahal
+ * daripada satu baris ekstra di layar. Jadi lipatannya hanya menutup selama
+ * benar-benar kosong.
+ *
+ * Hanya pernah MEMBUKA, tidak pernah menutup: kasir yang sengaja membuka
+ * lipatan untuk melihat-lihat tidak boleh diatupkan lagi oleh gambar ulang
+ * yang berjalan pada setiap ketikan jumlah uang.
+ */
+function segarkanLipatanOpsional() {
+  const d = $('#byrOpsional');
+  if (!d || d.open) return;
+  if (angkaDari($('#byrDiskonNota').value || '0') > 0 ||
+      Number($('#byrGaransi').value || 0) > 0) d.open = true;
+}
+
 function bukaBayar() {
   if (Keranjang.kosong) return;
   if (!APP_STATE.idShift) {
@@ -2685,11 +2705,27 @@ function bukaBayar() {
   $('#byrDiskonNota').value = ribuan(Keranjang.diskonNota);
   $('#byrJatuhTempo').value = '';
   $('#byrGaransi').value = '0';
+  segarkanLipatanOpsional();
   pesan('#pesanBayar', '');
   pesan('#byrJagaKlaim', '');
   gambarBayar();
   $('#tiraiBayar').classList.add('tampil');
-  setTimeout(() => $$('#byrDaftarMetode input[data-f=jumlah]')[0]?.select(), 60);
+  /* Kolomnya dipilih SEKALIGUS digulirkan ke tengah kotak isi.
+
+     Tanpa gulir, kasir di HP mendarat di puncak layar - TOTAL, lipatan
+     Opsional, tiga kotak penjagaan - sementara kolom Jumlah dan baris pintasan
+     uang (500 ... 100.000, Uang pas) ada di bawah lipatan. Itulah sebabnya
+     pemilik mengira pintasannya belum ada dan memintanya dibuat: fiturnya ada
+     sejak lama, orangnya tidak pernah melihatnya.
+
+     Dipakai block:center, bukan block:nearest - yang perlu terlihat bukan
+     hanya kolomnya, tapi juga deretan cip TEPAT DI BAWAHNYA. */
+  setTimeout(() => {
+    const inp = $$('#byrDaftarMetode input[data-f=jumlah]')[0];
+    if (!inp) return;
+    inp.select();
+    (inp.closest('.baris2') || inp).scrollIntoView({ block: 'center' });
+  }, 60);
 }
 
 /* Pecahan rupiah yang beredar. Dipakai sebagai tombol tambah-cepat pada
@@ -2756,6 +2792,7 @@ function gambarRingkasBayar() {
   const adaPiutang = iPiutang >= 0;
 
   $('#byrDibayar').textContent = rp(dibayar);
+  segarkanLipatanOpsional();
   $('#byrLabelSisa').textContent = selisih >= 0 ? 'Kembali' : 'Kurang';
   $('#byrSisa').textContent = rp(Math.abs(selisih));
   $('#byrSisa').style.color = selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)';

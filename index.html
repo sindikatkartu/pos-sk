@@ -1030,38 +1030,49 @@
 </div>
 
 <div class="tirai" id="tiraiBayar">
-  <div class="modal">
+  <div class="modal modal-bayar">
     <h3>Pembayaran</h3>
+    <!-- Isi yang menggulir. Kakinya di luar kotak ini supaya Kembalian tidak
+         pernah ikut tenggelam — lihat KONTEKS.md §140. -->
+    <div class="byr-isi">
     <div class="total-baris besar" style="border:none;margin:0 0 14px"><span>TOTAL</span><span id="byrTotal">Rp 0</span></div>
-    <div class="grup"><label>Diskon nota (Rp)</label><input type="text" inputmode="numeric" class="uang" id="byrDiskonNota" value="0"></div>
+    <!-- Dilipat karena jarang dipakai. Dibuka SENDIRI oleh gambarRingkasBayar()
+         begitu diskonnya tidak nol atau garansinya dipilih, supaya yang sudah
+         terisi tidak pernah tersembunyi. -->
+    <details class="byr-opsional" id="byrOpsional">
+      <summary>Opsional &mdash; diskon nota &amp; garansi</summary>
+      <div class="baris2">
+        <div class="grup"><label>Diskon nota (Rp)</label><input type="text" inputmode="numeric" class="uang" id="byrDiskonNota" value="0"></div>
+        <div class="grup"><label>Garansi</label>
+          <select id="byrGaransi">
+            <option value="0">Tidak ada garansi</option>
+            <option value="7">7 hari</option>
+            <option value="30">30 hari</option>
+            <option value="90">90 hari</option>
+            <option value="365">1 tahun</option>
+          </select>
+        </div>
+      </div>
+    </details>
     <div id="byrJagaDiskon"></div>
-    <!-- Opsional — kosongkan bila barangnya tidak bergaransi. Tanggal jatuh
-         temponya dihitung server dari tanggal nota + jumlah hari ini, bukan
-         diketik kasir, supaya tidak pernah meleset dari yang tercetak. -->
-    <div class="grup"><label>Garansi (opsional)</label>
-      <select id="byrGaransi">
-        <option value="0">Tidak ada garansi</option>
-        <option value="7">7 hari</option>
-        <option value="30">30 hari</option>
-        <option value="90">90 hari</option>
-        <option value="365">1 tahun</option>
-      </select>
-    </div>
     <!-- Penjagaan klaim petugas: baris yang butuh tim tapi belum lengkap, atau
          nota tanpa pramuniaga saat setelan mewajibkannya. -->
     <div id="byrJagaKlaim"></div>
     <div id="byrDaftarMetode"></div>
     <button class="tombol" id="btnTambahMetode" style="width:100%;margin-bottom:12px">+ Metode bayar lain (split)</button>
-    <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
-    <div class="total-baris besar" style="font-size:var(--fs-21)"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
     <div class="grup sembunyi" id="grupJatuhTempo">
       <label>Jatuh tempo piutang</label>
       <input type="date" id="byrJatuhTempo">
     </div>
     <div id="pesanBayar"></div>
-    <div class="aksi-modal">
-      <button class="tombol" id="btnBatalBayar">Batal</button>
-      <button class="tombol sukses" id="btnSelesaikan">Selesaikan &amp; Cetak</button>
+    </div>
+    <div class="byr-kaki">
+      <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
+      <div class="total-baris besar byr-sisa" id="byrBarisSisa"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
+      <div class="aksi-modal">
+        <button class="tombol" id="btnBatalBayar">Batal</button>
+        <button class="tombol sukses" id="btnSelesaikan">Selesaikan &amp; Cetak</button>
+      </div>
     </div>
   </div>
 </div>
