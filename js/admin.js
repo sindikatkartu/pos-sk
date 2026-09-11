@@ -3220,8 +3220,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const q = ($('#cariStok')?.value || '').toLowerCase().trim();
     const kat = $('#stokKategori')?.value || '';
     const semua = wadah._rows || [];
+    /* Status disaring dari HASIL `statusStok()`, bukan dari aturannya ditulis
+       ulang di sini. Aturan yang disalin dua tempat cepat atau lambat berbeda —
+       dan yang tampil di kolom akan menyebut satu hal sementara saringannya
+       menyaring hal lain. */
     const rows = semua.filter(r =>
       (!kat || r.kategori === kat) &&
+      (!statusStokPilih || (statusStok(r) || {}).id === statusStokPilih) &&
       (!q || (r.sku + ' ' + r.nama).toLowerCase().includes(q)));
     const hitung = rows.length === semua.length
       ? `${semua.length} baris`
@@ -3262,7 +3267,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        * dan izin `stok · lihat` yang menjaganya. Jadi peran itu tidak lagi
        * kehilangan nama produk seperti pada audit 5 Sep 2026.
        */
-      const stok = await API.stokTerkini({ cabang: cabangStokKini(), dengan_produk: true });
+      /* BERBARENGAN, bukan berurutan. Kolom Status membutuhkan data penjualan —
+         keenam statusnya membedakan laku/tidak — jadi layar ini selalu perlu
+         keduanya. `stokTerkini` yang menghitung FIFO adalah yang paling lambat;
+         menumpangkan penarikan penjualan padanya praktis tidak menambah waktu,
+         sementara menjalankannya berurutan berarti dua kali tunggu.
+
+         Kegagalan penjualan TIDAK menggagalkan layar: `muatTerjual()` menangani
+         galatnya sendiri dan memulangkan false, lalu `statusStok()` memulangkan
+         null dan kolomnya menampilkan "—". Stok tidak boleh hilang dari layar
+         hanya karena angka penjualan tidak datang. */
+      const [stok] = await Promise.all([
+        API.stokTerkini({ cabang: cabangStokKini(), dengan_produk: true }),
+        muatTerjual()
+      ]);
       const bergerak = stok.stok.filter(s => !s.diam);
 
       /**
@@ -3321,6 +3339,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="saringan">
               <input type="text" class="input-cari" id="cariStok" placeholder="Cari SKU / nama…" style="max-width:320px">
               <select id="stokKategori" style="max-width:200px">${opsiKategori(stok.kategori_ada || [], katStok)}</select>
+              <select id="stokStatus" style="max-width:200px">${opsiStatusStok(statusStokPilih)}</select>
               ${bolehStokLintas()
                 ? `<select id="stokLingkup" style="max-width:170px">${opsiLingkupStok(stokCabang ? 'cabang:' + stokCabang : 'sini')}</select>`
                 : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
@@ -3339,10 +3358,77 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#isiStok', e); }
   }
 
+  /**
+   * Status satu baris stok — SATU jawaban, selalu ada, tidak pernah dua.
+   *
+   * Dua sumbu: stok (habis / menipis / cukup) x laku (ya / tidak). Tiga kali
+   * dua = ENAM, dan keenamnya dipakai. Pemilik semula menyebut empat; dua yang
+   * tersisa ("Sehat" dan "Habis, tidak dicari") ditambahkan karena tanpa
+   * keduanya mayoritas baris berkolom KOSONG — dan kolom status yang kadang
+   * kosong membuat petugas mengira barisnya belum dihitung, bukan mengira
+   * barangnya baik-baik saja. Diperiksa di data sungguhan 11 Sep 2026: 1023
+   * baris, 1023 status, tidak ada sisa.
+   *
+   * Ambang "menipis" DUA LAPIS, sama persis dengan saringan Menipis di layar
+   * Produk: `stok_min` kalau sudah disetel, 2 pcs kalau masih 0. Satu
+   * definisi untuk dua layar — dua definisi cepat atau lambat berbeda.
+   *
+   * Urutan daftar ini = urutan mendesaknya, dan dropdown mengikutinya. Yang
+   * perlu ditindak hari ini selalu di atas.
+   */
+  const STATUS_STOK = [
+    { id: 'habis-dicari',        label: 'Habis, masih dicari',  kelas: 'st-genting',
+      cocok: (habis, menipis, laku) => habis && laku },
+    { id: 'menipis-laku',        label: 'Menipis & laku',       kelas: 'st-awas',
+      cocok: (habis, menipis, laku) => menipis && laku },
+    { id: 'sehat',               label: 'Sehat',                kelas: 'st-sehat',
+      cocok: (habis, menipis, laku) => !habis && !menipis && laku },
+    { id: 'menipis-kurang-laku', label: 'Menipis, kurang laku', kelas: 'st-diam',
+      cocok: (habis, menipis, laku) => menipis && !laku },
+    { id: 'ada-tak-laku',        label: 'Ada, tidak laku',      kelas: 'st-diam',
+      cocok: (habis, menipis, laku) => !habis && !menipis && !laku },
+    { id: 'habis-tak-dicari',    label: 'Habis, tidak dicari',  kelas: 'st-sepi',
+      cocok: (habis, menipis, laku) => habis && !laku }
+  ];
+
+  /** Ambang menipis — dua lapis. Dipakai status DAN saringan, satu tempat. */
+  const ambangMenipis = (r) => { const m = Number(r.stok_min) || 0; return m > 0 ? m : 2; };
+
+  /** Status yang sedang dipilih di dropdown; '' = semua. */
+  let statusStokPilih = '';
+  const opsiStatusStok = (terpilih) =>
+    `<option value="">Semua status</option>` + STATUS_STOK.map(x =>
+      `<option value="${x.id}" ${x.id === terpilih ? 'selected' : ''}>${esc(x.label)}</option>`).join('');
+
+  /**
+   * @returns {object|null} entri STATUS_STOK, atau null bila data penjualan
+   * belum ada. Null SENGAJA: kolomnya menampilkan "—", bukan menebak "tidak
+   * laku" — menebak akan menuduh barang laris sebagai barang mati.
+   */
+  function statusStok(r) {
+    if (!terjualSiap()) return null;
+    const q = Number(r.qty) || 0;
+    const habis = q === 0;
+    const menipis = !habis && q <= ambangMenipis(r);
+    const laku = (terjualProduk.qty[r.sku] || 0) > 0;
+    return STATUS_STOK.find(x => x.cocok(habis, menipis, laku)) || null;
+  }
+
   const susunKolomStok = (punyaNilai) => [
     { judul: 'SKU', kunci: 'sku' },
-    { judul: 'Nama', kunci: 'nama', lentur: true },
-    { judul: 'Varian', nilai: r => r.kode_varian || '', render: r => esc(r.kode_varian || '—') },
+    /* Kode varian pindah KE BAWAH NAMA, kolomnya dibuang (v1.170).
+       Di toko ini beda varian hampir selalu beda SKU — barcode pabrik berbeda
+       per warna, dan SKU dinomori dari barcode — jadi kolomnya menampilkan "—"
+       di 1023 dari 1023 baris. Tapi fitur variannya TIDAK dicabut dan suatu
+       saat bisa dipakai, jadi kodenya tetap tampil begitu ada isinya: yang
+       dibuang kolomnya, bukan informasinya. */
+    { judul: 'Nama', kunci: 'nama', lentur: true, nilai: r => r.nama || '',
+      render: r => esc(r.nama || '') + (r.kode_varian
+        ? `<div class="meta-kecil">${esc(r.kode_varian)}</div>` : '') },
+    { judul: 'Status', nilai: r => { const st = statusStok(r); return st ? st.label : ''; },
+      render: r => { const st = statusStok(r);
+        return st ? `<span class="st ${st.kelas}">${esc(st.label)}</span>`
+                  : '<span style="color:var(--teks-redup)">—</span>'; } },
     { judul: 'Stok', angka: true, nilai: r => Number(r.qty) || 0, render: r => lencanaStok(r.qty, r.stok_min) },
     { judul: 'Min', kunci: 'stok_min', angka: true },
     ...(punyaNilai ? [
@@ -3353,10 +3439,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ? `<div class="meta-kecil">${r.jumlah_lapisan} lapisan · ${rp(r.hpp_min)}–${rp(r.hpp_maks)}</div>`
             : '') },
       { judul: 'Nilai', angka: true, nilai: r => Number(r.nilai) || 0, render: r => rp(r.nilai) }] : []),
-    { judul: '', render: r => `<button class="tombol kecil" data-kartu-stok="${esc(r.sku)}">Kartu stok</button>` }
+    /* Tombol "Kartu stok" dibuang v1.170 atas permintaan pemilik — barisnya
+       yang diklik, pola yang sudah dipakai Riwayat transfer dan Pembelian.
+       Satu kolom lagi hilang, dan tabelnya jadi lebih lega. */
   ];
   const tabelStok = (rows, kolom) => tabel(kolom, rows,
-    { urut: halStok.urut, lebar: lebarKolomDaftar(kolom, $('#isiStok')?._rows, $('#isiStok')), kosong: 'Belum ada mutasi stok' });
+    { urut: halStok.urut, lebar: lebarKolomDaftar(kolom, $('#isiStok')?._rows, $('#isiStok')),
+      kosong: 'Belum ada mutasi stok',
+      dataAttr: r => `data-kartu-stok="${esc(r.sku)}" class="baris-klik"` });
 
   async function lihatKartuStok(sku) {
     bukaModal('Kartu stok — ' + sku, '<div id="isiKartuStok">Memuat…</div>');
@@ -6293,7 +6383,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          `button` karena itu tidak boleh hilang dari sini: tanpa dia, menekan
          Batal berubah jadi membuka rincian dan pembatalannya tidak pernah
          jalan. */
-      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], tr[data-detail-transfer], [data-stiker-tambah]');
+      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], [data-stiker-tambah]');
       if (!t) return;
 
       /* ---- KUNCI KONTEKS TINDAKAN ----
@@ -7336,6 +7426,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         stokLintas = v === 'semua';
         stokCabang = v.startsWith('cabang:') ? v.slice(7) : '';
         return muatStok($('#stokKategori')?.value || '');
+      }
+      if (e.target.id === 'stokStatus') {
+        statusStokPilih = e.target.value;
+        halStok.reset();
+        return gambarBarisStok();
       }
       if (e.target.id === 'cariStok' || e.target.id === 'stokKategori') {
         halStok.reset();     // saringan berubah = mulai dari halaman pertama

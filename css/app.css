@@ -1249,6 +1249,17 @@ label {
 /* ==================== LAYAR SUKSES SESUDAH NOTA ====================
    Isinya sedikit dan satu-satunya yang penting adalah angkanya, jadi semuanya
    rata tengah dan angkanya dibiarkan mendominasi. Lihat KONTEKS.md 142. */
+/* ==================== STATUS STOK ====================
+   Warnanya MEMPERCEPAT, bukan satu-satunya pembeda: tulisannya sendiri sudah
+   menjelaskan, jadi tetap terbaca saat dicetak hitam-putih dan oleh yang sulit
+   membedakan warna. Memakai token yang sudah ada, bukan warna baru. */
+.st { font-size: var(--fs-12); font-weight: 600; white-space: nowrap; }
+.st-genting { color: var(--bahaya); font-weight: 700; }
+.st-awas    { color: var(--peringatan); }
+.st-sehat   { color: var(--sukses); }
+.st-diam    { color: var(--teks-redup); font-weight: 400; }
+.st-sepi    { color: var(--teks-redup); font-weight: 400; opacity: .65; }
+
 .modal-sukses { max-width: 420px; text-align: center; }
 .sukses-tanda {
   width: 56px; height: 56px; margin: 4px auto 14px; border-radius: 50%;
