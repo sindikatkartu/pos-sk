@@ -270,10 +270,11 @@ const Admin = (() => {
   const hitungMati = (rows, pred) =>
     (rows || []).filter(pred || ((r) => r.aktif === false)).length;
 
-  const IKON_TITIK_TIGA = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">
-          <circle cx="12" cy="5"  r="1.6" fill="currentColor" stroke="none"/>
-          <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
-          <circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>`;
+  /* Titik tiga. Digoreskan sebaris sampai v1.174 — tiga lingkaran berisi,
+     r 1,6, satu-satunya ikon di aplikasi ini yang memakai `fill`. Sekarang
+     dari kamus bersama seperti yang lain; goresannya jadi sama dengan
+     tetangganya di bar alat yang sama. */
+  const IKON_TITIK_TIGA = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">${IKON.titik_tiga}</svg>`;
 
   /**
    * Menu tindakan "⋮" — SATU bentuk untuk tujuh daftar.
@@ -427,7 +428,8 @@ const Admin = (() => {
   function bukaModal(judul, isi, aksi) {
     stokDuaCabang = null;
     $('#modalUmum').innerHTML = `<h3>${esc(judul)}</h3>${isi}
-      <div class="aksi-modal">${aksi || '<button class="tombol" data-tutup="1">Tutup</button>'}</div>`;
+      <div class="aksi-modal">${aksi || ('<button class="tombol" data-tutup="1">' +
+          ikonAlat('batal') + '<span>Tutup</span></button>')}</div>`;
     $('#tiraiUmum').classList.add('tampil');
   }
   const tutupModal = () => $('#tiraiUmum').classList.remove('tampil');
@@ -658,11 +660,9 @@ const Admin = (() => {
     const p = esc(JSON.stringify(params));
     return `<span class="ekspor">
       <button class="tombol kecil" data-ekspor-buka aria-haspopup="true" aria-expanded="false">
-        <svg class="ikon-svg" viewBox="0 0 24 24" style="width:15px;height:15px">
-          <path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/></svg>
+        <svg class="ikon-svg" viewBox="0 0 24 24" style="width:15px;height:15px">${IKON.ekspor}</svg>
         Ekspor
-        <svg class="ikon-svg tanda-panah" viewBox="0 0 24 24" style="width:13px;height:13px">
-          <path d="m6 9 6 6 6-6"/></svg>
+        <svg class="ikon-svg tanda-panah" viewBox="0 0 24 24" style="width:13px;height:13px">${IKON.buka_menu}</svg>
       </button>
       <div class="ekspor-menu" role="menu">
         ${FORMAT_EKSPOR.map(f => `<button role="menuitem" data-ekspor="${esc(jenis)}"
@@ -1475,27 +1475,132 @@ const Admin = (() => {
      Dicoba SEKALI; gagal berarti kolomnya tetap kosong, bukan aplikasi mati. */
   let turunanDicoba = false;
 
+  /* ==================== KATALOG DISIMPAN DI PERANGKAT ====================
+   *
+   * Diukur 11 Sep 2026: membuka layar ini 12.443 ms, TIAP KALI. Itu menu
+   * paling lambat di seluruh aplikasi, dan yang membayarnya bukan mesin
+   * melainkan orang yang berdiri menunggu.
+   *
+   * KENAPA BUKAN MEMAKAI KATALOG KASIR YANG SUDAH ADA. §150 menyarankan itu —
+   * "layar Kasir memakai katalog IndexedDB, layar Produk tidak". Saran itu
+   * TIDAK BISA dipakai apa adanya, dan sebabnya harus tertulis supaya tidak
+   * dicoba lagi: `apiTarikMaster` menyaring katalognya DUA KALI sebelum
+   * mengirim — `boolOf(r.aktif) && bolehDijualDi(r.cabang, cabangSesi)`.
+   * Mengalihkan layar ini ke sana akan membuat mode "Nonaktif" kosong
+   * selamanya dan menghilangkan produk cabang lain dari mata pemilik, tanpa
+   * satu pun pesan galat. Ia juga tidak membawa `stok`, `aktif`, `diubah`
+   * dan `margin_eceran`.
+   *
+   * YANG DIKERJAKAN: jawaban `daftar_produk` disimpan apa adanya di
+   * IndexedDB, berkunci CAKUPANNYA. Pembukaan berikutnya membacanya dari
+   * perangkat — tanpa satu pun panggilan server.
+   *
+   * KENAPA AMAN. Penjualan TIDAK menaikkan versi master; yang menaikkannya
+   * cuma simpan/impor produk dan terima/batal pembelian. Jadi cache ini
+   * bertahan sepanjang hari, bukan gugur tiap ada nota. Dan setiap jalur yang
+   * MENULIS produk di layar ini sudah memanggil `Sync.tarikMaster(true)`
+   * sebelum menggambar ulang (simpanProduk, nonaktifkan, tandai pemasangan,
+   * impor) — versinya naik, kuncinya berubah, cache-nya otomatis meleset.
+   * Tidak ada pembuangan cache yang ditebar di lima tempat dan dilupakan di
+   * tempat keenam.
+   *
+   * KUNCINYA MENYEBUTKAN CAKUPANNYA, dan itu bukan kehati-hatian berlebih:
+   * §150 mencatat cacat yang persis sama di cache dasbor — kunci yang tidak
+   * menyebut cabang membuat satu cabang dijawab dengan angka cabang lain.
+   * Di sini cakupannya versi master + cabang + pengguna: `boleh_harga_modal`
+   * bergantung pada peran, dan dua orang bisa memakai tablet yang sama.
+   *
+   * STOK SENGAJA TIDAK IKUT DIPERCAYA. Ia berubah tiap penjualan sementara
+   * versi master tidak, jadi angka stok di dalam cache akan bohong dalam
+   * hitungan menit. Ia ditimpa dari store `stok` di perangkat, yang punya
+   * penyegar sendiri tiap beberapa menit (sync.js `tarikStok`).
+   *
+   * BATASNYA, ditulis supaya jujur: produk yang diubah dari perangkat LAIN
+   * baru muncul di layar ini setelah denyut master berikutnya (5 menit).
+   * Itu tidak membahayakan suntingan, karena formulir "Ubah produk" sejak
+   * v1.149.0 selalu memuat ulang barangnya dari server (`apiProdukSatu`) —
+   * tidak ada yang menyunting dari salinan basi. Yang tertinggal cuma
+   * tampilannya.
+   */
+  const CACHE_PRODUK = 'cache_daftar_produk';
+  const CACHE_PRODUK_TURUNAN = 'cache_daftar_produk_turunan';
+
+  /** Cakupan muatan layar Produk — dipakai sebagai kunci sahnya cache. */
+  async function cakupanProduk() {
+    /* `versi_master` yang tersimpan KEBETULAN sudah memuat kode cabang
+       ('123@SK01'). Cabangnya tetap ditulis terpisah di sini: bentuk penanda
+       itu milik endpoint lain dan boleh berubah kapan saja, dan jaminan yang
+       bersandar pada kebetulan di berkas sebelah bukan jaminan. */
+    return [await DB.kvGet('versi_master', '0'),
+            APP_STATE.cabang || '',
+            APP_STATE.user?.id_user || ''].join('|');
+  }
+
+  /** Stok terkini dari perangkat, menimpa angka yang ikut tersimpan di cache. */
+  async function timpaStokPerangkat(rows) {
+    try {
+      const stok = await DB.all('stok');
+      /* Store KOSONG bukan berarti seluruh toko kehabisan barang — itu artinya
+         `tarikStok` belum pernah jalan di perangkat ini (baru dipasang, atau
+         baru dibersihkan). Menimpanya dengan nol akan membuat 3.500 produk
+         terbaca "habis" sekaligus, dan itu kebohongan yang jauh lebih mahal
+         daripada angka yang tertinggal beberapa menit. */
+      if (!stok.length) return;
+      const peta = {};
+      /* Kunci store `stok` berbentuk 'sku|kode_varian'. Yang dipakai layar ini
+         stok SKU-nya, jadi varian dijumlahkan — sama dengan yang dihitung
+         `petaStok()` di server untuk kunci 'sku|'. */
+      stok.forEach(x => { peta[x.sku] = (peta[x.sku] || 0) + (Number(x.qty) || 0); });
+      rows.forEach(r => { r.stok = peta[r.sku] || 0; });
+    } catch (e) {
+      /* Gagal membaca stok lokal BUKAN alasan mengosongkan layar. Angka yang
+         ikut tersimpan di cache tetap dipakai apa adanya — basi lebih baik
+         daripada nol yang terbaca sebagai "barangnya habis". */
+      console.warn('stok perangkat tidak terbaca: ' + e.message);
+    }
+  }
+
   async function muatProduk() {
     rangkaProduk();
     try {
       /* `turunan` diminta hanya kalau kolomnya memang sedang dipilih. Tiga
          pembacaan sheet (441 md) tidak dibayar orang yang cuma mencari satu
          harga. */
-      const minta = { termasuk_nonaktif: true };
-      if (kolomProduk === 'turunan') minta.turunan = true;
-      const d = await API.daftarProduk(minta);
+      const perluTurunan = kolomProduk === 'turunan';
+      const kunci = perluTurunan ? CACHE_PRODUK_TURUNAN : CACHE_PRODUK;
+      const cakupan = await cakupanProduk();
+
+      let d = null;
+      const tersimpan = await DB.kvGet(kunci, null);
+      if (tersimpan && tersimpan.cakupan === cakupan && Array.isArray(tersimpan.d?.produk)) {
+        d = tersimpan.d;
+      } else {
+        const minta = { termasuk_nonaktif: true };
+        if (perluTurunan) minta.turunan = true;
+        d = await API.daftarProduk(minta);
+        /* Teks pencarian disusun SEKALI per barang, bukan tiap ketikan. Pada 362
+           produk bedanya belum terasa; pada katalog yang tumbuh, menyusun ulang
+           empat larik kompatibel untuk tiap huruf yang diketik terasa.
+           Disusun SEBELUM disimpan, jadi pembukaan berikutnya tidak membayarnya
+           lagi sama sekali. */
+        d.produk.forEach(r => {
+          r._cari = [r.sku, r.nama, r.kategori, r.merek, r.tipe_hp, r.barcode,
+                     r.deskripsi, r.kata_kunci,
+                     (r.kompatibel || []).map(k => k.merek + ' ' + k.tipe).join(' ')]
+            .join(' ').toLowerCase();
+        });
+        /* Penyimpanan yang gagal (kuota perangkat penuh) TIDAK boleh
+           menggagalkan layarnya — datanya sudah di tangan, cuma tidak sempat
+           disimpan. Yang hilang kecepatannya, bukan isinya. */
+        try { await DB.kvSet(kunci, { cakupan, d }); }
+        catch (x) { console.warn('katalog tidak tersimpan: ' + x.message); }
+      }
+
+      await timpaStokPerangkat(d.produk);
+
       turunanSiap = d.turunan_ada === true;
       if (turunanSiap) turunanDicoba = false;   /* boleh dicoba lagi nanti */
       cacheProduk = d.produk;
-      /* Teks pencarian disusun SEKALI per barang, bukan tiap ketikan. Pada 362
-         produk bedanya belum terasa; pada katalog yang tumbuh, menyusun ulang
-         empat larik kompatibel untuk tiap huruf yang diketik terasa. */
-      cacheProduk.forEach(r => {
-        r._cari = [r.sku, r.nama, r.kategori, r.merek, r.tipe_hp, r.barcode,
-                   r.deskripsi, r.kata_kunci,
-                   (r.kompatibel || []).map(k => k.merek + ' ' + k.tipe).join(' ')]
-          .join(' ').toLowerCase();
-      });
       dataProduk = d;
       gambarProduk();
     } catch (e) { galat('#isiProduk', e); }
@@ -1778,7 +1883,7 @@ const Admin = (() => {
     const butirMati = butirNonaktif('produk', nMati);
     const butir =
       (butirMati ? `<div class="popover-pisah">${butirMati}</div>` : '') +
-      `<button class="popover-item" role="menuitem" id="btnKeranjangLabel">
+      `<button class="popover-item" role="menuitem" id="btnKeranjangLabel">${ikonAlat('label')}
          <span>Keranjang stiker</span><span class="lencana" id="lencanaStiker">0</span>
        </button>` +
       `<div class="popover-pisah">
@@ -1788,9 +1893,9 @@ const Admin = (() => {
              <span>${esc(f.label)}</span><span class="petunjuk">${esc(f.ket)}</span></button>`).join('')}
        </div>` +
       ((bolehUbah || bolehBuat) ? `<div class="popover-pisah">
-         ${bolehUbah ? `<button class="popover-item" role="menuitem" id="btnTandaiPasang">
+         ${bolehUbah ? `<button class="popover-item" role="menuitem" id="btnTandaiPasang">${ikonAlat('setujui')}
              <span>Tandai butuh pemasangan</span></button>` : ''}
-         ${bolehBuat ? `<button class="popover-item" role="menuitem" id="btnImporProduk">
+         ${bolehBuat ? `<button class="popover-item" role="menuitem" id="btnImporProduk">${ikonAlat('impor')}
              <span>Impor massal</span></button>` : ''}
        </div>` : '');
 
@@ -1843,8 +1948,8 @@ const Admin = (() => {
              apa pun tentang dirinya. Sekarang `Label.kodeProduk` mencetak
              barcode PABRIKNYA untuk produk itu, jadi kedua stiker memindai ke
              kode yang sama dan tidak ada lagi "yang salah" untuk discan. */
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}">Ubah</button>` +
-              ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}">Label</button>` }
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` +
+              ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}" title="Cetak label harga">${ikonAlat('label')}<span>Label</span></button>` }
     ];
   }
   function tabelProduk(baris, kolom) {
@@ -2008,9 +2113,9 @@ const Admin = (() => {
           kertas ${lebarHalaman} × ${u.tinggi_mm} mm, margin <strong>None</strong>,
           skala <strong>100%</strong>, header/footer dimatikan.</p>
       </div>`,
-      `<button class="tombol" data-tutup="1">Tutup</button>
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
        <button class="tombol" id="btnKosongkanLabel">Kosongkan</button>
-       <button class="tombol utama" id="btnCetakLabel">Cetak</button>`);
+       <button class="tombol utama" id="btnCetakLabel">${ikonAlat('cetak')}<span>Cetak</span></button>`);
 
     $('#modalUmum')._label = { ukuran: u };
     await gambarKeranjangLabel();
@@ -2324,9 +2429,9 @@ const Admin = (() => {
            di 11_Admin.gs. -->
       <input type="hidden" id="pDiubah" value="${esc(p?.diubah || '')}">
       <div id="pesanProduk"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       ${!baru && bolehIzin('produk', 'hapus') ? '<button class="tombol bahaya" id="btnNonaktifProduk">Nonaktifkan</button>' : ''}
-       <button class="tombol utama" id="btnSimpanProduk">Simpan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       ${!baru && bolehIzin('produk', 'hapus') ? ('<button class="tombol bahaya" id="btnNonaktifProduk">' + ikonAlat('nonaktif') + '<span>Nonaktifkan</span></button>') : ''}
+       <button class="tombol utama" id="btnSimpanProduk">${ikonAlat('simpan')}<span>Simpan</span></button>`);
 
     (p?.satuan || []).forEach(s => tambahBarisSatuan(s));
     (p?.tier || []).forEach(t => tambahBarisTier(t));
@@ -2853,8 +2958,8 @@ const Admin = (() => {
         </select>
       </div>
       <div id="pesanTandai"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnJalankanTandai">Terapkan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnJalankanTandai">${ikonAlat('jalankan')}<span>Terapkan</span></button>`);
   }
 
   async function jalankanTandaiPasang() {
@@ -2863,6 +2968,16 @@ const Admin = (() => {
       return pesan('#pesanTandai', 'Pilih dulu minimal satu kategori.', 'galat');
     }
     const nilaiBaru = nilai('tandaiNilai') === '1';
+    /* Satu klik di sini mengubah SELURUH produk di kategori yang dicentang —
+       pada katalog 3.500 barang itu ribuan baris master sekaligus, dan tidak
+       ada tombol urung. Pertanyaannya menyebut kategori mana dan jadi apa,
+       bukan "Anda yakin?" yang tidak memberi tahu apa-apa. */
+    if (!(await tanya('Terapkan ke semua produk di kategori ini?',
+          `<div class="pesan info" style="white-space:pre-line">${esc(kategori.join('\n'))}</div>
+           <p class="petunjuk">Semua produk di ${kategori.length === 1 ? 'kategori' : kategori.length + ' kategori'}
+              di atas akan ditandai <strong>${nilaiBaru ? 'BUTUH pemasangan' : 'TIDAK butuh pemasangan'}</strong>.
+              Perubahan ini tidak bisa diurungkan sekaligus — memulihkannya berarti menjalankan ini lagi dengan nilai sebaliknya.</p>`,
+          { ya: nilaiBaru ? 'Tandai butuh pemasangan' : 'Hapus tanda pemasangan', jenis: 'bahaya' }))) return;
     const btn = $('#btnJalankanTandai');
     btn.disabled = true;
     try {
@@ -2892,7 +3007,7 @@ const Admin = (() => {
         </select>
       </div>
       <p class="petunjuk">Kolom yang dikenali: <code id="imporKolom">${esc(KOLOM_IMPOR[entitas])}</code></p>
-      <button class="tombol kecil" id="btnTemplateImpor">Unduh template Excel</button>
+      <button class="tombol kecil" id="btnTemplateImpor">${ikonAlat('ekspor')}<span>Unduh template Excel</span></button>
 
       <hr style="border:none;border-top:1px solid var(--garis);margin:16px 0">
 
@@ -2919,8 +3034,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         setengah data masuk dan setengah tidak. Centang di atas hanya melunakkan SATU hal — SKU yang
         sudah ada — dan tidak pernah menimpa data lama.</p>
       <div id="hasilPratinjau"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnJalankanImpor" disabled>Impor</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnJalankanImpor" disabled>${ikonAlat('jalankan')}<span>Impor</span></button>`);
   }
 
   let barisImpor = [], barisMentah = [], barisBerkas = null;
@@ -3042,9 +3157,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function jalankanImpor() {
-    $('#btnJalankanImpor').disabled = true;
     const entitas = nilai('imporEntitas') || 'produk';
     const lewatiAda = entitas === 'produk' && !!$('#imporLewatiAda')?.checked;
+    /* Pratinjau BUKAN konfirmasi. Ia memperlihatkan bentuk datanya, dan orang
+       yang sudah melihatnya benar masih harus memilih untuk menulisnya. Yang
+       ditulis impor ini tidak punya tombol urung: baris yang sudah masuk master
+       harus dinonaktifkan satu per satu. */
+    if (!(await tanya('Tulis ' + barisImpor.length + ' baris ke master?',
+          `<p class="petunjuk">Tujuan: <strong>${esc(entitas)}</strong>.
+             ${lewatiAda ? 'SKU yang sudah terdaftar dilewati. ' : ''}Baris yang sudah
+             masuk tidak bisa dibatalkan sekaligus — yang salah harus dinonaktifkan
+             satu per satu.</p>`,
+          { ya: 'Impor sekarang', jenis: 'bahaya' }))) return;
+    $('#btnJalankanImpor').disabled = true;
     try {
       const d = await API.imporMaster({ entitas, baris: barisMentah, cabang: APP_STATE.cabang,
                                         lewati_ada: lewatiAda });
@@ -3594,7 +3719,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${d.diskon ? `<div class="total-baris"><span>Diskon dokumen</span><span>-${rp(d.diskon)}</span></div>` : ''}
       ${d.ppn ? `<div class="total-baris"><span>PPN</span><span>${rp(d.ppn)}</span></div>` : ''}
       <div class="total-baris besar"><span>TOTAL</span><span>${rp(d.total)}</span></div>`,
-      `<button class="tombol" data-tutup="1">Tutup</button>
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
        ${bolehBatal
          ? `<button class="tombol bahaya" data-batal-pembelian="${esc(d.uuid)}">Batalkan pembelian</button>`
          : ''}`);
@@ -3695,8 +3820,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="total-baris besar" style="font-size:var(--fs-21)"><span>TOTAL</span><span id="beliTotal">Rp 0</span></div>
       <div id="pesanBeli"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanPembelian">Simpan pembelian</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanPembelian">${ikonAlat('simpan')}<span>Simpan pembelian</span></button>`);
     daftarPilihProduk = prod.produk;
     tambahBarisBeli();
   }
@@ -3820,7 +3945,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
           { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
               ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}">Ubah</button>` }
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], pel, { kosong: 'Belum ada pelanggan', pisahNonaktif: true, kunci: 'pelanggan' })}
       </div>` : ''}
 
@@ -3836,7 +3961,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Kontak', kunci: 'kontak' },
           { judul: 'Telepon', kunci: 'telepon' },
           { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}">Ubah</button>` }
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true, kunci: 'supplier' })}
       </div>` : ''}`;
   }
@@ -3862,8 +3987,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <label class="cek"><input type="checkbox" id="cAktif" ${p?.aktif !== false ? 'checked' : ''}> Aktif</label>
       <p class="petunjuk">Level harga yang dipilih di sini otomatis dipakai kasir begitu pelanggan ini dipilih di layar kasir.</p>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanPelanggan">Simpan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanPelanggan">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   function editorSupplier(kode) {
@@ -3882,8 +4007,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Termin (hari)</label><input type="number" id="sTermin" value="${s?.termin_hari || 0}"></div>
       </div>
       <label class="cek"><input type="checkbox" id="sAktif" ${s?.aktif !== false ? 'checked' : ''}> Aktif</label>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanSupplier">Simpan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanSupplier">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   /* ==================== PETUGAS (FRONTLINER) ====================
@@ -3956,7 +4081,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           </div>
           <div class="pesan info" id="bobotContoh">${esc(contohBobot(b))}</div>
           ${bolehIzin('petugas', 'ubah')
-            ? '<button class="tombol utama" id="btnSimpanBobot">Simpan bobot</button>' : ''}
+            ? ('<button class="tombol utama" id="btnSimpanBobot">' + ikonAlat('simpan') + '<span>Simpan bobot</span></button>') : ''}
           <div id="pesanBobot"></div>
         </div>
 
@@ -3983,7 +4108,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua cabang' : esc(r.cabang) },
             { judul: 'Telepon', kunci: 'telepon' },
             { judul: '', render: r => bolehIzin('petugas', 'ubah')
-                ? `<button class="tombol kecil" data-edit-petugas="${esc(r.kode)}">Ubah</button>` : '' }
+                ? `<button class="tombol kecil" data-edit-petugas="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` : '' }
           ], rows, { kosong: 'Belum ada petugas — kasir belum bisa mengklaimkan penjualan ke siapa pun',
                pisahNonaktif: true, kunci: 'petugas' })}
         </div>`;
@@ -4030,8 +4155,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         data yang belum diisi.<br>
         Tidak ada tarif per orang: nilai pekerjaan melekat pada <strong>produk</strong>,
         supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanPetugas">Simpan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanPetugas">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   /* ==================== LAPORAN PERFORMA (id layar tetap 'poin') ============
@@ -4113,7 +4238,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ${urutkanOleh(rows, r => r.nama).map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
             </select></div>
             ${pilihCabangPoin()}
-            <button class="tombol utama" id="btnLaporanPoin">Tampilkan</button>
+            <button class="tombol utama" id="btnLaporanPoin">${ikonAlat('tampil')}<span>Tampilkan</span></button>
           </div>
           <p class="petunjuk">Angka di sini dibekukan saat notanya masuk, bukan dihitung ulang
              sekarang. Menaikkan poin sebuah produk hari ini tidak mengubah pekerjaan yang
@@ -4296,7 +4421,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Referensi</label><input type="text" id="bpRef"></div>
       </div>
       <div id="pesanBayarPiutang"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarPiutang"
          data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">Simpan pembayaran</button>`);
   }
@@ -4361,7 +4486,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Referensi / no. bukti transfer</label><input type="text" id="buRef"></div>
       </div>
       <div id="pesanBayarUtang"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarUtang"
          data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">Simpan pembayaran</button>`);
   }
@@ -4455,7 +4580,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua' : esc(r.cabang) },
             { judul: 'Login terakhir', render: r => esc(waktuTampil(r.terakhir_login)) },
             { judul: '', render: r => `
-              <button class="tombol kecil" data-edit-user="${esc(r.id_user)}">Ubah</button>
+              <button class="tombol kecil" data-edit-user="${esc(r.id_user)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>
               ${bolehIzin('user', 'ubah') ? `<button class="tombol kecil" data-reset-pin="${esc(r.id_user)}">Reset PIN</button>` : ''}` }
           ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true, kunci: 'user' })}
         </div>
@@ -4547,7 +4672,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              </div>
              <p class="petunjuk">PIN dipakai kasir untuk masuk cepat. Password dipakai peran manajerial. Pengguna baru wajib mengganti PIN saat pertama masuk.</p>`}
       <div id="pesanUser"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanUser" ${u ? `data-id="${esc(u.id_user)}"` : ''}>Simpan</button>`);
   }
 
@@ -4593,8 +4718,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <input type="number" id="rDiskon" value="${p?.flag?.diskon_maks_persen ?? 0}" min="0" max="100">
       </div>
       <div id="pesanPeran"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanPeran">Simpan hak akses</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanPeran">${ikonAlat('simpan')}<span>Simpan hak akses</span></button>`);
   }
 
   /* ==================== CABANG ==================== */
@@ -4624,7 +4749,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Alamat', kunci: 'alamat' },
           { judul: 'Telepon', kunci: 'telepon' },
           { judul: 'Prefix nota', kunci: 'prefix_nota' },
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-cabang="${esc(r.kode_cabang)}">Ubah</button>` }
+          { judul: '', render: r => `<button class="tombol kecil" data-edit-cabang="${esc(r.kode_cabang)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true, kunci: 'cabang' })}
       </div>`;
   }
@@ -4645,8 +4770,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${c ? `<label class="cek"><input type="checkbox" id="bAktif" ${c.aktif ? 'checked' : ''}> Aktif</label>`
           : '<p class="petunjuk">Pembuatan cabang membuat file spreadsheet baru di Drive — proses ini bisa memakan waktu sampai satu menit. Jangan tutup jendela.</p>'}
       <div id="pesanCabang"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanCabang">Simpan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanCabang">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   /* ==================== SETTING SISTEM ==================== */
@@ -5140,8 +5265,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <button class="tombol" id="btnTambahBarisTf">+ Tambah baris</button>
       <div class="grup" style="margin-top:14px"><label>Catatan</label><input type="text" id="tfCatatan" placeholder="mis. dikirim lewat kurir X"></div>
       <div id="pesanTf"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanTransfer">Kirim</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanTransfer">${ikonAlat('kirim')}<span>Kirim</span></button>`);
     daftarPilihProduk = prod.produk;
     tambahBarisTf();
   }
@@ -5173,8 +5298,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </table>
       <div class="grup" style="margin-top:12px"><label>Catatan penerimaan</label><input type="text" id="tfCatatanTerima"></div>
       <div id="pesanTerima"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol sukses" id="btnKonfirmasiTerima" data-uuid="${esc(uuid)}">Konfirmasi terima</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol sukses" id="btnKonfirmasiTerima" data-uuid="${esc(uuid)}">${ikonAlat('terima')}<span>Konfirmasi terima</span></button>`);
   }
 
   function detailTransfer(uuid) {
@@ -5194,7 +5319,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         { judul: 'Diterima', angka: true, render: i => i.qty_terima === null ? '—' : i.qty_terima },
         { judul: 'Selisih', angka: true, render: i => i.selisih ? `<span class="stok-kritis">${i.selisih}</span>` : '—' }
       ], t.item)}`,
-      `<button class="tombol" data-tutup="1">Tutup</button>
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
        <button class="tombol utama" data-cetak-transfer="${esc(uuid)}">Cetak</button>`);
   }
 
@@ -5404,8 +5529,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="grup" style="margin-top:14px"><label>Catatan</label>
         <input type="text" id="pmCatatan" placeholder="mis. stok etalase habis, butuh sebelum akhir pekan"></div>
       <div id="pesanPm"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnSimpanPermintaan">Kirim permintaan</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanPermintaan">${ikonAlat('kirim')}<span>Kirim permintaan</span></button>`);
     daftarPilihProduk = prod.produk;
 
     /* Stok kedua cabang dibaca dari store `stok_cabang` di perangkat — yang
@@ -5474,8 +5599,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="grup" style="margin-top:12px"><label>Catatan pengiriman</label>
         <input type="text" id="pmCatatanProses" placeholder="mis. dikirim lewat kurir X"></div>
       <div id="pesanProses"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol sukses" id="btnKonfirmasiProses" data-uuid="${esc(uuid)}">Siapkan &amp; kirim</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol sukses" id="btnKonfirmasiProses" data-uuid="${esc(uuid)}">${ikonAlat('kirim')}<span>Siapkan &amp; kirim</span></button>`);
   }
 
   function detailPermintaan(uuid) {
@@ -5615,8 +5740,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       <div class="grup"><label>Catatan</label><input type="text" id="opCatatan" placeholder="mis. opname rutin akhir bulan"></div>
       <div id="pesanOpname"></div>`,
-      `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol utama" id="btnMulaiOpname">Mulai menghitung</button>`);
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnMulaiOpname">${ikonAlat('jalankan')}<span>Mulai menghitung</span></button>`);
   }
 
   async function bukaLayarHitung(uuid) {
@@ -5684,7 +5809,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" id="btnTutupHitung">Tutup</button>
        <button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>
        <button class="tombol" id="btnSimpanHitungan" data-uuid="${esc(d.uuid)}">Simpan sementara</button>
-       <button class="tombol utama" id="btnSelesaiHitung" data-uuid="${esc(d.uuid)}">Selesai menghitung</button>`);
+       <button class="tombol utama" id="btnSelesaiHitung" data-uuid="${esc(d.uuid)}">${ikonAlat('setujui')}<span>Selesai menghitung</span></button>`);
   }
 
   function gambarReviewOpname(d) {
@@ -5733,7 +5858,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             : '<div class="pesan info">Anda tidak berizin memposting. Minta atasan meninjau dan memposting dokumen ini.</div>')}
       <div id="pesanReview"></div>`,
       d.status === 'POSTED' || d.status === 'DIBATALKAN'
-        ? '<button class="tombol" data-tutup="1">Tutup</button>'
+        ? ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>')
         : `<button class="tombol" data-tutup="1">Nanti dulu</button>
            ${d.boleh_posting ? `<button class="tombol sukses" id="btnPostingOpname" data-uuid="${esc(d.uuid)}">
              Posting &amp; sesuaikan stok</button>` : ''}`);
@@ -5800,11 +5925,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <label>Cari nota (nomor nota atau nama pelanggan)</label>
         <div style="display:flex;gap:8px">
           <input type="text" id="voidCari" placeholder="mis. SK01-A3F/2608/00042">
-          <button class="tombol utama" id="btnCariNotaVoid" style="flex:0 0 auto">Cari</button>
+          <button class="tombol utama" id="btnCariNotaVoid" style="flex:0 0 auto">${ikonAlat('cari')}<span>Cari</span></button>
         </div>
       </div>
       <div id="hasilCariNotaVoid"></div>`,
-      '<button class="tombol" data-tutup="1">Tutup</button>');
+      ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>'));
   }
 
   function formRetur() {
@@ -5815,7 +5940,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <label>Cari nota asal (nomor nota atau nama pelanggan)</label>
         <div style="display:flex;gap:8px">
           <input type="text" id="returCari" placeholder="mis. SK01-A3F/2608/00042">
-          <button class="tombol utama" id="btnCariNota" style="flex:0 0 auto">Cari</button>
+          <button class="tombol utama" id="btnCariNota" style="flex:0 0 auto">${ikonAlat('cari')}<span>Cari</span></button>
         </div>
       </div>
       <div id="hasilCariNota"></div>
@@ -5823,7 +5948,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <a href="#" id="lnkTanpaNota" style="color:var(--utama-gelap)">Lanjut tanpa nota</a> —
         HPP akan memakai rata-rata saat ini, bukan HPP asli nota, jadi laba historis bisa sedikit meleset.</p>
       <div id="formIsiRetur"></div>`,
-      '<button class="tombol" data-tutup="1">Tutup</button>');
+      ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>'));
   }
 
   async function gambarFormRetur(nota) {
@@ -6054,7 +6179,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         diambil persis dari faktur itu, bukan dari tebakan.
         <a href="#" id="lnkTanpaFaktur" style="color:var(--utama-gelap)">Lanjut tanpa faktur</a>.</p>
       <div id="formIsiReturBeli"></div>`,
-      '<button class="tombol" data-tutup="1">Tutup</button>');
+      ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>'));
   }
 
   async function gambarFormReturBeli(beli) {
@@ -6673,9 +6798,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const flag = {};
         $$('[data-flag]').forEach(c => flag[c.dataset.flag] = c.checked);
         flag.diskon_maks_persen = angka('rDiskon');
+        /* Yang berubah di sini bukan satu orang melainkan SEBUAH PERAN — dan
+           setiap pengguna yang memakainya ikut berubah pada login berikutnya.
+           Mencabut satu centang bisa membuat seluruh kasir kehilangan menu yang
+           dipakainya tiap hari, dan yang menekan tombolnya tidak melihat
+           akibatnya dari layar ini. */
+        const kodePeran = nilai('rKode').toUpperCase();
+        const nPemakai = ($('#isiPengguna')._user || [])
+          .filter(u => String(u.peran || '').toUpperCase() === kodePeran).length;
+        if (!(await tanya('Simpan hak akses peran ' + kodePeran + '?',
+              `<p class="petunjuk">Berlaku untuk <strong>${nPemakai} pengguna</strong> berperan ini,
+                 di seluruh cabang. Mereka perlu keluar lalu masuk lagi agar menunya menyesuaikan.</p>`,
+              { ya: 'Simpan hak akses' }))) return;
         try {
           await API.simpanPeran({
-            kode_peran: nilai('rKode').toUpperCase(), nama: nilai('rNama'),
+            kode_peran: kodePeran, nama: nilai('rNama'),
             keterangan: nilai('rKet'), izin, flag
           });
           await sukses('Hak akses tersimpan. Pengguna terkait perlu login ulang agar menunya menyesuaikan.', 'pengguna');
@@ -6685,6 +6822,34 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.perangkat) {
+        /* KEDUANYA bertanya dulu. Diminta pemilik 12 Sep 2026, dan alasannya
+           berbeda untuk masing-masing:
+
+           BLOKIR memutus tablet yang mungkin sedang dipakai berjualan. Kasir
+           yang tabletnya mati di tengah antrean tidak tahu apa yang terjadi,
+           dan yang menekan tombolnya tidak melihat akibatnya dari layar ini.
+
+           SETUJUI memberi jalan masuk ke seluruh POS — dan itu langkah yang
+           tidak bisa ditarik dengan mudah: server MENOLAK menghapus perangkat
+           berstatus DISETUJUI (lihat tombol Hapus di atas, yang memang tidak
+           muncul untuk baris DISETUJUI). Yang salah setuju harus memblokirnya
+           dulu, dan itu berarti dua langkah untuk memperbaiki satu klik.
+
+           Pertanyaannya MENYEBUT perangkat yang mana. "Blokir perangkat ini?"
+           tidak bisa dijawab siapa pun yang baru menggeser daftar sepuluh
+           baris — pelajaran yang sama dengan tombol Hapus di bawah. */
+        const r = ($('#isiPengguna')._perangkat || [])
+          .find(x => String(x.id_perangkat) === String(d.perangkat));
+        const memblokir = d.status === 'DIBLOKIR';
+        const ket = r ? `${r.kode} · ${r.nama}\nCabang ${r.cabang || '—'} · status ${r.status}`
+                      : d.perangkat;
+        if (!(await tanya(memblokir ? 'Blokir perangkat ini?' : 'Setujui perangkat ini?',
+              `<div class="pesan info" style="white-space:pre-line">${esc(ket)}</div>
+               <p class="petunjuk">${memblokir
+                 ? 'Perangkat ini langsung tidak bisa dipakai — termasuk kalau sedang dipakai berjualan saat ini. Nota yang belum terkirim dari sana akan tertahan.'
+                 : 'Perangkat ini akan bisa masuk ke POS. Perangkat yang sudah disetujui TIDAK bisa dihapus — untuk mencabutnya, ia harus diblokir dulu.'}</p>`,
+              { ya: memblokir ? 'Blokir perangkat' : 'Setujui perangkat',
+                jenis: memblokir ? 'bahaya' : undefined }))) return;
         try {
           await API.setujuiPerangkat({ id_perangkat: d.perangkat, status: d.status, cabang: APP_STATE.cabang });
           await muat('pengguna');

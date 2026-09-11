@@ -1082,7 +1082,22 @@ var IKON_SUMBER = {
   kosongkan : 'list-x',
   /* --- Tindakan baris perangkat (dulu kamus lokal kedua di admin.js) --- */
   setujui   : 'check',
-  blokir    : 'ban'
+  blokir    : 'ban',
+  /* --- Tindakan back office: baris tabel dan kaki dialog --- */
+  ubah      : 'pencil',
+  simpan    : 'save',
+  batal     : 'x',
+  label     : 'tag',
+  ekspor    : 'download',
+  impor     : 'upload',
+  jalankan  : 'play',
+  cetak     : 'printer',
+  nonaktif  : 'circle-slash',
+  /* --- Kendali antarmuka. Dulu digambar sebaris di admin.js dan index.html --- */
+  titik_tiga: 'ellipsis-vertical',
+  buka_menu : 'chevron-down',
+  tutup_menu: 'chevron-up',
+  peringatan: 'triangle-alert'
 };
 
 var IKON = {
@@ -1159,7 +1174,33 @@ var IKON = {
   kosongkan : '<path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="m15.5 9.5 5 5"/><path d="m20.5 9.5-5 5"/>',
   /* --- Tindakan baris perangkat (dulu kamus lokal kedua di admin.js) --- */
   setujui   : '<path d="M20 6 9 17l-5-5"/>',
-  blokir    : '<circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/>'
+  blokir    : '<circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/>',
+  /* --- Tindakan back office: baris tabel dan kaki dialog --- */
+  ubah      : '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  simpan    : '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  /* Batal dan Tutup memakai ikon yang SAMA. Keduanya menutup dialog
+     tanpa menulis apa pun; dua gambar berbeda untuk satu akibat
+     membuat orang mengira ada bedanya. */
+  batal     : '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  label     : '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  ekspor    : '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+  impor     : '<path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
+  jalankan  : '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+  /* Cetak. Dulu SENGAJA tidak ada di kamus, karena ikon printer sudah
+     hidup di index.html dengan jalur yang BERBEDA — dua printer yang
+     goresannya tidak sama di dua layar. Sekarang kamus ini yang jadi
+     sumber keduanya, dan salinan di index.html dijaga uji. */
+  cetak     : '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
+  /* Nonaktifkan produk: lingkaran bergaris miring. SENGAJA bukan
+     tong sampah — produknya TIDAK dihapus, riwayatnya utuh, dan
+     ia bisa diaktifkan lagi. Ikon hapus di tombol yang tidak
+     menghapus adalah janji yang salah. */
+  nonaktif  : '<circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/>',
+  /* --- Kendali antarmuka. Dulu digambar sebaris di admin.js dan index.html --- */
+  titik_tiga: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
+  buka_menu : '<path d="m6 9 6 6 6-6"/>',
+  tutup_menu: '<path d="m18 15-6-6-6 6"/>',
+  peringatan: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
 };
 /** SVG ikon. Kosong bila namanya tidak dikenal — bukan ikon acak. */
 function ikonAksi(nama) {
