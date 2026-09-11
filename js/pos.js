@@ -1008,11 +1008,55 @@ function lencanaStok(qty, stokMin, opsi) {
 }
 
 // Ekspor untuk pengujian di Node
+/* ==================== IKON TINDAKAN ====================
+ * Kamus BERSAMA untuk ikon tombol, dipakai admin.js DAN app.js.
+ *
+ * Sebelumnya `IKON_ALAT` tinggal di dalam admin.js (v1.153, tujuh ikon) dan
+ * layar Kasir menyalin jalur SVG-nya langsung ke index.html. Dua salinan jalur
+ * yang sama cepat atau lambat berbeda — dan bedanya tidak terlihat sebagai bug,
+ * cuma sebagai dua ikon kaca pembesar yang goresannya tidak sama di dua layar.
+ * Sekarang satu sumber; index.html yang tetap harus menyalin (ia HTML statis,
+ * tidak bisa memanggil fungsi) dijaga uji supaya jalurnya tetap identik.
+ *
+ * Goresan 1.8, viewBox 24 — sama dengan ikon menu di app.js, supaya tombol dan
+ * menunya terbaca sebagai satu keluarga.
+ */
+var IKON_AKSI = {
+  tambah:    '<path d="M12 5v14M5 12h14"/>',
+  cari:      '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  segarkan:  '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
+  kirim:     '<path d="M4 12h13"/><path d="m13 6 6 6-6 6"/>',
+  terima:    '<path d="M12 4v13"/><path d="m6 11 6 6 6-6"/><path d="M4 20h16"/>',
+  tampil:    '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>',
+  hapus:     '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>',
+  /* Tahan = jeda. Dua batang, bukan jam atau panah: yang dilakukan tombol ini
+     menghentikan sementara, bukan menunda ke waktu tertentu. */
+  tahan:     '<rect x="7" y="5" width="3.4" height="14" rx="1"/><rect x="13.6" y="5" width="3.4" height="14" rx="1"/>',
+  /* Kosongkan = keranjang disapu bersih. SENGAJA beda dari `hapus` (tong
+     sampah): hapus membuang satu baris, kosongkan mengosongkan seluruhnya. */
+  kosongkan: '<path d="M3 5h2l1.6 9.6a1.6 1.6 0 0 0 1.6 1.4h7.6a1.6 1.6 0 0 0 1.58-1.3L19 8H6"/><path d="m9.5 10.5 5 4"/><path d="m14.5 10.5-5 4"/>'
+  /* SENGAJA belum ada 'simpan', 'cetak', 'ubah'. Ketiganya sempat ditambahkan
+     lalu dibuang lagi pada hari yang sama: belum satu pun dipakai, dan 'cetak'
+     ternyata MENGGANDAKAN ikon printer yang sudah hidup di index.html dengan
+     jalur yang berbeda — dua printer yang goresannya tidak sama di dua layar,
+     persis jenis penyimpangan yang kamus ini dibuat untuk mencegah.
+
+     Aturannya: tambahkan ikon saat ia benar-benar dipakai, dan periksa dulu
+     apakah gambar yang sama sudah hidup di suatu tempat. Kosakata yang
+     ditambahkan "untuk jaga-jaga" tidak pernah diperiksa terhadap yang ada. */
+};
+/** SVG ikon tindakan. Kosong bila namanya tidak dikenal — bukan ikon acak. */
+function ikonAksi(nama) {
+  return IKON_AKSI[nama]
+    ? '<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">' + IKON_AKSI[nama] + '</svg>'
+    : '';
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil, jamTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
-                     labelTimBaris };
+                     labelTimBaris, IKON_AKSI, ikonAksi };
 }

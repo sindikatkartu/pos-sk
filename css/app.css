@@ -145,6 +145,21 @@
   --sela:      12px;
   --lebar-sisi: 236px;
   --lebar-sisi-lipat: 68px;
+
+  /* ---- Warna lembaran Rupiah untuk tombol pecahan (v1.173) ----
+     Diambil dari lembaran aslinya lalu ditipiskan: tombol sepekat uang sungguhan
+     akan berteriak lebih keras daripada tombol Selesaikan di sebelahnya. Yang
+     dibawa cukup untuk DIKENALI SEBELUM DIBACA, tidak sampai merebut perhatian.
+     Rp500 keperakan karena ia koin, bukan kertas. */
+  --uang-500-bg: #eceff1; --uang-500-garis: #b9c2c7; --uang-500-teks: #37474f;
+  --uang-1000-bg: #e3f2ef; --uang-1000-garis: #9dc8bf; --uang-1000-teks: #1f5c50;
+  --uang-2000-bg: #eceaf3; --uang-2000-garis: #bdb5cf; --uang-2000-teks: #4a3f6b;
+  --uang-5000-bg: #f3e9df; --uang-5000-garis: #cdb49a; --uang-5000-teks: #6b4a26;
+  --uang-10000-bg: #ece4f2; --uang-10000-garis: #bfa6cf; --uang-10000-teks: #573a6b;
+  --uang-20000-bg: #e6f1e2; --uang-20000-garis: #a9cca0; --uang-20000-teks: #33602a;
+  --uang-50000-bg: #e3edf7; --uang-50000-garis: #a3c2de; --uang-50000-teks: #1d4d78;
+  --uang-75000-bg: #fdeff0; --uang-75000-garis: #e0a3a8; --uang-75000-teks: #8e2b33;
+  --uang-100000-bg: #fbe9e7; --uang-100000-garis: #e0a99f; --uang-100000-teks: #8a3323;
 }
 
 /* ============================================================
@@ -224,6 +239,19 @@ html[data-tema="gelap"] {
   --seri-1: #2c84db;  --seri-2: #faa72a;  --seri-3: #76ad2a;
   --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #7a7972;
   --kertas-grafik: #30302e;
+
+  /* Pasangan gelapnya ditulis sendiri, BUKAN hasil meredupkan yang terang.
+     Meredupkan seragam mengubah sembilan warna jadi sembilan abu-abu — dan
+     kasir kehilangan persis hal yang membuat tombol ini berguna. */
+  --uang-500-bg: #3a3f42; --uang-500-garis: #5b6469; --uang-500-teks: #dfe6ea;
+  --uang-1000-bg: #1f3c37; --uang-1000-garis: #35635a; --uang-1000-teks: #b9e5da;
+  --uang-2000-bg: #332e42; --uang-2000-garis: #544b6b; --uang-2000-teks: #cfc4ec;
+  --uang-5000-bg: #3d3128; --uang-5000-garis: #65503c; --uang-5000-teks: #e8cdae;
+  --uang-10000-bg: #352a42; --uang-10000-garis: #57436b; --uang-10000-teks: #d9c2ec;
+  --uang-20000-bg: #27391f; --uang-20000-garis: #425f35; --uang-20000-teks: #c3e6b4;
+  --uang-50000-bg: #22364a; --uang-50000-garis: #3a5c7c; --uang-50000-teks: #b6d6f2;
+  --uang-75000-bg: #42272b; --uang-75000-garis: #6e4148; --uang-75000-teks: #f2b9bf;
+  --uang-100000-bg: #43281f; --uang-100000-garis: #714236; --uang-100000-teks: #f2bfae;
 }
 
 /* Kotak isian, tanggal, dan gulir bawaan peramban tetap putih kalau tidak
@@ -778,7 +806,10 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 
 /* Deret pecahan rupiah di layar pembayaran. Sasarannya jari, bukan kursor:
    tinggi 34px agar nyaman ditekan di layar sentuh, dan membungkus rapi. */
-.pecahan { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
+.pecahan { display: flex; flex-direction: column; gap: 6px; margin: -2px 0 12px; }
+/* Tiap baris membungkus sendiri di dalam dirinya — jadi di HP deretan nominal
+   boleh patah jadi dua, tapi TIDAK PERNAH bercampur dengan baris perintah. */
+.pecahan-baris { display: flex; flex-wrap: wrap; gap: 6px; }
 .pecahan .cip {
   min-width: 66px; height: 34px; padding: 0 12px;
   font-size: var(--fs-13); font-weight: 500; font-variant-numeric: tabular-nums;
@@ -789,6 +820,63 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .pecahan .cip:hover  { background: var(--panel-3); border-color: var(--garis-kuat); }
 .pecahan .cip:active { background: var(--garis-halus); }
 .pecahan .cip:focus-visible { outline: none; box-shadow: var(--cincin); }
+/* ==================== TOMBOL PECAHAN BERWUJUD UANG ====================
+   Diminta pemilik 11 Sep 2026: "tombol uangnya di render seperti uang sungguhan,
+   ukurannya sama semua supaya rapih dan interaktif".
+
+   UKURAN SERAGAM, bukan mengikuti nilainya. Lembaran rupiah asli memang makin
+   besar makin tinggi nilainya, tapi meniru itu di sini akan membuat tombol
+   Rp500 jadi sasaran jari terkecil justru untuk pecahan yang paling sering
+   ditekan berulang — dan barisnya jadi bergerigi. Yang ditiru WARNANYA, karena
+   itulah yang dikenali mata sebelum angkanya terbaca.
+
+   Warna diambil dari lembaran aslinya, lalu ditipiskan: tombol sepekat uang
+   sungguhan akan berteriak lebih keras daripada tombol Selesaikan di sebelahnya.
+   Yang dibawa cukup untuk dikenali, tidak sampai merebut perhatian.
+
+   Bukan gambar, bukan gradien rumit: satu warna latar + garis tepi senada +
+   angka tebal. Di 34px tinggi, ornamen apa pun berubah jadi kotoran. */
+.pecahan .cip.uang {
+  min-width: 58px; height: 34px; padding: 0 10px;
+  font-weight: 650; font-size: var(--fs-13);
+  border-width: 1px; border-style: solid;
+  /* Garis tipis di dalam tepi — kesan kertas bertepi, bukan kotak polos. */
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
+}
+.pecahan .cip.uang > span { position: relative; }
+.pecahan .cip.uang:hover { filter: brightness(.96); }
+.pecahan .cip.uang:active { filter: brightness(.92); }
+
+/* Warna tiap pecahan. Nama warnanya = warna lembaran Rupiah yang beredar.
+   Rp500 satu-satunya KOIN, jadi ia keperakan — bukan meniru kertas. */
+.pecahan .cip.u-500 { background: var(--uang-500-bg); border-color: var(--uang-500-garis); color: var(--uang-500-teks); }
+.pecahan .cip.u-1000 { background: var(--uang-1000-bg); border-color: var(--uang-1000-garis); color: var(--uang-1000-teks); }
+.pecahan .cip.u-2000 { background: var(--uang-2000-bg); border-color: var(--uang-2000-garis); color: var(--uang-2000-teks); }
+.pecahan .cip.u-5000 { background: var(--uang-5000-bg); border-color: var(--uang-5000-garis); color: var(--uang-5000-teks); }
+.pecahan .cip.u-10000 { background: var(--uang-10000-bg); border-color: var(--uang-10000-garis); color: var(--uang-10000-teks); }
+.pecahan .cip.u-20000 { background: var(--uang-20000-bg); border-color: var(--uang-20000-garis); color: var(--uang-20000-teks); }
+.pecahan .cip.u-50000 { background: var(--uang-50000-bg); border-color: var(--uang-50000-garis); color: var(--uang-50000-teks); }
+/* Rp75.000 — Uang Peringatan Kemerdekaan 75 Tahun RI, terbit 17 Agu 2020 dan
+   alat pembayaran sah. Merah-putih, jadi dibedakan dengan tepi merah di atas
+   latar terang alih-alih satu warna penuh. */
+.pecahan .cip.u-75000 { background: var(--uang-75000-bg); border-color: var(--uang-75000-garis); color: var(--uang-75000-teks); }
+.pecahan .cip.u-100000 { background: var(--uang-100000-bg); border-color: var(--uang-100000-garis); color: var(--uang-100000-teks); }
+
+/* Tema gelap: latar diturunkan, hurufnya yang dicerahkan. Latar terang yang
+   dibiarkan akan menyala seperti sembilan lampu di layar gelap. */
+/* Di tema gelap hanya garis dalamnya yang ditipiskan; WARNANYA sudah datang
+   dari token --uang-*-bg milik tema itu sendiri. Sebelumnya di sini ada
+   `filter: brightness(.34)` yang meredupkan kesembilannya seragam sampai
+   nyaris tak terbedakan — persis yang tidak boleh terjadi pada tombol yang
+   gunanya dikenali sekilas. */
+html[data-tema="gelap"] .pecahan .cip.uang { box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+
+@media (max-width: 430px) {
+  /* Di HP barisnya paling sempit. Lebar minimum diturunkan, tingginya TIDAK —
+     34px itu sasaran jari, dan ada penjaganya di uji-bayar.mjs. */
+  .pecahan .cip.uang { min-width: 50px; padding: 0 7px; }
+}
+
 .pecahan .cip.pas {
   color: var(--utama); border-color: var(--utama-garis); background: var(--utama-lembut);
 }
@@ -1716,6 +1804,26 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 /* Judul di dalam bar alat: tanpa margin, dari kelas — bukan `style="margin:0"`
    yang dulu diulang di tiga belas tempat. */
 .bar-alat > h3, .bar-alat > h4 { margin: 0; }
+/* ==================== TOMBOL BERIKON DI LUAR BAR ALAT ====================
+   Dipakai tombol kecil yang berdiri sendiri — Tahan dan Kosongkan di kepala
+   keranjang Kasir. Ikonnya 15px, bukan 16px: tombolnya sendiri fs-13, dan ikon
+   seukuran tombol bar alat terlihat terlalu berat di sana.
+
+   Di HP (<=430px) LABELNYA yang disembunyikan, bukan ikonnya. Kepala keranjang
+   adalah tempat paling sempit di layar tempat aplikasi ini paling sering
+   dipakai — tapi tombol tanpa penanda apa pun lebih buruk daripada tombol yang
+   sempit, jadi yang dibuang teksnya. `title` dan `aria-label` tetap membawa
+   namanya untuk pembaca layar dan untuk yang menahan jarinya.
+
+   Ambang 430px, bukan 620px: tablet Android yang dipakai kasir di seluruh
+   cabang harus TETAP menampilkan labelnya — di sanalah orang yang paling
+   jarang memakai aplikasi ini bekerja. */
+.tombol-aksi .ikon-svg { width: 15px; height: 15px; color: currentColor; flex: none; }
+@media (max-width: 430px) {
+  .tombol-aksi > span { display: none; }
+  .tombol-aksi { padding-left: 10px !important; padding-right: 10px !important; }
+}
+
 /* Ikon di dalam tombol bar alat: 16px, sewarna huruf tombolnya. */
 .bar-alat .tombol .ikon-svg, .aksi .tombol .ikon-svg { width: 16px; height: 16px; color: currentColor; }
 /* Kotak cari berikon kaca pembesar. Ikonnya latar CSS supaya id dan penangan

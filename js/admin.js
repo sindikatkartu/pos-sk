@@ -330,17 +330,12 @@ const Admin = (() => {
      dan menunya terbaca sebagai satu keluarga. Tombol "+ X" memakai ikon plus
      sungguhan, bukan karakter "+": karakter itu berbeda lebar di tiap font dan
      duduk lebih rendah dari huruf di sebelahnya. */
-  const IKON_ALAT = {
-    tambah:   '<path d="M12 5v14M5 12h14"/>',
-    cari:     '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-    segarkan: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
-    kirim:    '<path d="M4 12h13"/><path d="m13 6 6 6-6 6"/>',
-    terima:   '<path d="M12 4v13"/><path d="m6 11 6 6 6-6"/><path d="M4 20h16"/>',
-    tampil:   '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>',
-    hapus:    '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>'
-  };
-  const ikonAlat = (nama) => IKON_ALAT[nama]
-    ? `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON_ALAT[nama]}</svg>` : '';
+  /* Kamusnya PINDAH ke pos.js v1.173 supaya app.js dan layar Kasir membaca
+     sumber yang sama — dulu jalur SVG-nya disalin ke index.html dan dua salinan
+     yang sama cepat atau lambat berbeda. `ikonAlat` dipertahankan sebagai nama
+     lama: 3 pemanggilan lama tidak perlu ikut diubah, dan penggantian nama demi
+     kerapian adalah perubahan yang seluruh risikonya tanpa imbalan. */
+  const ikonAlat = (nama) => ikonAksi(nama);
   /** Tombol tindakan utama berikon plus. `label` TANPA "+" — plusnya ikonnya. */
   const tombolTambah = (id, label, kelas) =>
     `<button class="tombol utama ${kelas || ''}" id="${id}">${ikonAlat('tambah')}<span>${esc(label)}</span></button>`;

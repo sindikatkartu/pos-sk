@@ -2731,10 +2731,26 @@ function bukaBayar() {
 /* Pecahan rupiah yang beredar. Dipakai sebagai tombol tambah-cepat pada
    pembayaran tunai: kasir menekan pecahan yang diterima, bukan mengetik. */
 const PECAHAN = [500, 1000, 2000, 5000, 10000, 20000, 50000, 75000, 100000];
-/* Ditulis penuh dengan pemisah ribuan — bukan "100rb". Angka yang tertulis
-   sama persis dengan yang tercetak di uangnya, jadi tidak perlu diterjemahkan
-   di kepala saat sedang buru-buru. */
-const labelPecahan = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(n);
+/**
+ * Label tombol pecahan: "500", "1k", "75k", "100k".
+ *
+ * SEBELUM v1.173 ditulis penuh ("100.000") dengan alasan yang masuk akal saat
+ * itu: angkanya sama persis dengan yang tercetak di uangnya, jadi tidak perlu
+ * diterjemahkan di kepala saat buru-buru.
+ *
+ * Alasan itu gugur begitu tombolnya DIGAMBAR MENYERUPAI LEMBARAN UANG
+ * (permintaan pemilik 11 Sep 2026). "50k" di atas persegi biru seukuran dan
+ * sewarna uang lima puluh ribu bukan lagi angka yang harus diurai — ia label di
+ * atas benda yang sudah dikenali sebelum dibaca. Yang dipertukarkan: dua
+ * karakter lebih pendek, sehingga sembilan tombol muat satu baris di tablet
+ * kasir tanpa membungkus.
+ *
+ * Di bawah seribu TIDAK disingkat: "500" sudah sependek mungkin, dan "0,5k"
+ * justru menambah pekerjaan membaca.
+ */
+const labelPecahan = (n) => n >= 1000
+  ? (n / 1000) + 'k'
+  : new Intl.NumberFormat(CONFIG.LOCALE).format(n);
 
 /* CATATAN PENTING — jangan gabungkan lagi dua fungsi di bawah ini.
    Sebelumnya seluruh daftar metode digambar ulang lewat innerHTML pada SETIAP
@@ -2761,10 +2777,24 @@ function gambarMetode() {
     </div>
     ${m.metode === 'tunai' ? `
     <div class="pecahan" role="group" aria-label="Uang diterima (metode ${i + 1})">
-      ${PECAHAN.map(n => `<button type="button" class="cip" data-i="${i}" data-f="pecahan"
-          data-nilai="${n}" title="Tambah ${rp(n)}">${labelPecahan(n)}</button>`).join('')}
-      <button type="button" class="cip pas" data-i="${i}" data-f="pas">Uang pas</button>
-      <button type="button" class="cip kosong" data-i="${i}" data-f="nol" title="Nolkan">C</button>
+      ${/* `uang u-N` dipakai CSS untuk mewarnai tiap pecahan sesuai lembaran
+             aslinya. Kelasnya dari NILAI, bukan urutan — menyisipkan pecahan
+             baru di tengah tidak akan menggeser warna tetangganya.
+             (Tanpa petik-balik: blok ini di dalam template literal.) */''}
+      ${/* DUA BARIS, dipisah wadah — bukan dibiarkan membungkus sendiri.
+             Dibiarkan, "75k" dan "100k" turun menemani "Uang pas" dan "C" di
+             baris kedua, dan nominal bercampur perintah. Kasir yang mencari
+             pecahan jadi harus menyaring dua tombol yang bukan uang di antara
+             deretan uang. Dipisah, kedua kelompok selalu utuh berapa pun lebar
+             layarnya. (Tanpa petik-balik: blok ini di dalam template literal.) */''}
+      <div class="pecahan-baris">
+        ${PECAHAN.map(n => `<button type="button" class="cip uang u-${n}" data-i="${i}" data-f="pecahan"
+            data-nilai="${n}" title="Tambah ${rp(n)}"><span>${labelPecahan(n)}</span></button>`).join('')}
+      </div>
+      <div class="pecahan-baris">
+        <button type="button" class="cip pas" data-i="${i}" data-f="pas">Uang pas</button>
+        <button type="button" class="cip kosong" data-i="${i}" data-f="nol" title="Nolkan">C</button>
+      </div>
     </div>` : ''}`).join('');
 }
 

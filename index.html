@@ -255,9 +255,18 @@
             <div style="display:flex;gap:8px">
               <!-- Tahan = simpan keranjang ini di perangkat, layani pembeli
                    berikutnya, lanjutkan nanti dari lencana Tahanan. F9. -->
-              <button class="tombol" id="btnTahan" style="padding:6px 12px;font-size:var(--fs-13)"
-                      title="Tahan nota ini untuk dilanjutkan nanti (F9)">Tahan</button>
-              <button class="tombol" id="btnKosongkan" style="padding:6px 12px;font-size:var(--fs-13)">Kosongkan</button>
+              <!-- Ikon + label. Di HP (<=430px) labelnya disembunyikan CSS dan
+                   tersisa ikonnya saja — ruang di kepala keranjang paling sempit
+                   justru di layar tempat ia paling sering dipakai. Ikonnya TIDAK
+                   ikut disembunyikan: tombol tanpa penanda apa pun lebih buruk
+                   daripada tombol yang sempit.
+                   Jalur SVG-nya disalin dari IKON_AKSI di pos.js — HTML statis
+                   tidak bisa memanggil fungsi. Ada uji yang menjaga keduanya
+                   tetap identik. -->
+              <button class="tombol tombol-aksi" id="btnTahan" style="padding:6px 12px;font-size:var(--fs-13)"
+                      title="Tahan nota ini untuk dilanjutkan nanti (F9)"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="3.4" height="14" rx="1"/><rect x="13.6" y="5" width="3.4" height="14" rx="1"/></svg><span>Tahan</span></button>
+              <button class="tombol tombol-aksi" id="btnKosongkan" style="padding:6px 12px;font-size:var(--fs-13)"
+                      title="Kosongkan keranjang"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2l1.6 9.6a1.6 1.6 0 0 0 1.6 1.4h7.6a1.6 1.6 0 0 0 1.58-1.3L19 8H6"/><path d="m9.5 10.5 5 4"/><path d="m14.5 10.5-5 4"/></svg><span>Kosongkan</span></button>
             </div>
           </div>
         </div>
