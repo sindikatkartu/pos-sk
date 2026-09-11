@@ -847,20 +847,13 @@ const Admin = (() => {
      satu; dengan warna dan ikon, mata menemukan "piutang" tanpa membaca.
      Diminta pemilik 10 Sep 2026 ("sentuhan text dan icon warna warni").
      Goresan 1.8, viewBox 24, sama dengan ikon menu di app.js. */
-  const IKON_KPI = {
-    omzet:   '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>',
-    nota:    '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
-    rata:    '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/><circle cx="12" cy="8" r="1"/><circle cx="12" cy="16" r="1"/>',
-    laba:    '<circle cx="9" cy="9" r="6"/><path d="M15 9a6 6 0 1 1-6 6"/>',
-    margin:  '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
-    piutang: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>',
-    nilai:   '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
-    hari:    '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    mati:    '<path d="M4 7h16v13H4z"/><path d="M4 7l2-3h12l2 3"/><path d="M9 13l6 4M15 13l-6 4"/>',
-    kritis:  '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>'
-  };
-  const ikonKpi = (nama, warna) => nama && IKON_KPI[nama]
-    ? `<span class="mini-ikon ${warna || ''}" aria-hidden="true"><svg class="ikon-svg" viewBox="0 0 24 24">${IKON_KPI[nama]}</svg></span>`
+  /* Ikon petak angka. Kamusnya PINDAH ke pos.js v1.177 — sepuluh ikon
+     terakhir yang masih digambar di luar kamus bersama. Enam di antaranya
+     ternyata GANDAAN ikon sidebar dengan angka yang berbeda: nilai=Produk,
+     mati=Retur Beli, kritis=peringatan shift, dan di IKON_SETTING di bawah
+     usaha=Cabang, stok=Stok, lain=Bantuan. Satu arti, dua gambar, dua layar. */
+  const ikonKpi = (nama, warna) => nama && IKON[nama]
+    ? `<span class="mini-ikon ${warna || ''}" aria-hidden="true"><svg class="ikon-svg" viewBox="0 0 24 24">${IKON[nama]}</svg></span>`
     : '';
 
   /* Baris ekor SELALU digambar, walau kosong. Kotak yang punya pembanding
@@ -4496,7 +4489,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
             { judul: '', render: r => bolehIzin('piutang', 'buat')
-                ? `<button class="tombol kecil utama" data-bayar-piutang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">Terima bayar</button>` : '' }
+                ? `<button class="tombol kecil utama" data-bayar-piutang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">${ikonAlat('terima')}<span>Terima bayar</span></button>` : '' }
           ], d.piutang, { kosong: 'Tidak ada piutang beredar' })}
         </div>`;
       $('#isiPiutang')._rows = d.piutang;
@@ -4561,7 +4554,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
             { judul: '', render: r => bolehIzin('utang', 'buat')
-                ? `<button class="tombol kecil utama" data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">Bayar</button>` : '' }
+                ? `<button class="tombol kecil utama" data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">${ikonAlat('kirim')}<span>Bayar</span></button>` : '' }
           ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
         </div>`;
       $('#isiUtang')._rows = d.utang;
@@ -4960,19 +4953,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* IKON LAYAR SETTING. Digambar sebaris, sama seperti `tombolIkon` di atas:
      aplikasi harus tetap utuh saat internet mati, jadi tidak ada satu pun ikon
      yang datang dari CDN. Jalurnya 24x24, digoreskan oleh `.ikon-svg`. */
-  const IKON_SETTING = {
-    usaha:    '<path d="m2.5 7.5 1.6-4.2h15.8l1.6 4.2"/><path d="M2.5 7.5h19v1.6a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-5.3 0Z"/><path d="M4.6 12.6v8.4h14.8v-8.4"/><path d="M9.6 21v-5h4.8v5"/>',
-    pajak:    '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
-    struk:    '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
-    stok:     '<rect x="2.5" y="3.5" width="19" height="4.6" rx="1.4"/><path d="M4.4 8.1v10.4a2 2 0 0 0 2 2h11.2a2 2 0 0 0 2-2V8.1"/><path d="M10 12.2h4"/>',
-    tampilan: '<rect x="2.5" y="3.5" width="19" height="13" rx="2"/><path d="M8.5 20.5h7"/><path d="M12 16.5v4"/>',
-    lain:     '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.4a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 1.9-2.7 3.7"/><circle cx="12" cy="17" r="1"/>',
-    gembok:   '<rect x="4.5" y="10" width="15" height="10.5" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
-    terang:   '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2"/><path d="M12 19.5v2"/><path d="m5.2 5.2 1.4 1.4"/><path d="m17.4 17.4 1.4 1.4"/><path d="M2.5 12h2"/><path d="M19.5 12h2"/><path d="m5.2 18.8 1.4-1.4"/><path d="m17.4 6.6 1.4-1.4"/>',
-    gelap:    '<path d="M20 14.6A8.6 8.6 0 0 1 9.4 4 8.6 8.6 0 1 0 20 14.6Z"/>'
-  };
+  /* Ikon kelompok setelan. Kamusnya PINDAH ke pos.js v1.177 — lihat catatan
+     di IKON_KPI di atas. */
   const ikonSetting = (id) =>
-    `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON_SETTING[id] || ''}</svg>`;
+    `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON[id] || ''}</svg>`;
 
   /* KELOMPOK SETELAN. Tiga belas setelan yang berderet dalam satu petak tanpa
      pengelompokan memaksa pembacanya menyaring sendiri mana yang soal pajak,
