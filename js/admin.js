@@ -606,6 +606,23 @@ const Admin = (() => {
    */
   async function sukses(pesanTeks, layar) {
     tutupModal();
+    /* SALINAN STOK DI PERANGKAT DIBUANG DI SINI, dan sengaja di SATU tempat.
+     *
+     * Layar Stok menyimpan jawaban server sampai 10 menit (lihat
+     * `bacaCacheUmur`). Yang mengubah stok tersebar di banyak layar — posting
+     * opname, kirim & terima transfer, terima & batal pembelian, retur jual,
+     * retur beli, proses permintaan — dan menaruh pembuangan cache di tiap
+     * jalur itu berarti yang kedelapan pasti terlupa. Orang yang baru memposting
+     * opname lalu membuka Stok akan melihat angka sebelum opnamenya, dan ia
+     * tidak akan melapor "cache basi"; ia akan melapor "opname saya tidak
+     * masuk".
+     *
+     * `sukses()` adalah pintu yang dilewati SEMUA penulisan yang berhasil di
+     * back office — dua puluh tiga pemanggil, tanpa kecuali. Membuang di sini
+     * memang ikut membuang saat yang disimpan cuma nama pelanggan, dan itu
+     * memang dibayar: satu penarikan ulang yang tidak perlu, sesekali. Jauh
+     * lebih murah daripada satu angka stok yang salah. */
+    try { await DB.kvSet(CACHE_STOK, null); } catch (e) { /* bukan alasan gagal */ }
     if (pesanTeks) toast(pesanTeks);
     if (layar) await muat(layar);
   }
@@ -1158,6 +1175,15 @@ const Admin = (() => {
       const r = g.ringkas;
 
       w.innerHTML = `
+        ${/* JAM PERHITUNGAN, dan ia wajib ada.
+             Jawaban endpoint ini disimpan cache server 600 detik sejak v1.176 —
+             dan satu-satunya hal yang membuat TTL sepanjang itu boleh ada
+             adalah baris ini. Tanpa ia, angka sepuluh menit lalu menyamar jadi
+             angka sekarang, dan tidak ada seorang pun yang bisa tahu bedanya.
+             Aturan yang sama sudah berlaku di dasbor sejak v1.154.
+             Kalau baris ini dicabut, TTL di 16_Grafik.gs harus ikut dipendekkan. */''}
+        ${g.dihitung ? `<p class="petunjuk" style="margin:0 0 10px">Dihitung
+           <strong>${esc(waktuTampil(g.dihitung))}</strong>${g.dari_cache ? ' — tersimpan sementara di server' : ''}.</p>` : ''}
         <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));margin-bottom:16px">
           <div class="statistik"><div class="label">Omzet ${hari} hari</div><div class="nilai">${rp(r.omzet)}</div></div>
           <div class="statistik"><div class="label">Rata-rata per hari</div><div class="nilai">${rp(r.rata_per_hari)}</div></div>
@@ -1522,6 +1548,51 @@ const Admin = (() => {
    * tidak ada yang menyunting dari salinan basi. Yang tertinggal cuma
    * tampilannya.
    */
+  /* ==================== CACHE BERUMUR ====================
+   *
+   * Beda dari cache katalog di bawah, dan bedanya yang menentukan bentuknya:
+   *
+   *   Katalog Produk  = data MASTER. Ia berubah beberapa kali sehari, dan
+   *                     perubahannya menaikkan versi master. Kuncinya versi.
+   *   Angka Stok      = data TRANSAKSI. Ia berubah tiap kali ada nota, dan
+   *                     TIDAK menaikkan versi master apa pun. Kunci versi tidak
+   *                     menjaga apa-apa di sini — seribu penjualan bisa lewat
+   *                     tanpa satu pun kenaikan versi, dan layarnya akan
+   *                     memperlihatkan angka kemarin dengan penuh percaya diri.
+   *
+   * Jadi yang dipakai UMUR, bukan versi. Dan karena umur berarti angkanya boleh
+   * tertinggal, dua hal wajib menyertainya — keduanya sudah hidup di layar Stok
+   * lintas cabang sejak v1.140, dan aturan ini sekarang sama untuk kedua layar:
+   *
+   *   1. JAM "diperbarui …" ditulis di layar.
+   *   2. Tombol "Hitung ulang" yang memaksa panggilan server.
+   *
+   * Batas umurnya `CONFIG.STOK_CABANG_POLL_MS` (10 menit) — SENGAJA memakai
+   * angka yang sudah ada, bukan angka baru. Ia sudah menjawab pertanyaan yang
+   * persis sama ("seberapa basi boleh angka stok di perangkat ini") untuk
+   * denyut sinkronisasi dan untuk layar lintas cabang. Tiga angka berbeda untuk
+   * satu pertanyaan adalah tiga aturan yang harus dihafal. */
+  const bacaCacheUmur = async (kunci, cakupan, maksUmur) => {
+    try {
+      const t = await DB.kvGet(kunci, null);
+      if (!t || t.cakupan !== cakupan || !t.waktu) return null;
+      if (Date.now() - t.waktu > maksUmur) return null;
+      return t;
+    } catch (e) { return null; }
+  };
+  const simpanCacheUmur = async (kunci, cakupan, d) => {
+    /* Gagal menyimpan TIDAK menggagalkan layarnya — datanya sudah di tangan,
+       cuma tidak sempat disimpan. Yang hilang kecepatannya, bukan isinya. */
+    try { await DB.kvSet(kunci, { cakupan, waktu: Date.now(), d }); }
+    catch (e) { console.warn('cache tidak tersimpan (' + kunci + '): ' + e.message); }
+  };
+
+  const CACHE_STOK = 'cache_stok_cabang_ini';
+  /** Cakupan muatan layar Stok. Cabang JELAS; pengguna karena kolom HPP dan
+      Nilai hanya turun untuk peran yang berhak melihat harga modal. */
+  const cakupanStok = () =>
+    [cabangStokKini(), APP_STATE.user?.id_user || ''].join('|');
+
   const CACHE_PRODUK = 'cache_daftar_produk';
   const CACHE_PRODUK_TURUNAN = 'cache_daftar_produk_turunan';
 
@@ -3361,7 +3432,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       halStok.pager(urut.length);
   }
 
-  async function muatStok(katStok = '') {
+  async function muatStok(katStok = '', paksa = false) {
     if (stokLintas && bolehStokLintas()) return muatStokSemuaCabang(katStok);
     memuat('#isiStok');
     try {
@@ -3387,20 +3458,38 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        * dan izin `stok · lihat` yang menjaganya. Jadi peran itu tidak lagi
        * kehilangan nama produk seperti pada audit 5 Sep 2026.
        */
-      /* BERBARENGAN, bukan berurutan. Kolom Status membutuhkan data penjualan —
-         keenam statusnya membedakan laku/tidak — jadi layar ini selalu perlu
-         keduanya. `stokTerkini` yang menghitung FIFO adalah yang paling lambat;
-         menumpangkan penarikan penjualan padanya praktis tidak menambah waktu,
-         sementara menjalankannya berurutan berarti dua kali tunggu.
+      /* Tersimpan di perangkat, umur maksimal 10 menit — lihat `bacaCacheUmur`.
+         `paksa` melewatinya: itulah tombol Hitung ulang. */
+      const cakupan = cakupanStok();
+      const tersimpan = paksa ? null
+        : await bacaCacheUmur(CACHE_STOK, cakupan, CONFIG.STOK_CABANG_POLL_MS);
 
-         Kegagalan penjualan TIDAK menggagalkan layar: `muatTerjual()` menangani
-         galatnya sendiri dan memulangkan false, lalu `statusStok()` memulangkan
-         null dan kolomnya menampilkan "—". Stok tidak boleh hilang dari layar
-         hanya karena angka penjualan tidak datang. */
-      const [stok] = await Promise.all([
-        API.stokTerkini({ cabang: cabangStokKini(), dengan_produk: true }),
-        muatTerjual()
-      ]);
+      let stok, waktuStok;
+      if (tersimpan && Array.isArray(tersimpan.d?.stok)) {
+        stok = tersimpan.d;
+        waktuStok = tersimpan.waktu;
+        /* Data terjual TETAP dipastikan ada — kolom Status membutuhkannya, dan
+           ia punya penampung sendiri yang tidak menembak server dua kali. */
+        await muatTerjual();
+      } else {
+        /* BERBARENGAN, bukan berurutan. Kolom Status membutuhkan data penjualan
+           — keenam statusnya membedakan laku/tidak — jadi layar ini selalu
+           perlu keduanya. `stokTerkini` yang menghitung FIFO adalah yang paling
+           lambat; menumpangkan penarikan penjualan padanya praktis tidak
+           menambah waktu, sementara menjalankannya berurutan berarti dua kali
+           tunggu.
+
+           Kegagalan penjualan TIDAK menggagalkan layar: `muatTerjual()`
+           menangani galatnya sendiri dan memulangkan false, lalu `statusStok()`
+           memulangkan null dan kolomnya menampilkan "—". Stok tidak boleh
+           hilang dari layar hanya karena angka penjualan tidak datang. */
+        [stok] = await Promise.all([
+          API.stokTerkini({ cabang: cabangStokKini(), dengan_produk: true }),
+          muatTerjual()
+        ]);
+        waktuStok = Date.now();
+        await simpanCacheUmur(CACHE_STOK, cakupan, stok);
+      }
       const bergerak = stok.stok.filter(s => !s.diam);
 
       /**
@@ -3466,9 +3555,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <span class="lencana hijau">HPP: FIFO</span>
             </div>
             <div class="aksi">
+              <button class="tombol" id="btnSegarkanStok">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
               ${tombolEkspor('stok', { cabang: cabangStokKini() })}
             </div>
           </div>
+          ${/* Kalimatnya SAMA PERSIS dengan layar Stok lintas cabang. Dua layar
+                yang aturannya sama tapi kalimatnya berbeda memaksa orang
+                menebak apakah aturannya juga berbeda. */''}
+          <p class="petunjuk" style="margin:0 0 10px">
+            Angka ini <strong>ringkasan tersimpan di perangkat ini</strong>, diperbarui
+            ${esc(waktuTampil(new Date(waktuStok).toISOString()))}. Cukup untuk membandingkan
+            dan memutuskan kirim-mengirim; sebelum menjanjikan barang ke pelanggan,
+            tekan Hitung ulang.
+          </p>
           <div id="tabelStok"></div>
         </div>`;
       $('#isiStok')._rows = rows;
@@ -6968,6 +7067,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      if (t.id === 'btnSegarkanStok') {
+        /* `paksa` — melewati salinan di perangkat dan menghitung ulang di
+           server. Tombolnya dimatikan selama menunggu: perhitungan FIFO satu
+           cabang memakan detik, dan tombol yang tetap hidup mengundang tekanan
+           kedua yang menggandakan pekerjaannya. Pola yang sama dengan
+           tombol sebelah (lintas cabang). */
+        t.disabled = true;
+        try {
+          await muatStok($('#stokKategori')?.value || '', true);
+          toast('Stok dihitung ulang dari server.');
+        } catch (x) {
+          toast('Gagal menghitung ulang: ' + (x.message || x), 'galat');
+          t.disabled = false;
+        }
+        return;
+      }
       if (t.id === 'btnSegarkanStokLintas') {
         /* Ditarik ulang dari SERVER, lalu digambar ulang dari store yang baru
            saja diisi ulang. Tombolnya dinonaktifkan selama menunggu: tarikan
