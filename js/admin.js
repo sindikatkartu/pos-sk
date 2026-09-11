@@ -1276,6 +1276,22 @@ const Admin = (() => {
       urut: (a, b) => (terjualProduk.qty[b.sku] || 0) - (terjualProduk.qty[a.sku] || 0) },
     { id: 'tak_laku', label: 'Tidak laku', butuhTerjual: true,
       lolos: r => !(terjualProduk.qty[r.sku] > 0) },
+    /* Menipis - DUA LAPIS, keputusan pemilik 11 Sep 2026.
+         lapis 1: `stok_min` produk itu, kalau sudah disetel;
+         lapis 2: 2 pcs, kalau `stok_min` masih 0.
+       Lapis 2 ada karena saat aturan ini dibuat SELURUH 3.488 produk aktif
+       ber-`stok_min` 0 - saringan yang hanya membaca `stok_min` akan selamanya
+       kosong, dan saringan yang selalu kosong membuat orang berhenti percaya
+       pada layarnya. Begitu `stok_min` mulai diisi, lapis 1 mengambil alih
+       sendiri tanpa kode ini perlu diubah.
+
+       Stok NOL sengaja TIDAK ikut: itu habis, bukan menipis - dan 2.971 dari
+       3.488 produk berstok nol, jadi memasukkannya mengubur 113 baris yang
+       benar-benar perlu ditindaklanjuti. */
+    { id: 'menipis', label: 'Menipis',
+      lolos: r => { const s = Number(r.stok) || 0, m = Number(r.stok_min) || 0;
+                    return s > 0 && s <= (m > 0 ? m : 2); },
+      urut: (a, b) => (Number(a.stok) || 0) - (Number(b.stok) || 0) },
     { id: 'berpoin', label: 'Berpoin', lolos: r => Number(r.poin_satuan) > 0 },
     { id: 'tanpa_poin', label: 'Tanpa poin', lolos: r => !(Number(r.poin_satuan) > 0) },
     /* SKU yang dibatasi ke cabang tertentu (v1.156). Yang '*' — dijual di
@@ -1344,9 +1360,14 @@ const Admin = (() => {
   function buatHalaman(nama, label) {
     const h = {
       nama, kini: 1, urut: null,
+      /* true selama urutannya belum pernah DIPILIH orang lewat judul kolom.
+         Dipakai untuk membedakan urutan bawaan (boleh dikalahkan urutan milik
+         saringan, mis. Terlaris) dari pilihan sadar (tidak boleh dikalahkan). */
+      urutBawaan: true,
       reset() { h.kini = 1; },
       geser(arah) { h.kini += arah; },
       putarUrut(judul) {
+        h.urutBawaan = false;   // sejak klik ini, urutannya pilihan orang
         const naik = !(h.urut && h.urut.judul === judul && h.urut.arah === 'naik');
         h.urut = { judul, arah: naik ? 'naik' : 'turun' };
         h.kini = 1;
@@ -1402,6 +1423,21 @@ const Admin = (() => {
     return h;
   }
   const halProduk = buatHalaman('produk', 'daftar produk');
+  /* URUTAN BAWAAN daftar produk: nama, A-Z.
+
+     Sampai v1.168 `urut` dibiarkan null, jadi yang tampil urutan baris mentah
+     dari sheet. Akibatnya SKU TG01030006 selalu nangkring di puncak hanya
+     karena ia baris pertama katalog - dilaporkan pemilik 11 Sep 2026. Bukan
+     salah SKU itu; tidak ada satu pun urutan yang pernah ditetapkan.
+
+     Diurutkan menurut NAMA, bukan stok terendah. Stok terendah sempat diminta
+     dan diukur dulu sebelum dipasang: 2.971 dari 3.488 produk aktif (85%)
+     berstok NOL, jadi "terendah dulu" cuma menukar satu baris sembarang dengan
+     ribuan baris sembarang. Nama bisa ditebak, dan orang tahu di mana mencari.
+
+     `urutNama` di pos.js yang membandingkan, jadi "Redmi 9" tetap sebelum
+     "Redmi 13" - bukan urutan huruf yang melempar 9 ke belakang 13. */
+  halProduk.urut = { judul: 'Nama', arah: 'naik' };
   const halStok   = buatHalaman('stok', 'daftar stok');
   /* nama -> { gambar(), wadah } — penangan klik tombol halaman membacanya. */
   const GAMBAR_HALAMAN = {};
@@ -1649,7 +1685,21 @@ const Admin = (() => {
     /* Diurutkan atas SELURUH baris yang cocok, BARU dipotong 100 — kalau
        dibalik, "Poin terbesar" cuma terbesar di halaman ini. */
     const kolom = susunKolomProduk(modal, saring, kolomAktif);
-    const urut = halProduk.urutkan(baris, kolom);
+    /* Saringan yang membawa urutannya sendiri - Terlaris, menurut jumlah
+       terjual - TIDAK boleh ditimpa urutan BAWAAN. Sampai v1.169 urutan bawaan
+       tidak ada, jadi soal ini belum pernah muncul; begitu bawaannya dipasang,
+       `urutkan()` menyusun ulang seluruh baris menurut nama dan "terbanyak di
+       atas" diam-diam berhenti berlaku.
+
+       Uji yang ada TIDAK menangkapnya: di panggung, produk terlaris kebetulan
+       juga yang pertama menurut nama, jadi urutan yang salah tetap terlihat
+       benar. Fixture-nya sekarang sengaja dibuat berlawanan.
+
+       Pilihan SADAR tetap menang - begitu orang mengklik judul kolom,
+       `urutBawaan` padam dan yang dipilihnya berlaku di saringan mana pun. */
+    const urut = (saring && saring.urut && halProduk.urutBawaan)
+      ? baris
+      : halProduk.urutkan(baris, kolom);
     return (modeNonaktif.has('produk') ? spandukNonaktif('produk') : '') +
       `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
       tabelProduk(halProduk.potong(urut), kolom) +
@@ -7233,7 +7283,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            dan fokusnya dikembalikan. Beda dengan mengetik di kolom cari, yang
            tidak mengubah bentuk apa pun. */
         if (id === 'kolomProduk') kolomProduk = e.target.value;
-        else saringProduk = e.target.value;
+        else {
+          saringProduk = e.target.value;
+          /* Mengganti SARINGAN mengembalikan urutannya ke bawaan.
+
+             Memilih "Terlaris" ITU SENDIRI sudah pernyataan "urutkan menurut
+             penjualan" — kalau urutan kolom yang dipilih sebelumnya tetap
+             dipegang, saringan yang seluruh gunanya adalah urutan justru
+             kehilangan urutannya, dan orang melihat daftar "Terlaris" yang
+             tersusun menurut abjad.
+
+             Yang dilepas cuma penandanya, bukan `urut`-nya: saringan tanpa
+             urutan sendiri (Semua produk, Berpoin, Menipis...) tetap memakai
+             kolom yang tadi dipilih. Sekali orang mengklik judul lagi,
+             pilihannya menang kembali. */
+          halProduk.urutBawaan = true;
+        }
         halProduk.reset();   /* jumlah barisnya berubah — lihat catatan di kolom cari */
         /* Penyaring yang butuh data penjualan menariknya SEKARANG. Penjaga
            "jangan tarik dua kali" ada DI DALAM `muatTerjual()`, satu tempat
