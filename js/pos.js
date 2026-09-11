@@ -1007,56 +1007,173 @@ function lencanaStok(qty, stokMin, opsi) {
        + teks + (o.ikon || '') + '</span>';
 }
 
-// Ekspor untuk pengujian di Node
-/* ==================== IKON TINDAKAN ====================
- * Kamus BERSAMA untuk ikon tombol, dipakai admin.js DAN app.js.
+/**
+ * IKON — SATU kamus ikon untuk SELURUH aplikasi: sidebar, bar alat, tombol
+ * tindakan, dan baris tabel. Sebelumnya ada tiga kamus (app.js untuk menu,
+ * pos.js untuk tindakan, admin.js untuk baris perangkat) dan jalur yang disalin
+ * ke index.html serta ke app.css. Lima tempat menggambar goresan yang sama, dan
+ * lima salinan cepat atau lambat berbeda — bedanya tidak pernah muncul sebagai
+ * bug, cuma sebagai dua kaca pembesar yang goresannya tidak sama di dua layar.
  *
- * Sebelumnya `IKON_ALAT` tinggal di dalam admin.js (v1.153, tujuh ikon) dan
- * layar Kasir menyalin jalur SVG-nya langsung ke index.html. Dua salinan jalur
- * yang sama cepat atau lambat berbeda — dan bedanya tidak terlihat sebagai bug,
- * cuma sebagai dua ikon kaca pembesar yang goresannya tidak sama di dua layar.
- * Sekarang satu sumber; index.html yang tetap harus menyalin (ia HTML statis,
- * tidak bisa memanggil fungsi) dijaga uji supaya jalurnya tetap identik.
+ * SUMBERNYA SATU DAN DARI LUAR: Lucide (lucide-static, lisensi ISC, 2098 ikon).
+ * Diminta pemilik 11 Sep 2026: "cari satu sumber yang bener2 lengkap dan kelas
+ * global". Tidak satu pun jalur di bawah diketik tangan — semuanya disalin apa
+ * adanya dari node_modules/lucide-static/icons/*.svg, dan uji.js membandingkan
+ * tiap jalur dengan berkas aslinya supaya kamus ini tidak bisa menyimpang
+ * diam-diam. `IKON_SUMBER` di bawah yang menyebut nama Lucide tiap ikon.
  *
- * Goresan 1.8, viewBox 24 — sama dengan ikon menu di app.js, supaya tombol dan
- * menunya terbaca sebagai satu keluarga.
+ * TETAP DIGAMBAR SEBARIS, BUKAN DIAMBIL DARI CDN. Lucide dipakai sebagai
+ * sumber pada waktu menulis kode, bukan sebagai berkas yang diunduh pemakai:
+ * aplikasi ini harus utuh saat internet mati, dan itulah keadaan yang paling
+ * sering dihadapi kasir.
+ *
+ * MEMILIH NAMANYA: nama Lucide dipilih sedekat mungkin dengan ikon yang sudah
+ * hidup di layar kasir, supaya tidak ada yang harus belajar ulang. Di tempat
+ * yang berbeda, alasannya ditulis di baris ikonnya.
+ *
+ * Goresan 1.8, viewBox 24 — dipasang di CSS `.ikon-svg`, bukan di tiap jalur.
+ *
+ * index.html dan app.css TETAP harus menyalin beberapa jalur (keduanya statis
+ * dan tidak bisa memanggil fungsi). Salinan itu dijaga uji: jalurnya wajib ada
+ * persis di kamus ini.
  */
-var IKON_AKSI = {
-  tambah:    '<path d="M12 5v14M5 12h14"/>',
-  cari:      '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-  segarkan:  '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
-  kirim:     '<path d="M4 12h13"/><path d="m13 6 6 6-6 6"/>',
-  terima:    '<path d="M12 4v13"/><path d="m6 11 6 6 6-6"/><path d="M4 20h16"/>',
-  tampil:    '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/>',
-  hapus:     '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/>',
-  /* Tahan = jeda. Dua batang, bukan jam atau panah: yang dilakukan tombol ini
-     menghentikan sementara, bukan menunda ke waktu tertentu. */
-  tahan:     '<rect x="7" y="5" width="3.4" height="14" rx="1"/><rect x="13.6" y="5" width="3.4" height="14" rx="1"/>',
-  /* Kosongkan = keranjang disapu bersih. SENGAJA beda dari `hapus` (tong
-     sampah): hapus membuang satu baris, kosongkan mengosongkan seluruhnya. */
-  kosongkan: '<path d="M3 5h2l1.6 9.6a1.6 1.6 0 0 0 1.6 1.4h7.6a1.6 1.6 0 0 0 1.58-1.3L19 8H6"/><path d="m9.5 10.5 5 4"/><path d="m14.5 10.5-5 4"/>'
-  /* SENGAJA belum ada 'simpan', 'cetak', 'ubah'. Ketiganya sempat ditambahkan
-     lalu dibuang lagi pada hari yang sama: belum satu pun dipakai, dan 'cetak'
-     ternyata MENGGANDAKAN ikon printer yang sudah hidup di index.html dengan
-     jalur yang berbeda — dua printer yang goresannya tidak sama di dua layar,
-     persis jenis penyimpangan yang kamus ini dibuat untuk mencegah.
-
-     Aturannya: tambahkan ikon saat ia benar-benar dipakai, dan periksa dulu
-     apakah gambar yang sama sudah hidup di suatu tempat. Kosakata yang
-     ditambahkan "untuk jaga-jaga" tidak pernah diperiksa terhadap yang ada. */
+/** Nama Lucide asal tiap ikon. Dipakai penjaga di uji.js. */
+var IKON_SUMBER = {
+  /* --- Menu sidebar --- */
+  dashboard : 'layout-dashboard',
+  kasir     : 'shopping-cart',
+  riwayat   : 'history',
+  shift     : 'clock',
+  kas       : 'banknote',
+  retur     : 'undo-2',
+  produk    : 'package',
+  stok      : 'boxes',
+  transfer  : 'arrow-left-right',
+  permintaan: 'file-text',
+  opname    : 'clipboard-list',
+  pembelian : 'truck',
+  returbeli : 'package-x',
+  mitra     : 'handshake',
+  petugas   : 'id-card-lanyard',
+  piutang   : 'receipt-text',
+  utang     : 'credit-card',
+  laporan   : 'chart-column',
+  poin      : 'star',
+  keuangan  : 'wallet',
+  diskon    : 'percent',
+  pengguna  : 'users',
+  cabang    : 'store',
+  sistem    : 'settings',
+  audit     : 'shield-check',
+  arsip     : 'archive',
+  akun      : 'circle-user',
+  tentang   : 'info',
+  bantuan   : 'circle-help',
+  pengaturan: 'smartphone',
+  /* --- Tindakan: tombol dan bar alat --- */
+  tambah    : 'plus',
+  cari      : 'search',
+  segarkan  : 'refresh-cw',
+  kirim     : 'arrow-right',
+  terima    : 'arrow-down-to-line',
+  tampil    : 'eye',
+  hapus     : 'trash-2',
+  tahan     : 'pause',
+  kosongkan : 'list-x',
+  /* --- Tindakan baris perangkat (dulu kamus lokal kedua di admin.js) --- */
+  setujui   : 'check',
+  blokir    : 'ban'
 };
-/** SVG ikon tindakan. Kosong bila namanya tidak dikenal — bukan ikon acak. */
+
+var IKON = {
+  /* --- Menu sidebar --- */
+  dashboard : '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  kasir     : '<path d="m2.05 2.05 1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18"/><path d="M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25"/><circle cx="18" cy="20" r="2"/><circle cx="8" cy="20" r="2"/>',
+  riwayat   : '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  /* Shift = jam kerja kasir. `history` di atas punya panah di luar
+     lingkarannya; itu satu-satunya beda keduanya di 18px, dan ia cukup. */
+  shift     : '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  /* Kas: lembar uang. SENGAJA bukan dompet (itu Keuangan) dan bukan
+     kereta belanja (itu Kasir) — ini uang laci yang bergerak di luar
+     penjualan, bukan laporan dan bukan transaksi jual. */
+  kas       : '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
+  retur     : '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  produk    : '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><polyline points="3.29 7 12 12 20.71 7"/><path d="m7.5 4.27 9 5.15"/>',
+  stok      : '<path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/>',
+  transfer  : '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+  /* Permintaan: lembar dokumen. SENGAJA bukan papan jepit (itu Opname)
+     dan bukan panah (itu Transfer) — ketiganya duduk berurutan di grup
+     Persediaan, dan di 18px ketiganya harus bisa dibedakan sekali lihat. */
+  permintaan: '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  opname    : '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  /* Pembelian: truk — barang datang dari supplier. */
+  pembelian : '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+  /* Retur Beli: kotak bertanda silang. Kamus lama SENGAJA memakai truk
+     berputar arah dengan alasan "dua kotak nyaris kembar di 18px".
+     Alasan itu ditulis untuk dua kotak POLOS. Silang Lucide memakan
+     separuh kanan kotaknya dan terbaca jelas di 18px — sudah diperiksa
+     berdampingan dengan `produk` sebelum diganti. */
+  returbeli : '<path d="M12 22V12"/><path d="m16.5 14.5 5 5"/><path d="m16.5 19.5 5-5"/><path d="M21 10.5V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l.13-.074"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/>',
+  mitra     : '<path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/>',
+  /* Petugas: kartu nama bertali. SENGAJA bukan ikon orang seperti
+     Pengguna/Akun — di 18px ketiganya akan tampak kembar padahal
+     artinya jauh berbeda: Pengguna itu akun yang bisa masuk,
+     Petugas itu orang yang berjualan. */
+  petugas   : '<path d="M13.5 8h-3"/><path d="m15 2-1 2h3a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2h3"/><path d="M16 22a4 4 0 00-8 0"/><path d="m9 2 3 6"/><circle cx="12" cy="15" r="3"/>',
+  /* Piutang: nota bergaris. Dibedakan BENTUKNYA dari Utang (kartu),
+     bukan cuma dibalik arah panahnya: dua ikon yang nyaris sama di
+     grup yang sama justru membuat orang salah pilih.
+     Bukan `receipt` polos — isi ikon itu lambang dolar. */
+  piutang   : '<path d="M13 16H8"/><path d="M14 8H8"/><path d="M16 12H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/>',
+  utang     : '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/><path d="M6 14h2"/>',
+  laporan   : '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  /* Poin: bintang penghargaan, SENGAJA bukan koin — poin memang bukan uang. */
+  poin      : '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  keuangan  : '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  diskon    : '<line x1="19" x2="5" y1="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  pengguna  : '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
+  cabang    : '<path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/>',
+  sistem    : '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  audit     : '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  arsip     : '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+  akun      : '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
+  tentang   : '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  /* Bantuan: tanda tanya dalam lingkaran — dibedakan dari Tentang
+     (huruf "i") supaya dua menu berdekatan tidak terlihat sama sekilas. */
+  bantuan   : '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  pengaturan: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  /* --- Tindakan: tombol dan bar alat --- */
+  tambah    : '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  cari      : '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  segarkan  : '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  kirim     : '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  terima    : '<path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/>',
+  tampil    : '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  hapus     : '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  /* Tahan = jeda. Dua batang, bukan jam atau panah: tombol ini
+     menghentikan sementara, bukan menunda ke waktu tertentu. */
+  tahan     : '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  /* Kosongkan = seluruh daftar keranjang dicoret. SENGAJA beda dari
+     `hapus` (tong sampah): hapus membuang satu baris, kosongkan
+     mengosongkan semuanya. */
+  kosongkan : '<path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="m15.5 9.5 5 5"/><path d="m20.5 9.5-5 5"/>',
+  /* --- Tindakan baris perangkat (dulu kamus lokal kedua di admin.js) --- */
+  setujui   : '<path d="M20 6 9 17l-5-5"/>',
+  blokir    : '<circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/>'
+};
+/** SVG ikon. Kosong bila namanya tidak dikenal — bukan ikon acak. */
 function ikonAksi(nama) {
-  return IKON_AKSI[nama]
-    ? '<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">' + IKON_AKSI[nama] + '</svg>'
+  return IKON[nama]
+    ? '<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">' + IKON[nama] + '</svg>'
     : '';
 }
 
+// Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil, jamTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
-                     labelTimBaris, IKON_AKSI, ikonAksi };
+                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi };
 }

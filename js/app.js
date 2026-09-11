@@ -768,59 +768,11 @@ function tabelWaktu() {
       }</tr>`).join('')}</tbody></table></div>`;
 }
 
-const IKON = {
-  dashboard : '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
-  kasir     : '<circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2.2l2.4 11.2a1.8 1.8 0 0 0 1.8 1.4h9a1.8 1.8 0 0 0 1.76-1.4L21 7H5.2"/>',
-  riwayat   : '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.8"/>',
-  retur     : '<path d="M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5"/>',
-  produk    : '<path d="M20.5 7.3 12 12l-8.5-4.7"/><path d="M12 12v9.5"/><path d="M20.5 7.6v8.8a1.5 1.5 0 0 1-.78 1.32l-7 3.9a1.5 1.5 0 0 1-1.44 0l-7-3.9A1.5 1.5 0 0 1 3.5 16.4V7.6a1.5 1.5 0 0 1 .78-1.32l7-3.9a1.5 1.5 0 0 1 1.44 0l7 3.9A1.5 1.5 0 0 1 20.5 7.6Z"/><path d="m7.6 4.6 8.6 4.8"/>',
-  stok      : '<path d="m12 2.8 9 4.6-9 4.6-9-4.6 9-4.6Z"/><path d="m3 12.4 9 4.6 9-4.6"/><path d="m3 17 9 4.6 9-4.6"/>',
-  transfer  : '<path d="M7.5 4 4 7.5 7.5 11"/><path d="M4 7.5h15"/><path d="M16.5 13 20 16.5 16.5 20"/><path d="M20 16.5H5"/>',
-  // Permintaan: lembar dokumen bersudut terlipat. SENGAJA bukan papan jepit
-  // (itu Opname) dan bukan panah (itu Transfer) — di 18px ketiganya harus bisa
-  // dibedakan sekali lihat, karena ketiganya duduk berurutan di grup yang sama.
-  permintaan: '<path d="M14 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V8Z"/><path d="M14 2.5V8h5.5"/><path d="M8.5 12.5h6"/><path d="M8.5 16.5h3.5"/>',
-  opname    : '<rect x="8" y="2.5" width="8" height="4" rx="1.4"/><path d="M16 4.5h2A2 2 0 0 1 20 6.5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-13a2 2 0 0 1 2-2h2"/><path d="m9 13.5 2 2 4-4"/>',
-  pembelian : '<path d="M13.5 17.5V7a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 7v9a1.5 1.5 0 0 0 1.5 1.5H5"/><path d="M13.5 9.5H17l4 4v4a1.5 1.5 0 0 1-1.5 1.5H19"/><path d="M9 17.5h5.5"/><circle cx="7" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
-  // Retur Beli sengaja TIDAK memakai kotak seperti Produk/Retur Beli lain — di ukuran
-  // 18px dua kotak nyaris kembar. Dipakai truk yang berputar arah: barang keluar ke supplier.
-  returbeli : '<path d="M13.5 16.5V7a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 7v9a1.5 1.5 0 0 0 1.5 1.5H5"/><path d="M13.5 9.5H17l4 4v3a1.5 1.5 0 0 1-1.5 1.5H19"/><circle cx="7" cy="17.5" r="1.9"/><circle cx="17" cy="17.5" r="1.9"/><path d="M11.5 11.5h-5m2-2-2 2 2 2"/>',
-  mitra     : '<path d="M15.5 20.5v-1.8a3.7 3.7 0 0 0-3.7-3.7H6.2a3.7 3.7 0 0 0-3.7 3.7v1.8"/><circle cx="9" cy="7.5" r="3.7"/><path d="M21.5 20.5v-1.8a3.7 3.7 0 0 0-2.8-3.58"/><path d="M15.8 4.02a3.7 3.7 0 0 1 0 7.16"/>',
-  // Petugas: kartu nama bertali. Sengaja BUKAN ikon orang seperti Pengguna/Akun —
-  // di ukuran 18px ketiganya akan tampak kembar, padahal artinya jauh berbeda:
-  // Pengguna adalah akun yang bisa masuk, Petugas adalah orang yang berjualan.
-  petugas   : '<rect x="4" y="4.5" width="16" height="17" rx="2"/><path d="M9.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M7.8 18.6a4.4 4.4 0 0 1 8.4 0"/>',
-  // Poin: bintang penghargaan. Dibedakan dari Keuangan (dompet) dan Diskon (label
-  // persen) supaya tiga menu Laporan tidak saling tertukar — dan sengaja BUKAN
-  // koin, karena poin memang bukan uang.
-  poin      : '<circle cx="16.5" cy="6.5" r="4"/><path d="M16.5 4.8v3.4"/><path d="M2.5 14v6.5"/><path d="M6 20.5h7.6a3 3 0 0 0 2.1-.86l4-3.9a1.55 1.55 0 0 0-2.14-2.24l-2.5 2.1"/><path d="M6 15.4h4.4a1.65 1.65 0 0 1 0 3.3H8.2"/>',
-  piutang   : '<path d="M4 2.6v18.8l2-1 2 1 2-1 2 1 2-1 2 1 2-1V2.6l-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M8.5 8h7"/><path d="M8.5 12h5"/>',
-  /* Utang: dompet dengan panah KELUAR — pasangan `piutang` yang berbentuk nota.
-     Sengaja dibedakan bentuknya, bukan cuma dibalik arahnya: dua ikon yang
-     nyaris sama di daftar menu yang sama justru membuat orang salah pilih. */
-  utang     : '<path d="M3 7.5h15a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 7.5 15.5 4l1 3.5"/><path d="M16 13.5h1.5"/>',
-  laporan   : '<path d="M3.5 3v17.5H21"/><path d="M7.5 16.5v-4"/><path d="M12 16.5v-8"/><path d="M16.5 16.5v-5.5"/>',
-  keuangan  : '<path d="M19 7.5v-2A1.8 1.8 0 0 0 17.2 3.7H5.4a1.8 1.8 0 0 0 0 3.6h14a1.4 1.4 0 0 1 1.4 1.4v3.3"/><path d="M3.6 5.5v13a1.8 1.8 0 0 0 1.8 1.8h13.4a1.8 1.8 0 0 0 1.8-1.8v-2.6"/><path d="M17.6 12.6a2 2 0 0 0 0 4h3.2v-4Z"/>',
-  // Label diskon: tanda persen dalam kotak — dibedakan dari ikon laporan lain
-  shift     : '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M2.5 10.5h19"/><path d="M6.5 14.5h3"/>',
-  // Kas: lembar uang dengan panah keluar-masuk. Sengaja BUKAN dompet (itu milik
-  // Keuangan) dan BUKAN mesin kasir (itu milik Kasir) — di ukuran 18px ketiganya
-  // gampang tertukar, padahal artinya beda: ini uang laci yang bergerak di luar
-  // penjualan, bukan laporan dan bukan transaksi jual.
-  kas       : '<rect x="2.5" y="6.5" width="19" height="11" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6 9.5v5"/><path d="M18 9.5v5"/>',
-  akun      : '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>',
-  tentang   : '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r="1.1"/>',
-  diskon    : '<path d="M4 13.4V6a2 2 0 0 1 2-2h7.4a2 2 0 0 1 1.42.59l6 6a2 2 0 0 1 0 2.83l-7.4 7.4a2 2 0 0 1-2.83 0l-6-6A2 2 0 0 1 4 13.4Z"/><circle cx="8.6" cy="8.6" r="1.3"/><path d="m10.6 16.4 5.8-5.8"/><circle cx="11" cy="11" r="1"/><circle cx="16" cy="16" r="1"/>',
-  pengguna  : '<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
-  cabang    : '<path d="m2.5 7.5 1.6-4.2h15.8l1.6 4.2"/><path d="M2.5 7.5h19v1.6a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-4.2 0 2.7 2.7 0 0 1-5.3 0Z"/><path d="M4.6 12.6v8.4h14.8v-8.4"/><path d="M9.6 21v-5h4.8v5"/>',
-  sistem    : '<circle cx="12" cy="12" r="3"/><path d="M19.1 14.4a1.5 1.5 0 0 0 .3 1.65l.05.06a1.85 1.85 0 1 1-2.6 2.6l-.06-.05a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.37v.17a1.85 1.85 0 1 1-3.7 0v-.09a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.06.05a1.85 1.85 0 1 1-2.6-2.6l.05-.06a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.9H4a1.85 1.85 0 1 1 0-3.7h.09a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65l-.05-.06a1.85 1.85 0 1 1 2.6-2.6l.06.05a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.37V4a1.85 1.85 0 1 1 3.7 0v.09a1.5 1.5 0 0 0 .9 1.37 1.5 1.5 0 0 0 1.65-.3l.06-.05a1.85 1.85 0 1 1 2.6 2.6l-.05.06a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.37.9H20a1.85 1.85 0 1 1 0 3.7h-.09a1.5 1.5 0 0 0-1.37.9Z"/>',
-  audit     : '<path d="M12 21.5s7.5-3.8 7.5-9.5V5.2L12 2.5 4.5 5.2V12c0 5.7 7.5 9.5 7.5 9.5Z"/><path d="m9.2 11.8 2 2 3.6-3.6"/>',
-  arsip     : '<rect x="2.5" y="3.5" width="19" height="4.6" rx="1.4"/><path d="M4.4 8.1v10.4a2 2 0 0 0 2 2h11.2a2 2 0 0 0 2-2V8.1"/><path d="M10 12.2h4"/>',
-  // Bantuan: tanda tanya dalam lingkaran — dibedakan dari Tentang (huruf "i")
-  // supaya dua menu yang berdekatan di sidebar tidak terlihat sama sekilas.
-  bantuan   : '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.4a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 1.9-2.7 3.7"/><circle cx="12" cy="17" r="1"/>',
-  pengaturan: '<rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M12 18.2h.01"/>'
-};
+/* Kamus ikon PINDAH ke pos.js v1.174 — satu sumber untuk sidebar, bar alat,
+   tombol tindakan dan baris tabel sekaligus, diambil dari Lucide. Dulu ada tiga
+   kamus terpisah (di sini, di pos.js, dan satu lagi di dalam admin.js) yang
+   menggambar goresan yang sama dengan angka yang berbeda.
+   `IKON` di bawah adalah var global dari pos.js, yang dimuat lebih dulu. */
 const svgIkon = (id) =>
   `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON[id] || IKON.pengaturan}</svg>`;
 

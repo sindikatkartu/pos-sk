@@ -4370,15 +4370,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* Ikon aksi baris perangkat. Diminta pemilik 4 Sep 2026: tiga tombol berteks
      ("Setujui", "Blokir", "Hapus") membuat kolom terakhir selebar tiga kolom
-     data, dan di HP barisnya patah. Bentuknya mengikuti `IKON` di app.js —
-     viewBox 24, garis saja, tanpa isian. */
-  const IKON_AKSI = {
-    setujui: '<path d="m5 13 4 4L19 7"/>',
-    blokir : '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
-    hapus  : '<path d="M4 7h16"/><path d="M10 11v6M14 11v6"/>' +
-             '<path d="M6 7h12l-.9 12.1a1.5 1.5 0 0 1-1.5 1.4H8.4a1.5 1.5 0 0 1-1.5-1.4Z"/>' +
-             '<path d="M9.5 7V4.8A.8.8 0 0 1 10.3 4h3.4a.8.8 0 0 1 .8.8V7"/>'
-  };
+     data, dan di HP barisnya patah.
+
+     Kamus lokalnya DICABUT v1.174. Ia `const IKON_AKSI` di dalam fungsi ini,
+     jadi ia MENUTUPI kamus bersama — dan `hapus`-nya sudah terlanjur berbeda
+     dari `hapus` yang dipakai seluruh aplikasi. Ketiganya sekarang diambil dari
+     `IKON` di pos.js. */
 
   /**
    * Tombol yang isinya CUMA ikon.
@@ -4495,16 +4492,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Sinkron terakhir', render: r => esc(waktuTampil(r.terakhir_sinkron)) },
             { judul: '', render: r => `
               ${bolehIzin('user', 'setujui') ? `
-                ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON_AKSI.setujui,
+                ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON.setujui,
                     `data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI"`) : ''}
-                ${r.status !== 'DIBLOKIR' ? tombolIkon('bahaya', 'Blokir perangkat', IKON_AKSI.blokir,
+                ${r.status !== 'DIBLOKIR' ? tombolIkon('bahaya', 'Blokir perangkat', IKON.blokir,
                     `data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR"`) : ''}` : ''}
               ${/* Hapus TIDAK muncul untuk yang DISETUJUI — server pun menolaknya.
                     Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
                     jebakan, bukan tombol; yang masih hidup diblokir dulu, dan
                     langkah itulah yang memutus aksesnya. */
                  bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI'
-                ? tombolIkon('bahaya', 'Hapus perangkat', IKON_AKSI.hapus,
+                ? tombolIkon('bahaya', 'Hapus perangkat', IKON.hapus,
                     `data-hapus-perangkat="${esc(r.id_perangkat)}"`) : ''}` }
           ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true, kunci: 'perangkat',
                nonaktif: r => r.status === 'DIBLOKIR' })}

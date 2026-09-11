@@ -1830,7 +1830,7 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    input-nya tidak berubah — tidak ada elemen baru yang harus dilewati Tab. */
 .input-cari {
   padding-left: 32px !important;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2373726c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2373726c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='m21 21-4.34-4.34'/><circle cx='11' cy='11' r='8'/></svg>");
   background-repeat: no-repeat; background-position: 10px center; background-size: 16px 16px;
 }
 /* Tombol aksi dikelompokkan supaya PINDAH BARIS BERSAMA-SAMA. Dengan pengganjal
