@@ -1077,6 +1077,27 @@
   </div>
 </div>
 
+<!-- ==================== LAYAR SUKSES SESUDAH NOTA ====================
+     Sampai v1.166 modal Bayar hanya tertutup diam-diam sesudah "Selesaikan &
+     Cetak", dan angka Kembalian lenyap PERSIS saat kasir membutuhkannya untuk
+     menyerahkan uang. Layar ini menahannya sampai kasir siap.
+
+     Menutup sendiri sesudah 30 detik supaya antrean tidak pernah tersandera
+     layar yang lupa ditutup; hitungannya terlihat di tombol Selesai agar kasir
+     tahu sisa waktunya, bukan ditinggalkan menebak. -->
+<div class="tirai" id="tiraiSukses">
+  <div class="modal modal-sukses">
+    <div class="sukses-tanda" aria-hidden="true">&check;</div>
+    <p class="sukses-judul">Transaksi Berhasil</p>
+    <p class="sukses-angka" id="skAngka">Lunas</p>
+    <p class="sukses-nota" id="skNota"></p>
+    <div id="skPesan"></div>
+    <div class="aksi-modal">
+      <button class="tombol" id="btnCetakUlangSukses">Cetak Struk Kembali</button>
+      <button class="tombol utama" id="btnSelesaiSukses">Selesai</button>
+    </div>
+  </div>
+</div>
 <!-- ==================== MODAL DETAIL ITEM ==================== -->
 <div class="tirai" id="tiraiItem">
   <div class="modal">

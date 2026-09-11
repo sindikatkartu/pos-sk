@@ -3000,6 +3000,14 @@ async function selesaikanTransaksi() {
     $('#inpCari').value = '';
     $('#inpCari').focus();
 
+    /* SESUDAH fokus dikembalikan ke kolom cari, bukan sebelum: baris di atas
+       merebut fokus, dan tombol Selesai yang kehilangan fokus berarti Enter
+       tidak menutup layarnya.
+
+       Ditampilkan SEBELUM struk dicetak: kembaliannya dibutuhkan detik ini,
+       sementara pencetakan bisa makan waktu dan bisa gagal. */
+    bukaLayarSukses(arsip);
+
     /* Urutannya penting: stok lokal dikurangi DULU, baru daftarnya digambar.
        Kalau dibalik, kartu produk masih memperlihatkan stok sebelum penjualan —
        barang terakhir tetap tertulis "stok 1" sampai ada yang memicu gambar ulang. */
@@ -3010,6 +3018,9 @@ async function selesaikanTransaksi() {
     try { await Struk.cetak({ ...arsip, _offline: !API.online }); }
     catch (e) {
       // Dulu hanya console.warn: kasir mengira struk tercetak padahal tidak.
+      /* Masuk ke layar sukses yang SEDANG terbuka, bukan toast: toast hilang
+         sendiri dan kasir mengira struknya tercetak. */
+      pesan('#skPesan', 'Nota tersimpan, tapi gagal dicetak: ' + e.message, 'galat');
       Admin.toast('Nota tersimpan, tapi gagal dicetak: ' + e.message, 'galat');
     }
   } catch (e) {
@@ -3020,6 +3031,73 @@ async function selesaikanTransaksi() {
   }
 }
 
+/* ==================== LAYAR SUKSES SESUDAH NOTA ====================
+   Sampai v1.166 modal Bayar tertutup diam-diam sesudah "Selesaikan & Cetak",
+   dan angka Kembalian lenyap PERSIS saat kasir membutuhkannya untuk menyerahkan
+   uang. Kasir lalu menghitung ulang di kepala, atau menunggu struk tercetak. */
+
+/** Berapa lama layar sukses bertahan sebelum menutup diri. Keputusan pemilik. */
+const SUKSES_DETIK = 30;
+
+let _timerSukses = null;
+let _uuidSukses  = '';
+
+function hentikanTimerSukses() {
+  if (_timerSukses) { clearInterval(_timerSukses); _timerSukses = null; }
+}
+
+/**
+ * Tahan hasil transaksi di layar sampai kasir siap.
+ *
+ * Menutup sendiri sesudah SUKSES_DETIK supaya antrean tidak pernah tersandera
+ * layar yang lupa ditutup, dan hitungannya ditulis di tombol Selesai supaya
+ * kasir tahu sisa waktunya alih-alih menebak.
+ *
+ * Dipanggil SEBELUM struk dicetak, bukan sesudah: angka kembalian dibutuhkan
+ * saat itu juga, sementara pencetakan bisa makan beberapa detik dan bisa gagal.
+ * Kalau gagal, pesannya muncul DI DALAM layar ini — bukan sebagai toast yang
+ * keburu hilang sebelum dibaca.
+ */
+function bukaLayarSukses(arsip) {
+  _uuidSukses = arsip.uuid || '';
+  const kembali  = Number(arsip._kembali || 0);
+  const adaTunai = (arsip._diterima || []).some(m => m.metode === 'tunai');
+
+  /* Layar ini tetap muncul walau kembaliannya nol. Gunanya bukan cuma angka:
+     ia juga satu-satunya kepastian bahwa notanya benar-benar masuk. */
+  $('#skAngka').textContent = kembali > 0 ? 'Kembali ' + rp(kembali)
+                            : adaTunai    ? 'Uang pas'
+                            :               'Lunas';
+  $('#skNota').textContent = [arsip.no_nota || '', arsip._nama_pelanggan || 'Umum']
+                             .filter(Boolean).join(' \u00b7 ');
+  pesan('#skPesan', '');
+
+  let sisa = SUKSES_DETIK;
+  const btn = $('#btnSelesaiSukses');
+  const tulis = () => { btn.textContent = 'Selesai (' + sisa + ')'; };
+  tulis();
+
+  hentikanTimerSukses();
+  _timerSukses = setInterval(() => {
+    /* Tirainya bisa tertutup lewat jalan lain — penangan Escape global menutup
+       SELURUH .tirai sekaligus. Tanpa penjagaan ini timernya tetap berdetak,
+       lalu merebut fokus ke kolom cari 30 detik kemudian di tengah pekerjaan
+       lain. Timernya memeriksa sendiri apakah layarnya masih ada. */
+    if (!$('#tiraiSukses').classList.contains('tampil')) { hentikanTimerSukses(); return; }
+    sisa--;
+    if (sisa <= 0) { tutupLayarSukses(); return; }
+    tulis();
+  }, 1000);
+
+  $('#tiraiSukses').classList.add('tampil');
+  btn.focus();
+}
+
+function tutupLayarSukses() {
+  hentikanTimerSukses();
+  $('#tiraiSukses').classList.remove('tampil');
+  $('#inpCari').focus();
+}
 /** Kurangi perkiraan stok lokal agar tampilan tetap masuk akal selama offline. */
 async function kurangiStokLokal(dok) {
   for (const it of dok.item) {
@@ -5242,6 +5320,16 @@ function pasangEvent() {
   /* --- pembayaran --- */
   $('#btnBayar').addEventListener('click', bukaBayar);
   $('#btnBatalBayar').addEventListener('click', () => $('#tiraiBayar').classList.remove('tampil'));
+  $('#btnSelesaiSukses').addEventListener('click', tutupLayarSukses);
+  $('#btnCetakUlangSukses').addEventListener('click', async () => {
+    /* Hitung mundur DIHENTIKAN begitu kasir menekan cetak ulang: layarnya
+       tidak boleh menutup diri di tengah orang mengurus struk. Sesudah ini
+       hanya tombol Selesai yang menutupnya. */
+    hentikanTimerSukses();
+    $('#btnSelesaiSukses').textContent = 'Selesai';
+    try { await cetakUlangNota(_uuidSukses, false); }
+    catch (e) { pesan('#skPesan', 'Gagal mencetak: ' + e.message, 'galat'); }
+  });
   $('#btnTambahMetode').addEventListener('click', () => {
     const t = Keranjang.total().total;
     const sudah = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);

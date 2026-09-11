@@ -1246,6 +1246,32 @@ label {
    uang, bukan dengan kursor. Yang boleh dirapatkan hanya lebar dan celahnya. */
 .byr-isi .pecahan .cip { min-width: 58px; padding: 0 9px; }
 
+/* ==================== LAYAR SUKSES SESUDAH NOTA ====================
+   Isinya sedikit dan satu-satunya yang penting adalah angkanya, jadi semuanya
+   rata tengah dan angkanya dibiarkan mendominasi. Lihat KONTEKS.md 142. */
+.modal-sukses { max-width: 420px; text-align: center; }
+.sukses-tanda {
+  width: 56px; height: 56px; margin: 4px auto 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-28); font-weight: 700;
+  color: #fff; background: var(--sukses-tombol);
+}
+.sukses-judul {
+  margin: 0; font-size: var(--fs-15); font-weight: 600; color: var(--teks-2);
+}
+/* Angka kembalian, dan ia memang harus paling besar di layar ini: seluruh
+   gunanya layar ini adalah supaya kasir membacanya sekali lalu menyerahkan
+   uangnya dengan benar. */
+.sukses-angka {
+  margin: 6px 0 2px; font-size: var(--fs-32); font-weight: 750;
+  letter-spacing: -.9px; color: var(--sukses); font-variant-numeric: tabular-nums;
+}
+.sukses-nota {
+  margin: 0 0 4px; font-size: var(--fs-12); font-weight: 600;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--teks-redup);
+}
+.modal-sukses .aksi-modal { margin-top: 18px; }
+
 /* ==================== LOGIN ==================== */
 .layar-login {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
