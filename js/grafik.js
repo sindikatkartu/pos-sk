@@ -158,7 +158,10 @@ const Grafik = (() => {
        terukur (masih tersembunyi, clientWidth 0). */
     const W = Math.round(Math.min(900, Math.max(320, wadah.clientWidth || 900)));
     const sempit = W < 560;
-    const H = sempit ? 240 : 300;
+    /* `opsi.tinggi` — v1.179: kartu tren dashboard satu kolom memesan 170 px;
+       tanpa opsi ini grafiknya 300 px dan kartunya jadi paling tinggi sebaris.
+       Batas bawah 120 supaya sumbu dan tanggalnya masih punya tempat. */
+    const H = opsi.tinggi ? Math.max(120, Number(opsi.tinggi)) : (sempit ? 240 : 300);
     const kiri = sempit ? 46 : 62, kanan = 16, atas = 14, bawah = 30;
     const lebar = W - kiri - kanan, tinggi = H - atas - bawah;
 
@@ -249,7 +252,9 @@ const Grafik = (() => {
     wadah.appendChild(svg);
     // Legenda wajib ada begitu seri lebih dari satu — identitas tidak boleh hanya lewat warna
     if (seri.length > 1) wadah.appendChild(legenda(seri.map(s => s.nama)));
-    wadah.appendChild(tombolTabel(() => tabelDeret(tanggal, seri, fmt)));
+    /* `opsi.tanpaTabel` — v1.179: kartu dashboard sudah punya kaki "Lihat
+       sebagai tabel" sendiri (pop-up); tombol bawaan di sini akan menggandakannya. */
+    if (!opsi.tanpaTabel) wadah.appendChild(tombolTabel(() => tabelDeret(tanggal, seri, fmt)));
   }
 
   /* ==================== Grafik batang mendatar ==================== */
@@ -299,7 +304,7 @@ const Grafik = (() => {
 
     wadah.innerHTML = '';
     wadah.appendChild(kotak);
-    wadah.appendChild(tombolTabel(() => tabelBatang(data, fmt)));
+    if (!opsi.tanpaTabel) wadah.appendChild(tombolTabel(() => tabelBatang(data, fmt)));
   }
 
   /* ==================== Legenda & tampilan tabel ==================== */

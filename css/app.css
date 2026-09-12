@@ -1661,6 +1661,86 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .delta.turun { color: var(--bahaya); }
 .delta.datar, .delta.baru { color: var(--teks-redup); font-weight: 500; }
 
+/* ==================== DASHBOARD v1.179 ====================
+   Diminta pemilik 12 Sep 2026: "lebih padat & ringkas & jelas", tiap petak
+   sama tinggi, tiap hal kartunya sendiri (jangan digabung), grafik diperkecil,
+   dropdown periode/cabang TIDAK diperkecil di layar mana pun.
+
+   Bentuknya satu: .kartu-dash = kolom flex; .isi-dash memesan tinggi lima
+   baris (5 × 23 px) supaya kartu berisi dua baris tetap setinggi tetangganya;
+   .kaki-dash menempel di dasar (margin-top: auto) — yang terlihat kaki yang
+   sejajar, bukan kotak berlubang. */
+.kartu.rapat.kartu-dash { --tepi-x: 12px; --tepi-y: 10px; display: flex; flex-direction: column; min-width: 0; }
+.kartu-dash h4 { margin: 0 0 4px; font-size: var(--fs-13); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kartu-dash h4 .sub { font-weight: 400; color: var(--teks-redup); font-size: var(--fs-11); }
+.kartu-dash h4 .seg { margin-left: auto; }
+.isi-dash { min-height: 120px; min-width: 0; }
+.kaki-dash { margin-top: auto; padding-top: 2px; }
+/* Tombolnya tetap tampak sebagai tautan kecil, tapi SASARAN SENTUHNYA 40 px —
+   aturan yang sama dengan seluruh aplikasi (dijaga uji-rupa). */
+.tabel-tautan { min-height: 40px; display: inline-flex; align-items: center; font-size: var(--fs-11); color: var(--teks-redup); text-decoration: underline; background: none; border: 0; padding: 0; cursor: pointer; }
+.tabel-tautan:hover { color: var(--teks); }
+
+/* Enam kotak KPI: 6 sebaris di PC, 3 × 2 di tablet (dulu 5 + 1 yatim dengan
+   angka terpotong "Rp 1.250.0…"), 2 × 3 di HP — ambang 2 kolom di 360 px
+   dijaga uji-dashboard. */
+.petak-mini.petak-kpi { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .petak-mini.petak-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px)  { .petak-mini.petak-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Petak kartu: tiga per baris, SAMA TINGGI (stretch); empat untuk baris
+   peringkat; dua di tablet; satu di HP. Tidak ada kartu yang digabung —
+   hanya lebar kolomnya yang diatur. */
+.petak-dash { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--irama); margin-bottom: var(--irama); align-items: stretch; }
+/* Di dalam petak, jarak antar kartu adalah GAP petaknya; margin-bawah bawaan
+   .kartu (16px) di atas gap 16px membuat jarak baris terukur 32 (uji-ruang). */
+.petak-dash > .kartu { margin-bottom: 0; }
+.petak-dash-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .petak-dash, .petak-dash-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .petak-dash, .petak-dash-4 { grid-template-columns: 1fr; } }
+
+/* Daftar ringkas: satu baris 23 px, tanpa kepala tabel. Angka utama di kanan,
+   angka pendamping (qty, poin, margin) redup di sebelahnya. */
+.dr-judul { font-size: var(--fs-11); font-weight: 650; color: var(--teks-redup); text-transform: uppercase; padding: 6px 0 2px; }
+.dr-judul:first-child { padding-top: 0; }
+.dr-baris { display: flex; align-items: baseline; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--garis-halus); font-size: var(--fs-12); line-height: 1.35; }
+.dr-baris:last-child { border-bottom: 0; }
+.dr-nama { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dr-sub { color: var(--teks-redup); font-size: var(--fs-11); white-space: nowrap; }
+.dr-angka { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dr-angka .peringatan { color: var(--peringatan); }
+.dr-angka .bahaya { color: var(--bahaya); }
+.dr-kosong { color: var(--teks-redup); font-size: var(--fs-12); padding: 6px 0; }
+.ringkas-dash { display: flex; gap: 6px; margin: 0 0 4px; flex-wrap: wrap; }
+.lencana.abu { background: var(--panel-2); color: var(--teks-redup); }
+.dua-dash { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+@media (max-width: 560px) { .dua-dash { grid-template-columns: 1fr; } }
+/* margin 12px: ambang uji-ruang — di bawah itu empat kotak angka dan dua daftar
+   di bawahnya terbaca sebagai satu blok yang pecah. */
+.petak-mini.petak-stok-mini { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+@media (max-width: 900px) { .petak-mini.petak-stok-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Pemilih rentang grafik di judul kartu tren; di HP turun ke barisnya sendiri. */
+.seg { display: inline-flex; border: 1px solid var(--garis); border-radius: var(--radius); overflow: hidden; }
+.seg button { min-height: 40px; padding: 0 10px; font-size: var(--fs-11); background: transparent; border: 0; color: var(--teks-redup); cursor: pointer; }
+.seg button.aktif { background: var(--panel-2); color: var(--teks); font-weight: 600; }
+@media (max-width: 560px) { .kartu-dash h4 .seg { margin-left: 0; width: 100%; } .seg button { flex: 1; } }
+.tren-angka { display: flex; gap: 12px; flex-wrap: wrap; font-size: var(--fs-11); color: var(--teks-redup); margin-bottom: 4px; }
+.tren-angka strong { color: var(--teks); font-variant-numeric: tabular-nums; }
+
+/* Strip peringatan di atas KPI: yang menuntut tindakan sekarang berdiri di
+   atas, bukan di kartu kedelapan. */
+.strip-dash { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin-bottom: var(--irama); flex-wrap: wrap;
+              background: var(--peringatan-lembut); border: 1px solid var(--peringatan); border-radius: var(--radius); font-size: var(--fs-12); }
+.strip-dash .ikon-svg { width: 15px; height: 15px; color: var(--peringatan); flex: none; }
+.strip-dash .pisah { color: var(--teks-redup); }
+.strip-dash .strip-tautan { margin-left: auto; white-space: nowrap; }
+
+/* Dropdown periode & cabang TIDAK diperkecil di layar mana pun (keputusan
+   pemilik 12 Sep 2026): tinggi dan hurufnya sama di HP, tablet, PC. Dijaga
+   uji-dashboard dengan mengukur tingginya di tiga lebar. */
+.bar-dash select { min-height: 40px; font-size: var(--fs-14); }
+
 /* Dua lajur yang RUNTUH jadi satu di bawah 780px. Tanpa titik runtuh ini, dua
    tabel berdampingan di tablet tegak masing-masing tinggal 180px dan nama
    produknya terpotong jadi tidak ada gunanya. */

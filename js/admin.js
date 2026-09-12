@@ -885,7 +885,7 @@ const Admin = (() => {
       Math.abs(d).toFixed(1)} poin</span>`;
   }
 
-  const petakMini = (isi) => `<div class="petak-mini">${isi}</div>`;
+  const petakMini = (isi, kelas) => `<div class="petak-mini${kelas ? ' ' + kelas : ''}">${isi}</div>`;
   /* Baris ekor SELALU digambar, walau kosong. Kotak yang punya pembanding
      isinya 28px lebih tinggi daripada yang tidak, dan karena satu baris kotak
      tingginya disamakan, yang tanpa pembanding berlubang di dalam — ruang
@@ -951,6 +951,291 @@ const Admin = (() => {
      yang sudah tergambar — tanpa tiket, mengganti periode dua kali cepat
      berakhir dengan peringkat 30 hari di bawah judul "Hari ini". */
   let tiketDash = 0;
+  /* Muatan dashboard yang sedang tampil — dibaca pop-up "Lihat sebagai tabel". */
+  let dataDash = null;
+
+  /* ==================== KARTU DASHBOARD (v1.179) ====================
+   * Satu bentuk untuk empat belas kartu: judul, isi yang MEMESAN tinggi lima
+   * baris (`.isi-dash`), dan kaki "Lihat sebagai tabel" yang menempel di dasar
+   * (`.kaki-dash`, margin-top:auto). Kartu sebaris disamakan tingginya oleh
+   * `align-items: stretch` di `.petak-dash`.
+   *
+   * Diminta pemilik 12 Sep 2026: "perpetak ukuran sama ratakan supaya tidak
+   * tinggi rendah, meskipun isi tabelnya kurang — tetap sediakan 5 list".
+   * Kartu yang isinya dua baris tidak tampak berlubang: yang terlihat kaki
+   * yang sejajar dengan tetangganya.
+   */
+  const kartuDaftarDash = (judul, sub, isi, o = {}) => `<div class="kartu rapat kartu-dash"${o.id ? ` id="${o.id}"` : ''}>
+    <h4>${esc(judul)}${sub ? ` <span class="sub">${esc(sub)}</span>` : ''}${o.kanan || ''}</h4>
+    <div class="isi-dash">${isi}</div>
+    ${o.tabel ? `<div class="kaki-dash"><button type="button" class="tabel-tautan" data-tabel-dash="${o.tabel}">Lihat sebagai tabel${o.kaki ? ' · ' + esc(o.kaki) : ''}</button></div>` : ''}
+  </div>`;
+
+  /** Baris daftar ringkas: [nama, angka, sub?]. Kosong = satu baris keterangan. */
+  const barisDash = (rows, kosong) => rows.length
+    ? rows.map(r => `<div class="dr-baris"><span class="dr-nama">${r[0]}</span>${r[2] !== undefined && r[2] !== '' ? `<span class="dr-sub">${r[2]}</span>` : ''}<span class="dr-angka">${r[1]}</span></div>`).join('')
+    : `<div class="dr-kosong">${esc(kosong || 'Belum ada data')}</div>`;
+
+  const lencanaDash = (teks, warna) => `<span class="lencana ${warna || ''}">${esc(teks)}</span>`;
+  const WARNA_STATUS = { MENUNGGU: 'kuning', SEBAGIAN: 'biru', SELESAI: 'hijau', DIKIRIM: 'kuning',
+                         DITERIMA: 'hijau', SELISIH: 'merah', BUKA: 'kuning', TUTUP: 'hijau', BELUM: 'abu',
+                         DRAFT: 'abu', REVIEW: 'kuning' };
+  const labelStatus = (st) => ({ MENUNGGU: 'menunggu', SEBAGIAN: 'sebagian', SELESAI: 'selesai',
+    DIKIRIM: 'dikirim', DITERIMA: 'diterima', SELISIH: 'selisih', BUKA: 'buka', TUTUP: 'tutup',
+    BELUM: 'belum buka', DRAFT: 'draft', REVIEW: 'review' }[st] || String(st || '').toLowerCase());
+  const umurTeks = (n) => n === 0 ? 'hari ini' : n === 1 ? 'kemarin' : n + ' hari';
+  const jamDari = (iso) => String(iso || '').slice(11, 16);
+  /* "24/08/2026 16:20:00" memakan lebar yang seharusnya untuk rute; di kartu
+     cukup "24/08 16:20", dan "hari ini 09:12" bila tanggalnya hari ini. */
+  const waktuRingkas = (iso) => {
+    const t = String(iso || ''); if (t.length < 16) return t;
+    const hariIni = typeof tanggalLokal === 'function' ? tanggalLokal() : '';
+    return (t.slice(0, 10) === hariIni ? 'hari ini' : t.slice(8, 10) + '/' + t.slice(5, 7)) + ' ' + t.slice(11, 16);
+  };
+
+  /* Strip peringatan di atas KPI: shift terbuka + perangkat menunggu. Yang
+     menuntut tindakan sekarang berdiri di atas, bukan di kartu ke-8. */
+  function stripDash(d, m) {
+    const butir = [];
+    const st = (d && d.shift_terbuka) || [];
+    if (st.length) butir.push(`<span><strong>${st.length} shift masih terbuka</strong> — ${st.map(x =>
+      esc(x.cabang) + ' · ' + esc(x.id_user) + ' · sejak ' + esc(jamDari(x.buka))).join(', ')}</span>`);
+    if (m && m.perangkat_menunggu) butir.push(`<span><strong>${m.perangkat_menunggu} perangkat</strong> menunggu persetujuan</span>`);
+    if (!butir.length) return '';
+    const tautan = [];
+    if (st.length && typeof bolehLayar === 'function' && bolehLayar('shift')) tautan.push('<a href="#/shift" data-layar="shift">Buka Shift →</a>');
+    if (m && m.perangkat_menunggu && typeof bolehLayar === 'function' && bolehLayar('pengguna')) tautan.push('<a href="#/pengguna" data-layar="pengguna">Pengguna →</a>');
+    return `<div class="strip-dash" role="status">${ikonAlat('peringatan')}${butir.join('<span class="pisah">·</span>')}
+      ${tautan.length ? `<span class="strip-tautan">${tautan.join(' · ')}</span>` : ''}</div>`;
+  }
+
+  /* Kartu monitor yang digambar bergantung pada IZIN peran — rangkanya pun
+     mengikuti, supaya tidak ada kotak "memuat" yang berakhir kosong. */
+  const KARTU_MONITOR = [
+    { id: 'kartuPermintaan', judul: 'Permintaan barang', izin: ['permintaan', 'lihat'], tabel: 'permintaan', kaki: '50 terbaru' },
+    { id: 'kartuTransfer',   judul: 'Transfer barang',   izin: ['transfer', 'lihat'],   tabel: 'transfer',   kaki: '50 terbaru' },
+    { id: 'kartuReturVoid',  judul: 'Retur jual & void', izin: ['retur', 'lihat'],      tabel: 'retur_void', kaki: '50 terbaru' },
+    { id: 'kartuAudit',      judul: 'Aktivitas terakhir', izin: ['audit', 'lihat'],     tabel: 'audit',      kaki: '50 terbaru' },
+    { id: 'kartuOpnameUtang', judul: 'Opname & utang',   izin: ['opname', 'lihat'],     tabel: 'opname_utang', kaki: 'semua' },
+    { id: 'kartuShift',      judul: 'Shift hari ini',    izin: ['shift', 'lihat'],      tabel: 'shift',      kaki: '30 hari' }
+  ];
+  const kartuMonitorBoleh = () => KARTU_MONITOR.filter(k => bolehIzin(k.izin[0], k.izin[1]));
+  const rangkaMonitor = () => kartuMonitorBoleh().map(k =>
+    `<div class="kartu rapat kartu-dash" id="${k.id}" aria-busy="true"><h4>${esc(k.judul)}</h4>
+      <div class="isi-dash">${rangkaBaris(4, ['80%', '62%', '74%', '56%'])}</div></div>`).join('');
+
+  async function muatDashboardMonitor(tiket) {
+    if (!kartuMonitorBoleh().length) return;
+    try {
+      const m = await API.dashboard({ periode: periodeDash, cabang: cabangDash, bagian: 'monitor' }, { latar: true });
+      if (tiket !== tiketDash) return;
+      if (dataDash) dataDash.monitor = m;
+      isiKartuMonitor(m);
+      const strip = $('#stripDash');
+      if (strip && dataDash) strip.innerHTML = stripDash(dataDash.inti, m);
+    } catch (e) {
+      if (tiket !== tiketDash) return;
+      /* Gagalnya monitor TIDAK merobohkan dashboard yang sudah tergambar. */
+      kartuMonitorBoleh().forEach(k => {
+        const el = $('#' + k.id);
+        if (el) el.outerHTML = `<div class="kartu rapat kartu-dash" id="${k.id}"><h4>${esc(k.judul)}</h4>
+          <div class="isi-dash"><p class="pesan galat" style="margin:0">Gagal dimuat — ${esc(e.message)}</p></div></div>`;
+      });
+    }
+  }
+
+  function isiKartuMonitor(m) {
+    const cap = m && m.dihitung ? '· per ' + m.dihitung : '';
+    const ganti = (id, html) => { const el = $('#' + id); if (el) el.outerHTML = html; };
+    const pm = m.permintaan, tf = m.transfer, rv = m.retur_void, la = m.audit, op = m.opname, ut = m.utang, sh = m.shift;
+
+    if ($('#kartuPermintaan')) ganti('kartuPermintaan', kartuDaftarDash('Permintaan barang', cap,
+      pm === null || pm === undefined ? '<div class="dr-kosong">Tidak tersedia</div>' : `
+        <div class="ringkas-dash">${lencanaDash(pm.menunggu + ' menunggu', 'kuning')}${lencanaDash(pm.sebagian + ' sebagian', 'biru')}${lencanaDash(pm.selesai + ' selesai', 'hijau')}</div>
+        ${barisDash(pm.daftar.filter(x => x.status !== 'SELESAI').slice(0, 4).map(x => [
+          esc(x.no_dokumen) + ' · ' + esc(x.cabang_asal) + ' → ' + esc(x.cabang_tujuan),
+          lencanaDash(labelStatus(x.status), WARNA_STATUS[x.status]),
+          x.status === 'SEBAGIAN' ? x.n_proses + ' dari ' + x.n_item + ' item' : umurTeks(x.umur_hari)]), 'Tidak ada yang menunggu')}`,
+      { id: 'kartuPermintaan', tabel: 'permintaan', kaki: '50 terbaru' }));
+
+    if ($('#kartuTransfer')) ganti('kartuTransfer', kartuDaftarDash('Transfer barang', cap,
+      tf === null || tf === undefined ? '<div class="dr-kosong">Tidak tersedia</div>' : `
+        <div class="ringkas-dash">${lencanaDash(tf.dikirim + ' di jalan', 'kuning')}${tf.selisih ? lencanaDash(tf.selisih + ' selisih', 'merah') : ''}</div>
+        ${barisDash(tf.daftar.slice(0, 4).map(x => [
+          esc(x.no_dokumen) + ' · ' + esc(x.cabang_asal) + ' → ' + esc(x.cabang_tujuan),
+          lencanaDash(labelStatus(x.status), WARNA_STATUS[x.status]),
+          x.status === 'DIKIRIM' ? 'sejak ' + esc(waktuRingkas(x.tanggal_kirim)) : esc(waktuRingkas(x.tanggal_terima || x.tanggal))]), 'Tidak ada transfer')}`,
+      { id: 'kartuTransfer', tabel: 'transfer', kaki: '50 terbaru' }));
+
+    if ($('#kartuReturVoid')) ganti('kartuReturVoid', kartuDaftarDash('Retur jual & void', 'periode ini ' + cap,
+      rv === null || rv === undefined ? '<div class="dr-kosong">Tidak tersedia</div>' : `
+        <div class="ringkas-dash">${lencanaDash(rv.retur.n + ' retur · ' + rp(rv.retur.nilai), 'abu')}${lencanaDash(rv.void.n + ' void · ' + rp(rv.void.nilai), rv.void.n ? 'merah' : 'abu')}</div>
+        ${barisDash(rv.daftar.slice(0, 4).map(x => [
+          esc(x.no) + ' · ' + x.jenis, esc(x.id_user), esc(x.alasan || '')]), 'Tidak ada retur maupun void')}`,
+      { id: 'kartuReturVoid', tabel: 'retur_void', kaki: '50 terbaru' }));
+
+    if ($('#kartuAudit')) ganti('kartuAudit', kartuDaftarDash('Aktivitas terakhir', 'log audit ' + cap,
+      la === null || la === undefined ? '<div class="dr-kosong">Tidak tersedia</div>'
+        : barisDash(la.slice(0, 5).map(x => [esc(x.aksi) + ' · ' + esc(x.id_entitas || x.entitas), esc(x.id_user), esc(jamDari(x.waktu))]), 'Belum ada catatan'),
+      { id: 'kartuAudit', tabel: 'audit', kaki: '50 terbaru' }));
+
+    if ($('#kartuOpnameUtang')) ganti('kartuOpnameUtang', kartuDaftarDash('Opname & utang', cap, `
+        <div class="dr-judul">Opname belum diposting</div>
+        ${barisDash((op || []).slice(0, 2).map(x => [esc(x.no_dokumen) + ' · ' + esc(x.cabang) + ' · ' + esc(x.status), x.jumlah_selisih + ' selisih', 'sejak ' + esc(waktuRingkas(x.waktu_buka))]), op === null ? 'Tidak tersedia' : 'Tidak ada')}
+        <div class="dr-judul">Utang ke supplier</div>
+        ${ut ? barisDash([
+          ['Belum jatuh tempo', '<strong>' + rp(ut.belum) + '</strong>'],
+          ['Jatuh tempo ≤ 7 hari', '<strong class="' + (ut.segera > 0 ? 'peringatan' : '') + '">' + rp(ut.segera) + '</strong>'],
+          ['Sudah telat', '<strong class="' + (ut.telat > 0 ? 'bahaya' : '') + '">' + rp(ut.telat) + '</strong>']
+        ]) : '<div class="dr-kosong">Tidak tersedia</div>'}`,
+      { id: 'kartuOpnameUtang', tabel: 'opname_utang', kaki: 'per supplier' }));
+
+    if ($('#kartuShift')) ganti('kartuShift', kartuDaftarDash('Shift hari ini', 'per cabang ' + cap,
+      sh === null || sh === undefined ? '<div class="dr-kosong">Tidak tersedia</div>'
+        : barisDash(sh.slice(0, 5).map(x => [
+            esc(x.cabang) + ' · ' + esc(x.nama || x.id_user || '—'),
+            lencanaDash(x.status === 'TUTUP' ? 'tutup ' + jamDari(x.tutup) : labelStatus(x.status), WARNA_STATUS[x.status]),
+            x.status === 'BUKA' ? 'sejak ' + jamDari(x.buka) : x.status === 'TUTUP' ? 'selisih ' + rp(x.selisih) : '']), 'Tidak ada cabang'),
+      { id: 'kartuShift', tabel: 'shift', kaki: '30 hari' }));
+  }
+
+  /* ==================== POP-UP "LIHAT SEBAGAI TABEL" ====================
+   * Tidak memanggil server: seluruh barisnya sudah ikut turun bersama inti,
+   * berat, dan monitor. Rincian produk (tipe HP, cocok untuk, kategori, merek)
+   * diambil dari katalog di perangkat — permintaan pemilik 12 Sep 2026:
+   * "nama produk seperti multi fit tidak terbaca tipe hapenya".
+   */
+  async function bukaTabelDash(jenis) {
+    const d = dataDash || {};
+    const inti = d.inti || {}, berat = d.berat || {}, mon = d.monitor || {};
+    let judul = '', kolom = [], baris = [], cari = true;
+    const katalog = {};
+    const perluKatalog = ['produk', 'stok', 'permintaan', 'transfer', 'retur_void'].indexOf(jenis) !== -1;
+    if (perluKatalog) {
+      try { (await DB.all('produk')).forEach(p => { katalog[p.sku] = p; }); } catch (e) { /* katalog kosong tetap jalan */ }
+    }
+    const cocok = (sku) => {
+      const p = katalog[sku]; if (!p) return '';
+      const daftar = [p.tipe_hp].concat((p.kompatibel || []).map(k => (k.merek ? k.merek + ' ' : '') + k.tipe)).filter(Boolean);
+      return Array.from(new Set(daftar)).join(' · ');
+    };
+    const kelompok = (sku) => { const p = katalog[sku]; return p ? [p.kategori, p.merek].filter(Boolean).join(' · ') : ''; };
+    const kolProduk = [
+      { judul: 'Produk', kunci: 'nama' }, { judul: 'SKU', kunci: 'sku' },
+      { judul: 'Cocok untuk', render: r => esc(cocok(r.sku) || '—') },
+      { judul: 'Kategori · merek', render: r => esc(kelompok(r.sku) || '—') }
+    ];
+    switch (jenis) {
+      case 'produk':
+        judul = 'Produk terlaris · 50 teratas';
+        kolom = kolProduk.concat([{ judul: 'Qty', kunci: 'qty', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }]);
+        baris = (berat.peringkat && berat.peringkat.produk) || (inti.peringkat && inti.peringkat.produk) || [];
+        break;
+      case 'kategori':
+        judul = 'Omzet per kategori';
+        kolom = [{ judul: 'Kategori', kunci: 'nama' }, { judul: 'Qty', kunci: 'qty', angka: true },
+                 { judul: 'Omzet', angka: true, render: r => rp(r.omzet) },
+                 { judul: 'Margin', angka: true, render: r => r.margin === undefined ? '—' : (r.margin || 0).toFixed(1) + '%' }];
+        baris = (berat.peringkat && berat.peringkat.kategori) || (inti.peringkat && inti.peringkat.kategori) || [];
+        break;
+      case 'petugas':
+        judul = 'Peringkat petugas';
+        kolom = [{ judul: 'Nama', kunci: 'nama' }, { judul: 'Poin', kunci: 'poin', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
+        baris = (inti.peringkat && inti.peringkat.petugas) || [];
+        break;
+      case 'cabang':
+        judul = 'Omzet per cabang';
+        kolom = [{ judul: 'Cabang', kunci: 'cabang' }, { judul: 'Nota', kunci: 'nota', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
+        baris = (inti.peringkat && inti.peringkat.cabang) || inti.per_cabang || [];
+        break;
+      case 'jam':
+        judul = 'Omzet per jam';
+        kolom = [{ judul: 'Jam', render: r => String(r.jam).padStart(2, '0') + ':00' }, { judul: 'Nota', kunci: 'nota', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
+        baris = (inti.per_jam || []).filter(x => x.nota > 0); cari = false;
+        break;
+      case 'piutang':
+        judul = 'Kas masuk & umur piutang';
+        kolom = [{ judul: 'Keterangan', kunci: 'k' }, { judul: 'Jumlah', angka: true, render: r => rp(r.v) }];
+        { const pi = (inti.kas && inti.kas.piutang) || {};
+          baris = ((inti.kas && inti.kas.per_metode) || []).map(r => ({ k: 'Kas masuk · ' + String(r.metode).toUpperCase(), v: r.jumlah }))
+            .concat([{ k: 'Piutang belum jatuh tempo', v: pi.belum || 0 }, { k: 'Piutang lewat 1–30 hari', v: pi.d1_30 || 0 }, { k: 'Piutang lewat 30+ hari', v: pi.d30plus || 0 }]); }
+        cari = false; break;
+      case 'stok':
+        judul = 'Kesehatan stok · menipis & barang mati';
+        kolom = kolProduk.concat([{ judul: 'Keadaan', kunci: 'keadaan' }, { judul: 'Stok', kunci: 'qty', angka: true }, { judul: 'Min / nilai', angka: true, render: r => r.stok_min !== undefined ? 'min ' + r.stok_min : rp(r.nilai) }]);
+        { const st = berat.stok || inti.stok || {};
+          baris = (st.kritis || []).map(r => Object.assign({ keadaan: 'menipis' }, r)).concat((st.mati || []).map(r => Object.assign({ keadaan: 'tidak terjual' }, r))); }
+        break;
+      case 'permintaan':
+        judul = 'Permintaan barang · 50 terbaru';
+        kolom = [{ judul: 'Dokumen', kunci: 'no_dokumen' }, { judul: 'Tanggal', render: r => esc(tglTampil(r.tanggal)) },
+                 { judul: 'Rute', render: r => esc(r.cabang_asal) + ' → ' + esc(r.cabang_tujuan) },
+                 { judul: 'Status', render: r => lencanaDash(labelStatus(r.status), WARNA_STATUS[r.status]) },
+                 { judul: 'Item', render: r => (r.item || []).map(i => esc(i.nama_produk) + (cocok(i.sku) ? ' <span class="petunjuk">' + esc(cocok(i.sku)) + '</span>' : '') + ' <strong>' + i.qty_proses + '/' + i.qty_minta + '</strong>').join('<br>') }];
+        baris = (mon.permintaan && mon.permintaan.daftar) || [];
+        break;
+      case 'transfer':
+        judul = 'Transfer barang · 50 terbaru';
+        kolom = [{ judul: 'Dokumen', kunci: 'no_dokumen' }, { judul: 'Tanggal', render: r => esc(tglTampil(r.tanggal)) },
+                 { judul: 'Rute', render: r => esc(r.cabang_asal) + ' → ' + esc(r.cabang_tujuan) },
+                 { judul: 'Status', render: r => lencanaDash(labelStatus(r.status), WARNA_STATUS[r.status]) },
+                 { judul: 'Item', render: r => (r.item || []).map(i => esc(i.nama_produk) + (cocok(i.sku) ? ' <span class="petunjuk">' + esc(cocok(i.sku)) + '</span>' : '') + ' <strong>' + i.qty_kirim + (i.qty_terima !== null && i.qty_terima !== undefined ? '/' + i.qty_terima : '') + '</strong>').join('<br>') }];
+        baris = (mon.transfer && mon.transfer.daftar) || [];
+        break;
+      case 'retur_void':
+        judul = 'Retur jual & void · periode ini';
+        kolom = [{ judul: 'Jenis', kunci: 'jenis' }, { judul: 'Nomor', kunci: 'no' }, { judul: 'Tanggal', render: r => esc(tglTampil(r.tanggal)) + (r.jam ? ' ' + esc(r.jam) : '') },
+                 { judul: 'Cabang', kunci: 'cabang' }, { judul: 'Kasir', kunci: 'id_user' }, { judul: 'Nilai', angka: true, render: r => rp(r.nilai) },
+                 { judul: 'Alasan', kunci: 'alasan' },
+                 { judul: 'Item', render: r => (r.item || []).map(i => esc(i.nama_produk) + ' × ' + i.qty + (i.kondisi ? ' (' + esc(i.kondisi) + ')' : '')).join('<br>') || '—' }];
+        baris = (mon.retur_void && mon.retur_void.daftar) || [];
+        break;
+      case 'audit':
+        judul = 'Aktivitas terakhir · 50 catatan';
+        kolom = [{ judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) }, { judul: 'Pengguna', kunci: 'id_user' }, { judul: 'Aksi', kunci: 'aksi' }, { judul: 'Entitas', render: r => esc(r.entitas) + (r.id_entitas ? ' · ' + esc(r.id_entitas) : '') }];
+        baris = mon.audit || [];
+        break;
+      case 'opname_utang':
+        judul = 'Opname belum diposting & utang per supplier';
+        kolom = [{ judul: 'Jenis', kunci: 'jenis' }, { judul: 'Keterangan', kunci: 'ket' }, { judul: 'Status / jatuh tempo', kunci: 'st' }, { judul: 'Nilai', angka: true, kunci: 'nilai' }];
+        baris = (mon.opname || []).map(o => ({ jenis: 'opname', ket: o.no_dokumen + ' · ' + o.cabang + ' · ' + (o.id_user || ''), st: labelStatus(o.status) + ' · sejak ' + waktuTampil(o.waktu_buka), nilai: o.jumlah_selisih + ' selisih' }))
+          .concat(((mon.utang && mon.utang.daftar) || []).map(u => ({ jenis: 'utang', ket: u.nama_supplier, st: u.hari_telat > 0 ? 'telat ' + u.hari_telat + ' hari' : 'jatuh tempo ' + tglTampil(u.jatuh_tempo), nilai: rp(u.sisa) })));
+        break;
+      case 'shift':
+        judul = 'Shift hari ini per cabang';
+        kolom = [{ judul: 'Cabang', kunci: 'cabang' }, { judul: 'Kasir', render: r => esc(r.nama || r.id_user || '—') },
+                 { judul: 'Status', render: r => lencanaDash(labelStatus(r.status), WARNA_STATUS[r.status]) },
+                 { judul: 'Buka', render: r => esc(jamDari(r.buka)) }, { judul: 'Tutup', render: r => esc(jamDari(r.tutup)) },
+                 { judul: 'Nota', kunci: 'jumlah_nota', angka: true }, { judul: 'Selisih kas', angka: true, render: r => r.status === 'TUTUP' ? rp(r.selisih) : '—' }];
+        baris = mon.shift || []; cari = false;
+        break;
+      case 'tren':
+        judul = 'Tren penjualan';
+        { const g = grafikTerakhir;
+          if (g && grafikModeKini === 'bulanan' && g.tren_bulanan) {
+            kolom = [{ judul: 'Bulan', kunci: 'periode' }, { judul: 'Laba kotor', angka: true, render: r => rp(r.laba_kotor) }];
+            baris = g.tren_bulanan;
+          } else if (g) {
+            kolom = [{ judul: 'Tanggal', render: r => esc(tglTampil(r.tanggal)) }, { judul: 'Nota', kunci: 'nota', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.total) }];
+            baris = g.deret_harian.map((x, i) => Object.assign({ tanggal: g.tanggal[i] }, x));
+          } }
+        cari = false; break;
+      default: return;
+    }
+    bukaModal(judul, `
+      ${cari ? '<input type="text" class="input-cari" id="cariTabelDash" placeholder="Cari di tabel ini…" style="max-width:320px;margin-bottom:10px">' : ''}
+      <div id="isiTabelDash">${tabelPolos(kolom, baris)}</div>
+      <p class="petunjuk" style="margin:8px 0 0">${baris.length} baris. Tidak memanggil server — angkanya sama dengan yang di kartu.</p>`);
+    if (cari) {
+      const inp = $('#cariTabelDash');
+      inp.addEventListener('input', () => {
+        const q = inp.value.toLowerCase().trim();
+        const teks = (r) => kolom.map(k => k.render ? k.render(r) : String(r[k.kunci] ?? '')).join(' ').replace(/<[^>]+>/g, ' ').toLowerCase();
+        $('#isiTabelDash').innerHTML = tabelPolos(kolom, q ? baris.filter(r => teks(r).indexOf(q) !== -1) : baris);
+      });
+      inp.focus();
+    }
+  }
 
   async function muatDashboard() {
     rangkaDashboard();
@@ -984,6 +1269,10 @@ const Admin = (() => {
       const pk = d.peringkat || {};
       const adaMargin = k.laba_kotor !== undefined;
 
+      /* Seluruh muatan disimpan untuk pop-up "Lihat sebagai tabel" — pop-up
+         tidak memanggil server (§159). */
+      dataDash = { inti: d, berat: null, monitor: null };
+
       $('#isiDashboard').innerHTML = `
         <div class="bar-alat rapat bar-dash">
           <select id="periodeDash" style="width:auto">
@@ -993,6 +1282,8 @@ const Admin = (() => {
           ${pilihCabangDash()}
           <span class="petunjuk keterangan-dash" style="margin:0" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</span>
         </div>
+
+        <div id="stripDash">${stripDash(d, null)}</div>
 
         ${petakMini([
           kotakMini('Omzet', rp(k.omzet), lencanaSelisih(k.omzet, l.omzet),
@@ -1009,66 +1300,58 @@ const Admin = (() => {
             (pi.d1_30 + pi.d30plus) > 0
               ? `<span class="delta turun">${rp(pi.d1_30 + pi.d30plus)} lewat tempo</span>` : '',
             { ikon: 'piutang', warna: 'kuning', ke: 'piutang' })
-        ].join(''))}
+        ].join(''), 'petak-kpi')}
 
-        <div class="petak-2">
-          <div class="kartu rapat">
-            <h4>Jam ramai</h4>
-            <div id="wadahJam"><p class="grafik-kosong">Belum ada penjualan</p></div>
+        ${/* BARIS 1 — tren, kas & piutang, jam ramai. Tiga kartu berdiri sendiri,
+              sama tinggi (align-items: stretch). */''}
+        <div class="petak-dash">
+          <div class="kartu rapat kartu-dash" id="kartuTren">
+            <h4>Tren penjualan
+              <span class="seg" id="grafikMode" role="group" aria-label="Rentang grafik">
+                ${[['14', '14'], ['30', '30'], ['60', '60'], ['90', '90'], ['bulanan', 'Laba 6 bln']].map(([v, t]) =>
+                  `<button type="button" data-grafik="${v}" class="${v === '30' ? 'aktif' : ''}">${t}</button>`).join('')}
+              </span></h4>
+            <div class="isi-dash"><div id="wadahGrafik"><p class="grafik-kosong">Memuat grafik…</p></div></div>
+            <div class="kaki-dash"><button type="button" class="tabel-tautan" data-tabel-dash="tren">Lihat sebagai tabel</button></div>
           </div>
-          <div class="kartu rapat">
-            <h4>Kas masuk &amp; piutang</h4>
-            ${tabel([
-              { judul: 'Metode', render: r => esc(String(r.metode).toUpperCase()) },
-              { judul: 'Jumlah', angka: true, render: r => rp(r.jumlah) }
-            ], kas.per_metode || [], { kosong: 'Belum ada pembayaran' })}
-            <div class="umur-piutang">
-              <div><span>Belum jatuh tempo</span><strong>${rp(pi.belum || 0)}</strong></div>
-              <div><span>Lewat 1–30 hari</span><strong class="${pi.d1_30 > 0 ? 'peringatan' : ''}">${rp(pi.d1_30 || 0)}</strong></div>
-              <div><span>Lewat 30+ hari</span><strong class="${pi.d30plus > 0 ? 'bahaya' : ''}">${rp(pi.d30plus || 0)}</strong></div>
-            </div>
-          </div>
+          ${kartuDaftarDash('Kas & piutang', '', `
+            <div class="dr-judul">Kas masuk</div>
+            ${barisDash((kas.per_metode || []).map(r => [esc(String(r.metode).toUpperCase()), rp(r.jumlah)]), 'Belum ada pembayaran')}
+            <div class="dr-judul">Umur piutang</div>
+            ${barisDash([
+              ['Belum jatuh tempo', '<strong>' + rp(pi.belum || 0) + '</strong>'],
+              ['Lewat 1–30 hari', '<strong class="' + (pi.d1_30 > 0 ? 'peringatan' : '') + '">' + rp(pi.d1_30 || 0) + '</strong>'],
+              ['Lewat 30+ hari', '<strong class="' + (pi.d30plus > 0 ? 'bahaya' : '') + '">' + rp(pi.d30plus || 0) + '</strong>']
+            ])}`, { tabel: 'piutang', kaki: 'per pelanggan', id: 'kartuKas' })}
+          ${kartuDaftarDash('Jam ramai', 'omzet per jam',
+            '<div id="wadahJam"><p class="grafik-kosong">Belum ada penjualan</p></div>',
+            { tabel: 'jam', kaki: '24 jam', id: 'kartuJam' })}
         </div>
 
-        <div class="petak-2">
+        ${/* BARIS 2 & 3 — kartu monitor. Rangka dulu, diisi belakangan dari
+              bagian 'monitor' di latar (sama polanya dengan 'berat'). Kartu yang
+              perannya tidak berhak tidak pernah digambar — rangkanya pun tidak. */''}
+        <div class="petak-dash" id="petakMonitor">${rangkaMonitor()}</div>
+
+        ${/* BARIS 4 — empat peringkat, empat kartu sendiri. */''}
+        <div class="petak-dash petak-dash-4">
           ${rangkaKartuPeringkat('Produk terlaris', 'wadahPeringkatProduk')}
           ${rangkaKartuPeringkat('Kategori', 'wadahPeringkatKategori')}
-          ${kartuPeringkat('Petugas', [
-            { judul: 'Nama', kunci: 'nama' },
-            { judul: 'Poin', kunci: 'poin', angka: true },
-            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
-          ], pk.petugas, 'Belum ada klaim petugas')}
-          ${kartuPeringkat('Cabang', [
-            { judul: 'Cabang', kunci: 'cabang' },
-            { judul: 'Nota', kunci: 'nota', angka: true },
-            { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
-          ], pk.cabang || d.per_cabang, 'Belum ada transaksi')}
+          ${kartuDaftarDash('Petugas', '', barisDash((pk.petugas || []).slice(0, 5).map(r =>
+              [esc(r.nama), rp(r.omzet), r.poin + ' poin']), 'Belum ada klaim petugas'),
+            { tabel: 'petugas', kaki: 'semua', id: 'kartuPetugas' })}
+          ${kartuDaftarDash('Cabang', '', barisDash((pk.cabang || d.per_cabang || []).slice(0, 5).map(r =>
+              [esc(r.cabang), rp(r.omzet), r.nota + ' nota']), 'Belum ada transaksi'),
+            { tabel: 'cabang', kaki: 'semua', id: 'kartuCabang' })}
         </div>
 
-        ${rangkaKartuStok('wadahStokDash')}
+        ${rangkaKartuStok('wadahStokDash')}`;
 
-        ${(d.shift_terbuka || []).length ? `<div class="kartu rapat"><h4>Shift masih terbuka
-          <span class="lencana kuning">${d.shift_terbuka.length}</span></h4>
-          <p class="petunjuk">Shift yang tidak ditutup membuat selisih kas tidak bisa dilacak.</p>
-          ${tabel([
-            { judul: 'Cabang', kunci: 'cabang' },
-            { judul: 'Kasir', kunci: 'id_user' },
-            { judul: 'Dibuka', render: r => esc(waktuTampil(r.buka)) }
-          ], d.shift_terbuka)}</div>` : ''}
-
-        <div class="kartu grafik rapat">
-          <div class="bar-alat">
-            <h4>Tren penjualan</h4>
-            <div style="flex:1"></div>
-            <select id="grafikHari" style="width:auto">
-              <option value="14">14 hari</option>
-              <option value="30" selected>30 hari</option>
-              <option value="60">60 hari</option>
-              <option value="90">90 hari</option>
-            </select>
-          </div>
-          <div id="wadahGrafik"><p class="grafik-kosong">Memuat grafik…</p></div>
-        </div>`;
+      muatGrafik(30);
+      /* Kartu monitor ditarik di LATAR sesudah layar terbaca — sama alasannya
+         dengan `berat`: mengunci tombol selama tujuh daftar dihitung berarti
+         mengunci layar yang sudah selesai. */
+      muatDashboardMonitor(tiket);
 
       /* Jam ramai. Jam yang NOL sengaja ikut dikirim server lalu disaring di sini,
          bukan disaring di server: yang menentukan jam buka toko adalah pemiliknya,
@@ -1077,10 +1360,10 @@ const Admin = (() => {
       if (jam.length) {
         Grafik.batang($('#wadahJam'), {
           data: jam.map(x => ({ label: String(x.jam).padStart(2, '0') + ':00',
-                                nilai: x.omzet, tambahan: x.nota + ' nota' }))
+                                nilai: x.omzet, tambahan: x.nota + ' nota' })),
+          tanpaTabel: true
         });
       }
-      muatGrafik(30);
 
       /* Bagian berat. Kalau server (lama) sudah mengirimnya, langsung diisi;
          kalau tidak, ditarik di LATAR — layar sudah bisa dibaca, dan mengunci
@@ -1111,26 +1394,25 @@ const Admin = (() => {
   function isiBagianBerat(b, adaMargin) {
     const pk = (b && b.peringkat) || {};
     const st = (b && b.stok) || {};
-    const cap = b && b.diperbarui
-      ? `<span class="petunjuk" style="font-weight:400">· per ${esc(b.diperbarui)}</span>` : '';
+    if (dataDash) dataDash.berat = b;
+    const cap = b && b.diperbarui ? '· per ' + b.diperbarui : '';
     const wp = $('#wadahPeringkatProduk'), wk = $('#wadahPeringkatKategori'), ws = $('#wadahStokDash');
-    if (wp) wp.outerHTML = kartuPeringkat('Produk terlaris', [
-      { judul: 'Produk', kunci: 'nama' },
-      { judul: 'Qty', kunci: 'qty', angka: true },
-      { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }
-    ], pk.produk, 'Belum ada penjualan', 'wadahPeringkatProduk');
-    if (wk) wk.outerHTML = kartuPeringkat('Kategori', [
-      { judul: 'Kategori', kunci: 'nama' },
-      { judul: 'Omzet', angka: true, render: r => rp(r.omzet) },
-      ...(adaMargin ? [{ judul: 'Margin', angka: true, render: r => (r.margin || 0).toFixed(1) + '%' }] : [])
-    ], pk.kategori, 'Belum ada penjualan', 'wadahPeringkatKategori');
+    /* Lima di layar, lima puluh di dataDash — pop-up membaca yang lima puluh. */
+    if (wp) wp.outerHTML = kartuDaftarDash('Produk terlaris', cap,
+      barisDash((pk.produk || []).slice(0, 5).map(r => [esc(r.nama), rp(r.omzet), r.qty]), 'Belum ada penjualan'),
+      { tabel: 'produk', kaki: '50 teratas', id: 'wadahPeringkatProduk' });
+    if (wk) wk.outerHTML = kartuDaftarDash('Kategori', cap,
+      barisDash((pk.kategori || []).slice(0, 5).map(r =>
+        [esc(r.nama), rp(r.omzet), adaMargin ? (r.margin || 0).toFixed(1) + '%' : '']), 'Belum ada penjualan'),
+      { tabel: 'kategori', kaki: 'semua', id: 'wadahPeringkatKategori' });
     if (ws) ws.outerHTML = kartuStokDash(st, cap, 'wadahStokDash');
   }
 
   /** Kartu "Kesehatan stok" — dipisah supaya bisa digambar belakangan. */
   function kartuStokDash(st, cap, id) {
-    return `<div class="kartu rapat"${id ? ` id="${id}"` : ''}>
-      <h4>Kesehatan stok <span class="petunjuk" style="font-weight:400">· cabang ${esc(APP_STATE.cabang)}</span> ${cap || ''}</h4>
+    return `<div class="kartu rapat kartu-dash"${id ? ` id="${id}"` : ''}>
+      <h4>Kesehatan stok <span class="sub">· cabang ${esc(APP_STATE.cabang)} ${esc(cap || '')}</span></h4>
+      <div class="isi-dash">
       ${petakMini([
         kotakMini('Nilai persediaan', rp(st.nilai || 0), '', { ikon: 'nilai', warna: 'biru' }),
         kotakMini('Hari persediaan', st.hari_persediaan === null || st.hari_persediaan === undefined
@@ -1142,34 +1424,24 @@ const Admin = (() => {
           st.jumlah_kritis ? '<span class="delta turun">perlu dipesan</span>'
                            : '<span class="delta naik">aman</span>',
           { ikon: 'kritis', warna: st.jumlah_kritis ? 'merah' : 'hijau', ke: 'stok' })
-      ].join(''))}
-      <div class="petak-2">
-        <div>
-          <div class="petunjuk">Stok menyentuh ambang minimum</div>
-          ${tabel([
-            { judul: 'Produk', kunci: 'nama' },
-            { judul: 'Stok', kunci: 'qty', angka: true },
-            { judul: 'Min', kunci: 'stok_min', angka: true }
-          ], st.kritis || [], { kosong: 'Tidak ada' })}
-        </div>
-        <div>
-          <div class="petunjuk">Bernilai besar tapi tidak terjual periode ini</div>
-          ${tabel([
-            { judul: 'Produk', kunci: 'nama' },
-            { judul: 'Stok', kunci: 'qty', angka: true },
-            { judul: 'Nilai', angka: true, render: r => rp(r.nilai) }
-          ], st.mati || [], { kosong: 'Semua produk berstok terjual' })}
-        </div>
+      ].join(''), 'petak-stok-mini')}
+      <div class="dua-dash">
+        <div><div class="dr-judul">Menyentuh ambang minimum</div>
+          ${barisDash((st.kritis || []).slice(0, 5).map(r => [esc(r.nama), r.qty + ' / min ' + r.stok_min]), 'Tidak ada')}</div>
+        <div><div class="dr-judul">Bernilai besar, tidak terjual</div>
+          ${barisDash((st.mati || []).slice(0, 5).map(r => [esc(r.nama), rp(r.nilai), r.qty + ' pcs']), 'Semua produk berstok terjual')}</div>
       </div>
+      </div>
+      <div class="kaki-dash"><button type="button" class="tabel-tautan" data-tabel-dash="stok">Lihat sebagai tabel · 50 teratas</button></div>
     </div>`;
   }
 
   /* Rangka untuk kartu yang datang belakangan. Bentuknya kartu sungguhan
      dengan judul yang sudah terbaca — orang tahu APA yang sedang dimuat. */
-  const rangkaKartuPeringkat = (judul, id) => `<div class="kartu rapat" id="${id}" aria-busy="true">
-      <h4>${esc(judul)}</h4>${rangkaBaris(4, ['84%', '66%', '76%', '58%'])}</div>`;
-  const rangkaKartuStok = (id) => `<div class="kartu rapat" id="${id}" aria-busy="true">
-      <h4>Kesehatan stok</h4>${rangkaBaris(5, ['80%', '62%', '90%', '70%', '54%'])}</div>`;
+  const rangkaKartuPeringkat = (judul, id) => `<div class="kartu rapat kartu-dash" id="${id}" aria-busy="true">
+      <h4>${esc(judul)}</h4><div class="isi-dash">${rangkaBaris(4, ['84%', '66%', '76%', '58%'])}</div></div>`;
+  const rangkaKartuStok = (id) => `<div class="kartu rapat kartu-dash" id="${id}" aria-busy="true">
+      <h4>Kesehatan stok</h4><div class="isi-dash">${rangkaBaris(5, ['80%', '62%', '90%', '70%', '54%'])}</div></div>`;
 
   /* Muatan grafik terakhir, disimpan supaya perubahan tema bisa menggambar ulang
      TANPA memanggil server lagi. SVG yang sudah tergambar tidak ikut berubah
@@ -1180,25 +1452,23 @@ const Admin = (() => {
   /** Hanya menggambar. Tidak mengambil data, tidak menyentuh innerHTML wadahnya. */
   function pasangGrafik(g) {
     if (!g || !$('#gPenjualan')) return;
+    /* Tinggi 170 px, bukan 300 bawaan grafik.js — diminta pemilik 12 Sep 2026:
+       "petak tren penjualan terlalu melebar dan banyak yang lega". Kartunya
+       satu kolom, grafiknya mengikuti lebar kartu. */
+    if (grafikModeKini === 'bulanan') {
+      if (g.tren_bulanan) Grafik.garis($('#gPenjualan'), {
+        tanggal: g.tren_bulanan.map(x => x.periode),
+        seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(x => x.laba_kotor) }],
+        tinggi: 140, tanpaTabel: true
+      });
+      else $('#gPenjualan').innerHTML = '<p class="grafik-kosong">Laba kotor hanya untuk peran yang berhak melihat margin.</p>';
+      return;
+    }
     // Satu garis per cabang bila lintas cabang; kalau hanya satu cabang, satu garis omzet.
     const seri = g.seri_cabang.length > 1
-      ? g.seri_cabang
+      ? g.seri_cabang.map(c => ({ nama: c.cabang, data: c.deret }))
       : [{ nama: 'Omzet', data: g.deret_harian.map(x => x.total) }];
-    Grafik.garis($('#gPenjualan'), { tanggal: g.tanggal, seri });
-
-    Grafik.batang($('#gKategori'), {
-      data: g.kategori.map(k => ({ label: k.kategori, nilai: k.omzet })) });
-    Grafik.batang($('#gMetode'), {
-      data: g.metode_bayar.map(m => ({ label: m.metode.toUpperCase(), nilai: m.jumlah })) });
-    Grafik.batang($('#gProduk'), {
-      data: g.produk_teratas.map(p => ({ label: p.nama, nilai: p.omzet,
-                                         tambahan: p.qty + ' terjual' })) });
-    if (g.tren_bulanan) {
-      Grafik.garis($('#gBulanan'), {
-        tanggal: g.tren_bulanan.map(t => t.periode),
-        seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(t => t.laba_kotor) }]
-      });
-    }
+    Grafik.garis($('#gPenjualan'), { tanggal: g.tanggal, seri, tinggi: 140, tanpaTabel: true });
   }
 
   /* Tema diubah pemilik dari perangkat lain; perangkat ini baru tahu saat
@@ -1209,38 +1479,32 @@ const Admin = (() => {
     if (grafikTerakhir) pasangGrafik(grafikTerakhir);
   });
 
+  /* Muatan grafik dicatat per mode supaya pergantian 14/30/60/90 yang sudah
+     pernah ditarik tidak menembak server lagi. */
+  const grafikMuatan = {};
+  let grafikModeKini = '30';
   async function muatGrafik(hari) {
     const w = $('#wadahGrafik');
     if (!w) return;
-    w.innerHTML = '<p class="grafik-kosong">Memuat grafik…</p>';
+    const mode = String(hari);
+    grafikModeKini = mode;
+    $$('#grafikMode [data-grafik]').forEach(b => b.classList.toggle('aktif', b.dataset.grafik === mode));
+    if (!grafikMuatan[mode]) w.innerHTML = '<p class="grafik-kosong">Memuat grafik…</p>';
     try {
-      const g = await API.dataGrafik({ hari });
+      /* "Laba 6 bln" memakai muatan 30 hari (tren_bulanan ikut di dalamnya). */
+      const kunci = mode === 'bulanan' ? '30' : mode;
+      const g = grafikMuatan[kunci] || (grafikMuatan[kunci] = await API.dataGrafik({ hari: Number(kunci) }));
+      if (grafikModeKini !== mode) return;              /* orang sudah ganti mode */
       const r = g.ringkas;
-
+      /* Satu baris angka ringkas, bukan empat petak: petak KPI di atas sudah
+         menyebut omzet, rata-rata, dan margin untuk periode yang dipilih. */
       w.innerHTML = `
-        ${/* JAM PERHITUNGAN, dan ia wajib ada.
-             Jawaban endpoint ini disimpan cache server 600 detik sejak v1.176 —
-             dan satu-satunya hal yang membuat TTL sepanjang itu boleh ada
-             adalah baris ini. Tanpa ia, angka sepuluh menit lalu menyamar jadi
-             angka sekarang, dan tidak ada seorang pun yang bisa tahu bedanya.
-             Aturan yang sama sudah berlaku di dasbor sejak v1.154.
-             Kalau baris ini dicabut, TTL di 16_Grafik.gs harus ikut dipendekkan. */''}
-        ${g.dihitung ? `<p class="petunjuk" style="margin:0 0 10px">Dihitung
-           <strong>${esc(waktuTampil(g.dihitung))}</strong>${g.dari_cache ? ' — tersimpan sementara di server' : ''}.</p>` : ''}
-        <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));margin-bottom:16px">
-          <div class="statistik"><div class="label">Omzet ${hari} hari</div><div class="nilai">${rp(r.omzet)}</div></div>
-          <div class="statistik"><div class="label">Rata-rata per hari</div><div class="nilai">${rp(r.rata_per_hari)}</div></div>
-          <div class="statistik"><div class="label">Rata-rata per nota</div><div class="nilai">${rp(r.rata_per_nota)}</div></div>
-          ${r.margin !== undefined ? `<div class="statistik"><div class="label">Margin kotor</div><div class="nilai">${r.margin}%</div></div>` : ''}
+        <div class="tren-angka">${mode === 'bulanan'
+          ? '<span>Laba kotor 6 bulan terakhir</span>'
+          : `<span>${kunci} hari <strong>${rp(r.omzet)}</strong></span><span>per hari <strong>${rp(r.rata_per_hari)}</strong></span><span>per nota <strong>${rp(r.rata_per_nota)}</strong></span>`}
+          ${g.dihitung ? `<span class="petunjuk" style="margin:0 0 0 auto" title="${g.dari_cache ? 'tersimpan sementara di server' : ''}">per ${esc(waktuTampil(g.dihitung))}</span>` : ''}
         </div>
-        <div id="gPenjualan"></div>
-        <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));margin-top:22px">
-          <div><h4 class="judul-grafik">Omzet per kategori</h4><div id="gKategori"></div></div>
-          <div><h4 class="judul-grafik">Metode pembayaran</h4><div id="gMetode"></div></div>
-          <div><h4 class="judul-grafik">10 produk teratas</h4><div id="gProduk"></div></div>
-          ${g.tren_bulanan ? '<div class="lebar-penuh"><h4 class="judul-grafik">Laba kotor 6 bulan</h4><div id="gBulanan"></div></div>' : ''}
-        </div>`;
-
+        <div id="gPenjualan"></div>`;
       grafikTerakhir = g;
       pasangGrafik(g);
     } catch (e) {
@@ -7220,6 +7484,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       /* --- laporan diskon --- */
       if (t.id === 'btnMuatDiskon') return gambarHasilDiskon();
+
+      /* --- dashboard (v1.179) --- */
+      if (d.grafik !== undefined) return muatGrafik(d.grafik);
+      if (d.tabelDash !== undefined) return bukaTabelDash(d.tabelDash);
 
       /* --- ekspor --- */
       if (d.eksporBuka !== undefined) {
