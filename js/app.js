@@ -3652,8 +3652,10 @@ function gambarPetunjukLaporan(teks) {
 function gambarEksporLaporan() {
   const w = $('#lapEkspor');
   if (!w) return;
+  /* Menu "⋮", bukan tombol — v1.178, sama dengan enam layar back office lain.
+     `Admin.tombolEkspor` masih hidup untuk kartu unduh Keuangan, dan sengaja. */
   w.innerHTML = (LAP.dari && LAP.sampai)
-    ? Admin.tombolEkspor('penjualan', { dari: LAP.dari, sampai: LAP.sampai }) : '';
+    ? Admin.menuEkspor('penjualan', { dari: LAP.dari, sampai: LAP.sampai }) : '';
 }
 
 /**

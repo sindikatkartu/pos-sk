@@ -688,6 +688,48 @@ const Admin = (() => {
     </span>`;
   };
 
+  /**
+   * Butir ekspor di DALAM menu "⋮" — blok "Ekspor daftar ini" berisi tiga
+   * format. Satu bentuk untuk semua layar; sebelumnya cuma layar Produk yang
+   * punya, dan ditulis di tempat.
+   *
+   * Atribut butirnya SAMA PERSIS dengan butir `tombolEkspor` (data-ekspor,
+   * data-format, data-params), jadi `jalankanEkspor()` tidak perlu tahu
+   * tombolnya berbentuk apa — dan uji yang membaca `[data-ekspor="stok"]`
+   * tetap menemukannya.
+   */
+  const butirEkspor = (jenis, params = {}) => {
+    const p = esc(JSON.stringify(params));
+    return `<div class="popover-pisah">
+      <p class="petunjuk" style="padding:2px 10px 4px;margin:0">Ekspor daftar ini</p>
+      ${FORMAT_EKSPOR.map(f => `<button class="popover-item" role="menuitem"
+          data-ekspor="${esc(jenis)}" data-format="${f.kode}" data-params='${p}'>
+          <span>${esc(f.label)}</span><span class="petunjuk">${esc(f.ket)}</span></button>`).join('')}
+    </div>`;
+  };
+
+  /**
+   * Menu "⋮" yang isinya HANYA ekspor — pengganti tombol Ekspor di bar alat.
+   *
+   * Diminta pemilik 12 Sep 2026: "semua tombol export, petakan semua. lalu
+   * masukkan ke tombol ellipsis-vertical". Tujuh layar (Stok, Poin, Piutang,
+   * Utang, Audit, Diskon, Laporan penjualan). Yang DIKECUALIKAN: kartu "Unduh
+   * laporan ini" di Keuangan — ia muncul sesudah Laba Rugi/Neraca dihitung,
+   * dan menyembunyikannya di menu membuat orang yang baru saja menekan
+   * "Laba Rugi" kehilangan jalan mengunduhnya. Itu masih memakai
+   * `tombolEkspor`, dan sengaja.
+   *
+   * Id-nya diturunkan dari jenisnya supaya tidak ada dua layar yang kembar
+   * tanpa ada yang mengetik: 'diskon_kasir' -> menuEksporDiskonKasir.
+   */
+  const menuEkspor = (jenis, params = {}) => {
+    const K = String(jenis).split('_').map(x => x.charAt(0).toUpperCase() + x.slice(1)).join('');
+    return menuTindakan({
+      id: 'menuEkspor' + K, idTombol: 'btnMenuEkspor' + K, kunci: jenis,
+      isi: butirEkspor(jenis, params)
+    });
+  };
+
   /** Menu "⋮" yang sedang terbuka, kalau ada. Cuma boleh satu. */
   const menuLainTerbuka = () => $$('.menu-lain .popover-menu').find(m => !m.hidden) || null;
 
@@ -715,8 +757,16 @@ const Admin = (() => {
   async function jalankanEkspor(btn) {
     // Keadaan "sedang menyiapkan" ditaruh di tombol pemicu, bukan di item menunya —
     // menunya menutup begitu dipilih, jadi label di dalamnya tak akan sempat terbaca.
+    /* Tiga kemungkinan tempat tombolnya hidup: widget `tombolEkspor` (Keuangan),
+       menu "⋮" (tujuh layar lain sejak v1.178), atau berdiri sendiri. Di dalam
+       menu, butirnya sudah tersembunyi saat pekerjaannya mulai — kalau
+       keadaannya ditaruh di situ, tidak ada yang melihat "Menyiapkan…" dan
+       tombol "⋮" bisa ditekan lagi di tengah unduhan. */
     const grup = btn.closest('.ekspor');
-    const pemicu = grup ? grup.querySelector('[data-ekspor-buka]') : btn;
+    const lain = btn.closest('.menu-lain');
+    const pemicu = grup ? grup.querySelector('[data-ekspor-buka]')
+                 : lain ? lain.querySelector('[aria-controls]')
+                 : btn;
     const semula = pemicu.innerHTML;
     tutupMenuEkspor();
     pemicu.disabled = true; pemicu.textContent = 'Menyiapkan…';
@@ -1950,12 +2000,7 @@ const Admin = (() => {
       `<button class="popover-item" role="menuitem" id="btnKeranjangLabel">${ikonAlat('label')}
          <span>Keranjang stiker</span><span class="lencana" id="lencanaStiker">0</span>
        </button>` +
-      `<div class="popover-pisah">
-         <p class="petunjuk" style="padding:2px 10px 4px;margin:0">Ekspor daftar ini</p>
-         ${FORMAT_EKSPOR.map(f => `<button class="popover-item" role="menuitem"
-             data-ekspor="produk" data-format="${f.kode}" data-params='{}'>
-             <span>${esc(f.label)}</span><span class="petunjuk">${esc(f.ket)}</span></button>`).join('')}
-       </div>` +
+      butirEkspor('produk', {}) +
       ((bolehUbah || bolehBuat) ? `<div class="popover-pisah">
          ${bolehUbah ? `<button class="popover-item" role="menuitem" id="btnTandaiPasang">${ikonAlat('setujui')}
              <span>Tandai butuh pemasangan</span></button>` : ''}
@@ -3549,7 +3594,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             </div>
             <div class="aksi">
               <button class="tombol" id="btnSegarkanStok">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
-              ${tombolEkspor('stok', { cabang: cabangStokKini() })}
+              ${menuEkspor('stok', { cabang: cabangStokKini() })}
             </div>
           </div>
           ${/* Kalimatnya SAMA PERSIS dengan layar Stok lintas cabang. Dua layar
@@ -4417,7 +4462,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat"><h3>Peringkat per petugas</h3>
             <div style="flex:1"></div>
             <label style="margin:0">Urutkan</label>${pilihUrut('urutPetugas', URUT_PETUGAS, urutPetugas)}
-            ${tombolEkspor('poin', { dari: nilai('poinDari'), sampai: nilai('poinSampai') })}</div>
+            ${menuEkspor('poin', { dari: nilai('poinDari'), sampai: nilai('poinSampai') })}</div>
           <p class="petunjuk">Omzet petugas adalah <strong>porsi</strong> dia, bukan nilai nota
              penuh: nota 100.000 yang dikerjakan berdua terbagi menurut bobot peran, jadi jumlah
              omzet semua petugas tidak dobel. Nilai poin diatur per produk di menu Produk → tab
@@ -4478,7 +4523,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
         <div class="kartu">
           <div class="bar-alat"><h3>Daftar piutang — total ${rp(d.total)}</h3>
-            <div style="flex:1"></div>${tombolEkspor('piutang')}</div>
+            <div style="flex:1"></div>${menuEkspor('piutang')}</div>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Pelanggan', kunci: 'nama_pelanggan' },
@@ -4541,7 +4586,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
         <div class="kartu">
           <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3>
-            <div style="flex:1"></div>${tombolEkspor('utang')}</div>
+            <div style="flex:1"></div>${menuEkspor('utang')}</div>
           <p class="petunjuk">Hanya pembelian bertipe <strong>Kredit (utang)</strong> yang muncul di sini.
              Pembelian yang dibayar Tunai atau Transfer sudah lunas saat dicatat.</p>
           ${tabel([
@@ -5162,7 +5207,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#isiAudit').innerHTML = `
         <div class="kartu">
           <div class="bar-alat"><h3>Jejak audit</h3>
-            <div style="flex:1"></div>${tombolEkspor('audit')}</div>
+            <div style="flex:1"></div>${menuEkspor('audit')}</div>
           <p class="petunjuk">Catatan setiap perubahan penting. Tidak bisa dihapus dari dalam aplikasi.</p>
           ${tabel([
             /* SATU-SATUNYA layar yang SENGAJA tetap yyyy-MM-dd, bukan dd/mm/yy.
@@ -5230,7 +5275,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
         <div class="kartu">
           <div class="bar-alat"><h3>Per kasir</h3>
-            <div style="flex:1"></div>${tombolEkspor('diskon_kasir', { dari: $('#dskDari').value, sampai: $('#dskSampai').value })}</div>
+            <div style="flex:1"></div>${menuEkspor('diskon_kasir', { dari: $('#dskDari').value, sampai: $('#dskSampai').value })}</div>
           ${tabel([
             { judul: 'Kasir', kunci: 'nama' },
             { judul: 'Nota', render: x => `${x.nota_diskon} / ${x.nota}`, kanan: true },
@@ -7823,5 +7868,5 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   // tombolEkspor ikut diekspor supaya app.js memakai komponen yang SAMA,
   // bukan menyalin bentuk tombolnya sendiri.
-  return { muat, pasang, toast, modal: bukaModal, tutupModal, tanya, tabel, tombolEkspor };
+  return { muat, pasang, toast, modal: bukaModal, tutupModal, tanya, tabel, tombolEkspor, menuEkspor };
 })();
