@@ -3502,37 +3502,21 @@ async function laporkanKeluarPaksa() {
  * Rentang tanggal untuk satu pilihan dropdown periode; null untuk 'kustom'
  * (tanggalnya diketik, bukan dihitung). `kini` hanya untuk uji.
  */
-function rentangPeriodeLaporan(jenis, kini) {
-  if (jenis === 'kustom') return null;
-  const hariIni = kini ? new Date(kini) : new Date();
-  const f = (d) => tanggalLokal(d);
-  const mundur = (n) => { const d = new Date(hariIni); d.setDate(d.getDate() - n); return d; };
-  let dari = hariIni, sampai = hariIni;
-  if (jenis === 'kemarin')          { dari = sampai = mundur(1); }
-  else if (jenis === '7')           { dari = mundur(6); }
-  else if (jenis === '30')          { dari = mundur(29); }
-  else if (jenis === 'bulan')       { dari = new Date(hariIni.getFullYear(), hariIni.getMonth(), 1); }
-  else if (jenis === 'bulan_lalu')  {
-    dari = new Date(hariIni.getFullYear(), hariIni.getMonth() - 1, 1);
-    sampai = new Date(hariIni.getFullYear(), hariIni.getMonth(), 0);   // hari 0 = akhir bulan lalu
-  }
-  return { dari: f(dari), sampai: f(sampai) };
-}
+/* v1.182: perhitungannya pindah ke pos.js (rentangPeriode) — satu sumber untuk
+   Laporan, Shift, Diskon, Poin, Dashboard. Nama lama dipertahankan untuk pemanggilnya. */
+const PERIODE_LAPORAN = { id: 'lapPeriode', dari: 'lapDari', sampai: 'lapSampai', kustom: 'lapKustom', nilai: 'hari', judul: 'Periode laporan' };
+const PERIODE_SHIFT   = { id: 'shiftPeriode', dari: 'shiftDari', sampai: 'shiftSampai', nilai: 'hari', judul: 'Periode shift' };
+const PERIODE_KEU     = { id: 'keuPeriodePilih', dari: 'keuPeriode', bulanan: true, nilai: 'bulan', label: 'Periode' };
+function rentangPeriodeLaporan(jenis, kini) { return rentangPeriode(jenis, kini); }
 
 /**
  * Terapkan pilihan periode: isi kedua tanggal (atau buka kolom kustom), lalu
  * muat. Satu-satunya jalan masuk dari dropdown maupun dari pembukaan layar.
  */
 function terapkanPeriodeLaporan(jenis) {
-  const sel = $('#lapPeriode');
-  if (sel && sel.value !== jenis) sel.value = jenis;
-  const r = rentangPeriodeLaporan(jenis);
-  const kustom = $('#lapKustom');
-  if (kustom) kustom.hidden = !!r;
-  if (r) {
-    $('#lapDari').value = r.dari;
-    $('#lapSampai').value = r.sampai;
-  }
+  Periode.terapkan(PERIODE_LAPORAN, jenis);
+  /* Kustom hanya membuka kolomnya; tanggalnya yang memuat (standar Periode). */
+  if (jenis === 'kustom') return;
   return tampilkanLaporan();
 }
 
@@ -5592,6 +5576,8 @@ function pasangEvent() {
   /* --- laporan --- */
   /* Tidak ada tombol Tampilkan (v1.156): dropdown periode, kedua kolom tanggal
      kustom, dan penyaring cabang masing-masing memuat sendiri. */
+  /* Komponen digambar di sini, sebelum pendengarnya dipasang. */
+  $('#wadahPeriodeLaporan').innerHTML = Periode.html(PERIODE_LAPORAN);
   $('#lapPeriode').addEventListener('change', e => terapkanPeriodeLaporan(e.target.value));
   ['#lapDari', '#lapSampai'].forEach(id => $(id).addEventListener('change', () => {
     if ($('#lapPeriode').value === 'kustom') tampilkanLaporan();
@@ -5618,9 +5604,15 @@ function pasangEvent() {
       if (d) gambarLapNotaTabel(d);
     }
   });
-  $('#btnLabaRugi').addEventListener('click', tampilkanLabaRugi);
-  $('#btnNeraca').addEventListener('click', tampilkanNeraca);
-  $('#btnUji').addEventListener('click', tampilkanUji);
+  /* Keuangan: periode bulanan lewat komponen (Bulan ini · Bulan lalu · Kustom…).
+     Laporan yang terakhir dibuka dihitung ulang saat periodenya berganti —
+     tiga tombolnya memilih laporan mana, bukan "tampilkan". */
+  let keuTerakhir = null;
+  $('#wadahPeriodeKeu').innerHTML = Periode.html(PERIODE_KEU);
+  Periode.pasang(PERIODE_KEU, () => { if (keuTerakhir) keuTerakhir(); });
+  $('#btnLabaRugi').addEventListener('click', () => { keuTerakhir = tampilkanLabaRugi; tampilkanLabaRugi(); });
+  $('#btnNeraca').addEventListener('click', () => { keuTerakhir = tampilkanNeraca; tampilkanNeraca(); });
+  $('#btnUji').addEventListener('click', () => { keuTerakhir = tampilkanUji; tampilkanUji(); });
   $('#btnTutupBuku').addEventListener('click', async () => {
     const periode = $('#keuPeriode').value;
     if (!(await Admin.tanya(`Kunci periode ${periode}?`,
@@ -5645,7 +5637,9 @@ function pasangEvent() {
     const uuid = e.target.dataset?.cetak; if (!uuid) return;
     await cetakUlangNota(uuid, e.target.dataset.luarShift === '1');
   });
-  $('#btnMuatShift').addEventListener('click', () => muatDaftarShift());
+  /* Shift: dropdown periode memuat sendiri (v1.182), tidak ada tombol Tampilkan. */
+  $('#wadahPeriodeShift').innerHTML = Periode.html(PERIODE_SHIFT);
+  Periode.pasang(PERIODE_SHIFT, () => muatDaftarShift());
   $('#isiRiwayatShift').addEventListener('click', e => {
     const id = e.target.dataset?.lapshift;
     if (id) bukaLaporanShift(id);
@@ -5831,10 +5825,7 @@ async function muatUlangVersiBaru() {
   pasangEvent();
   Admin.pasang();
 
-  const hariIni = tanggalLokal();
-  $('#lapDari').value = hariIni;
-  $('#lapSampai').value = hariIni;
-  $('#keuPeriode').value = hariIni.substring(0, 7);
+  /* Nilai awal kolom tanggal Laporan & bulan Keuangan sudah diisi komponen Periode. */
 
   pasangPenandaSibuk();
   pasangPenjagaRoda();

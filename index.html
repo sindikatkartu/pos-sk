@@ -369,20 +369,10 @@
         <div class="bar-alat bar-alat-menu tanpa-cetak">
           <div class="saringan">
             <h3>Laporan penjualan</h3>
-            <select id="lapPeriode" class="kendali-tetap" title="Periode laporan">
-              <option value="hari">Hari ini</option>
-              <option value="kemarin">Kemarin</option>
-              <option value="7">7 hari terakhir</option>
-              <option value="30">30 hari terakhir</option>
-              <option value="bulan">Bulan ini</option>
-              <option value="bulan_lalu">Bulan lalu</option>
-              <option value="kustom">Kustom…</option>
-            </select>
-            <span class="rentang-kustom" id="lapKustom" hidden>
-              <input type="date" id="lapDari" title="Dari tanggal">
-              <span class="pemisah-rentang">–</span>
-              <input type="date" id="lapSampai" title="Sampai tanggal">
-            </span>
+            <!-- Dropdown periode + kolom kustom digambar komponen Periode (pos.js,
+                 v1.182) — satu daftar pilihan untuk semua layar. Id-nya tetap:
+                 #lapPeriode, #lapKustom, #lapDari, #lapSampai. -->
+            <span class="wadah-periode" id="wadahPeriodeLaporan"></span>
             <!-- Penyaring cabang, TERSEMBUNYI untuk akun yang cuma berhak atas
                  satu cabang. Diisi pasangPilihCabangLaporan() di app.js. -->
             <span id="grupLapCabang" class="sembunyi"><select id="lapCabang" class="kendali-tetap" title="Cabang"></select></span>
@@ -420,7 +410,7 @@
       <div class="kartu">
         <h3>Laporan keuangan</h3>
         <div class="saring-baris">
-          <div class="kendali-tetap"><label>Periode</label><input type="month" id="keuPeriode"></div>
+          <span class="wadah-periode" id="wadahPeriodeKeu"></span>
           <div class="kendali-tetap"><label>Cabang</label><select id="keuCabang"></select></div>
           <div class="aksi">
           <button class="tombol utama" id="btnLabaRugi"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Laba Rugi</span></button>
@@ -464,10 +454,11 @@
            tabelnya tidak muat, dan di HP ia mendorong kartunya keluar layar. -->
       <div class="kartu" id="kartuRiwayatShift">
           <h3>Laporan shift</h3>
+          <!-- v1.182: dropdown periode (komponen Periode), memuat sendiri —
+               tidak ada tombol Tampilkan. #shiftDari/#shiftSampai tetap ada di
+               dalamnya, jadi muatDaftarShift() membaca tempat yang sama. -->
           <div class="bar-alat dua-kendali">
-            <input type="date" id="shiftDari" class="kendali-tetap">
-            <input type="date" id="shiftSampai" class="kendali-tetap">
-            <button class="tombol" id="btnMuatShift">Tampilkan</button>
+            <span class="wadah-periode" id="wadahPeriodeShift"></span>
           </div>
           <div id="isiRiwayatShift"></div>
       </div>
@@ -836,7 +827,7 @@
         <div class="kartu">
           <h3>B8. Laporan, Performa, Keuangan, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li><strong>Dashboard</strong> — nota &amp; omzet, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis. Dropdown <strong>periode</strong> (Hari ini … Bulan berjalan) dan, untuk akun lintas cabang, dropdown <strong>cabang</strong> (Semua cabang atau satu cabang — stok menipis pun ikut cabang itu). Keterangan di sebelahnya, mis. <code>10/09 · vs 09/09 (2026)</code>, adalah rentang yang ditampilkan dan periode pembanding yang sama panjang tepat sebelumnya (tahun disebut sekali di ujung; bila lintas tahun, tiap rentang menulis tahunnya).</li>
+            <li><strong>Dashboard</strong> — nota &amp; omzet, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis. Dropdown <strong>periode</strong> (Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> — paling panjang 92 hari) dan, untuk akun lintas cabang, dropdown <strong>cabang</strong> (Semua cabang atau satu cabang — stok menipis pun ikut cabang itu). Keterangan di sebelahnya, mis. <code>10/09 · vs 09/09 (2026)</code>, adalah rentang yang ditampilkan dan periode pembanding yang sama panjang tepat sebelumnya (tahun disebut sekali di ujung; bila lintas tahun, tiap rentang menulis tahunnya).</li>
             <li><strong>Laporan</strong> — satu rentang tanggal, <strong>lima tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
             <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti periode, tanggal, atau cabang <strong>langsung memuat ulang</strong> — tidak ada tombol Tampilkan.</li>
             <li><strong>Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>

@@ -1908,6 +1908,9 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 /* Pembungkus penyaring cabang Laporan bukan kotak: select-nya yang berukuran.
    :not(.sembunyi) — id mengalahkan kelas, tanpa ini penyaringnya tak bisa disembunyikan. */
 #grupLapCabang:not(.sembunyi) { display: contents; }
+/* Wadah komponen Periode (v1.182) bukan kotak: dropdown & kolom kustomnya
+   berdiri langsung di dalam bar. */
+.wadah-periode { display: contents; }
 /* ==================== TOMBOL BERIKON DI LUAR BAR ALAT ====================
    Dipakai tombol kecil yang berdiri sendiri — Tahan dan Kosongkan di kepala
    keranjang Kasir. Ikonnya 15px, bukan 16px: tombolnya sendiri fs-13, dan ikon
@@ -2250,8 +2253,6 @@ input.sudah-hitung {
      dirinya — dua tindakan itu tetap satu baris walau di HP. */
   .bar-alat-menu > .saringan { display: grid; grid-template-columns: 1fr; gap: 8px; }
   .bar-alat-menu > .saringan > * { width: 100%; max-width: none !important; min-width: 0; }
-  /* Dua kolom tanggal kustom Laporan berbagi satu baris, sama lebar. */
-  .rentang-kustom > .kolom-tgl, .rentang-kustom > input[type=date] { width: auto; flex: 1 1 0; }
   /* Bar alat Dashboard: dropdown periode & cabang berdampingan, keterangan
      rentang di bawahnya selebar keduanya — dua dropdown bertumpuk memakan
      satu kotak KPI di HP. */
@@ -2274,7 +2275,10 @@ input.sudah-hitung {
   /* Laporan: periode │ cabang berdampingan seperti Dashboard; judul dan rentang
      kustom melintang. HANYA Laporan — kotak cari Produk/Stok tetap satu kolom. */
   #layarLaporan .bar-alat-menu > .saringan { grid-template-columns: 1fr 1fr; }
-  #layarLaporan .bar-alat-menu > .saringan > h3, #layarLaporan .rentang-kustom { grid-column: 1 / -1; }
+  #layarLaporan .bar-alat-menu > .saringan > h3 { grid-column: 1 / -1; }
+  /* Kolom kustom (dua tanggal) melintang penuh di bar mana pun — di dalam sel
+     160 px dua tanggal tidak muat. */
+  .bar-alat .rentang-kustom, .saring-baris .rentang-kustom { grid-column: 1 / -1; display: flex; }
   /* Shift & Diskon: dua tanggal berdampingan; judul dan tombol melintang. */
   .bar-alat.dua-kendali { grid-template-columns: 1fr 1fr; }
   .bar-alat.dua-kendali > h3, .bar-alat.dua-kendali > button { grid-column: 1 / -1; }
@@ -2769,6 +2773,12 @@ body.tunggu .sisi button:not(.sibuk) { opacity: .62; }
    100% — di sini pembungkusnya yang dipatok, bukan kolomnya. */
 .rentang-kustom > .kolom-tgl, .rentang-kustom > input[type=date] { width: 140px; flex: 0 0 140px; }
 .pemisah-rentang { color: var(--teks-redup); }
+/* Di HP dua kolom kustom BERBAGI lebar bar, sama lebar. Ditaruh SESUDAH aturan
+   140 px di atas — dulu ada di blok HP yang lebih awal dan kalah urutan, jadi
+   kolomnya tetap 140 dan menyisakan 29 px kosong (terukur v1.182). */
+@media (max-width: 620px) {
+  .rentang-kustom > .kolom-tgl, .rentang-kustom > input[type=date] { width: auto; flex: 1 1 0; }
+}
 /* Dialog "Cetak laporan": centang bagian, dua kolom bila muat. */
 .pilih-bagian-cetak { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 2px 16px; margin: 8px 0 4px; }
 .pilih-bagian-cetak label.cek { margin-bottom: 6px; }

@@ -1038,6 +1038,107 @@ function lencanaStok(qty, stokMin, opsi) {
  * persis di kamus ini.
  */
 /** Nama Lucide asal tiap ikon. Dipakai penjaga di uji.js. */
+/* ==================== PERIODE: satu pemilih rentang untuk semua layar ====================
+ * Standar desain pemilik (12 Sep 2026): rentang tanggal dipilih dari SATU dropdown —
+ * Hari ini · Kemarin · 7 hari terakhir · 30 hari terakhir · Bulan ini · Bulan lalu ·
+ * Kustom… — dan Kustom membuka kolom tanggalnya. Setiap perubahan LANGSUNG memuat;
+ * tidak ada tombol Tampilkan. Lahir di Laporan (v1.156), jadi standar di v1.182.
+ * Id kolom tanggalnya milik layar (lapDari, shiftDari, …) supaya pemuat dan ekspor
+ * yang sudah ada tetap membaca tempat yang sama. Varian `bulanan` (Keuangan):
+ * Bulan ini · Bulan lalu · Kustom… dengan satu kolom bulan. */
+var PERIODE_PILIHAN = [['hari', 'Hari ini'], ['kemarin', 'Kemarin'], ['7', '7 hari terakhir'],
+                       ['30', '30 hari terakhir'], ['bulan', 'Bulan ini'], ['bulan_lalu', 'Bulan lalu'],
+                       ['kustom', 'Kustom…']];
+var PERIODE_BULANAN = [['bulan', 'Bulan ini'], ['bulan_lalu', 'Bulan lalu'], ['kustom', 'Kustom…']];
+
+/** Rentang { dari, sampai } sebuah pilihan; null untuk kustom (tanggalnya diketik). */
+function rentangPeriode(jenis, kini) {
+  if (jenis === 'kustom') return null;
+  const hariIni = kini ? new Date(kini) : new Date();
+  const f = (d) => tanggalLokal(d);
+  const mundur = (n) => { const d = new Date(hariIni); d.setDate(d.getDate() - n); return d; };
+  let dari = hariIni, sampai = hariIni;
+  if (jenis === 'kemarin')          { dari = sampai = mundur(1); }
+  else if (jenis === '7')           { dari = mundur(6); }
+  else if (jenis === '30')          { dari = mundur(29); }
+  else if (jenis === 'bulan')       { dari = new Date(hariIni.getFullYear(), hariIni.getMonth(), 1); }
+  else if (jenis === 'bulan_lalu')  {
+    dari = new Date(hariIni.getFullYear(), hariIni.getMonth() - 1, 1);
+    sampai = new Date(hariIni.getFullYear(), hariIni.getMonth(), 0);   // hari 0 = akhir bulan lalu
+  }
+  return { dari: f(dari), sampai: f(sampai) };
+}
+
+/** Bulan 'yyyy-MM' untuk varian bulanan; null = kustom. */
+function bulanPeriode(jenis, kini) {
+  if (jenis === 'kustom') return null;
+  const t = kini ? new Date(kini) : new Date();
+  const d = jenis === 'bulan_lalu' ? new Date(t.getFullYear(), t.getMonth() - 1, 1)
+                                   : new Date(t.getFullYear(), t.getMonth(), 1);
+  return tanggalLokal(d).substring(0, 7);
+}
+
+const Periode = {
+  PILIHAN: PERIODE_PILIHAN, BULANAN: PERIODE_BULANAN,
+  rentang: rentangPeriode, bulan: bulanPeriode,
+  /**
+   * @param o { id, dari, sampai?, kustom?, nilai?, bulanan?, label?, judul?, nilaiDari?, nilaiSampai? }
+   *   `label` membungkus dropdown dalam kotak berlabel (baris saringan Poin/Keuangan);
+   *   `nilaiDari/nilaiSampai` mengisi kolom kustom yang sudah pernah diketik (Dashboard
+   *   menggambar ulang barnya tiap memuat).
+   */
+  html(o) {
+    const nilai = o.nilai || 'hari';
+    const pil = o.bulanan ? PERIODE_BULANAN : PERIODE_PILIHAN;
+    const aman = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const sel = '<select id="' + o.id + '" class="kendali-tetap periode-pilih" title="' + aman(o.judul || 'Periode') + '">' +
+      pil.map(([v, l]) => '<option value="' + v + '"' + (v === nilai ? ' selected' : '') + '>' + l + '</option>').join('') +
+      '</select>';
+    let isi;
+    if (o.bulanan) {
+      isi = '<input type="month" id="' + o.dari + '" value="' + (o.nilaiDari || bulanPeriode(nilai) || '') + '" title="Bulan">';
+    } else {
+      const r = rentangPeriode(nilai);
+      isi = '<input type="date" id="' + o.dari + '" value="' + (o.nilaiDari || (r ? r.dari : '')) + '" title="Dari tanggal">' +
+            '<span class="pemisah-rentang">–</span>' +
+            '<input type="date" id="' + o.sampai + '" value="' + (o.nilaiSampai || (r ? r.sampai : '')) + '" title="Sampai tanggal">';
+    }
+    const kustom = '<span class="rentang-kustom" id="' + (o.kustom || (o.id + 'Kustom')) + '"' + (nilai === 'kustom' ? '' : ' hidden') + '>' + isi + '</span>';
+    return (o.label ? '<div class="kendali-tetap"><label>' + aman(o.label) + '</label>' + sel + '</div>' : sel) + kustom;
+  },
+  /** Terapkan pilihan: isi kolom tanggal (atau buka kustom). @return true bila rentangnya lengkap. */
+  terapkan(o, jenis) {
+    const sel = document.getElementById(o.id);
+    if (sel && sel.value !== jenis) sel.value = jenis;
+    const kustom = document.getElementById(o.kustom || (o.id + 'Kustom'));
+    const dari = document.getElementById(o.dari), sampai = o.sampai ? document.getElementById(o.sampai) : null;
+    if (o.bulanan) {
+      const b = bulanPeriode(jenis);
+      if (kustom) kustom.hidden = !!b;
+      if (b && dari) dari.value = b;
+      return !!(dari && dari.value);
+    }
+    const r = rentangPeriode(jenis);
+    if (kustom) kustom.hidden = !!r;
+    if (r) { if (dari) dari.value = r.dari; if (sampai) sampai.value = r.sampai; }
+    return !!(dari && dari.value && sampai && sampai.value && dari.value <= sampai.value);
+  },
+  /** Pasang pendengar: dropdown DAN kolom kustom masing-masing memuat sendiri. */
+  pasang(o, muat) {
+    const sel = document.getElementById(o.id);
+    if (!sel || sel.dataset.periodeSiap) return;
+    sel.dataset.periodeSiap = '1';
+    /* Memilih Kustom hanya MEMBUKA kolomnya — memuat baru terjadi saat tanggalnya
+       diubah. Memuat di sini berarti menembak server dengan rentang lama yang
+       sebentar lagi diganti; di Dashboard itu dua panggilan yang terbuang. */
+    sel.addEventListener('change', () => { if (Periode.terapkan(o, sel.value) && sel.value !== 'kustom') muat(sel.value); });
+    [o.dari, o.sampai].filter(Boolean).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => { if (sel.value === 'kustom' && Periode.terapkan(o, 'kustom')) muat('kustom'); });
+    });
+  }
+};
+
 var IKON_SUMBER = {
   /* --- Menu sidebar --- */
   dashboard : 'layout-dashboard',

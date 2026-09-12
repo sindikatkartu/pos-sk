@@ -804,7 +804,13 @@ const Admin = (() => {
   /** Cabang yang ditampilkan dashboard: '*' = semua (perilaku lama), atau satu kode. */
   let cabangDash = '*';
 
-  const LABEL_PERIODE = { hari: 'Hari ini', kemarin: 'Kemarin', '7': '7 hari', '30': '30 hari', bulan: 'Bulan berjalan' };
+  /* v1.182: pilihan periode Dashboard = daftar standar komponen Periode (pos.js),
+     termasuk Bulan lalu dan Kustom… (rentang kustom dibatasi server 92 hari). */
+  const PERIODE_DASH = { id: 'periodeDash', dari: 'dashDari', sampai: 'dashSampai', judul: 'Periode' };
+  let dashKustom = { dari: '', sampai: '' };
+  const paramDash = () => periodeDash === 'kustom'
+    ? { periode: 'kustom', cabang: cabangDash, dari: dashKustom.dari, sampai: dashKustom.sampai }
+    : { periode: periodeDash, cabang: cabangDash };
 
   /**
    * Dropdown cabang dashboard (v1.159, diminta pemilik 10 Sep 2026). Hanya
@@ -1027,7 +1033,7 @@ const Admin = (() => {
   async function muatDashboardMonitor(tiket) {
     if (!kartuMonitorBoleh().length) return;
     try {
-      const m = await API.dashboard({ periode: periodeDash, cabang: cabangDash, bagian: 'monitor' }, { latar: true });
+      const m = await API.dashboard({ ...paramDash(), bagian: 'monitor' }, { latar: true });
       if (tiket !== tiketDash) return;
       if (dataDash) dataDash.monitor = m;
       isiKartuMonitor(m);
@@ -1244,7 +1250,7 @@ const Admin = (() => {
       /* `bagian: 'inti'` — server lama yang belum mengenalnya membalas bentuk
          penuh, dan itu ditangani: kalau peringkat dan stoknya sudah ikut,
          bagian berat tidak ditarik lagi. */
-      const d = await API.dashboard({ periode: periodeDash, cabang: cabangDash, bagian: 'inti' });
+      const d = await API.dashboard({ ...paramDash(), bagian: 'inti' });
       if (tiket !== tiketDash) return;
       /**
        * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
@@ -1275,10 +1281,7 @@ const Admin = (() => {
 
       $('#isiDashboard').innerHTML = `
         <div class="bar-alat rapat bar-dash">
-          <select id="periodeDash" class="kendali-tetap">
-            ${Object.keys(LABEL_PERIODE).map(x =>
-              `<option value="${x}" ${x === periodeDash ? 'selected' : ''}>${LABEL_PERIODE[x]}</option>`).join('')}
-          </select>
+          ${Periode.html({ ...PERIODE_DASH, nilai: periodeDash, nilaiDari: dashKustom.dari, nilaiSampai: dashKustom.sampai })}
           ${pilihCabangDash()}
           <span class="petunjuk keterangan-dash" style="margin:0" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</span>
         </div>
@@ -1376,7 +1379,7 @@ const Admin = (() => {
 
   async function muatDashboardBerat(tiket, adaMargin) {
     try {
-      const b = await API.dashboard({ periode: periodeDash, cabang: cabangDash, bagian: 'berat' }, { latar: true });
+      const b = await API.dashboard({ ...paramDash(), bagian: 'berat' }, { latar: true });
       if (tiket !== tiketDash) return;
       isiBagianBerat(b, adaMargin);
     } catch (e) {
@@ -4609,6 +4612,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * baru di Sheets — dan menyempitkan ke satu cabang justru membuat servernya
    * memutari satu cabang, bukan tiga.
    */
+  const PERIODE_POIN = { id: 'poinPeriode', dari: 'poinDari', sampai: 'poinSampai', nilai: 'bulan', label: 'Periode' };
   function pilihCabangPoin() {
     const sumber = (APP_STATE.daftarCabangSemua && APP_STATE.daftarCabangSemua.length)
       ? APP_STATE.daftarCabangSemua : (APP_STATE.daftarCabang || []);
@@ -4633,22 +4637,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu">
           <h3>Performa petugas &amp; cabang</h3>
           <div class="saring-baris">
-            <div class="kendali-tetap"><label>Dari</label>
-              <input type="date" id="poinDari" value="${awal}"></div>
-            <div class="kendali-tetap"><label>Sampai</label>
-              <input type="date" id="poinSampai" value="${tanggalLokal(kini)}"></div>
+            ${Periode.html(PERIODE_POIN)}
             <div class="kendali-tetap"><label>Petugas</label><select id="poinPetugas">
               <option value="">Semua petugas</option>
               ${urutkanOleh(rows, r => r.nama).map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
             </select></div>
             ${pilihCabangPoin()}
-            <div class="aksi"><button class="tombol utama" id="btnLaporanPoin">${ikonAlat('tampil')}<span>Tampilkan</span></button></div>
           </div>
           <p class="petunjuk">Angka di sini dibekukan saat notanya masuk, bukan dihitung ulang
              sekarang. Menaikkan poin sebuah produk hari ini tidak mengubah pekerjaan yang
              sudah selesai bulan lalu. Nota yang dibatalkan otomatis keluar dari hitungan.</p>
         </div>
         <div id="hasilPoin"></div>`;
+      /* v1.182: periode, petugas, dan cabang masing-masing memuat sendiri; layar
+         terbuka langsung berisi bulan ini, bukan menunggu ditekan. */
+      Periode.pasang(PERIODE_POIN, gambarHasilPoin);
+      gambarHasilPoin();
     } catch (e) { galat('#isiPoin', e); }
   }
 
@@ -4700,7 +4704,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ).join('')}</select>`;
 
     wadah.innerHTML = `
-        <div class="petak">
+        <!-- petak-4: empat kotak angka satu baris (auto-fit ≥160 px) — di tablet
+             .petak tiga kolom meninggalkan kotak keempat sendirian (uji-ruang, v1.182;
+             baru terukur karena Poin kini memuat sendiri saat dibuka). -->
+        <div class="petak petak-4">
           <div class="kartu statistik"><div class="label">Petugas</div><div class="nilai">${r.petugas}</div></div>
           <div class="kartu statistik"><div class="label">Nota terklaim</div><div class="nilai">${r.nota}</div></div>
           <div class="kartu statistik"><div class="label">Total poin</div><div class="nilai">${r.poin}</div></div>
@@ -5499,22 +5506,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * ganjil adalah membuka nota satu per satu — yang berarti tidak akan pernah
    * dilakukan. Urutannya sengaja dari rupiah terbesar, bukan terbaru.
    */
+  const PERIODE_DISKON = { id: 'dskPeriode', dari: 'dskDari', sampai: 'dskSampai', nilai: 'bulan', judul: 'Periode diskon' };
   async function muatDiskon() {
-    const hariIni = tanggalLokal();
-    const awalBulan = hariIni.substring(0, 8) + '01';
     if (!$('#dskDari')) {
+      /* v1.182: dropdown periode (komponen Periode), bawaan Bulan ini, memuat
+         sendiri — tidak ada tombol Tampilkan. */
       $('#isiDiskon').innerHTML = `
         <div class="kartu">
           <div class="bar-alat dua-kendali">
             <h3>Diskon</h3>
-            <input type="date" id="dskDari" value="${awalBulan}" class="kendali-tetap">
-            <input type="date" id="dskSampai" value="${hariIni}" class="kendali-tetap">
-            <button class="tombol utama" id="btnMuatDiskon">${ikonAlat('tampil')}<span>Tampilkan</span></button>
+            ${Periode.html(PERIODE_DISKON)}
           </div>
           <p class="petunjuk">Persentase dihitung dari total diskon (baris + nota) terhadap nilai bruto.
             Kolom <strong>Disetujui</strong> berisi nama atasan yang menyetujui diskon di atas batas peran kasirnya.</p>
         </div>
         <div id="hasilDiskon"></div>`;
+      Periode.pasang(PERIODE_DISKON, gambarHasilDiskon);
     }
     gambarHasilDiskon();
   }
@@ -7065,7 +7072,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (t.id === 'btnPetugasBaru')   return editorPetugas(null);
       if (d.editPetugas)               return editorPetugas(d.editPetugas);
-      if (t.id === 'btnLaporanPoin')   return gambarHasilPoin();
       if (t.id === 'btnSimpanPetugas') {
         try {
           await API.simpanPetugas({
@@ -7485,7 +7491,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
 
       /* --- laporan diskon --- */
-      if (t.id === 'btnMuatDiskon') return gambarHasilDiskon();
 
       /* --- dashboard (v1.179) --- */
       if (d.grafik !== undefined) return muatGrafik(d.grafik);
@@ -8034,7 +8039,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          peringkat, dan pembandingnya semua dihitung server per rentang tanggal,
          dan menyalin perhitungan itu ke perangkat berarti dua tempat menghitung
          satu angka. */
-      if (e.target.id === 'periodeDash') { periodeDash = e.target.value; muatDashboard(); return; }
+      if (e.target.id === 'periodeDash') {
+        periodeDash = e.target.value;
+        /* Kustom: tunggu kedua tanggalnya lengkap — barnya baru digambar ulang
+           saat memuat, jadi kolom yang setengah terisi tidak boleh dipicu. */
+        if (Periode.terapkan(PERIODE_DASH, periodeDash) && periodeDash !== 'kustom') {
+          dashKustom = { dari: $('#dashDari').value, sampai: $('#dashSampai').value };
+          muatDashboard();
+        }
+        return;
+      }
+      if (e.target.id === 'dashDari' || e.target.id === 'dashSampai') {
+        if (periodeDash === 'kustom' && Periode.terapkan(PERIODE_DASH, 'kustom')) {
+          dashKustom = { dari: $('#dashDari').value, sampai: $('#dashSampai').value };
+          muatDashboard();
+        }
+        return;
+      }
+      if (e.target.id === 'poinPetugas' || e.target.id === 'poinCabang') return gambarHasilPoin();
       if (e.target.id === 'cabangDash')  { cabangDash = e.target.value; muatDashboard(); return; }
       if (e.target.id === 'imporEntitas') {
         $('#imporKolom').textContent = KOLOM_IMPOR[e.target.value] || '';
