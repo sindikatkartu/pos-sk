@@ -4998,7 +4998,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
         <div class="kartu">
           <div class="bar-alat"><h3>Peran &amp; hak akses</h3><div style="flex:1"></div>
-            ${bolehIzin('user', 'ubah') ? tombolTambah('btnPeranBaru', 'Peran baru') : ''}</div>
+            ${bolehIzin('setting', 'ubah') ? tombolTambah('btnPeranBaru', 'Peran baru') : ''}</div>
           <p class="petunjuk">Peran menentukan menu apa yang muncul dan aksi apa yang diizinkan. Peran OWNER sengaja dikunci agar sistem tidak bisa terkunci dari dirinya sendiri.</p>
           ${tabel([
             { judul: 'Kode', kunci: 'kode_peran' },
@@ -5007,9 +5007,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Batas diskon', render: r => (r.flag.diskon_maks_persen ?? 0) + '%' },
             { judul: 'Harga modal', render: r => r.flag.lihat_harga_modal
                 ? '<span class="lencana hijau">boleh</span>' : '<span class="lencana">tidak</span>' },
+            /* Mengatur peran = kunci Sistem (setting·ubah), bukan kunci akun (v1.183).
+               Yang tidak berhak melihat daftarnya saja, tanpa tombol. */
             { judul: '', render: r => r.kode_peran === 'OWNER'
                 ? '<span class="lencana">terkunci</span>'
-                : `<button class="tombol kecil" data-edit-peran="${esc(r.kode_peran)}">Atur hak akses</button>` }
+                : bolehIzin('setting', 'ubah')
+                  ? `<button class="tombol kecil" data-edit-peran="${esc(r.kode_peran)}">Atur hak akses</button>`
+                  : '<span class="lencana">hanya pemegang Pengaturan</span>' }
           ], cachePeran)}
         </div>
 
