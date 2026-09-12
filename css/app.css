@@ -1740,6 +1740,9 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    pemilik 12 Sep 2026): tinggi dan hurufnya sama di HP, tablet, PC. Dijaga
    uji-dashboard dengan mengukur tingginya di tiga lebar. */
 .bar-dash select { min-height: 40px; font-size: var(--fs-14); }
+/* Label "11:00" cuma ±36 px; kolom label bawaan grafik batang (minmax 90..150)
+   menyisakan jarak kosong ke batangnya. Hanya kartu Jam ramai. */
+#wadahJam .grafik-batang .bb { grid-template-columns: 48px 1fr auto; }
 
 /* Dua lajur yang RUNTUH jadi satu di bawah 780px. Tanpa titik runtuh ini, dua
    tabel berdampingan di tablet tegak masing-masing tinggal 180px dan nama

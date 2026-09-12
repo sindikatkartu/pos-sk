@@ -1465,8 +1465,11 @@ const Admin = (() => {
       return;
     }
     // Satu garis per cabang bila lintas cabang; kalau hanya satu cabang, satu garis omzet.
+    /* seri_cabang SUDAH berbentuk yang dimengerti Grafik.garis: { nama, data }
+       (16_Grafik.gs). v1.179 memetakannya ulang ke dua kunci yang tidak
+       ada, dan "Semua cabang" meledak di s.data.forEach (§160). Apa adanya. */
     const seri = g.seri_cabang.length > 1
-      ? g.seri_cabang.map(c => ({ nama: c.cabang, data: c.deret }))
+      ? g.seri_cabang
       : [{ nama: 'Omzet', data: g.deret_harian.map(x => x.total) }];
     Grafik.garis($('#gPenjualan'), { tanggal: g.tanggal, seri, tinggi: 140, tanpaTabel: true });
   }
