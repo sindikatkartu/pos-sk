@@ -442,6 +442,9 @@ function rapikanTanggal(akar) {
 
     const bungkus = document.createElement('span');
     bungkus.className = 'kolom-tgl';
+    /* Ukuran tetap (v1.181) menempel pada kolom yang TERLIHAT, yaitu pembungkus
+       ini — input aslinya tersembunyi di dalamnya. */
+    if (asli.classList.contains('kendali-tetap')) bungkus.classList.add('kendali-tetap');
     asli.parentNode.insertBefore(bungkus, asli);
     bungkus.appendChild(asli);
 

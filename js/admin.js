@@ -815,7 +815,7 @@ const Admin = (() => {
   const bolehCabangDash = () =>
     !!APP_STATE.flag?.akses_lintas_cabang && daftarKodeCabang().length > 1;
   const pilihCabangDash = () => bolehCabangDash()
-    ? `<select id="cabangDash" style="width:auto" title="Cabang">
+    ? `<select id="cabangDash" class="kendali-tetap" title="Cabang">
         <option value="*" ${cabangDash === '*' ? 'selected' : ''}>Semua cabang</option>
         ${daftarKodeCabang().map(c => `<option value="${esc(c)}" ${cabangDash === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
       </select>` : '';
@@ -1275,7 +1275,7 @@ const Admin = (() => {
 
       $('#isiDashboard').innerHTML = `
         <div class="bar-alat rapat bar-dash">
-          <select id="periodeDash" style="width:auto">
+          <select id="periodeDash" class="kendali-tetap">
             ${Object.keys(LABEL_PERIODE).map(x =>
               `<option value="${x}" ${x === periodeDash ? 'selected' : ''}>${LABEL_PERIODE[x]}</option>`).join('')}
           </select>
@@ -4614,7 +4614,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ? APP_STATE.daftarCabangSemua : (APP_STATE.daftarCabang || []);
     const daftar = sumber.slice().sort(urutNama);
     if (!APP_STATE.flag?.akses_lintas_cabang || daftar.length < 2) return '';
-    return `<div style="max-width:200px"><label>Cabang</label><select id="poinCabang">
+    return `<div class="kendali-tetap"><label>Cabang</label><select id="poinCabang">
         <option value="*">Semua cabang</option>
         ${daftar.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
       </select></div>`;
@@ -4632,17 +4632,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#isiPoin').innerHTML = `
         <div class="kartu">
           <h3>Performa petugas &amp; cabang</h3>
-          <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
-            <div style="max-width:170px"><label>Dari</label>
+          <div class="saring-baris">
+            <div class="kendali-tetap"><label>Dari</label>
               <input type="date" id="poinDari" value="${awal}"></div>
-            <div style="max-width:170px"><label>Sampai</label>
+            <div class="kendali-tetap"><label>Sampai</label>
               <input type="date" id="poinSampai" value="${tanggalLokal(kini)}"></div>
-            <div style="max-width:220px"><label>Petugas</label><select id="poinPetugas">
+            <div class="kendali-tetap"><label>Petugas</label><select id="poinPetugas">
               <option value="">Semua petugas</option>
               ${urutkanOleh(rows, r => r.nama).map(r => `<option value="${esc(r.kode)}">${esc(r.nama)}</option>`).join('')}
             </select></div>
             ${pilihCabangPoin()}
-            <button class="tombol utama" id="btnLaporanPoin">${ikonAlat('tampil')}<span>Tampilkan</span></button>
+            <div class="aksi"><button class="tombol utama" id="btnLaporanPoin">${ikonAlat('tampil')}<span>Tampilkan</span></button></div>
           </div>
           <p class="petunjuk">Angka di sini dibekukan saat notanya masuk, bukan dihitung ulang
              sekarang. Menaikkan poin sebuah produk hari ini tidak mengubah pekerjaan yang
@@ -5505,11 +5505,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#dskDari')) {
       $('#isiDiskon').innerHTML = `
         <div class="kartu">
-          <div class="bar-alat">
+          <div class="bar-alat dua-kendali">
             <h3>Diskon</h3>
-            <div style="flex:1"></div>
-            <input type="date" id="dskDari" value="${awalBulan}" style="width:auto">
-            <input type="date" id="dskSampai" value="${hariIni}" style="width:auto">
+            <input type="date" id="dskDari" value="${awalBulan}" class="kendali-tetap">
+            <input type="date" id="dskSampai" value="${hariIni}" class="kendali-tetap">
             <button class="tombol utama" id="btnMuatDiskon">${ikonAlat('tampil')}<span>Tampilkan</span></button>
           </div>
           <p class="petunjuk">Persentase dihitung dari total diskon (baris + nota) terhadap nilai bruto.

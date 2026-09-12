@@ -1886,7 +1886,28 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .bar-alat { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 /* Judul di dalam bar alat: tanpa margin, dari kelas — bukan `style="margin:0"`
    yang dulu diulang di tiga belas tempat. */
-.bar-alat > h3, .bar-alat > h4 { margin: 0; }
+/* Turunan, bukan anak langsung: judul Laporan ada di dalam .saringan dan
+   sempat membawa margin-bawah 14 px — judulnya naik 8 px dari kendalinya. */
+.bar-alat h3, .bar-alat h4 { margin: 0; }
+
+/* ==== KENDALI TETAP (v1.181) ====
+   Satu ukuran untuk periode, cabang, dan tanggal di SEMUA bar: 160 × 40 px,
+   sama di PC, tablet, HP. 160 = (328 − 8) / 2 — isi kartu di HP 328 px, dua
+   kendali berdampingan pas. Keputusan pemilik 12 Sep 2026: "ukuran tetap sama
+   di semua ukuran layar". Di bawah 620 px kendalinya mengisi sel grid dua
+   kolom (lihat blok HP). */
+.kendali-tetap { width: 160px; max-width: 160px; flex: 0 0 160px; min-width: 0; }
+.kendali-tetap > select, .kendali-tetap > input, .kendali-tetap > .tgl-rupa { min-height: 40px; width: 100%; }
+/* Seluruh kendali di bar setinggi tombolnya: select 39, kotak cari 37, dan
+   tanggal 37 px dulu bertangga di samping tombol 40. */
+.bar-alat select, .bar-alat input:not([type=checkbox]):not([type=radio]), .bar-alat .input-cari,
+.saring-baris select, .saring-baris input { min-height: 40px; }
+/* Baris saringan berlabel (Poin, Keuangan): label di atas kotaknya, rata bawah. */
+.saring-baris { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 14px; }
+.saring-baris > .aksi { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* Pembungkus penyaring cabang Laporan bukan kotak: select-nya yang berukuran.
+   :not(.sembunyi) — id mengalahkan kelas, tanpa ini penyaringnya tak bisa disembunyikan. */
+#grupLapCabang:not(.sembunyi) { display: contents; }
 /* ==================== TOMBOL BERIKON DI LUAR BAR ALAT ====================
    Dipakai tombol kecil yang berdiri sendiri — Tahan dan Kosongkan di kepala
    keranjang Kasir. Ikonnya 15px, bukan 16px: tombolnya sendiri fs-13, dan ikon
@@ -2247,6 +2268,19 @@ input.sudah-hitung {
      id layar ke berkas gaya. Kalau suatu saat angka-angka itu jadi kelas,
      hapus `!important`-nya. */
   .bar-alat > * { width: 100%; max-width: none !important; min-width: 0; }
+  /* Kendali tetap di HP mengisi SEL gridnya — 160 tidak muat berdua di 328 tanpa
+     grid dua kolom; gridnya yang membagi, bukan angkanya. */
+  .bar-alat .kendali-tetap, .bar-alat > .kendali-tetap, .saring-baris > .kendali-tetap { width: 100%; max-width: none; flex: 1 1 auto; }
+  /* Laporan: periode │ cabang berdampingan seperti Dashboard; judul dan rentang
+     kustom melintang. HANYA Laporan — kotak cari Produk/Stok tetap satu kolom. */
+  #layarLaporan .bar-alat-menu > .saringan { grid-template-columns: 1fr 1fr; }
+  #layarLaporan .bar-alat-menu > .saringan > h3, #layarLaporan .rentang-kustom { grid-column: 1 / -1; }
+  /* Shift & Diskon: dua tanggal berdampingan; judul dan tombol melintang. */
+  .bar-alat.dua-kendali { grid-template-columns: 1fr 1fr; }
+  .bar-alat.dua-kendali > h3, .bar-alat.dua-kendali > button { grid-column: 1 / -1; }
+  .saring-baris { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .saring-baris > .aksi { grid-column: 1 / -1; }
+  .saring-baris > .aksi > .tombol { flex: 1 1 auto; }
   /* SATU kolom, bukan dua. Dengan dua kolom, jumlah kendali yang ganjil selalu
      menyisakan satu yang lebarnya separuh sendirian di baris terakhir — persis
      bentuk tidak rapi yang mau dihilangkan. Satu kolom juga mengembalikan teks

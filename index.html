@@ -369,7 +369,7 @@
         <div class="bar-alat bar-alat-menu tanpa-cetak">
           <div class="saringan">
             <h3>Laporan penjualan</h3>
-            <select id="lapPeriode" style="max-width:150px" title="Periode laporan">
+            <select id="lapPeriode" class="kendali-tetap" title="Periode laporan">
               <option value="hari">Hari ini</option>
               <option value="kemarin">Kemarin</option>
               <option value="7">7 hari terakhir</option>
@@ -385,14 +385,16 @@
             </span>
             <!-- Penyaring cabang, TERSEMBUNYI untuk akun yang cuma berhak atas
                  satu cabang. Diisi pasangPilihCabangLaporan() di app.js. -->
-            <span id="grupLapCabang" class="sembunyi"><select id="lapCabang" style="max-width:150px" title="Cabang"></select></span>
+            <span id="grupLapCabang" class="sembunyi"><select id="lapCabang" class="kendali-tetap" title="Cabang"></select></span>
           </div>
           <div class="aksi">
-            <span id="lapEkspor"></span>
             <button class="tombol" id="btnCetakLaporan" title="Cetak laporan lengkap (A4)">
               <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>
               Cetak
             </button>
+            <!-- ⋮ SELALU paling kanan (v1.181): tindakan utama dulu, menu
+                 lain-lain di ujung — bentuk yang sama dengan Produk/Stok. -->
+            <span id="lapEkspor"></span>
           </div>
         </div>
 
@@ -417,13 +419,15 @@
     <section class="layar" id="layarKeuangan">
       <div class="kartu">
         <h3>Laporan keuangan</h3>
-        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
-          <div style="max-width:190px"><label>Periode</label><input type="month" id="keuPeriode"></div>
-          <div style="max-width:190px"><label>Cabang</label><select id="keuCabang"></select></div>
+        <div class="saring-baris">
+          <div class="kendali-tetap"><label>Periode</label><input type="month" id="keuPeriode"></div>
+          <div class="kendali-tetap"><label>Cabang</label><select id="keuCabang"></select></div>
+          <div class="aksi">
           <button class="tombol utama" id="btnLabaRugi"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Laba Rugi</span></button>
           <button class="tombol utama" id="btnNeraca"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg><span>Neraca</span></button>
           <button class="tombol" id="btnUji"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><span>Uji kebenaran</span></button>
           <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
+          </div>
         </div>
       </div>
       <div id="hasilKeuangan"></div>
@@ -460,9 +464,9 @@
            tabelnya tidak muat, dan di HP ia mendorong kartunya keluar layar. -->
       <div class="kartu" id="kartuRiwayatShift">
           <h3>Laporan shift</h3>
-          <div class="bar-alat">
-            <input type="date" id="shiftDari" style="max-width:170px">
-            <input type="date" id="shiftSampai" style="max-width:170px">
+          <div class="bar-alat dua-kendali">
+            <input type="date" id="shiftDari" class="kendali-tetap">
+            <input type="date" id="shiftSampai" class="kendali-tetap">
             <button class="tombol" id="btnMuatShift">Tampilkan</button>
           </div>
           <div id="isiRiwayatShift"></div>
