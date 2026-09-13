@@ -331,7 +331,10 @@ const API = (() => {
     getToken()  { return _token; },
     tugas,
 
-    ping:            ()  => panggil('ping'),
+    /* Opsinya diteruskan supaya pemeriksa versi berkala bisa lewat sebagai
+       LATAR. Tanpa itu penanda sibuk menyala dan layar mengunci tombolnya
+       tiap lima menit tanpa ada yang menekan apa pun — lihat _sibukOrang. */
+    ping:            (o)  => panggil('ping', {}, o || {}),
     login:           (d) => panggil('login', d),
     logout:          ()  => panggil('logout'),
     gantiCabang:     (d) => panggil('ganti_cabang', d),

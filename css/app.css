@@ -1147,6 +1147,26 @@ main { flex: 1; overflow: hidden; position: relative; }
   font-size: var(--fs-13);
 }
 
+/* Tahap 2 dan 3 memakai warna peringatan dan bahaya. Warnanya SAJA tidak
+   cukup dijadikan penanda: teksnya juga berubah dan menyebutkan berapa lama
+   tablet itu tertinggal, karena yang membacanya di lantai toko belum tentu
+   membedakan kuning dari merah di layar yang kena matahari. */
+.spanduk-versi.tahap2 { border-bottom-color: var(--peringatan); }
+.spanduk-versi.tahap3 { border-bottom-color: var(--bahaya); }
+
+.kunci-versi {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(0, 0, 0, .72);
+}
+.kunci-versi-kotak {
+  background: var(--panel); color: var(--teks);
+  border: 2px solid var(--bahaya); border-radius: var(--radius);
+  box-shadow: var(--bayang-4); padding: 24px; max-width: 420px; text-align: center;
+}
+.kunci-versi-kotak h2 { margin: 0 0 8px; font-size: var(--fs-19); }
+.kunci-versi-kotak .tombol { margin-top: 16px; min-height: 44px; }
+
 /* ==================== CARI DI BANTUAN ====================
    Menempel di atas saat digulir: 27 bagian berarti hasil yang ditemukan sering
    berada jauh di bawah kotak carinya, dan mengetik ulang kata kunci menuntut

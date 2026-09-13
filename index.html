@@ -109,9 +109,26 @@
      BERIKUTNYA. Tanpa spanduk ini orang menguji perbaikan pada build yang belum
      berisi perbaikannya. Di luar #app supaya terlihat juga di layar masuk. -->
 <div id="spandukVersi" class="spanduk-versi" role="status" hidden>
-  <span>Versi baru sudah terpasang. Muat ulang untuk memakainya.</span>
+  <span id="spandukVersiTeks">Versi baru sudah siap. Muat ulang untuk memakainya.</span>
   <button class="tombol kecil utama" id="btnMuatUlangVersi">Muat ulang</button>
   <button class="tombol kecil" id="btnNantiVersi">Nanti</button>
+</div>
+
+<!-- Kunci versi (tahap 3). BUKAN .tirai: penangan Escape global menutup setiap
+     .tirai, dan kunci yang bisa ditutup dengan satu tombol bukan kunci.
+     Ia hanya muncul saat keranjang KOSONG — kasir yang sedang mengetik nota di
+     depan pelanggan tidak boleh kehilangan pekerjaannya karena toko menerbitkan
+     versi baru. Selama keranjang berisi, yang tampil spanduk merah di atas. -->
+<div id="kunciVersi" class="kunci-versi" role="alertdialog" aria-modal="true"
+     aria-labelledby="kunciVersiJudul" hidden>
+  <div class="kunci-versi-kotak">
+    <h2 id="kunciVersiJudul">Aplikasi ini versi lama</h2>
+    <p class="petunjuk" id="kunciVersiTeks">
+      Tablet ini sudah tertinggal 30 menit dari versi yang dipakai toko.
+      Muat ulang sekarang sebelum menjual lagi.
+    </p>
+    <button class="tombol utama" id="btnKunciMuatUlang">Muat ulang sekarang</button>
+  </div>
 </div>
 
 <div id="app" class="sembunyi">

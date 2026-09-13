@@ -5797,13 +5797,116 @@ function pantauVersiBaru() {
   const adaPengendali = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW gagal:', e));
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (adaPengendali) tampilSpandukVersi();
+    if (adaPengendali) tandaiVersiTertinggal();
   });
+
+  /* MEMERIKSA SENDIRI, tidak menunggu dimuat ulang.
+     ------------------------------------------------------------------
+     controllerchange di atas hanya berbunyi saat halaman DIMUAT. Tablet
+     karyawan dibiarkan menyala berhari-hari tanpa sekali pun dimuat ulang,
+     jadi jalur itu tidak pernah menjangkaunya: perbaikan sudah terbit, yang
+     dipakai di konter masih build minggu lalu, dan tidak ada satu pun tanda
+     di layarnya. Dilaporkan pemilik 13 Sep 2026.
+
+     Jawaban ping membawa versi yang sedang dijalankan server. Kalau berbeda
+     dari yang sedang berjalan di sini, tablet ini tertinggal — titik. */
+  periksaVersiServer();
+  setInterval(periksaVersiServer, CONFIG.VERSI_POLL_MS);
+  /* Tahapnya maju sendiri walau tidak ada permintaan baru, dan kuncinya
+     menunggu keranjang kosong — keduanya butuh jam yang berdetak. */
+  setInterval(gambarPeringatanVersi, 15000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) periksaVersiServer(); });
+  window.addEventListener('online', periksaVersiServer);
 }
 
-function tampilSpandukVersi() {
-  const el = $('#spandukVersi');
-  if (el) el.hidden = false;
+/* Kapan ketinggalan ini PERTAMA kali terlihat. Tahapnya dihitung dari sini,
+   bukan dari kapan versinya terbit: yang diukur adalah berapa lama tablet INI
+   dibiarkan memakai yang lama. */
+let _versiSejak = 0;
+let _versiTundaSampai = 0;
+
+async function periksaVersiServer() {
+  if (!navigator.onLine || _versiSejak) return;
+  try {
+    const d = await API.ping({ latar: true });
+    if (d && d.versi && String(d.versi) !== String(CONFIG.VERSI)) {
+      tandaiVersiTertinggal();
+      /* Dorong Service Worker mengambil build barunya sekarang, supaya saat
+         orangnya menekan Muat ulang yang dipakai benar-benar yang baru dan
+         bukan cache lama — kalau tidak, ia memuat ulang dua kali. */
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) reg.update().catch(() => {});
+    }
+  } catch (e) { /* latar: gangguan jaringan bukan urusan pemakainya */ }
+}
+
+function tandaiVersiTertinggal() {
+  if (!_versiSejak) _versiSejak = Date.now();
+  gambarPeringatanVersi();
+}
+
+/** 0 tidak tertinggal, 1 mengingatkan, 2 mendesak, 3 mengunci. */
+function tahapVersi() {
+  if (!_versiSejak) return 0;
+  const lewat = Date.now() - _versiSejak;
+  if (lewat >= CONFIG.VERSI_TAHAP3_MS) return 3;
+  if (lewat >= CONFIG.VERSI_TAHAP2_MS) return 2;
+  return 1;
+}
+
+function _menitTertinggal() {
+  return Math.max(1, Math.round((Date.now() - _versiSejak) / 60000));
+}
+
+/**
+ * Gambar ulang peringatannya menurut tahap dan keadaan keranjang.
+ *
+ * KUNCI HANYA SAAT KERANJANG KOSONG. Kasir yang sedang mengetik nota di depan
+ * pelanggan tidak boleh kehilangan pekerjaannya karena toko menerbitkan versi
+ * baru; itu kerugian yang nyata, sementara memakai build lama sepuluh menit
+ * lagi tidak. Selama keranjang berisi, yang tampil spanduk merah tanpa tombol
+ * tunda — dan kuncinya turun sendiri begitu notanya selesai, karena fungsi ini
+ * dipanggil ulang tiap 15 detik.
+ */
+function gambarPeringatanVersi() {
+  const sp = $('#spandukVersi');
+  const kunci = $('#kunciVersi');
+  const tahap = tahapVersi();
+  if (!sp || !kunci) return;
+
+  if (!tahap) { sp.hidden = true; kunci.hidden = true; return; }
+
+  const keranjangKosong = typeof Keranjang === 'undefined' || Keranjang.kosong;
+  const menit = _menitTertinggal();
+
+  if (tahap === 3 && keranjangKosong) {
+    const t = $('#kunciVersiTeks');
+    if (t) {
+      t.textContent = 'Tablet ini sudah tertinggal ' + menit +
+        ' menit dari versi yang dipakai toko. Muat ulang sekarang sebelum menjual lagi.';
+    }
+    kunci.hidden = false;
+    sp.hidden = true;
+    return;
+  }
+  kunci.hidden = true;
+
+  /* Tunda hanya berlaku di tahap 1. Sesudah itu tombolnya memang hilang. */
+  if (tahap === 1 && Date.now() < _versiTundaSampai) { sp.hidden = true; return; }
+
+  const teks = $('#spandukVersiTeks');
+  const nanti = $('#btnNantiVersi');
+  sp.classList.toggle('tahap2', tahap === 2);
+  sp.classList.toggle('tahap3', tahap === 3);
+  if (teks) {
+    teks.textContent = tahap === 1
+      ? 'Versi baru sudah siap. Muat ulang untuk memakainya.'
+      : tahap === 2
+        ? 'Tablet ini masih memakai versi lama, ' + menit + ' menit tertinggal.'
+        : 'Versi lama. Selesaikan nota yang sedang berjalan, lalu muat ulang.';
+  }
+  if (nanti) nanti.hidden = tahap !== 1;
+  sp.hidden = false;
 }
 
 async function muatUlangVersiBaru() {
@@ -5820,7 +5923,14 @@ async function muatUlangVersiBaru() {
 (async function mulai() {
   pantauVersiBaru();
   $('#btnMuatUlangVersi')?.addEventListener('click', muatUlangVersiBaru);
-  $('#btnNantiVersi')?.addEventListener('click', () => { $('#spandukVersi').hidden = true; });
+  $('#btnKunciMuatUlang')?.addEventListener('click', muatUlangVersiBaru);
+  /* "Nanti" MENUNDA, tidak lagi menyembunyikan selamanya. Tombol yang membuang
+     peringatannya untuk seterusnya membuat tablet bisa tertinggal berhari-hari
+     hanya karena seseorang menekannya sekali di hari Senin. */
+  $('#btnNantiVersi')?.addEventListener('click', () => {
+    _versiTundaSampai = Date.now() + CONFIG.VERSI_TAHAP2_MS;
+    gambarPeringatanVersi();
+  });
   await DB.buka();
   pasangEvent();
   Admin.pasang();
