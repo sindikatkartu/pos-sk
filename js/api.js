@@ -66,10 +66,10 @@ const API = (() => {
   const _JEJAK_MAKS = 200;
   const _jejak = [];
 
-  function _catatWaktu(aksi, total, server, galat) {
+  function _catatWaktu(aksi, total, server, galat, ulang) {
     _jejak.push({ aksi, total: Math.round(total),
                   server: server === null || server === undefined ? null : Math.round(server),
-                  galat: galat || null, waktu: Date.now() });
+                  galat: galat || null, ulang: ulang || 0, waktu: Date.now() });
     if (_jejak.length > _JEJAK_MAKS) _jejak.shift();
   }
 
@@ -77,9 +77,10 @@ const API = (() => {
   function ringkasanWaktu() {
     const per = {};
     _jejak.forEach(j => {
-      const a = per[j.aksi] || (per[j.aksi] = { aksi: j.aksi, n: 0, galat: 0, total: [], server: [] });
+      const a = per[j.aksi] || (per[j.aksi] = { aksi: j.aksi, n: 0, galat: 0, ulang: 0, total: [], server: [] });
       a.n++;
       if (j.galat) a.galat++;
+      a.ulang += j.ulang || 0;
       a.total.push(j.total);
       if (j.server !== null) a.server.push(j.server);
     });
@@ -92,7 +93,7 @@ const API = (() => {
       return u[Math.floor(u.length / 2)];
     };
     return Object.values(per).map(a => ({
-      aksi: a.aksi, n: a.n, galat: a.galat,
+      aksi: a.aksi, n: a.n, galat: a.galat, ulang: a.ulang,
       total: tengah(a.total), server: tengah(a.server),
       /* Perjalanan dihitung dari TENGAH masing-masing, bukan tengah selisihnya.
          Cukup untuk memutuskan sisi mana yang dikerjakan, dan tidak berpura-pura
@@ -105,16 +106,74 @@ const API = (() => {
   const _kabar = () => document.dispatchEvent(
     new CustomEvent('api:sibuk', { detail: { jumlah: _sibuk, orang: _sibukOrang } }));
 
-  async function panggil(aksi, data = {}, opsi = {}) {
-    if (!_online && !opsi.paksa) {
-      throw Object.assign(new Error('Sedang offline'), { kode: 'OFFLINE' });
-    }
+  /**
+   * JAWABAN YANG HILANG DI JALUR GOOGLE — dan mengapa diulang DI SINI.
+   *
+   * Diukur 13 Sep 2026 (KONTEKS §164). Satu POST ke /exec dijawab Google
+   * dengan 302 ke script.googleusercontent.com/macros/echo; hop kedua itulah
+   * yang sesekali menjawab 404 atau baru menjawab sesudah 7–69 detik, PADAHAL
+   * skripnya sudah selesai (dasbor eksekusi mencatat SELESAI 1 detik pada
+   * jam yang sama). Dari sesi Owner pukul 12.00, 6 dari 8 panggilan pembuka
+   * gagal "HTTP 404" dalam 18–36 detik. Kodenya tidak salah; jawabannya yang
+   * tidak sampai — dan layar yang menyerah pada 404 pertama membuat seluruh
+   * aplikasi tampak mati padahal servernya sehat.
+   *
+   * Pengulangannya di sini, satu pintu yang dilalui SETIAP permintaan — bukan
+   * di delapan puluh pemanggil. Yang diulang hanya aksi yang AMAN diulang:
+   * pembacaan, dan tulisan yang servernya menjaga duplikat per uuid (kiriman
+   * ulang dijawab "duplikat: true", tidak ditulis dua kali). "kirim_penjualan"
+   * sengaja TIDAK di daftar: ia sudah dibungkus ulang() di bawah, dan dua lapis
+   * berarti sembilan percobaan.
+   *
+   * Tulisan tanpa penjaga (buka/tutup shift, void, tutup buku, terima transfer,
+   * proses permintaan, akun & peran) TIDAK diulang: jawaban yang hilang bukan
+   * bukti datanya tidak masuk. Untuk itu pesannya menyebut kemungkinan itu,
+   * supaya orang memeriksa dulu sebelum menekan lagi (5 Sep 2026: pembelian
+   * 101 baris masuk dua kali karena "gagal" dipercaya begitu saja).
+   *
+   * Setiap nama di sini harus ada rutenya di 04_Api.gs — dijaga uji.js.
+   */
+  const AMAN_DIULANG = new Set([
+    /* pembacaan */
+    'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
+    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota',
+    'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
+    'daftar_produk', 'produk_satu', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
+    'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
+    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'daftar_pembelian',
+    'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
+    'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
+    'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
+    'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
+    /* tulisan yang servernya menjaga duplikat per uuid */
+    'simpan_kas', 'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
+    'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
+    'bayar_piutang', 'bayar_utang'
+  ]);
+  /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
+     408/429 (antre), 5xx (pintu depan). 400/401/403 bukan — itu jawaban tentang
+     permintaannya, dan mengulanginya cuma mengulangi penolakannya. */
+  const STATUS_SEMENTARA = new Set([404, 408, 429, 500, 502, 503, 504]);
+  /* Dua ulangan, jeda menaik. Yang ketiga kalinya masih gagal berarti Google
+     sedang tidak bisa dipakai, dan menunggu lebih lama hanya menahan layar. */
+  const JEDA_ULANG_MS = [1500, 4000];
+  const _tunggu = (ms) => new Promise(r => setTimeout(r, ms));
+
+  /* TIMEOUT ikut: hop yang lambat 30–69 detik memutus sambungan sementara
+     servernya selesai — untuk aksi yang aman diulang, mengulanginya benar. */
+  function _sementara(e) {
+    if (e.kode === 'HTTP') return STATUS_SEMENTARA.has(e.status);
+    return e.kode === 'SERVER_HTML' || e.kode === 'JARINGAN' || e.kode === 'TIMEOUT';
+  }
+
+  /**
+   * SATU percobaan: kirim, tunggu, urai. Melempar galat berkode dan tidak
+   * menghitung apa pun — penghitung dan jejak milik panggil(), supaya tiga
+   * percobaan tetap terbaca sebagai SATU permintaan di layar dan di jejak.
+   */
+  async function _sekali(aksi, data, opsi) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), opsi.timeout || 30000);
-    const latar = opsi.latar === true;
-    _sibuk++; if (!latar) _sibukOrang++; _kabar();
-    const _t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-    let _msServer = null, _galat = null;
     try {
       const resp = await fetch(CONFIG.API_URL, {
         method: 'POST',
@@ -123,7 +182,7 @@ const API = (() => {
         signal: ctrl.signal,
         redirect: 'follow'
       });
-      if (!resp.ok) throw Object.assign(new Error('HTTP ' + resp.status), { kode: 'HTTP' });
+      if (!resp.ok) throw Object.assign(new Error('HTTP ' + resp.status), { kode: 'HTTP', status: resp.status });
 
       /* Apps Script bisa menjawab HALAMAN HTML dengan status 200.
          ------------------------------------------------------------------
@@ -153,12 +212,50 @@ const API = (() => {
         e.kode = j.kode; e.detail = j.detail;
         throw e;
       }
-      _msServer = typeof j._ms === 'number' ? j._ms : null;
-      return j.data;
+      return j;
     } catch (e) {
-      _galat = e.kode || 'GALAT';
       if (e.name === 'AbortError') throw Object.assign(new Error('Server tidak menjawab'), { kode: 'TIMEOUT' });
       if (e.message === 'Failed to fetch') throw Object.assign(new Error('Tidak dapat menghubungi server'), { kode: 'JARINGAN' });
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function panggil(aksi, data = {}, opsi = {}) {
+    if (!_online && !opsi.paksa) {
+      throw Object.assign(new Error('Sedang offline'), { kode: 'OFFLINE' });
+    }
+    const latar = opsi.latar === true;
+    _sibuk++; if (!latar) _sibukOrang++; _kabar();
+    const _t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    let _msServer = null, _galat = null, _ulang = 0;
+    try {
+      const bolehUlang = opsi.ulang !== false && AMAN_DIULANG.has(aksi);
+      const jeda = (typeof CONFIG !== 'undefined' && CONFIG.JEDA_ULANG_MS) || JEDA_ULANG_MS;
+      for (let ke = 0; ; ke++) {
+        try {
+          const j = await _sekali(aksi, data, opsi);
+          _msServer = typeof j._ms === 'number' ? j._ms : null;
+          return j.data;
+        } catch (e) {
+          if (bolehUlang && ke < jeda.length && _sementara(e)) {
+            _ulang++;
+            await _tunggu(jeda[ke]);
+            continue;
+          }
+          /* Tulisan tanpa penjaga yang jawabannya hilang: jangan menyuruh
+             "coba lagi" — suruh MEMERIKSA. Kode galatnya tetap, hanya pesannya. */
+          if (!bolehUlang && (e.kode === 'SERVER_HTML' || (e.kode === 'HTTP' && STATUS_SEMENTARA.has(e.status)))) {
+            e.message = 'Jawaban server hilang di jalan (' +
+              (e.kode === 'HTTP' ? 'HTTP ' + e.status : 'halaman, bukan data') +
+              '). Datanya mungkin sudah masuk — periksa dulu sebelum mengulang.';
+          }
+          throw e;
+        }
+      }
+    } catch (e) {
+      _galat = e.kode || 'GALAT';
       /* Sesi kedaluwarsa diumumkan DI SINI, dan hanya di sini.
 
          Sampai v1.56 pengumumnya ada di catch milik `kirim()` di sync.js — dan
@@ -181,12 +278,11 @@ const API = (() => {
       if (e.kode === 'SESI') document.dispatchEvent(new Event('sesi:berakhir'));
       throw e;
     } finally {
-      clearTimeout(timer);
       /* Dicatat di `finally`, jadi permintaan yang GAGAL ikut terukur. Justru
          yang gagal itulah yang paling perlu terlihat: "kadang gagal" adalah
          separuh dari keluhan yang sedang didiagnosa. */
       _catatWaktu(aksi, (typeof performance !== 'undefined' ? performance.now() : Date.now()) - _t0,
-                  _msServer, _galat);
+                  _msServer, _galat, _ulang);
       _sibuk--; if (!latar) _sibukOrang--; _kabar();
     }
   }
