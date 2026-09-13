@@ -64,7 +64,7 @@
 <div class="layar-login" id="layarLogin">
   <div class="kartu-login">
     <h1>POS SINDIKAT KARTU</h1>
-    <p class="sub" id="subLogin">Masuk untuk mulai berjualan</p>
+    <p class="sub">Masuk untuk mulai berjualan</p>
 
     <div id="pesanLogin"></div>
 
@@ -468,7 +468,12 @@
       <!-- DI LUAR `.petak-tunggal`. Wadah itu membatasi lebar pada 460px supaya
            formulir pendek tidak mengambang selebar layar — benar untuk kartu
            "Shift kasir", salah untuk kartu yang isinya TABEL delapan kolom:
-           tabelnya tidak muat, dan di HP ia mendorong kartunya keluar layar. -->
+           tabelnya tidak muat, dan di HP ia mendorong kartunya keluar layar.
+
+           id-nya dipakai penjaga uji sebagai JANGKAR untuk memeriksa bahwa
+           kartu ini berada DI LUAR .petak-tunggal. Tidak ada JS yang mencarinya,
+           dan itu membuatnya terbaca mati oleh penyapu bangkai — dibuang
+           14 Sep 2026, penjaganya merah seketika, dikembalikan hari itu juga. -->
       <div class="kartu" id="kartuRiwayatShift">
           <h3>Laporan shift</h3>
           <!-- v1.182: dropdown periode (komponen Periode), memuat sendiri —
@@ -1088,7 +1093,7 @@
     </div>
     <div class="byr-kaki">
       <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
-      <div class="total-baris besar byr-sisa" id="byrBarisSisa"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
+      <div class="total-baris besar byr-sisa"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
       <div class="aksi-modal">
         <button class="tombol" id="btnBatalBayar">Batal</button>
         <button class="tombol sukses" id="btnSelesaikan">Selesaikan &amp; Cetak</button>

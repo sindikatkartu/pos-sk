@@ -946,12 +946,6 @@ const Admin = (() => {
      tetap anak LANGSUNG petaknya — wadah pembungkus tambahan membuat baris
      petak tidak lagi terbaca sebagai baris oleh uji-ruang, dan jaraknya
      terukur 32px padahal yang tergambar 16px. */
-  const kartuPeringkat = (judul, kolom, baris, kosong, id) => `
-    <div class="kartu rapat"${id ? ` id="${id}"` : ''}>
-      <h4>${esc(judul)}</h4>
-      ${tabel(kolom, baris || [], { kosong: kosong || 'Belum ada data' })}
-    </div>`;
-
   /* Tiket penggambaran: berganti tiap kali dashboard dimuat. Bagian berat yang
      ditarik di latar untuk periode LAMA tidak boleh menimpa layar periode baru
      yang sudah tergambar — tanpa tiket, mengganti periode dua kali cepat

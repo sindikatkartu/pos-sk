@@ -3503,11 +3503,15 @@ async function laporkanKeluarPaksa() {
  * (tanggalnya diketik, bukan dihitung). `kini` hanya untuk uji.
  */
 /* v1.182: perhitungannya pindah ke pos.js (rentangPeriode) — satu sumber untuk
-   Laporan, Shift, Diskon, Poin, Dashboard. Nama lama dipertahankan untuk pemanggilnya. */
+   Laporan, Shift, Diskon, Poin, Dashboard. Yang tinggal di sini cuma SETELAN
+   tiap layar; hitungannya dikerjakan komponen Periode.
+
+   Pembungkus `rentangPeriodeLaporan()` dibuang v1.187.0: sejak v1.182 tidak ada
+   satu pun yang memanggilnya, dan nama lama yang dipertahankan "untuk
+   pemanggilnya" ternyata tidak punya pemanggil sama sekali. */
 const PERIODE_LAPORAN = { id: 'lapPeriode', dari: 'lapDari', sampai: 'lapSampai', kustom: 'lapKustom', nilai: 'hari', judul: 'Periode laporan' };
 const PERIODE_SHIFT   = { id: 'shiftPeriode', dari: 'shiftDari', sampai: 'shiftSampai', nilai: 'hari', judul: 'Periode shift' };
 const PERIODE_KEU     = { id: 'keuPeriodePilih', dari: 'keuPeriode', bulanan: true, nilai: 'bulan', label: 'Periode' };
-function rentangPeriodeLaporan(jenis, kini) { return rentangPeriode(jenis, kini); }
 
 /**
  * Terapkan pilihan periode: isi kedua tanggal (atau buka kolom kustom), lalu

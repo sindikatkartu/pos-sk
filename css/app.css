@@ -1770,7 +1770,14 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 /* `align-items: start` supaya kartu yang pendek TIDAK diregangkan mengikuti
    tetangganya yang panjang. Tanpa ini kartu "Jam ramai" menyisakan ruang
    kosong sebesar setengah kartu, dan ruang kosong sebesar itu terbaca seperti
-   ada isi yang gagal dimuat. */
+   ada isi yang gagal dimuat.
+
+   TIDAK ADA elemen yang memakainya hari ini, dan itu bukan alasan membuangnya:
+   ia bagian dari kosakata petak (`.petak`, `.petak-2`, `.petak-mini`,
+   `.petak-tunggal`) yang dijaga utuh oleh dua penjaga di uji.js — satu irama
+   vertikal untuk semua wadah, dan lajur yang tidak bisa didorong melebar.
+   Dibuang 14 Sep 2026 lalu dikembalikan di hari yang sama ketika keduanya
+   menyala merah. */
 .petak-2 {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start;
   gap: var(--irama); margin-bottom: var(--irama);
@@ -1789,15 +1796,6 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    Dievaluasi atas permintaan pemilik 10 Sep 2026; diukur 10 → 16. `gap` 10px
    tetap: itu jarak ANTAR isi bilah alat, sama dengan `.bar-alat` lain. */
 .bar-alat.rapat { margin-bottom: var(--irama); gap: 10px; align-items: center; }
-
-.umur-piutang { margin-top: 10px; font-size: var(--fs-13); }
-.umur-piutang > div {
-  display: flex; justify-content: space-between; gap: 10px;
-  padding: 4px 0; border-top: 1px solid var(--garis-halus);
-}
-.umur-piutang strong { font-variant-numeric: tabular-nums; }
-.umur-piutang .peringatan { color: var(--peringatan); }
-.umur-piutang .bahaya { color: var(--bahaya); }
 
 /* `minmax(min(Npx, 100%), 1fr)` — bukan `minmax(Npx, 1fr)`.
    Lantai minmax tidak pernah menyusut: pada HP 320px, kolom berlantai 320px
@@ -1823,10 +1821,6 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    HP dan bertahan di semua lebar lain. */
 .petak > *, .petak-2 > *, .petak-mini > *, .petak-tunggal > * { margin-bottom: 0; min-width: 0; }
 .petak > .statistik { align-self: stretch; }
-/* Satu isi yang tersisa sendirian di baris terakhir petak — grafik enam bulan
-   di Dasbor — tidak digambar selebar sepertiga baris dengan dua pertiga sisanya
-   kosong. */
-.petak > .lebar-penuh { grid-column: 1 / -1; }
 /* EMPAT kotak angka dalam satu baris.
 
    `minmax(180px, 1fr)` hanya memuat tiga kolom di lebar tablet, jadi kotak
@@ -2119,7 +2113,6 @@ input.sudah-hitung {
   font-size: var(--fs-12); color: var(--teks-2); font-variant-numeric: tabular-nums;
   min-width: 58px; text-align: right; font-weight: 600;
 }
-.judul-grafik { margin: 0 0 14px; font-size: var(--fs-14); color: var(--teks); font-weight: 650; }
 
 /* ==================== LAYAR SEMPIT ====================
    Sidebar berubah jadi laci geser. Isinya PERSIS sama — hanya cara munculnya
@@ -2764,7 +2757,7 @@ body.tunggu .sisi button:not(.sibuk) { opacity: .62; }
     --tombol-tekan: #ffffff; --logo-bg: #000000; --logo-teks: #ffffff;
     --kertas-grafik: #ffffff;
   }
-  .sisi, .tirai-sisi, .bar-atas, .bar-bawah, .tanpa-cetak,
+  .sisi, .tirai-sisi, .bar-atas, .tanpa-cetak,
   .aksi-modal, .ekspor, #toast, #pegangan { display: none !important; }
   body, #app, .isi, .layar, .kartu { background: #fff !important; color: #000 !important; }
   .isi { margin: 0 !important; padding: 0 !important; }
