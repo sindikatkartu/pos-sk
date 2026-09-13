@@ -5825,11 +5825,41 @@ function pantauVersiBaru() {
 let _versiSejak = 0;
 let _versiTundaSampai = 0;
 
+/**
+ * Apakah versi a lebih baru daripada b. Keduanya "x.y.z" angka.
+ *
+ * ARAHNYA PENTING, dan ini nyaris lolos ke toko pada 13 Sep 2026. Bentuk
+ * pertama fungsi di bawah cuma membandingkan TIDAK SAMA — dan penerbitan ini
+ * sendiri membuktikan kenapa itu salah: clasp push gagal tiga kali karena
+ * sambungan terputus, jadi GitHub Pages sudah menyajikan v1.186.0 sementara
+ * Apps Script masih menjalankan v1.185.0. Dengan pembanding "tidak sama",
+ * SETIAP tablet yang memuat build baru akan menganggap dirinya tertinggal,
+ * menghitung mundur, lalu MENGUNCI DIRI — dan memuat ulang tidak menolong,
+ * karena yang tertinggal justru servernya.
+ *
+ * Terbitan separuh jadi bukan keadaan langka: ia terjadi setiap kali salah
+ * satu dari dua tujuan gagal, dan hari ini terjadi pada percobaan pertama.
+ */
+function versiLebihBaru(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  const n = Math.max(pa.length, pb.length);
+  for (let i = 0; i < n; i++) {
+    const x = pa[i], y = pb[i];
+    /* Versi yang tidak bisa diurai TIDAK pernah dianggap lebih baru. Mengunci
+       kasir karena jawaban server tak terbaca adalah menukar gangguan kecil
+       dengan gangguan besar. */
+    if (!isFinite(x) || !isFinite(y)) return false;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
 async function periksaVersiServer() {
   if (!navigator.onLine || _versiSejak) return;
   try {
     const d = await API.ping({ latar: true });
-    if (d && d.versi && String(d.versi) !== String(CONFIG.VERSI)) {
+    if (d && d.versi && versiLebihBaru(d.versi, CONFIG.VERSI)) {
       tandaiVersiTertinggal();
       /* Dorong Service Worker mengambil build barunya sekarang, supaya saat
          orangnya menekan Muat ulang yang dipakai benar-benar yang baru dan
