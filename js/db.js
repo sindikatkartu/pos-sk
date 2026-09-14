@@ -124,6 +124,39 @@ const DB = (() => {
       Object.keys(_cache).forEach(_buangCache);
     },
 
+    /**
+     * GANTI seluruh isi store dalam SATU transaksi: kosongkan lalu isi.
+     *
+     * Ada karena pola lama `kosongkan()` lalu `putBanyak()` adalah DUA transaksi
+     * dengan await di tengahnya, dan di antara keduanya store-nya benar-benar
+     * kosong. Diukur 14 Sep 2026 di PC pemilik saat tarik master:
+     * `DB.jumlah('produk')` 3831 -> 0 -> 3831, nol selama 607 milidetik.
+     *
+     * Enam ratus milidetik itu cukup untuk merusak layar: pemilik membuka Stok
+     * "Semua cabang" di dalam jendela itu dan mendapat "Belum ada satu pun
+     * produk di katalog" — yang lalu BERTAHAN di layar sampai digambar ulang,
+     * karena layar itu membaca katalog dari perangkat, bukan dari server.
+     * Lubang yang sama menganga di pencarian produk layar Kasir.
+     *
+     * Satu transaksi menutupnya: IndexedDB mengantrekan pembaca di belakang
+     * transaksi tulis pada store yang sama, jadi yang dilihat pembaca selalu
+     * isi LAMA atau isi BARU — tidak pernah kosong. Bonusnya, transaksi yang
+     * gagal di tengah dibatalkan seluruhnya dan isi lama tetap utuh; pola lama
+     * meninggalkan store kosong kalau putBanyak gagal sesudah kosongkan.
+     */
+    async gantiSemua(store, objs) {
+      _buangCache(store);
+      const db = await buka();
+      return new Promise((res, rej) => {
+        const t = db.transaction(store, 'readwrite');
+        const st = t.objectStore(store);
+        st.clear();
+        objs.forEach(o => st.put(o));
+        t.oncomplete = () => res(objs.length);
+        t.onerror = () => rej(t.error);
+      });
+    },
+
     /** Tulis banyak sekaligus dalam satu transaksi — jauh lebih cepat saat tarik master. */
     async putBanyak(store, objs) {
       _buangCache(store);

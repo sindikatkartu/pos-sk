@@ -236,8 +236,7 @@ const Sync = (() => {
         return d;
       }
 
-      await DB.kosongkan('produk');
-      await DB.putBanyak('produk', d.produk.map(p => ({
+      await DB.gantiSemua('produk', d.produk.map(p => ({
         ...p,
         satuan_lain: d.satuan[p.sku] || [],
         tier: d.tier[p.sku] || [],
@@ -256,15 +255,13 @@ const Sync = (() => {
         ].filter(Boolean).join(' ').toLowerCase()
       })));
 
-      await DB.kosongkan('pelanggan');
-      await DB.putBanyak('pelanggan', d.pelanggan);
+      await DB.gantiSemua('pelanggan', d.pelanggan);
 
       // Server lama (belum dimigrasi) tidak mengirim `petugas` sama sekali. Menimpa
       // daftar lokal dengan array kosong dalam keadaan itu akan menghapus pilihan
       // petugas dari layar kasir tanpa sebab, jadi yang tidak dikirim dibiarkan.
       if (Array.isArray(d.petugas)) {
-        await DB.kosongkan('petugas');
-        await DB.putBanyak('petugas', d.petugas);
+        await DB.gantiSemua('petugas', d.petugas);
       }
 
       await DB.kvSet('versi_master', d.versi);
@@ -283,8 +280,7 @@ const Sync = (() => {
     if (!API.online) return;
     try {
       const d = await API.stokTerkini({ cabang: APP_STATE.cabang }, { latar });
-      await DB.kosongkan('stok');
-      await DB.putBanyak('stok', d.stok.map(s => ({
+      await DB.gantiSemua('stok', d.stok.map(s => ({
         key: s.sku + '|' + (s.kode_varian || ''), sku: s.sku, qty: s.qty
       })));
       await DB.kvSet('stok_diperbarui', new Date().toISOString());
@@ -304,8 +300,7 @@ const Sync = (() => {
     if (!API.online) return;
     try {
       const d = await API.stokSemuaCabang({}, { latar });
-      await DB.kosongkan('stok_cabang');
-      await DB.putBanyak('stok_cabang', d.stok.map(s => ({
+      await DB.gantiSemua('stok_cabang', d.stok.map(s => ({
         key: s.cabang + '|' + s.sku + '|' + (s.kode_varian || ''),
         cabang: s.cabang, sku: s.sku, kode_varian: s.kode_varian || '', qty: s.qty
       })));

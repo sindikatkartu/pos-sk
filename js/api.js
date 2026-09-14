@@ -145,10 +145,16 @@ const API = (() => {
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
+    'daftar_minta_void',
     /* tulisan yang servernya menjaga duplikat per uuid */
     'simpan_kas', 'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
-    'bayar_piutang', 'bayar_utang'
+    'bayar_piutang', 'bayar_utang',
+    /* Pengajuan void dijaga uuid-nya sendiri di MASTER; keputusan yang sudah
+       DISETUJUI dijawab "duplikat", tidak pernah membatalkan nota dua kali.
+       Justru inilah aksi yang paling perlu diulang otomatis: 404 di tengah
+       persetujuan meninggalkan admin menebak apakah notanya jadi batal. */
+    'ajukan_void', 'putus_minta_void', 'tarik_minta_void'
   ]);
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
      408/429 (antre), 5xx (pintu depan). 400/401/403 bukan — itu jawaban tentang
@@ -358,6 +364,14 @@ const API = (() => {
 
     kirimPenjualan:  (d, o) => ulang(() => panggil('kirim_penjualan', d, { timeout: 60000, ...o })),
     voidPenjualan:   (d) => panggil('void_penjualan', d),
+
+    /* Pengajuan void: kasir mengajukan, admin memutuskan dari akunnya sendiri.
+       `voidPenjualan` di atas tetap ada untuk yang memang berhak membatalkan
+       langsung (Owner, Manajer, Kepala Cabang). */
+    ajukanVoid:      (d) => panggil('ajukan_void', d),
+    daftarMintaVoid: (d, o) => panggil('daftar_minta_void', d || {}, o || {}),
+    putusMintaVoid:  (d) => panggil('putus_minta_void', d),
+    tarikMintaVoid:  (d) => panggil('tarik_minta_void', d),
 
     stokTerkini:     (d, o) => panggil('stok_terkini', d, { timeout: 60000, ...o }),
     kartuStok:       (d) => panggil('kartu_stok', d),

@@ -3631,9 +3631,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     { judul: 'Nama', kunci: 'nama', lentur: true },
     ...cabang.map(c => ({
       judul: c, angka: true, kunci: 'c_' + c,
-      render: r => r['c_' + c] > 0
-        ? `<span${c === APP_STATE.cabang ? ' style="font-weight:600"' : ''}>${r['c_' + c]}</span>`
-        : '<span style="color:var(--teks-redup)">0</span>'
+      /* Angka MINUS digambar apa adanya dan diberi warna, tidak dijadikan "0".
+         Sampai 14 Sep 2026 selain-positif semuanya ditulis "0", dan akibatnya
+         terlihat di data nyata: TG03050067 tampil SK01 448 · SK02 0 · SK03 0
+         dengan TOTAL 442 — kolomnya tidak menjumlah ke totalnya sendiri, tanpa
+         satu pun petunjuk kenapa. Stok minus adalah keadaan yang perlu DILIHAT,
+         bukan disembunyikan: ia menandakan catatan yang tertinggal. */
+      render: r => {
+        const q = r['c_' + c];
+        if (q < 0) return `<span style="color:var(--bahaya);font-weight:600">${q}</span>`;
+        if (q === 0) return '<span style="color:var(--teks-redup)">0</span>';
+        return `<span${c === APP_STATE.cabang ? ' style="font-weight:600"' : ''}>${q}</span>`;
+      }
     })),
     { judul: 'TOTAL', angka: true, kunci: 'total',
       render: r => `<strong>${r.total}</strong>` }
@@ -3663,6 +3672,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ]);
       const cabang = APP_STATE.daftarCabangSemua.slice().sort(urutNama);
       const rows = barisStokLintas(stokMentah, produk, cabang);
+
       const kategoriAda = [...new Set(produk.map(p => (p.kategori || '').trim()).filter(Boolean))].sort();
 
       $('#isiStok').innerHTML = `
@@ -3694,6 +3704,38 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#isiStok')._rows = rows;
       $('#isiStok')._cabang = cabang;
       halStok.reset();
+
+      /* KATALOG PERANGKAT KOSONG bukan "belum ada produk".
+         Layar ini membaca katalog dari perangkat, bukan server — itu yang
+         membuatnya terbuka seketika dan tetap terbaca saat internet mati. Tapi
+         sampai 14 Sep 2026 keadaan "belum tersalin" dan "katalognya memang
+         kosong" dijawab kalimat yang sama, dan yang pertama jauh lebih sering:
+         katalog sempat benar-benar kosong 607 md tiap kali master ditarik ulang
+         (bagian 169). Pemilik mendapat "Belum ada satu pun produk di katalog"
+         padahal ada 3.831 di server.
+
+         Yang diganti HANYA isi tabelnya. Percobaan pertama mengganti seluruh
+         layar dan ikut membuang dropdown lingkup — orangnya terjebak, tidak
+         bisa kembali ke satu cabang tanpa pindah menu. Uji peramban yang
+         menangkapnya, bukan mata saya. */
+      if (!produk.length) {
+        $('#tabelStok').innerHTML = `
+          <div style="padding:18px 4px">
+            <p style="margin:0 0 6px"><strong>Katalog belum tersalin ke perangkat ini.</strong>
+               Bukan berarti katalog di server kosong.</p>
+            <p class="petunjuk" style="margin:0 0 12px">Layar ini sengaja membaca katalog dari
+               perangkat supaya terbuka seketika dan tetap terbaca saat internet mati. Paling
+               sering terjadi saat baru dibuka di perangkat ini, atau tepat berbarengan dengan
+               katalog sedang diperbarui.</p>
+            <button class="tombol utama" id="btnTarikKatalog">Tarik katalog sekarang</button>
+          </div>`;
+        $('#btnTarikKatalog')?.addEventListener('click', async (e) => {
+          e.target.disabled = true;
+          try { await Sync.tarikMaster(true); await muatStokSemuaCabang(katStok); }
+          catch (x) { galat('#isiStok', x); }
+        });
+        return;
+      }
       gambarBarisStok();
     } catch (e) { galat('#isiStok', e); }
   }
