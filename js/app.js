@@ -109,6 +109,12 @@ const MENU = [
   { id: 'kas',        label: 'Kas',        grup: 'Penjualan',  izin: ['kas', 'buat'] },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
   { id: 'retur',      label: 'Retur Jual', grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
+  /* Pembatalan digantung pada `void.lihat`, bukan `.buat`: kasir melihat
+     pengajuannya sendiri, admin gudang & Head Admin melihat antrean yang harus
+     DIPUTUSKANNYA — dan mereka tidak pernah boleh membuatnya. Digantung pada
+     `.buat`, seluruh antrean itu tersembunyi dari orang yang justru bertugas
+     mengerjakannya. Pola yang sama persis dipakai menu Permintaan. */
+  { id: 'pembatalan', label: 'Pembatalan', grup: 'Penjualan',  izin: ['void', 'lihat'],              admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
   { id: 'transfer',   label: 'Transfer',   grup: 'Persediaan', izin: ['transfer', 'lihat'],          admin: true, backoffice: true },

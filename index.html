@@ -354,6 +354,7 @@
 
     <!-- ---------- BACK OFFICE (diisi admin.js) ---------- -->
     <section class="layar" id="layarRetur"><div id="isiRetur"></div></section>
+    <section class="layar" id="layarPembatalan"><div id="isiPembatalan"></div></section>
     <section class="layar" id="layarProduk"><div id="isiProduk"></div></section>
     <section class="layar" id="layarStok"><div id="isiStok"></div></section>
     <section class="layar" id="layarTransfer"><div id="isiTransfer"></div></section>
@@ -699,14 +700,26 @@
         </div>
 
         <div class="kartu">
-          <h3>A10. Void nota &amp; Retur</h3>
-          <p>Keduanya ada di menu <strong>Retur</strong>, dan bukan hal yang sama:</p>
+          <h3>A10. Void nota, Pengajuan pembatalan &amp; Retur</h3>
+          <p>Tiga hal yang berbeda, dan memilih yang salah mahal:</p>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li><strong>Void nota</strong> (tombol merah kanan atas) — untuk nota yang <strong>salah dibuat</strong>. Seluruh nota dibatalkan: stok kembali ke lapisan asalnya, jurnal dibalik, piutangnya batal, poin petugasnya dibatalkan. Wajib mengisi <strong>alasan minimal 5 karakter</strong>. Tidak bisa diurungkan, dan hanya peran berizin yang melihat tombolnya.</li>
+            <li><strong>Void nota</strong> — untuk nota yang <strong>salah dibuat</strong>. Seluruh nota dibatalkan: stok kembali ke lapisan asalnya, jurnal dibalik, piutangnya batal, poin petugasnya dibatalkan. Wajib mengisi <strong>alasan minimal 5 karakter</strong>. Tidak bisa diurungkan. Tombolnya (merah, kanan atas menu <strong>Retur</strong>) hanya muncul bagi peran yang memang berhak membatalkan langsung.</li>
+            <li><strong>Ajukan pembatalan</strong> — untuk <strong>kasir</strong>, yang tidak berhak membatalkan sendiri. Ada di menu <strong>Pembatalan</strong>. Kasir mencari notanya, menulis alasannya, lalu mengirim; <strong>notanya belum berubah apa pun</strong> sampai admin menyetujui.</li>
             <li><strong>Retur baru</strong> — untuk barang yang <strong>benar terjual lalu dikembalikan</strong>. Penjualan aslinya tetap tercatat; returnya muncul terpisah di laporan.</li>
           </ul>
+
+          <p><strong>Menu Pembatalan.</strong> Kasir melihat pengajuannya sendiri; admin gudang dan Head Admin melihat antrean yang harus mereka putuskan, berikut angka merah di sebelah nama menunya kalau ada yang menunggu. Empat status yang bisa muncul:</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>MENUNGGU</strong> — sudah dikirim, belum diputuskan. Selama masih begini, kasir boleh menekan <strong>Tarik</strong> untuk membatalkan pengajuannya sendiri.</li>
+            <li><strong>DISETUJUI</strong> — notanya sudah benar-benar dibatalkan, dengan seluruh akibat Void di atas.</li>
+            <li><strong>DITOLAK</strong> — admin menolak, dan alasannya tertulis di bawah statusnya supaya kasir tahu apa yang harus dilakukan.</li>
+            <li><strong>DITARIK</strong> — kasir sendiri yang membatalkan pengajuannya.</li>
+          </ul>
+          <p class="petunjuk"><strong>Yang memutuskan harus orang lain.</strong> Pengajuan sendiri tidak bisa disetujui sendiri — kalau bisa, seluruh alur ini cuma menambah satu klik.</p>
+          <p class="petunjuk"><strong>Kalau shift notanya sudah ditutup, pengajuan ditolak</strong> dan diarahkan ke Retur. Sebabnya: angka shift itu sudah dihitung dan disetor, dan membatalkan nota di dalamnya membuat laporan shift yang sudah cocok jadi tidak cocok.</p>
           <p>Pada retur, pilih <strong>Penyelesaian</strong>: <strong>Kembali uang</strong> atau <strong>Tukar barang</strong> (wajib mengisi minimal satu barang pengganti). Per barang pilih kondisi <strong>layak jual</strong> atau <strong>rusak</strong> — yang rusak tidak kembali ke stok jual, tapi jejaknya tetap tercatat. <strong>Alasan retur wajib diisi.</strong></p>
-          <p class="petunjuk">Kalau pembeli kehilangan struk, ada tautan <strong>Lanjut tanpa nota</strong>. Boleh dipakai, tapi modal barangnya jadi perkiraan — laba historisnya bisa sedikit meleset. Nota yang sudah di-void tidak bisa diretur; pencarian pun tidak akan menemukannya lagi.</p>
+          <p class="petunjuk">Kalau pembeli kehilangan struk, ada tautan <strong>Lanjut tanpa nota</strong>. Boleh dipakai, tapi modal barangnya jadi perkiraan — laba historisnya bisa sedikit meleset. Nota yang sudah di-void tidak bisa diretur; pencarian pun tidak akan menemukannya lagi. Nota yang sudah pernah diretur juga tidak bisa di-void — uang dan stoknya akan kembali dua kali.</p>
+          <p class="petunjuk">Menu Pembatalan hanya tampil bagi peran yang diberi izin <strong>void</strong>. Kalau menunya tidak ada, peran Anda memang belum diberi aksesnya — itu bukan kerusakan.</p>
         </div>
 
         <div class="kartu">

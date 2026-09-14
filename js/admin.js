@@ -5873,6 +5873,100 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const _totalMinta  = (t) => t.item.reduce((a, i) => a + i.qty_minta, 0);
   const _totalProses = (t) => t.item.reduce((a, i) => a + Math.min(i.qty_proses, i.qty_minta), 0);
 
+  /* ==================== PEMBATALAN (pengajuan void) ==================== */
+
+  const LENCANA_MINTA_VOID = {
+    MENUNGGU: 'kuning', DISETUJUI: 'hijau', DITOLAK: '', DITARIK: ''
+  };
+
+  /* Nomor nota dan sepasang tombol tidak boleh pecah dua baris. Di lebar tablet
+     keduanya melakukannya: "Setujui" menumpuk di atas "Tolak", dan nomor nota
+     terbelah di tengah. Ditahan di sini, bukan di app.css — yang butuh cuma dua
+     sel di satu tabel, dan aturan global akan memaksa tabel lain ikut melebar. */
+  const _takPecah = (isi) => '<span style="white-space:nowrap">' + isi + '</span>';
+
+  async function muatPembatalan() {
+    memuat('#isiPembatalan');
+    try {
+      const rows = await API.daftarMintaVoid({});
+      const bolehPutus = bolehIzin('void', 'setujui');
+      const bolehAjukan = bolehIzin('void', 'buat');
+
+      /* Disaring dengan `bisa_diputus` dari SERVER, bukan dihitung di sini —
+         aturan "penyetuju tidak boleh peminta" hanya boleh tinggal di satu
+         tempat. Pola yang sama dipakai layar Permintaan. */
+      const antre = rows.filter(r => r.bisa_diputus);
+      const riwayat = rows.filter(r => !r.bisa_diputus);
+
+      $('#isiPembatalan').innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat">
+            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${antre.length ? `<span class="lencana kuning">${antre.length} menunggu keputusan</span>` : ''}
+            <div style="flex:1"></div>
+            ${bolehAjukan ? tombolTambah('btnAjukanVoid', 'Ajukan pembatalan') : ''}
+          </div>
+          <p class="petunjuk">${bolehPutus
+            ? `Kasir mengajukan pembatalan dari akunnya sendiri; Anda yang memutuskan. Nota baru benar-benar
+               batal <strong>setelah disetujui</strong> — stok kembali ke lapisan asalnya, jurnal dibalik penuh,
+               piutang dan klaim petugasnya ikut dibatalkan. Tidak bisa diurungkan.`
+            : `Anda tidak membatalkan nota sendiri. Ajukan di sini, lalu admin gudang atau Head Admin yang
+               memutuskan — hasilnya muncul di tabel ini. Selama masih menunggu, pengajuan boleh ditarik.`}</p>
+          <p class="petunjuk">Untuk barang yang <strong>benar terjual lalu dikembalikan</strong>, pakai
+            <strong>Retur</strong>, bukan pembatalan. Pembatalan hanya untuk nota yang memang salah dibuat.</p>
+        </div>
+
+        ${bolehPutus ? `<div class="kartu">
+          <h3>Menunggu keputusan</h3>
+          ${tabel([
+            { judul: 'Nota', render: r => _takPecah('<strong>' + esc(r.no_nota) + '</strong>') },
+            { judul: 'Cabang', render: r => `<span class="lencana">${esc(r.cabang)}</span>` },
+            { judul: 'Nilai', angka: true, render: r => rp(r.total) },
+            { judul: 'Diajukan', render: r => `${esc(r.nama_peminta)}
+              <div class="meta-kecil">${esc(waktuTampil(r.waktu_minta))}</div>` },
+            { judul: 'Alasan', kunci: 'alasan' },
+            { judul: '', render: r => _takPecah(
+              `<button class="tombol kecil sukses" data-setujui-void="${esc(r.uuid)}">Setujui</button>
+               <button class="tombol kecil bahaya" data-tolak-void="${esc(r.uuid)}">Tolak</button>`) }
+          ], antre, { kosong: 'Tidak ada yang menunggu keputusan Anda' })}
+        </div>` : ''}
+
+        <div class="kartu">
+          <h3>${bolehPutus ? 'Riwayat pengajuan' : 'Pengajuan saya'}</h3>
+          ${tabel([
+            { judul: 'Nota', render: r => _takPecah(esc(r.no_nota)) },
+            { judul: 'Nilai', angka: true, render: r => rp(r.total) },
+            { judul: 'Diajukan', render: r => `${esc(r.nama_peminta)}
+              <div class="meta-kecil">${esc(waktuTampil(r.waktu_minta))}</div>` },
+            { judul: 'Alasan', kunci: 'alasan' },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_MINTA_VOID[r.status] || ''}">${esc(r.status)}</span>
+              ${r.status === 'DITOLAK' && r.alasan_tolak
+                ? `<div class="meta-kecil">${esc(r.alasan_tolak)}</div>` : ''}
+              ${r.id_penyetuju ? `<div class="meta-kecil">oleh ${esc(r.nama_penyetuju)}</div>` : ''}` },
+            { judul: '', render: r => r.bisa_ditarik
+              ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
+          ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan pembatalan' })}
+        </div>`;
+    } catch (e) { galat('#isiPembatalan', e); }
+  }
+
+  /* Pencari nota untuk pengajuan. Bentuknya sengaja sama dengan formVoid() —
+     orang yang sudah terbiasa dengan satu tidak perlu belajar yang lain. */
+  function formAjukanVoid() {
+    bukaModal('Ajukan pembatalan nota', `
+      <p class="petunjuk">Cari notanya, lalu tulis alasannya. Pengajuan Anda masuk ke antrean admin gudang
+        dan Head Admin — notanya <strong>belum berubah apa pun</strong> sampai mereka menyetujui.</p>
+      <div class="grup">
+        <label>Cari nota (nomor nota atau nama pelanggan)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="ajukanCari" placeholder="mis. SK01-A3F/2609/00042">
+          <button class="tombol utama" id="btnCariNotaAjukan" style="flex:0 0 auto">${ikonAlat('cari')}<span>Cari</span></button>
+        </div>
+      </div>
+      <div id="hasilCariNotaAjukan"></div>`,
+      ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>'));
+  }
+
   async function muatPermintaan() {
     memuat('#isiPermintaan');
     try {
@@ -6827,7 +6921,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       piutang: '#isiPiutang', utang: '#isiUtang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
-                      permintaan: '#isiPermintaan',
+                      permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
                       diskon: '#isiDiskon',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
@@ -6858,6 +6952,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
       case 'retur':     return muatRetur();
+      case 'pembatalan': return muatPembatalan();
     }
   }
 
@@ -7782,6 +7877,84 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.pilihNota) {
         const nota = ($('#hasilCariNota')._rows || []).find(x => x.uuid === d.pilihNota);
         if (nota) gambarFormRetur(nota);
+        return;
+      }
+
+      /* --- pengajuan pembatalan (v1.189) --- */
+      if (t.id === 'btnAjukanVoid') { lepasUuidDokumen('ajukanVoid'); return formAjukanVoid(); }
+      if (t.id === 'btnCariNotaAjukan') {
+        const q = nilai('ajukanCari');
+        if (!q) return;
+        $('#hasilCariNotaAjukan').innerHTML = '<div class="pesan info">Mencari…</div>';
+        try {
+          const rows = await API.cariNota({ cari: q, cabang: APP_STATE.cabang });
+          if (!rows.length) {
+            $('#hasilCariNotaAjukan').innerHTML = '<div class="pesan galat">Nota tidak ditemukan di cabang ini.</div>';
+            return;
+          }
+          $('#hasilCariNotaAjukan').innerHTML = `<div style="max-height:200px;overflow:auto">${tabel([
+            { judul: 'No nota', kunci: 'no_nota' },
+            { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))} ${esc(r.jam)}` },
+            { judul: 'Total', angka: true, render: r => rp(r.total) },
+            { judul: '', render: r => `<button class="tombol kecil" data-ajukan-void-nota="${esc(r.uuid)}">Ajukan</button>` }
+          ], rows)}</div>`;
+          $('#hasilCariNotaAjukan')._rows = rows;
+        } catch (x) {
+          $('#hasilCariNotaAjukan').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
+        }
+        return;
+      }
+      if (d.ajukanVoidNota) {
+        const nota = ($('#hasilCariNotaAjukan')._rows || []).find(x => x.uuid === d.ajukanVoidNota);
+        if (!nota) return;
+        const alasan = await tanya(`Ajukan pembatalan nota ${nota.no_nota}?`,
+          `<div class="pesan info">Senilai ${rp(nota.total)}. Notanya <strong>belum berubah apa pun</strong>
+             sampai admin menyetujui. Alasan ini yang mereka baca.</div>`,
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5, ya: 'Kirim pengajuan' });
+        if (!alasan) return;
+        try {
+          await API.ajukanVoid({ uuid: uuidDokumen('ajukanVoid'), uuid_penjualan: nota.uuid,
+                                 cabang: APP_STATE.cabang, alasan });
+          lepasUuidDokumen('ajukanVoid');
+          await sukses('Pengajuan terkirim. Admin akan memutuskannya.', 'pembatalan');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+      if (d.setujuiVoid) {
+        const ya = await tanya('Setujui pembatalan nota ini?',
+          `<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali
+             ke lapisan asalnya, jurnal dibalik penuh, piutang dan klaim petugasnya ikut dibatalkan.
+             Tidak bisa diurungkan.</div>`,
+          { ya: 'Setujui & batalkan nota', jenis: 'bahaya' });
+        if (!ya) return;
+        try {
+          await API.putusMintaVoid({ uuid: d.setujuiVoid, setuju: true });
+          await Sync.tarikStok();
+          await sukses('Nota dibatalkan.', 'pembatalan');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+      if (d.tolakVoid) {
+        const alasan = await tanya('Tolak pengajuan ini?',
+          '<p class="petunjuk">Alasannya dibaca kasir yang mengajukan — sebutkan apa yang harus ia lakukan.</p>',
+          { isian: 'Alasan penolakan (minimal 5 karakter)', minimal: 5,
+            ya: 'Tolak pengajuan', jenis: 'bahaya' });
+        if (!alasan) return;
+        try {
+          await API.putusMintaVoid({ uuid: d.tolakVoid, setuju: false, alasan_tolak: alasan });
+          await sukses('Pengajuan ditolak.', 'pembatalan');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+      if (d.tarikVoid) {
+        const ya = await tanya('Tarik pengajuan ini?',
+          '<p class="petunjuk">Pengajuan ditarik dan tidak lagi muncul di antrean admin. Nota tidak berubah.</p>',
+          { ya: 'Tarik pengajuan' });
+        if (!ya) return;
+        try {
+          await API.tarikMintaVoid({ uuid: d.tarikVoid });
+          await sukses('Pengajuan ditarik.', 'pembatalan');
+        } catch (x) { toast(x.message, 'galat'); }
         return;
       }
 
