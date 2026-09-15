@@ -3140,7 +3140,7 @@ async function muatDaftarShift() {
   const wadah = $('#isiRiwayatShift');
   if (!wadah) return;
   siapkanRentangShift();
-  wadah.innerHTML = '<p class="petunjuk">Memuat…</p>';
+  wadah.innerHTML = rangkaDaftar(6, ['88%', '70%', '82%', '64%']);
   try {
     const d = await API.daftarShift({ dari: $('#shiftDari').value, sampai: $('#shiftSampai').value });
     const rows = d.shift || [];
@@ -3169,7 +3169,7 @@ async function muatDaftarShift() {
 
 async function bukaLaporanShift(idShift) {
   $('#lapShiftJudul').textContent = 'Laporan shift ' + idShift;
-  $('#lapShiftIsi').innerHTML = '<p class="petunjuk">Memuat…</p>';
+  $('#lapShiftIsi').innerHTML = rangkaDaftar(7, ['76%', '58%', '68%', '50%']);
   $('#tiraiLapShift').classList.add('tampil');
   try {
     const d = await API.laporanShift({ id_shift: idShift });
@@ -3677,6 +3677,19 @@ async function tampilkanLaporan() {
 }
 
 /** Rangka pemuatan: bentuknya kartu angka + tabel, sama seperti isi tab. */
+/**
+ * Rangka baris generik untuk layar app.js — sepadan dengan rangkaBaris() di
+ * admin.js, tapi app.js tidak melihat lingkup itu. Dipakai riwayat shift dan
+ * laporan shift, dua tempat terakhir yang sampai 15 Sep 2026 masih memakai
+ * tulisan "Memuat…" polos. Kata itu tidak memberi tahu apa pun: tidak berapa
+ * lama lagi, tidak apa yang akan muncul, dan layarnya melompat saat datanya
+ * tiba (lihat catatan panjang di rangkaProduk, admin.js).
+ */
+const rangkaDaftar = (n, lebar) => `<div class="kartu" aria-busy="true" aria-label="Memuat">
+  ${Array.from({ length: n }, (_, i) =>
+    `<div class="rangka-baris"><span class="rangka" style="width:${lebar[i % lebar.length]}"></span></div>`).join('')}
+  </div>`;
+
 const rangkaLaporan = () => `
   <div class="petak petak-4" aria-busy="true" aria-label="Memuat laporan">
     ${Array.from({ length: 4 }, () => `<div class="kartu statistik">

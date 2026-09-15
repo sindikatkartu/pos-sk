@@ -27,6 +27,14 @@
   --garis:       rgba(31,30,29,.30);
   --garis-halus: rgba(31,30,29,.15);
   --garis-kuat:  rgba(31,30,29,.45);
+  /* Kilau rangka muat. Dipisah dari --garis-kuat 15 Sep 2026: keduanya dulu
+     satu nilai, jadi melembutkan kilau berarti ikut memudarkan seluruh garis
+     pemisah yang tidak ada hubungannya. Pemilik: "animasinya lebih soft tidak
+     terlalu terang". .20 dipilih dari tiga tingkat yang dipotret berdampingan
+     (.45 sekarang, .20, .12) — .12 nyaris hilang di tema TERANG, dan rangka
+     yang kilaunya tak terlihat terbaca sebagai kotak diam, bukan sesuatu yang
+     sedang dimuat. */
+  --rangka-kilau: rgba(31,30,29,.20);
   --garis-tombol: rgba(31,30,29,.30);
 
   /* --- teks ---
@@ -188,6 +196,7 @@ html[data-tema="gelap"] {
   --garis:       rgba(222,220,209,.30);
   --garis-halus: rgba(222,220,209,.15);
   --garis-kuat:  rgba(222,220,209,.45);
+  --rangka-kilau: rgba(222,220,209,.20);
   --garis-tombol: rgba(222,220,209,.20);
 
   /* 12,6:1 · 7,3:1 · 4,7:1 di atas kartu. Ada uji yang MENGHITUNGnya. */
@@ -733,16 +742,27 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   vertical-align: middle;
 }
 .rangka.tinggi { height: 20px; }
+/* Tepinya SENGAJA lebar (15%–85%): pita yang berhenti tepat di tepi terbaca
+   sebagai garis, dan garis yang berlari terasa seperti pemindai. Yang dicari
+   kesan bernapas. */
 .rangka::after {
   content: ''; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, var(--garis-kuat), transparent);
+  background: linear-gradient(90deg,
+    transparent 15%, var(--rangka-kilau) 50%, transparent 85%);
   transform: translateX(-100%);
-  animation: rangka-denyut 1.4s infinite;
+  animation: rangka-denyut 2.1s ease-in-out infinite;
 }
 .rangka-baris { padding: 10px 2px; border-bottom: 1px solid var(--garis-halus); }
 .rangka-baris:last-child { border-bottom: none; }
 .rangka-alat { display: flex; gap: 8px; flex-wrap: wrap; }
-@keyframes rangka-denyut { 100% { transform: translateX(100%); } }
+/* Menyapu 62% putaran, lalu DIAM. Sebelumnya menyapu terus-menerus tanpa
+   henti, dan gerak yang tidak pernah berhenti itulah yang paling menarik mata
+   di layar yang sedang ditunggu. */
+@keyframes rangka-denyut {
+  0%   { transform: translateX(-100%); }
+  62%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
 /* Denyutnya padam, rangkanya tetap: yang dibutuhkan orang yang mematikan
    animasi adalah tahu bentuk yang sedang datang, bukan kehilangan petunjuknya. */
 @media (prefers-reduced-motion: reduce) {

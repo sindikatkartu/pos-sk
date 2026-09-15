@@ -4012,7 +4012,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       dataAttr: r => `data-kartu-stok="${esc(r.sku)}" class="baris-klik"` });
 
   async function lihatKartuStok(sku) {
-    bukaModal('Kartu stok — ' + sku, '<div id="isiKartuStok">Memuat…</div>');
+    bukaModal('Kartu stok — ' + sku,
+      '<div id="isiKartuStok">' + rangkaBaris(6, ['70%', '54%', '64%', '46%']) + '</div>');
     try {
       const d = await API.kartuStok({ sku, cabang: APP_STATE.cabang });
       const punyaLapisan = (d.lapisan || []).length > 0;
@@ -4116,7 +4117,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * mencari barisnya lagi, lalu menebak apakah itu memang yang tadi dilihat.
    */
   async function rincianPembelian(uuid) {
-    bukaModal('Rincian pembelian', '<p class="petunjuk">Memuat…</p>');
+    bukaModal('Rincian pembelian', rangkaBaris(6, ['72%', '56%', '66%', '48%']));
     let d;
     try {
       d = await API.rincianPembelian({ uuid, cabang: APP_STATE.cabang });
@@ -5569,7 +5570,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function gambarHasilDiskon() {
     const w = $('#hasilDiskon');
     if (!w) return;
-    w.innerHTML = '<div class="kartu">Memuat…</div>';
+    w.innerHTML = `<div class="petak petak-4" aria-busy="true" aria-label="Memuat diskon">
+        ${Array.from({ length: 4 }, () => `<div class="kartu statistik">
+          <div class="label"><span class="rangka" style="width:70px"></span></div>
+          <div class="nilai"><span class="rangka tinggi" style="width:100px"></span></div></div>`).join('')}
+      </div>
+      <div class="kartu" aria-busy="true">
+        ${rangkaBaris(6, ['86%', '68%', '78%', '62%'])}
+      </div>`;
     try {
       const d = await API.laporanDiskon({ dari: $('#dskDari').value, sampai: $('#dskSampai').value });
       const r = d.ringkas;
@@ -6280,7 +6288,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function bukaLayarHitung(uuid) {
-    bukaModal('Memuat…', '<p class="petunjuk">Menyiapkan daftar barang…</p>');
+    bukaModal('Menyiapkan daftar barang', rangkaBaris(8, ['80%', '62%', '72%', '54%']));
     try {
       const d = await API.detailOpname({ uuid, cabang: APP_STATE.cabang });
       opnameAktif = d;
