@@ -3878,17 +3878,24 @@ const KOLOM_LAP = {
     { judul: 'Harga modal', angka: true, render: x => rp(x.hpp_total) },
     { judul: 'Alasan', render: x => esc(x.alasan || '—') }
   ],
-  diamStok: () => [
-    { judul: 'SKU', render: x => esc(x.sku) },
-    { judul: 'Nama', render: x => esc(x.nama) },
-    { judul: 'Cabang', render: x => esc(x.cabang) },
-    { judul: 'Kategori', render: x => esc(x.kategori || '—') },
-    { judul: 'Qty', angka: true, render: x => x.qty },
-    { judul: 'Nilai modal', angka: true, render: x => rp(x.nilai) },
-    { judul: 'Terakhir bergerak', render: x => x.setahun === true
-        ? '<span class="lencana merah">lebih dari setahun</span>'
-        : (x.setahun === false ? 'dalam setahun, bukan di periode ini' : '—') }
-  ],
+  /* Lencananya mengikuti UFUK data, bukan lebar jendela yang diminta — lihat
+     ufukKerugian(). Baris yang PERNAH terjual tidak lagi mengaku "dalam
+     setahun": kalimat itu pun mengklaim riwayat yang mungkin belum ada. */
+  diamStok: (d) => {
+    const uf = ufukKerugian(d || {});
+    const belum = uf ? 'belum pernah sejak ' + tglTampil(uf.mulai) : 'lebih dari setahun';
+    return [
+      { judul: 'SKU', render: x => esc(x.sku) },
+      { judul: 'Nama', render: x => esc(x.nama) },
+      { judul: 'Cabang', render: x => esc(x.cabang) },
+      { judul: 'Kategori', render: x => esc(x.kategori || '—') },
+      { judul: 'Qty', angka: true, render: x => x.qty },
+      { judul: 'Nilai modal', angka: true, render: x => rp(x.nilai) },
+      { judul: 'Terakhir bergerak', render: x => x.setahun === true
+          ? `<span class="lencana merah">${esc(belum)}</span>`
+          : (x.setahun === false ? 'pernah terjual, bukan di periode ini' : '—') }
+    ];
+  },
   piutang: () => [
     { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan) },
     { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
@@ -4398,12 +4405,49 @@ async function tarikKerugian(par) {
     dari: par.dari, sampai: par.sampai, cabang: daftar,
     opname, rusak, diam,
     bisa_diam: bisaDiam, punya_setahun: !!js,
+    /* Sejak kapan penjualan BENAR-BENAR tercatat di jendela setahun itu, dan
+       dari mana jendelanya mulai. Selisih keduanya yang menentukan apakah
+       kalimat "lebih dari setahun" boleh diucapkan sama sekali. */
+    mulai_data: js ? String(js.nilai.mulai_data || '') : '',
+    jendela_dari: js ? String(js.nilai.dari || '') : '',
     belum_bergerak: belumBergerak,
     minus: { jumlah: minusJumlah, qty: minusQty },
     hpp_disembunyikan: hppDisembunyikan,
     terpotong: { opname: opnameTerpotong, retur: returTerpotong },
     masalah
   };
+}
+
+/**
+ * UFUK DATA — null kalau riwayatnya memang sepanjang jendela yang diuji,
+ * selain itu { mulai, hari } sepanjang riwayat yang sungguhan ada.
+ *
+ * Ini lahir dari cacat yang tayang v1.193.0 dan ketahuan satu jam kemudian:
+ * layarnya menuliskan "diam lebih dari setahun" atas Rp 35 juta, padahal POS
+ * ini go-live 28 Agustus 2026 dan yang benar-benar terukur 20 hari. Jawaban
+ * servernya benar; yang salah kalimat di atasnya. Kalimat yang mengklaim lebih
+ * daripada yang sanggup ditopang datanya adalah kalimat yang dibantah pertama
+ * kali di meja pemeriksa — dan begitu satu angka dibantah, seluruh laporan
+ * ikut diragukan.
+ *
+ * Ia MEMUDAR SENDIRI: begitu toko punya riwayat lebih panjang dari jendelanya,
+ * fungsi ini menjawab null dan kalimatnya kembali seperti semula tanpa ada
+ * yang perlu diubah.
+ */
+const KR_SETAHUN = 365;
+
+function ufukKerugian(d) {
+  const mulai = String((d && d.mulai_data) || '');
+  if (!mulai || !d || !d.sampai) return null;
+  const hari = Math.round((new Date(d.sampai + 'T00:00:00') - new Date(mulai + 'T00:00:00')) / 86400000) + 1;
+  /* Yang dibandingkan PANJANG RIWAYAT dengan klaimnya, bukan selisih tanggal
+     mulai dari awal jendela. Percobaan pertama memakai `mulai > jendela_dari`
+     dan ujinya sendiri yang menolaknya: toko yang kebetulan tidak menjual apa
+     pun di hari pertama jendela akan ikut dibubuhi pembatas, dan pembatas yang
+     muncul terus-menerus berhenti dibaca. Ambangnya persis sekeras kalimat
+     yang hendak dijaga — "lebih dari setahun" hanya boleh diucapkan kalau
+     riwayatnya memang setahun. */
+  return hari >= KR_SETAHUN ? null : { mulai, hari };
 }
 
 /* ---------- Angka: satu hitungan untuk layar DAN kertas ---------- */
@@ -4425,6 +4469,7 @@ function angkaKerugianLaporan(d) {
 }
 
 function angkaRisikoLaporan(d) {
+  const uf = ufukKerugian(d);
   const dm = d.diam || [];
   const nilai = dm.reduce((a, x) => a + (Number(x.nilai) || 0), 0);
   const tua = dm.filter(x => x.setahun === true);
@@ -4432,8 +4477,10 @@ function angkaRisikoLaporan(d) {
   return [
     { label: 'Stok tidak bergerak', nilai: d.bisa_diam ? rp(nilai) : '—',
       ekor: d.bisa_diam ? dm.length + ' SKU pada periode ini' : 'tidak bisa dihitung' },
-    { label: 'Diam lebih dari setahun', nilai: d.punya_setahun ? rp(nilaiTua) : '—',
-      ekor: d.punya_setahun ? tua.length + ' SKU' : 'daftar setahun tidak terbaca' },
+    { label: uf ? 'Belum terjual sejak ' + tglTampil(uf.mulai) : 'Diam lebih dari setahun',
+      nilai: d.punya_setahun ? rp(nilaiTua) : '—',
+      ekor: !d.punya_setahun ? 'daftar setahun tidak terbaca'
+            : tua.length + ' SKU' + (uf ? ' · datanya baru ' + uf.hari + ' hari' : '') },
     { label: 'Belum pernah bergerak', nilai: d.belum_bergerak,
       ekor: 'SKU, stoknya nol — tidak ada uang tertahan' },
     { label: 'Stok minus', nilai: d.minus.jumlah,
@@ -4476,9 +4523,24 @@ function catatanRisikoKerugian(d) {
       '(qty input = stok fisik + nilai minusnya). Menghitungnya sebagai susut berarti ' +
       'melaporkan barang yang ada di rak sebagai barang yang hilang.</p>'
     : '';
-  /* `catatan` DIPAKAI dokumen A4 (print.js); `kartu` dipakai layar. Kalimat
-     ini wajib terbaca di KEDUANYA. */
-  return '<div class="kartu catatan"><p><strong>Bagian ini belum menjadi kerugian.</strong> ' +
+  /* Ditaruh PALING DEPAN kalau ada: ia membatasi seluruh kalimat di bawahnya,
+     dan catatan pembatas yang menyusul di ekor akan dibaca sesudah orang
+     terlanjur memakai angkanya. */
+  const uf = ufukKerugian(d);
+  const ufuk = uf
+    ? '<p><strong>Data penjualannya baru ' + uf.hari + ' hari.</strong> ' +
+      (d.jendela_dari
+        ? 'Jendela yang diuji ' + esc(tglTampil(d.jendela_dari)) + ' – ' +
+          esc(tglTampil(d.sampai)) + ', tapi penjualan paling awal yang tercatat di ' +
+          'dalamnya ' + esc(tglTampil(uf.mulai)) + '. '
+        : 'Penjualan paling awal yang tercatat ' + esc(tglTampil(uf.mulai)) + '. ') + 'Jadi ' +
+      '"belum pernah terjual" di sini berarti belum terjual selama ' + uf.hari + ' hari — ' +
+      '<strong>bukan</strong> selama setahun. Jangan membawa angka ini sebagai stok mati ' +
+      'setahun; ia akan menguat sendiri seiring riwayatnya memanjang.</p>'
+    : '';
+  /* Kelas `catatan` DIPAKAI dokumen A4 (print.js); `kartu` dipakai layar.
+     Kalimat di bawah ini wajib terbaca di KEDUANYA. */
+  return '<div class="kartu catatan">' + ufuk + '<p><strong>Bagian ini belum menjadi kerugian.</strong> ' +
     'Barangnya masih ada dan masih tercatat penuh di persediaan pada harga modal. ' +
     'Ia baru menjadi kerugian kalau benar-benar dihapusbukukan — lewat opname atau ' +
     'penghapusan barang — dan itu keputusan yang diambil orang, bukan hitungan yang ' +
@@ -4513,7 +4575,7 @@ function gambarLapKerugian(w, d) {
     ${d.bisa_diam
       ? lapTabel('Stok yang tidak terjual pada periode ini' +
                  (dipotong ? ' · ' + KR_BATAS_DIAM + ' teratas dari ' + dm.length : ''),
-                 KOLOM_LAP.diamStok(), dm.slice(0, KR_BATAS_DIAM),
+                 KOLOM_LAP.diamStok(d), dm.slice(0, KR_BATAS_DIAM),
                  'Seluruh stok bergerak pada periode ini.')
       : `<div class="kartu"><p class="petunjuk">Stok tidak bergerak tidak bisa dihitung —
            daftar penjualan atau daftar stok gagal ditarik. Angkanya sengaja tidak
@@ -4604,7 +4666,7 @@ const CETAK_LAP_BAGIAN = {
                       d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.') +
     catatanRisikoKerugian(d) + kotakCetakLaporan(angkaRisikoLaporan(d)) +
     (d.bisa_diam
-      ? tabelCetakLaporan('Stok yang tidak terjual pada periode ini', KOLOM_LAP.diamStok(),
+      ? tabelCetakLaporan('Stok yang tidak terjual pada periode ini', KOLOM_LAP.diamStok(d),
                           (d.diam || []).slice(0, KR_BATAS_DIAM),
                           'Seluruh stok bergerak pada periode ini.')
       : '')
