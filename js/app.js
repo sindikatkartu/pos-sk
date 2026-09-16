@@ -6467,6 +6467,30 @@ async function muatUlangVersiBaru() {
     gambarPeringatanVersi();
   });
   await DB.buka();
+
+  /* IDENTITAS PERANGKAT DIAMANKAN DI SINI, bukan cuma di jalur login.
+   *
+   * Sampai v1.194.0 `idPerangkat()` hanya dipanggil saat orang login. Artinya
+   * kedua lapis pertahanannya — penyimpanan awet dan cadangan localStorage —
+   * tidak pernah berjalan di perangkat yang sudah terlanjur masuk dan tidak
+   * pernah keluar lagi. Yaitu persis perangkat toko, yang paling perlu
+   * dilindungi dan paling jarang login ulang.
+   *
+   * BUKAN dugaan: diperiksa di peramban pemilik 16 Sep 2026, sesudah v1.192.0
+   * tayang — `id_perangkat` ada di IndexedDB, localStorage KOSONG.
+   *
+   * Yang paling terancam dua ponsel ecer pulsa di SK02 dan SK03. Android
+   * membuang data situs sendiri saat memori menipis, dan ponsel dipakai untuk
+   * banyak hal lain — tidak seperti tablet yang menempel di meja. Pemiliknya
+   * tidak pernah masuk toko; alat dan akun inilah satu-satunya cara ia tahu
+   * bahwa yang tercatat memang terjadi di meja itu.
+   *
+   * DITUNGGU, bukan dilepas: tanpa itu ia bisa berjalan berbarengan dengan
+   * `idPerangkat()` di jalur login, keduanya tidak menemukan id, dan keduanya
+   * membuat id BARU — yang tersimpan beda dengan yang dikirim ke server.
+   * Ongkosnya satu-dua pembacaan IndexedDB. */
+  await idPerangkat();
+
   pasangEvent();
   Admin.pasang();
 
