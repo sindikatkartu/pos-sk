@@ -1399,6 +1399,7 @@ async function mulaiSesi(d) {
      terisi di dalamnya, dari store lokal `cabang_list`. Dipasang lebih awal,
      dropdownnya kosong dan penyaringnya tidak pernah muncul. */
   pasangPilihCabangLaporan();
+  pasangTabKerugian();
   Sync.mulai();
   Sync.tarikStok();
   Sync.tarikStokSemuaCabang();
@@ -3614,7 +3615,9 @@ const LAP_TARIK = {
   nota:    (par) => API.laporanNota({ ...par, status: 'AKTIF' }),
   shift:   (par) => API.daftarShift({ ...par }),
   petugas: (par) => API.laporanPoin({ ...par }),
-  void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' })
+  void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' }),
+  /* Satu-satunya yang bukan satu panggilan — lihat tarikKerugian(). */
+  kerugian: (par) => tarikKerugian(par)
 };
 
 /* Urutan dan judul bagian — dipakai tab di layar DAN dokumen cetak. */
@@ -3623,7 +3626,9 @@ const LAP_BAGIAN = [
   { id: 'nota',    judul: 'Riwayat transaksi' },
   { id: 'shift',   judul: 'Per shift' },
   { id: 'petugas', judul: 'Per petugas' },
-  { id: 'void',    judul: 'Void' }
+  { id: 'void',    judul: 'Void' },
+  /* `cetakOtomatis: false` — lihat CETAK_LAP_PILIH. */
+  { id: 'kerugian', judul: 'Kerugian persediaan', cetakOtomatis: false }
 ];
 
 /**
@@ -3771,7 +3776,8 @@ async function gambarTabLaporan(tab) {
     if (tiketLaporanBasi(tiket)) return;
   }
   const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
-                   petugas: gambarLapPetugas, void: gambarLapVoid }[tab];
+                   petugas: gambarLapPetugas, void: gambarLapVoid,
+                   kerugian: gambarLapKerugian }[tab];
   gambar(w, LAP.data[tab]);
 }
 
@@ -3846,6 +3852,42 @@ const KOLOM_LAP = {
     { judul: 'Kasir', render: x => kasirTampil(x) },
     { judul: 'Nilai', angka: true, render: x => rp(x.total) },
     { judul: 'Alasan', render: x => esc(x.alasan_batal) }
+  ],
+  /* Kerugian persediaan. `Bersih` dihitung KURANG dikurangi LEBIH — arah
+     jurnal 5-1200 — bukan dari `nilai_selisih` yang tandanya kebalikan. */
+  opnameRugi: () => [
+    { judul: 'Dokumen', render: x => esc(x.no_dokumen) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Item', angka: true, render: x => x.jumlah_item },
+    { judul: 'Selisih', angka: true, render: x => x.jumlah_selisih },
+    { judul: 'Kurang', angka: true, render: x => rp(x.nilai_kurang) },
+    { judul: 'Lebih', angka: true, render: x => rp(x.nilai_lebih) },
+    { judul: 'Bersih', angka: true, render: x => {
+        const v = (Number(x.nilai_kurang) || 0) - (Number(x.nilai_lebih) || 0);
+        return v > 0.5 ? `<span class="bahaya">${rp(v)}</span>` : rp(v);
+      } }
+  ],
+  rusak: () => [
+    { judul: 'Dokumen', render: x => esc(x.no_dokumen) },
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'SKU', render: x => esc(x.sku) },
+    { judul: 'Nama', render: x => esc(x.nama_produk) },
+    { judul: 'Qty', angka: true, render: x => x.qty },
+    { judul: 'Harga modal', angka: true, render: x => rp(x.hpp_total) },
+    { judul: 'Alasan', render: x => esc(x.alasan || '—') }
+  ],
+  diamStok: () => [
+    { judul: 'SKU', render: x => esc(x.sku) },
+    { judul: 'Nama', render: x => esc(x.nama) },
+    { judul: 'Cabang', render: x => esc(x.cabang) },
+    { judul: 'Kategori', render: x => esc(x.kategori || '—') },
+    { judul: 'Qty', angka: true, render: x => x.qty },
+    { judul: 'Nilai modal', angka: true, render: x => rp(x.nilai) },
+    { judul: 'Terakhir bergerak', render: x => x.setahun === true
+        ? '<span class="lencana merah">lebih dari setahun</span>'
+        : (x.setahun === false ? 'dalam setahun, bukan di periode ini' : '—') }
   ],
   piutang: () => [
     { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan) },
@@ -4164,6 +4206,321 @@ function gambarLapVoid(w, d) {
                'Tidak ada rincian barang.')}`;
 }
 
+/* ==================== TAB KERUGIAN PERSEDIAAN ====================
+ *
+ * Satu-satunya tab Laporan yang menyusun jawabannya dari EMPAT endpoint, bukan
+ * satu. Tidak ada endpoint baru dan tidak ada sheet baru: seluruh angkanya sudah
+ * tercatat sejak lama, hanya belum pernah dikumpulkan di satu layar.
+ *
+ * DUA BAGIAN, DAN PEMISAHANNYA YANG PENTING.
+ *
+ *   1. KERUGIAN TERBUKTI — susut opname (akun 5-1200) dan barang rusak dari
+ *      retur (akun 5-1300). Keduanya sudah masuk jurnal, punya nomor dokumen,
+ *      dan angkanya DIBACA dari dokumen yang dijurnal itu — bukan dihitung
+ *      ulang dengan cara lain. Hitungan kedua atas hal yang sama akan menyimpang
+ *      cepat atau lambat, dan yang menyimpang di laporan kerugian adalah angka
+ *      yang dibawa orang ke meja konsultan.
+ *
+ *   2. RISIKO — stok yang tidak bergerak. Ini BUKAN kerugian: barangnya masih
+ *      di rak dan masih tercatat penuh di persediaan. Mencampurnya dengan
+ *      bagian 1 menghasilkan satu angka besar yang tidak bisa dipertahankan di
+ *      hadapan siapa pun, dan justru membuat bagian 1 yang sah ikut diragukan.
+ *
+ * TANDA BACA ANGKANYA. `nilai_selisih` opname bertanda LEBIH DIKURANGI KURANG
+ * (14_Opname.gs) — positif artinya barang ketemu, negatif artinya barang hilang.
+ * Jurnalnya mendebet 5-1200 sebesar `kurang` dan mengkreditnya sebesar `lebih`,
+ * jadi kerugiannya `kurang - lebih`, kebalikan tanda `nilai_selisih`. Dihitung
+ * dari kedua kolom itu langsung, bukan dari `nilai_selisih` yang dibalik — satu
+ * tanda minus yang salah di sini membalik seluruh laporan tanpa terlihat salah.
+ *
+ * STOK MINUS DIKECUALIKAN, dan itu keputusan yang disengaja. Lihat catatan di
+ * `catatanRisikoKerugian()`.
+ */
+
+/* Dokumen yang ditarik per cabang. Keduanya disaring lagi di sisi klien —
+   `daftar_opname` tidak menerima rentang tanggal sama sekali, jadi batasnya
+   harus cukup lebar untuk memuat seluruh rentang yang mungkin dipilih. Kalau
+   jawabannya menyentuh batas, laporannya MENGAKU dipotong; diam-diam memotong
+   dokumen lama berarti melaporkan kerugian yang lebih kecil dari yang
+   sebenarnya, dan laporan yang salah ke arah "aman" adalah yang paling lama
+   tidak ketahuan. */
+const KR_BATAS_OPNAME = 500;
+const KR_BATAS_RETUR  = 500;
+
+/* Baris tabel stok diam yang digambar. Diurut dari nilai terbesar, jadi yang
+   dipotong selalu ekor yang paling kecil nilainya. Tanpa batas ini satu toko
+   dengan 3.800 produk kali tiga cabang bisa menggambar belasan ribu baris untuk
+   satu tab. */
+const KR_BATAS_DIAM = 300;
+
+/** Tab ini hanya berarti bagi yang boleh melihat harga modal. */
+const bolehTabKerugian = () => !!APP_STATE.flag.lihat_harga_modal;
+
+/**
+ * Sembunyikan tabnya bagi yang tidak berhak melihat harga modal. Seluruh isi
+ * tab ini adalah nilai persediaan; tanpa hak itu servernya memang tidak
+ * mengirim satu pun angkanya, dan yang tersisa hanya kolom kosong yang
+ * mengundang orang bertanya kenapa laporannya rusak.
+ */
+function pasangTabKerugian() {
+  const b = $('#tabLaporan button[data-tab-lap="kerugian"]');
+  if (b) b.classList.toggle('sembunyi', !bolehTabKerugian());
+}
+
+/**
+ * Tarik keempat sumber sekaligus.
+ *
+ * `Promise.allSettled`, BUKAN `Promise.all`. Tab ini menyentuh empat modul yang
+ * izinnya berbeda-beda (`opname`, `retur`, `stok`, `produk`); satu penolakan
+ * IZIN pada satu cabang tidak boleh mengosongkan seluruh laporan. Yang gagal
+ * dicatat di `masalah` dan ditulis apa adanya di layar.
+ *
+ * Dijalankan BERSAMAAN, bukan berurutan. Ongkos tetap tiap panggilan ke Apps
+ * Script kira-kira dua detik (lihat CLAUDE.md, "Detiknya ada di SERVER"); sebelas
+ * panggilan berurutan berarti menunggu setengah menit untuk satu tab.
+ */
+async function tarikKerugian(par) {
+  const lintas = !!APP_STATE.flag.akses_lintas_cabang;
+  const semua = (APP_STATE.daftarCabangSemua && APP_STATE.daftarCabangSemua.length)
+    ? APP_STATE.daftarCabangSemua : (APP_STATE.daftarCabang || []);
+  const daftar = (par.cabang && par.cabang !== '*')
+    ? [par.cabang]
+    : (lintas && semua.length ? semua.slice() : [APP_STATE.cabang].filter(Boolean));
+
+  const kerja = [];
+  daftar.forEach(c => {
+    kerja.push({ sumber: 'opname', cabang: c,
+                 janji: API.daftarOpname({ cabang: c, batas: KR_BATAS_OPNAME }) });
+    kerja.push({ sumber: 'retur', cabang: c,
+                 janji: API.daftarRetur({ cabang: c, dari: par.dari, sampai: par.sampai,
+                                          batas: KR_BATAS_RETUR }) });
+    kerja.push({ sumber: 'stok', cabang: c,
+                 janji: API.stokTerkini({ cabang: c, dengan_produk: true }) });
+  });
+  /* Dua tarikan "apa yang terjual" dilayani server sekaligus untuk semua cabang
+     — `produk_terjual` sendiri yang memutari cabangnya. Yang setahun dipakai
+     memisahkan barang yang benar-benar mati dari yang sekadar sepi di periode
+     yang sedang dilihat. */
+  kerja.push({ sumber: 'jual_periode', cabang: '*',
+               janji: API.produkTerjual({ cabang: par.cabang, dari: par.dari, sampai: par.sampai }) });
+  kerja.push({ sumber: 'jual_setahun', cabang: '*',
+               janji: API.produkTerjual({ cabang: par.cabang, hari: 366 }) });
+
+  const jawab = await Promise.allSettled(kerja.map(k => k.janji));
+  const masalah = [];
+  kerja.forEach((k, i) => {
+    if (jawab[i].status === 'fulfilled') { k.nilai = jawab[i].value; return; }
+    k.nilai = null;
+    masalah.push({ sumber: k.sumber, cabang: k.cabang,
+                   pesan: (jawab[i].reason && jawab[i].reason.message) || String(jawab[i].reason) });
+  });
+  const punya = (s) => kerja.filter(k => k.sumber === s && k.nilai);
+
+  /* ---- 1a. Susut opname: hanya POSTED, hanya yang dalam rentang ---- */
+  const opname = [];
+  let opnameTerpotong = false;
+  punya('opname').forEach(k => {
+    const rows = k.nilai || [];
+    if (rows.length >= KR_BATAS_OPNAME) opnameTerpotong = true;
+    rows.forEach(o => {
+      /* DRAFT dan REVIEW sengaja dibuang: hitungannya belum diposting, jadi
+         belum menyentuh buku besar sama sekali. Memasukkannya berarti
+         melaporkan kerugian yang secara akuntansi belum terjadi. */
+      if (String(o.status) !== 'POSTED') return;
+      const t = String(o.tanggal || '');
+      if (t < par.dari || t > par.sampai) return;
+      opname.push(Object.assign({}, o, { cabang: k.cabang }));
+    });
+  });
+  opname.sort((a, b) => String(a.tanggal) < String(b.tanggal) ? 1 : -1);
+
+  /* ---- 1b. Barang rusak dari retur, pada HARGA MODAL ---- */
+  const rusak = [];
+  let returTerpotong = false, hppDisembunyikan = false;
+  punya('retur').forEach(k => {
+    const rows = k.nilai || [];
+    if (rows.length >= KR_BATAS_RETUR) returTerpotong = true;
+    rows.forEach(r => {
+      (r.item || []).forEach(it => {
+        if (String(it.kondisi || '').toUpperCase() !== 'RUSAK') return;
+        /* Pola yang sama dengan `punyaNilai` di layar Opname: kolom yang tidak
+           dikirim karena hak akses harus TERBACA sebagai tidak dikirim, bukan
+           jatuh jadi nol. "Barang rusak Rp 0" terbaca seperti kabar baik. */
+        if (it.hpp_total === undefined) hppDisembunyikan = true;
+        rusak.push({
+          cabang: k.cabang, no_dokumen: r.no_dokumen, tanggal: r.tanggal,
+          no_nota_asal: r.no_nota_asal, alasan: r.alasan,
+          sku: it.sku, nama_produk: it.nama_produk, qty: Number(it.qty) || 0,
+          hpp_total: Number(it.hpp_total) || 0, subtotal: Number(it.subtotal) || 0
+        });
+      });
+    });
+  });
+  rusak.sort((a, b) => b.hpp_total - a.hpp_total);
+
+  /* ---- 2. Stok yang tidak bergerak ---- */
+  const jp = punya('jual_periode')[0], js = punya('jual_setahun')[0];
+  /* TANPA daftar "apa yang terjual", bagian ini TIDAK digambar sama sekali.
+     Himpunan kosong akan menandai SELURUH katalog sebagai tidak bergerak —
+     laporan yang salah total sambil terlihat sangat meyakinkan. */
+  const bisaDiam = !!jp && punya('stok').length > 0;
+  const diam = [];
+  let belumBergerak = 0, minusJumlah = 0, minusQty = 0;
+
+  if (bisaDiam) {
+    const terjual = new Set((jp.nilai.terjual || []).map(x => String(x.sku)));
+    const setahun = js ? new Set((js.nilai.terjual || []).map(x => String(x.sku))) : null;
+    punya('stok').forEach(k => {
+      /* Dikumpulkan per SKU, bukan per varian: kalau satu varian saja terjual,
+         SKU-nya bergerak. Daftar terjual dari server memang hanya per SKU. */
+      const per = {};
+      (k.nilai.stok || []).forEach(r => {
+        if (r.diam === true) { belumBergerak++; return; }
+        const q = Number(r.qty) || 0;
+        if (q < 0) { minusJumlah++; minusQty += q; return; }
+        if (q === 0) return;
+        const s = String(r.sku);
+        const a = per[s] || (per[s] = { sku: s, nama: r.nama || r.sku,
+                                        kategori: r.kategori || '', qty: 0, nilai: 0 });
+        a.qty += q;
+        a.nilai += Number(r.nilai) || 0;
+      });
+      Object.keys(per).forEach(s => {
+        if (terjual.has(s)) return;
+        diam.push(Object.assign({}, per[s], { cabang: k.cabang,
+                                              setahun: setahun ? !setahun.has(s) : null }));
+      });
+    });
+    diam.sort((a, b) => b.nilai - a.nilai);
+  }
+
+  return {
+    dari: par.dari, sampai: par.sampai, cabang: daftar,
+    opname, rusak, diam,
+    bisa_diam: bisaDiam, punya_setahun: !!js,
+    belum_bergerak: belumBergerak,
+    minus: { jumlah: minusJumlah, qty: minusQty },
+    hpp_disembunyikan: hppDisembunyikan,
+    terpotong: { opname: opnameTerpotong, retur: returTerpotong },
+    masalah
+  };
+}
+
+/* ---------- Angka: satu hitungan untuk layar DAN kertas ---------- */
+
+function angkaKerugianLaporan(d) {
+  const op = d.opname || [], rs = d.rusak || [];
+  const kurang = op.reduce((a, o) => a + (Number(o.nilai_kurang) || 0), 0);
+  const lebih  = op.reduce((a, o) => a + (Number(o.nilai_lebih) || 0), 0);
+  const nRusak = rs.reduce((a, r) => a + (Number(r.hpp_total) || 0), 0);
+  return [
+    { label: 'Susut opname', nilai: rp(kurang),
+      ekor: '5-1200 · ' + op.length + ' dokumen diposting' },
+    { label: 'Barang lebih', nilai: rp(lebih), ekor: 'mengurangi susut' },
+    { label: 'Barang rusak', nilai: rp(nRusak),
+      ekor: '5-1300 · ' + rs.length + ' baris retur' },
+    { label: 'Kerugian bersih', nilai: rp((kurang - lebih) + nRusak),
+      ekor: 'pada harga modal' }
+  ];
+}
+
+function angkaRisikoLaporan(d) {
+  const dm = d.diam || [];
+  const nilai = dm.reduce((a, x) => a + (Number(x.nilai) || 0), 0);
+  const tua = dm.filter(x => x.setahun === true);
+  const nilaiTua = tua.reduce((a, x) => a + (Number(x.nilai) || 0), 0);
+  return [
+    { label: 'Stok tidak bergerak', nilai: d.bisa_diam ? rp(nilai) : '—',
+      ekor: d.bisa_diam ? dm.length + ' SKU pada periode ini' : 'tidak bisa dihitung' },
+    { label: 'Diam lebih dari setahun', nilai: d.punya_setahun ? rp(nilaiTua) : '—',
+      ekor: d.punya_setahun ? tua.length + ' SKU' : 'daftar setahun tidak terbaca' },
+    { label: 'Belum pernah bergerak', nilai: d.belum_bergerak,
+      ekor: 'SKU, stoknya nol — tidak ada uang tertahan' },
+    { label: 'Stok minus', nilai: d.minus.jumlah,
+      ekor: d.minus.jumlah ? 'baris, dikecualikan — lihat catatan' : 'tidak ada' }
+  ];
+}
+
+/* ---------- Catatan yang wajib ikut terbaca ---------- */
+
+/** Yang gagal ditarik dan yang terpotong — ditulis, bukan didiamkan. */
+function catatanMasalahKerugian(d) {
+  const b = [];
+  (d.masalah || []).forEach(m => b.push('Gagal menarik <strong>' + esc(m.sumber) + '</strong>' +
+    (m.cabang && m.cabang !== '*' ? ' cabang ' + esc(m.cabang) : '') + ' — ' + esc(m.pesan) +
+    '. Angka di bawah belum memuat bagian itu.'));
+  if (d.terpotong && d.terpotong.opname) {
+    b.push('Daftar opname menyentuh batas ' + KR_BATAS_OPNAME +
+           ' dokumen per cabang — dokumen yang lebih lama mungkin belum ikut terhitung.');
+  }
+  if (d.terpotong && d.terpotong.retur) {
+    b.push('Daftar retur menyentuh batas ' + KR_BATAS_RETUR +
+           ' dokumen per cabang pada rentang ini.');
+  }
+  if (d.hpp_disembunyikan) {
+    b.push('Harga modal baris retur tidak dikirim server untuk peran Anda, jadi ' +
+           'nilai barang rusak terbaca nol. Itu batas hak akses, bukan angka sebenarnya.');
+  }
+  if (!b.length) return '';
+  return '<div class="pesan peringatan"><ul style="margin:0;padding-left:18px">' +
+         b.map(x => '<li>' + x + '</li>').join('') + '</ul></div>';
+}
+
+/** Kenapa bagian 2 bukan kerugian, dan kenapa stok minus tidak ikut. */
+function catatanRisikoKerugian(d) {
+  const minus = d.minus && d.minus.jumlah
+    ? '<p><strong>Stok minus tidak dihitung sebagai kerugian.</strong> ' + d.minus.jumlah +
+      ' baris stok bernilai minus (' + d.minus.qty + ' pcs) dikecualikan dengan sengaja. ' +
+      'Minus di toko ini bukan barang hilang: persediaan awal masih diinput bertahap, dan ' +
+      'angka minusnya justru yang dipakai menghitung jumlah pembelian yang harus dimasukkan ' +
+      '(qty input = stok fisik + nilai minusnya). Menghitungnya sebagai susut berarti ' +
+      'melaporkan barang yang ada di rak sebagai barang yang hilang.</p>'
+    : '';
+  /* `catatan` DIPAKAI dokumen A4 (print.js); `kartu` dipakai layar. Kalimat
+     ini wajib terbaca di KEDUANYA. */
+  return '<div class="kartu catatan"><p><strong>Bagian ini belum menjadi kerugian.</strong> ' +
+    'Barangnya masih ada dan masih tercatat penuh di persediaan pada harga modal. ' +
+    'Ia baru menjadi kerugian kalau benar-benar dihapusbukukan — lewat opname atau ' +
+    'penghapusan barang — dan itu keputusan yang diambil orang, bukan hitungan yang ' +
+    'boleh dijalankan sendiri oleh laporan.</p>' + minus + '</div>';
+}
+
+/* ---------- Layar ---------- */
+
+function gambarLapKerugian(w, d) {
+  /* Seluruh isi tab ini nilai persediaan, dan server memang tidak mengirim
+     satu pun angkanya kepada yang tidak berhak. Tanpa penjagaan ini layarnya
+     akan memperlihatkan Rp 0 di mana-mana — dan nol yang datang dari batas
+     hak akses terbaca persis seperti kabar baik. Tombol tabnya sudah
+     disembunyikan `pasangTabKerugian()`; ini pintu keduanya. */
+  if (!bolehTabKerugian()) {
+    w.innerHTML = `<div class="kartu"><p class="petunjuk">Laporan ini seluruhnya
+      berisi nilai persediaan pada harga modal, dan peran Anda tidak berhak
+      melihatnya. Angkanya sengaja tidak ditampilkan — bukan karena nol.</p></div>`;
+    return;
+  }
+  const dm = d.diam || [];
+  const dipotong = dm.length > KR_BATAS_DIAM;
+  w.innerHTML = `
+    ${catatanMasalahKerugian(d)}
+    ${petakAngka(angkaKerugianLaporan(d), 'petak-4')}
+    ${lapTabel('Susut opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
+               d.opname || [], 'Tidak ada opname yang diposting pada rentang ini.')}
+    ${lapTabel('Barang rusak dari retur · akun 5-1300 Barang Rusak / Hilang', KOLOM_LAP.rusak(),
+               d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.')}
+    ${catatanRisikoKerugian(d)}
+    ${petakAngka(angkaRisikoLaporan(d), 'petak-4')}
+    ${d.bisa_diam
+      ? lapTabel('Stok yang tidak terjual pada periode ini' +
+                 (dipotong ? ' · ' + KR_BATAS_DIAM + ' teratas dari ' + dm.length : ''),
+                 KOLOM_LAP.diamStok(), dm.slice(0, KR_BATAS_DIAM),
+                 'Seluruh stok bergerak pada periode ini.')
+      : `<div class="kartu"><p class="petunjuk">Stok tidak bergerak tidak bisa dihitung —
+           daftar penjualan atau daftar stok gagal ditarik. Angkanya sengaja tidak
+           ditebak: tanpa daftar penjualan, seluruh katalog akan terbaca sebagai
+           barang mati.</p></div>`}`;
+}
+
 /* ==================== CETAK LAPORAN: DOKUMEN A4 ====================
  *
  * Sampai v1.155 tombol Cetak memanggil pencetakan peramban atas halaman aplikasi
@@ -4184,7 +4541,17 @@ function gambarLapVoid(w, d) {
  * Bagian mana yang ikut dipilih di dialog sebelum mencetak — pengganti bar
  * centang "Yang ikut dicetak" yang dulu. Pilihannya diingat selama layar hidup.
  */
-const CETAK_LAP_PILIH = new Set(LAP_BAGIAN.map(b => b.id));
+/* Bawaannya SELURUH bagian tercentang — kecuali yang menolak lewat
+   `cetakOtomatis: false`. Kerugian persediaan menolak karena ia sendiri
+   menembak sebelas panggilan; tercentang otomatis, ia akan menempel pada
+   SETIAP cetakan laporan penjualan biasa dan menambah puluhan detik ke
+   pekerjaan yang tidak meminta angkanya. Tetap bisa dicentang orangnya. */
+const CETAK_LAP_PILIH = new Set(
+  LAP_BAGIAN.filter(b => b.cetakOtomatis !== false).map(b => b.id));
+
+/** Bagian yang boleh muncul di dialog cetak untuk peran yang sedang masuk. */
+const bagianLaporanBoleh = () =>
+  LAP_BAGIAN.filter(b => b.id !== 'kerugian' || bolehTabKerugian());
 
 /** Tabel dokumen cetak: kolom yang sama dengan `lapTabel`, gaya `table.isi`. */
 function tabelCetakLaporan(judul, kolom, baris, kosong) {
@@ -4226,7 +4593,21 @@ const CETAK_LAP_BAGIAN = {
     tabelCetakLaporan('Per cabang', KOLOM_LAP.petugasCabang(), d.per_cabang || [], 'Tidak ada data.'),
   void: (d) => kotakCetakLaporan(angkaVoidLaporan(d)) +
     tabelCetakLaporan('Riwayat void', KOLOM_LAP.void(), d.nota || [], 'Tidak ada nota yang dibatalkan pada rentang ini.') +
-    tabelCetakLaporan('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(d.nota || []), 'Tidak ada rincian barang.')
+    tabelCetakLaporan('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(d.nota || []), 'Tidak ada rincian barang.'),
+  /* Catatan risiko IKUT ke kertas. Halaman yang memuat daftar stok mati
+     tanpa kalimat "ini belum kerugian" adalah halaman yang bisa dibaca
+     sebagai tagihan kerugian oleh siapa pun yang menerimanya. */
+  kerugian: (d) => kotakCetakLaporan(angkaKerugianLaporan(d)) +
+    tabelCetakLaporan('Susut opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
+                      d.opname || [], 'Tidak ada opname yang diposting pada rentang ini.') +
+    tabelCetakLaporan('Barang rusak dari retur · akun 5-1300 Barang Rusak / Hilang', KOLOM_LAP.rusak(),
+                      d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.') +
+    catatanRisikoKerugian(d) + kotakCetakLaporan(angkaRisikoLaporan(d)) +
+    (d.bisa_diam
+      ? tabelCetakLaporan('Stok yang tidak terjual pada periode ini', KOLOM_LAP.diamStok(),
+                          (d.diam || []).slice(0, KR_BATAS_DIAM),
+                          'Seluruh stok bergerak pada periode ini.')
+      : '')
 };
 
 /**
@@ -4262,7 +4643,7 @@ function bukaDialogCetakLaporan() {
       <strong>${esc(tglTampil(LAP.dari))} – ${esc(tglTampil(LAP.sampai))}</strong>
       (${esc(labelCabangLaporan())}). Bagian yang belum pernah dibuka ditarik dulu dari server.</p>
     <div class="pilih-bagian-cetak">
-      ${LAP_BAGIAN.map(b => `<label class="cek"><input type="checkbox" data-cetak-bagian="${b.id}"
+      ${bagianLaporanBoleh().map(b => `<label class="cek"><input type="checkbox" data-cetak-bagian="${b.id}"
         ${CETAK_LAP_PILIH.has(b.id) ? 'checked' : ''}> ${esc(b.judul)}</label>`).join('')}
     </div>`,
     `<button class="tombol" data-tutup="1">Batal</button>

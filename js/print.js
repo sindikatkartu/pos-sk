@@ -406,6 +406,16 @@ const Struk = (() => {
   .bagian + .bagian { margin-top: 14px; }
   .kode-redup { color: #555; font-size: 8pt; }
   .lencana { font-weight: bold; }
+  /* Kartu catatan. Dipakai bagian Kerugian persediaan untuk kalimat "ini
+     belum kerugian" — dan kalimat itu WAJIB terbaca di kertas, bukan cuma di
+     layar: halaman berisi daftar stok mati tanpa kalimat itu bisa dibaca
+     sebagai tagihan kerugian oleh siapa pun yang menerimanya. Di layar
+     kelas .kartu yang menggayainya; di sini .kartu tidak dikenal sama sekali,
+     jadi tanpa aturan ini ia tercetak sebagai teks polos yang menyatu dengan
+     tabel di atasnya. */
+  .catatan { border: 1px solid #000; padding: 6px 9px; margin: 10px 0; font-size: 9.5pt; }
+  .catatan p { margin: 0 0 4px; }
+  .catatan p:last-child { margin-bottom: 0; }
   .kaki { margin-top: 14px; padding-top: 5px; border-top: 1px solid #000; font-size: 8.5pt; }
 `;
 
