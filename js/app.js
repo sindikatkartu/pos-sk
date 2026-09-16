@@ -1217,13 +1217,52 @@ async function terapkanLipat(lipat, simpan = true) {
   if (simpan) await DB.kvSet('sisi_lipat', !!lipat);
 }
 
-/* ==================== IDENTITAS PERANGKAT ==================== */
+/* ==================== IDENTITAS PERANGKAT ====================
+ *
+ * Id ini adalah SATU-SATUNYA hal yang membuat perangkat dikenali. Kehilangannya
+ * tidak menampilkan galat apa pun — yang terjadi, login berikutnya ditolak
+ * dengan "Perangkat ini belum disetujui", dan sebuah baris MENUNGGU baru lahir
+ * di daftar Owner. Audit 16 Sep 2026: 22 baris perangkat untuk segelintir alat,
+ * dengan satu nama yang sama muncul lima kali.
+ *
+ * Karena itu dua lapis pertahanan, dan keduanya murah:
+ *
+ * 1. MINTA PENYIMPANAN AWET. Tanpa itu penyimpanan situs berstatus
+ *    "best-effort" dan peramban berhak membuangnya sendiri. Diperiksa di PC
+ *    pemilik 16 Sep 2026: navigator.storage.persisted() menjawab FALSE.
+ * 2. CADANGAN DI localStorage. IndexedDB dan localStorage tidak selalu hilang
+ *    bersamaan; yang selamat memulihkan yang hilang. Dua-duanya hilang hanya
+ *    kalau data situs memang dihapus dengan sengaja — dan itu memang berarti
+ *    perangkat baru.
+ */
+async function mintaPenyimpananAwet() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return null;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch (e) { return null; }   // peramban yang memblokir penyimpanan situs
+}
+
 async function idPerangkat() {
+  mintaPenyimpananAwet();        // sengaja TIDAK ditunggu — tidak menahan login
   let id = await DB.kvGet('id_perangkat', null);
+
+  /* IndexedDB kosong tapi localStorage masih ingat: dipulihkan, BUKAN dibuat
+     baru. Inilah yang menyelamatkan perangkat yang sudah disetujui dari harus
+     disetujui ulang dari nol. */
+  if (!id) {
+    try { id = localStorage.getItem('id_perangkat') || null; } catch (e) { id = null; }
+    if (id) await DB.kvSet('id_perangkat', id);
+  }
+
   if (!id) {
     id = 'DEV-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
     await DB.kvSet('id_perangkat', id);
   }
+
+  /* Ditulis ulang TIAP KALI, bukan cuma saat dibuat: perangkat yang sudah
+     terdaftar sebelum cadangan ini ada belum punya salinannya. */
+  try { localStorage.setItem('id_perangkat', id); } catch (e) { /* diblokir */ }
   return id;
 }
 const namaPerangkat = () => (navigator.userAgentData?.platform || navigator.platform || 'Perangkat') +

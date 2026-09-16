@@ -4963,6 +4963,45 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:15px;height:15px">${jalur}</svg></button>`;
 
   /**
+   * Umur dalam KATA, bukan tanggal.
+   *
+   * "2026-09-07T23:21" menuntut orang menghitung sendiri sebelum bisa
+   * memutuskan. "9 hari lalu" menjawab pertanyaannya langsung — dan pertanyaan
+   * yang sedang dijawab orang di layar Perangkat selalu sama: masih dipakai
+   * atau sudah bisa dibuang?
+   */
+  function umurKata(iso) {
+    if (!iso) return '';
+    const t = new Date(String(iso).replace(' ', 'T')).getTime();
+    if (!isFinite(t)) return '';
+    const menit = Math.floor((Date.now() - t) / 60000);
+    if (menit < 1) return 'barusan';
+    if (menit < 60) return menit + ' menit lalu';
+    const jam = Math.floor(menit / 60);
+    if (jam < 24) return jam + ' jam lalu';
+    const hari = Math.floor(jam / 24);
+    if (hari < 31) return hari + ' hari lalu';
+    const bulan = Math.floor(hari / 30);
+    return bulan + ' bulan lalu';
+  }
+
+  /**
+   * Sisa menit penguncian perangkat, atau 0. Cerminan `_sisaKunciMenit` di
+   * 03_Auth.gs — perbandingan TEKS pada isonya, sama seperti di sana.
+   *
+   * Ada karena sampai 16 Sep 2026 penguncian ini TIDAK TERLIHAT di mana pun.
+   * Kasir yang salah PIN lima kali melihat "coba lagi dalam 15 menit"; Owner
+   * yang dipanggil untuk menolong melihat baris yang tampak sehat, dan tidak
+   * punya cara mengetahui apa yang sebenarnya terjadi.
+   */
+  function terkunciMenit(r) {
+    if (!r || !r.kunci_sampai) return 0;
+    const sampai = new Date(String(r.kunci_sampai).replace(' ', 'T')).getTime();
+    if (!isFinite(sampai)) return 0;
+    return Math.max(0, Math.ceil((sampai - Date.now()) / 60000));
+  }
+
+  /**
    * Kolom "Pemilik" satu baris perangkat.
    *
    * Diminta pemilik 4 Sep 2026: kolom `nama` dirakit peramban dari platform dan
@@ -5061,13 +5100,62 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">Perangkat baru wajib disetujui sebelum bisa transaksi — ini yang mencegah PIN kasir yang bocor dipakai dari HP pribadi.</p>
           ${tabel([
             { judul: 'Kode', kunci: 'kode' },
-            { judul: 'Nama perangkat', kunci: 'nama' },
+            /* Baris yang SEDANG DIPAKAI ditandai. Audit 16 Sep 2026 menemukan
+               lima baris bernama sama persis ("Windows \u00b7 1920x1080"), dan yang
+               paling sering ditanyakan orang yang hendak merapikan daftar adalah
+               "yang mana punya saya". Server menolak menghapus perangkat yang
+               sedang dipakai, tapi menolak SESUDAH ditekan bukan jawaban yang
+               sama dengan memberi tahu SEBELUM. */
+            { judul: 'Nama perangkat', render: r => {
+                /* Nama KEMBAR ditandai, dan angkanya disebut. Nama bawaan dirakit
+                   peramban dari platform + ukuran layar, jadi satu laptop dengan dua
+                   profil Chrome tampil dua kali dengan tulisan yang sama persis.
+                   Audit 16 Sep 2026 menemukan satu nama muncul LIMA kali di daftar
+                   22 baris. Lencana ini mengajarkan tindakan yang benar: yang salah
+                   bukan barisnya, melainkan namanya — ganti nama, jangan hapus. */
+                const kembar = perangkat.filter(x => String(x.nama) === String(r.nama)).length;
+                const ini = String(r.id_perangkat) === String(APP_STATE.perangkat?.id);
+                return `${esc(r.nama || '')}` +
+                  (ini ? ' <span class="lencana hijau">perangkat ini</span>' : '') +
+                  (kembar > 1
+                    ? ` <span class="lencana kuning">nama ini dipakai ${kembar} baris</span>` : '');
+              } },
             { judul: 'Pemilik', render: r => pemilikPerangkat(r, user) },
             { judul: 'Cabang', kunci: 'cabang' },
-            { judul: 'Status', render: r => `<span class="lencana ${
-                r.status === 'DISETUJUI' ? 'hijau' : (r.status === 'DIBLOKIR' ? 'merah' : 'kuning')}">${esc(r.status)}</span>` },
-            { judul: 'Sinkron terakhir', render: r => esc(waktuTampil(r.terakhir_sinkron)) },
+            { judul: 'Status', render: r => {
+                /* TERKUNCI bukan status tersimpan — ia dihitung dari kunci_sampai,
+                   dan membuka sendiri sesudah 15 menit. Sampai 16 Sep 2026 keadaan
+                   ini tidak terlihat di mana pun: kasir melihat "coba lagi dalam N
+                   menit", Owner yang dipanggil menolong melihat baris yang tampak
+                   sehat. Yang ditampilkan sisanya, bukan sekadar bahwa ia terkunci —
+                   "tunggu 7 menit" adalah jawaban, "terkunci" cuma kabar. */
+                const kunci = terkunciMenit(r);
+                return `<span class="lencana ${
+                  r.status === 'DISETUJUI' ? 'hijau' : (r.status === 'DIBLOKIR' ? 'merah' : 'kuning')
+                  }">${esc(r.status)}</span>` +
+                  (kunci > 0
+                    ? ` <span class="lencana merah">terkunci ${kunci} menit lagi</span>` +
+                      `<div class="meta-kecil">${num(r.gagal_login)}\u00d7 PIN salah</div>`
+                    : '');
+              } },
+            /* Umur dalam KATA di atas, tanggal lengkapnya di bawah. Yang dicari
+               orang di sini "masih dipakai atau sudah bisa dibuang", dan itu
+               pertanyaan tentang JARAK waktu, bukan tentang tanggal.
+               `dibuat` ikut karena tanpanya lima baris bernama sama tidak bisa
+               dibedakan sama sekali. */
+            { judul: 'Sinkron terakhir', render: r => {
+                const pernah = !!r.terakhir_sinkron;
+                return (pernah
+                    ? `${esc(umurKata(r.terakhir_sinkron))}` +
+                      `<div class="meta-kecil">${esc(waktuTampil(r.terakhir_sinkron))}</div>`
+                    : '<span class="petunjuk">belum pernah</span>') +
+                  (r.dibuat
+                    ? `<div class="meta-kecil">didaftarkan ${esc(umurKata(r.dibuat))}</div>` : '');
+              } },
             { judul: '', render: r => `
+              ${bolehIzin('user', 'ubah')
+                ? tombolIkon('', 'Ganti nama perangkat', IKON.ubah,
+                    `data-nama-perangkat="${esc(r.id_perangkat)}"`) : ''}
               ${bolehIzin('user', 'setujui') ? `
                 ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON.setujui,
                     `data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI"`) : ''}
@@ -7400,6 +7488,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
+      if (d.namaPerangkat) {
+        const r = ($('#isiPengguna')._perangkat || [])
+          .find(x => String(x.id_perangkat) === String(d.namaPerangkat));
+        /* Nama lama dipakai sebagai PLACEHOLDER, bukan isian awal: `tanya`
+           tidak punya nilai bawaan, dan menaruh nama lama di dalam kotak akan
+           membuat orang menekan OK tanpa mengubah apa pun. */
+        const nama = await tanya('Ganti nama perangkat',
+          `<div class="pesan info" style="white-space:pre-line">${esc(
+             r ? `${r.kode} \u00b7 ${r.nama}` : d.namaPerangkat)}</div>
+           <p class="petunjuk">Nama bawaan dirakit peramban dari jenis dan ukuran layar,
+              jadi dua alat yang sama tampil sama persis. Beri nama yang Anda kenali —
+              misalnya <strong>Laptop Sendi \u2014 profil kerja</strong> atau
+              <strong>Tablet SK03 kasir malam</strong>. Ini hanya label; tidak mengubah
+              status maupun akses perangkatnya.</p>`,
+          { isian: 'Nama baru (maksimal 60 karakter)', minimal: 1, ya: 'Simpan nama' });
+        if (!nama) return;
+        try {
+          await API.ubahPerangkat({ id_perangkat: d.namaPerangkat, nama });
+          await muat('pengguna');
+          toast('Nama perangkat disimpan.');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
       if (d.hapusPerangkat) {
         const r = ($('#isiPengguna')._perangkat || [])
           .find(x => String(x.id_perangkat) === String(d.hapusPerangkat));
