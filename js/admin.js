@@ -5405,6 +5405,69 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol utama" id="btnSimpanCabang">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
+  /**
+   * Sambungan ke Laporan Pulsa — kartunya sendiri, DI LUAR petak setting.
+   *
+   * Sengaja tidak dijadikan baris `setting` biasa walau di situ ia akan dapat
+   * layar gratis: isi tabel setting ikut turun ke SETIAP tablet kasir lewat
+   * `tarik_master`, dan id berkas internal tidak ada urusannya dengan lantai
+   * toko. Ia disimpan di sisi server; yang di sini cuma pintunya.
+   *
+   * Tombolnya berbunyi "Sambungkan & periksa", bukan "Simpan", karena itulah
+   * yang sebenarnya terjadi: berkasnya dibuka sungguhan dan isinya dilaporkan.
+   * Tombol bernama "Simpan" untuk sesuatu yang juga memeriksa membuat orang
+   * mengira diamnya berarti berhasil.
+   */
+  function kartuPulsa() {
+    if (!bolehIzin('setting', 'lihat')) return '';
+    return `<div class="kartu set-grup">
+      <div class="bar-alat"><h3>Laporan Pulsa</h3></div>
+      <p class="petunjuk">Sumber kedua buku konsolidasi. POS <strong>membaca</strong>
+         spreadsheet Laporan Pulsa — tidak pernah menulis ke sana. Yang dibaca sheet
+         <code>Shift</code> mentah, bukan Rekap, supaya angkanya tidak bergantung pada
+         siapa pun yang ingat menekan tombol Refresh di spreadsheet itu.</p>
+      <div id="keadaanPulsa" class="pesan info">Memeriksa sambungan…</div>
+      ${bolehIzin('setting', 'ubah') ? `
+        <label>Id spreadsheet Laporan Pulsa</label>
+        <input type="text" id="idPulsa" placeholder="potongan panjang di URL, antara /d/ dan /edit">
+        <p class="petunjuk">Ambil dari URL spreadsheet-nya:
+           <code>docs.google.com/spreadsheets/d/<strong>ID_INI</strong>/edit</code></p>
+        <button class="tombol utama" id="btnSetupPulsa">Sambungkan &amp; periksa</button>` : ''}
+    </div>`;
+  }
+
+  async function muatKeadaanPulsa() {
+    const el = $('#keadaanPulsa');
+    if (!el) return;
+    try {
+      const k = await API.keadaanPulsa();
+      if (!k.tersetel) {
+        el.className = 'pesan';
+        el.textContent = 'Belum tersambung. Isi id spreadsheet di bawah.';
+        return;
+      }
+      if (!k.sehat) {
+        el.className = 'pesan galat';
+        el.textContent = 'Tersetel, tapi tidak bisa dibaca: ' + (k.pesan || '');
+        return;
+      }
+      if ($('#idPulsa')) $('#idPulsa').value = k.id;
+      /* NOL dijelaskan, tidak dibiarkan berdiri sendiri. "Rp 0" tanpa kalimat
+         ini terbaca sebagai omzet nol, padahal artinya belum ada shift yang
+         ditutup — dua hal yang jauh berbeda akibatnya. */
+      el.className = k.shift_tutup ? 'pesan sukses' : 'pesan';
+      el.innerHTML = k.shift_tutup
+        ? `Tersambung. <strong>${k.shift_tutup}</strong> shift tertutup
+           (${esc(k.tanggal_awal)} s.d. ${esc(k.tanggal_akhir)}), total penjualan
+           <strong>${rp(k.total_penjualan)}</strong>.`
+        : 'Tersambung, strukturnya sah — tetapi <strong>belum ada satu pun shift yang ditutup</strong> di sana. ' +
+          'Jadi belum ada yang bisa dikonsolidasikan; ini bukan sambungan yang rusak.';
+    } catch (e) {
+      el.className = 'pesan galat';
+      el.textContent = e.message;
+    }
+  }
+
   /* ==================== SETTING SISTEM ==================== */
 
   /**
@@ -5680,7 +5743,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${bolehIzin('setting', 'ubah') ? `<div class="set-kaki">
           <span class="set-jejak" id="jejakSetting">Belum ada perubahan.</span>
           <button class="tombol utama besar" id="btnSimpanSetting" disabled>Simpan pengaturan</button>
-        </div>` : ''}`;
+        </div>` : ''}
+        ${kartuPulsa()}`;
+      muatKeadaanPulsa();
       /* Dipasang sebagai PROPERTI, bukan addEventListener: layar ini digambar
          ulang setiap kali menunya dibuka, dan pendengar yang ditambahkan akan
          menumpuk — hitungan perubahannya tetap benar, tapi jumlah pemanggilan
@@ -7677,6 +7742,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
 
       /* --- cabang --- */
+      if (t.id === 'btnSetupPulsa') {
+        const id = ($('#idPulsa').value || '').trim();
+        if (!id) { toast('Id spreadsheet belum diisi.', 'galat'); return; }
+        const el = $('#keadaanPulsa');
+        el.className = 'pesan info';
+        el.textContent = 'Membuka berkasnya…';
+        try {
+          const h = await API.setupPulsa({ id });
+          toast('Tersambung ke ' + h.nama_berkas + '.');
+          await muatKeadaanPulsa();
+        } catch (x) {
+          el.className = 'pesan galat';
+          el.textContent = x.message;
+          toast(x.message, 'galat');
+        }
+        return;
+      }
+
       if (t.id === 'btnCabangBaru') return editorCabang(null);
       if (t.id === 'btnLiniBaru') return editorLini(null);
       if (d.editLini) return editorLini(d.editLini);
