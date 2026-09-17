@@ -145,7 +145,7 @@ const API = (() => {
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
-    'daftar_minta_void', 'ubah_perangkat',
+    'daftar_minta_void', 'ubah_perangkat', 'daftar_lini',
     /* tulisan yang servernya menjaga duplikat per uuid */
     'simpan_kas', 'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
@@ -428,6 +428,8 @@ const API = (() => {
     daftarPeran:       ()  => panggil('daftar_peran'),
     simpanPeran:       (d) => panggil('simpan_peran', d),
     daftarCabangAdmin: ()  => panggil('daftar_cabang_admin'),
+    daftarLini:        ()  => panggil('daftar_lini'),
+    simpanLini:        (d) => panggil('simpan_lini', d),
     tambahCabang:      (d) => panggil('tambah_cabang', d, { timeout: 120000 }),
     simpanCabang:      (d) => panggil('simpan_cabang', d),
     daftarSetting:     ()  => panggil('daftar_setting'),

@@ -5115,10 +5115,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                    bukan barisnya, melainkan namanya — ganti nama, jangan hapus. */
                 const kembar = perangkat.filter(x => String(x.nama) === String(r.nama)).length;
                 const ini = String(r.id_perangkat) === String(APP_STATE.perangkat?.id);
+                /* MEJA-nya disisipkan sebagai baris kecil, bukan kolom baru.
+                   Tabel ini sudah tujuh kolom dan yang kedelapan terdorong keluar
+                   layar di tablet — keputusan yang sama diambil 16 Sep 2026 untuk
+                   umur, kunci, dan jumlah PIN salah. */
+                const lini = String(r.lini || '');
+                const namaLini = (APP_STATE.daftarLini || [])
+                  .find(x => String(x.kode) === lini);
                 return `${esc(r.nama || '')}` +
                   (ini ? ' <span class="lencana hijau">perangkat ini</span>' : '') +
                   (kembar > 1
-                    ? ` <span class="lencana kuning">nama ini dipakai ${kembar} baris</span>` : '');
+                    ? ` <span class="lencana kuning">nama ini dipakai ${kembar} baris</span>` : '') +
+                  (lini
+                    ? `<div class="meta-kecil">meja ${esc(namaLini ? namaLini.nama : lini)}</div>`
+                    : '<div class="meta-kecil petunjuk">belum punya meja</div>');
               } },
             { judul: 'Pemilik', render: r => pemilikPerangkat(r, user) },
             { judul: 'Cabang', kunci: 'cabang' },
@@ -5155,7 +5165,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: '', render: r => `
               ${bolehIzin('user', 'ubah')
                 ? tombolIkon('', 'Ganti nama perangkat', IKON.ubah,
-                    `data-nama-perangkat="${esc(r.id_perangkat)}"`) : ''}
+                    `data-nama-perangkat="${esc(r.id_perangkat)}"`) +
+                  tombolIkon('', 'Tetapkan meja (lini usaha)', IKON.buka_menu,
+                    `data-meja-perangkat="${esc(r.id_perangkat)}"`) : ''}
               ${bolehIzin('user', 'setujui') ? `
                 ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON.setujui,
                     `data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI"`) : ''}
@@ -7509,6 +7521,50 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await muat('pengguna');
           toast('Nama perangkat disimpan.');
         } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
+      /* MEJA perangkat. Dipisah dari dialog ganti nama, bukan digabung: `tanya`
+         hanya menerima satu isian teks, sedangkan meja harus DIPILIH dari daftar
+         — mengetik kode meja dengan tangan adalah cara termudah menaruh nota di
+         divisi yang salah. Dan dialog ganti nama yang sudah teruji tidak perlu
+         dibongkar untuk ini. */
+      if (d.mejaPerangkat) {
+        const r = ($('#isiPengguna')._perangkat || [])
+          .find(x => String(x.id_perangkat) === String(d.mejaPerangkat));
+        const daftar = APP_STATE.daftarLini || [];
+        if (!daftar.length) {
+          toast('Daftar lini usaha belum terisi. Tarik ulang master dulu.', 'galat');
+          return;
+        }
+        const kini = String(r?.lini || '');
+        bukaModal('Meja perangkat', `
+          <div class="pesan info">${esc(r ? `${r.kode} \u00b7 ${r.nama}` : d.mejaPerangkat)}</div>
+          <p class="petunjuk">Meja menentukan <strong>divisi mana</strong> yang memiliki nota
+             dari alat ini. Ia melekat pada alatnya, bukan pada orangnya — tablet menempel
+             di meja sedangkan petugas berganti shift. PC kantor dan gudang dibiarkan
+             <strong>tanpa meja</strong>; mereka memang bukan meja jualan.</p>
+          <label>Meja</label>
+          <select id="selMejaPerangkat">
+            <option value=""${kini ? '' : ' selected'}>— tanpa meja —</option>
+            ${daftar.map(x => `<option value="${esc(x.kode)}"${
+              String(x.kode) === kini ? ' selected' : ''}>${esc(x.nama)}</option>`).join('')}
+          </select>
+          <p class="petunjuk">Nota yang sudah terlanjur dibuat <strong>tidak berubah</strong> —
+             mejanya dibekukan pada notanya saat ia lahir.</p>`,
+          `<button class="tombol" data-tutup="1">Batal</button>
+           <button class="tombol utama" id="btnSimpanMeja">Simpan meja</button>`);
+        $('#btnSimpanMeja').addEventListener('click', async () => {
+          const lini = $('#selMejaPerangkat').value;
+          tutupModal();
+          try {
+            /* `nama` ikut dikirim karena server menuntutnya terisi; yang berubah
+               tetap hanya mejanya. */
+            await API.ubahPerangkat({ id_perangkat: d.mejaPerangkat, nama: r?.nama || '', lini });
+            await muat('pengguna');
+            toast(lini ? 'Meja perangkat disimpan.' : 'Perangkat dilepas dari meja.');
+          } catch (x) { toast(x.message, 'galat'); }
+        });
         return;
       }
 

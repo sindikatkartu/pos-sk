@@ -1538,6 +1538,7 @@ async function muatMaster() {
   bacaSettingKeState();
 
   await bacaCabangKeState();
+  await bacaLiniKeState();
 
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
@@ -3655,6 +3656,20 @@ const LAP_BAGIAN = [
  * Kesimpulan yang wajar diambil orang dari layar seperti itu: "pembuatan
  * cabangnya gagal" — lalu cabang kedua dibuat, dan sekarang ada dua.
  */
+/**
+ * Daftar LINI USAHA dari simpanan lokal ke APP_STATE.
+ *
+ * Dipisah dari bacaCabangKeState() walau dipanggil bersamaan: namanya
+ * menyebut apa yang ia baca, dan fungsi bernama "cabang" yang diam-diam juga
+ * mengisi lini adalah nama yang berbohong.
+ */
+async function bacaLiniKeState() {
+  const daftar = await DB.kvGet('lini_list', []);
+  APP_STATE.daftarLini = (daftar || []).slice()
+    .sort((a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) ||
+                     String(a.kode).localeCompare(String(b.kode)));
+}
+
 async function bacaCabangKeState() {
   const daftar = await DB.kvGet('cabang_list', []);
   const cab = daftar.find(c => c.kode === APP_STATE.cabang);
@@ -6098,6 +6113,7 @@ function pasangEvent() {
       bacaSettingKeState();
       APP_STATE.daftarPetugas = await DB.all('petugas');
       await bacaCabangKeState();
+      await bacaLiniKeState();
     } catch (e) { return; }
     gambarPilihanPetugas();
     /* Pemilih cabang Laporan digambar sekali saat mulai, jadi ia TIDAK ikut

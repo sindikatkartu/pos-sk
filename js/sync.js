@@ -267,6 +267,10 @@ const Sync = (() => {
       await DB.kvSet('versi_master', d.versi);
       await DB.kvSet('setting', d.setting);
       await DB.kvSet('cabang_list', d.cabang);
+      /* Server lama belum mengirim `lini`. Menimpa dengan array kosong akan
+         mengosongkan dropdown meja tanpa sebab — yang tidak dikirim dibiarkan,
+         pola yang sama dengan `petugas` di atas. */
+      if (Array.isArray(d.lini)) await DB.kvSet('lini_list', d.lini);
       await DB.kvSet('coa', d.coa);
       await DB.kvSet('master_diperbarui', new Date().toISOString());
 
