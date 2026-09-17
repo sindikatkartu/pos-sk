@@ -1537,12 +1537,7 @@ async function muatMaster() {
   APP_STATE.setting = await DB.kvGet('setting', {});
   bacaSettingKeState();
 
-  const daftarCabang = await DB.kvGet('cabang_list', []);
-  const cab = daftarCabang.find(c => c.kode === APP_STATE.cabang);
-  APP_STATE.namaCabang = cab ? cab.nama : APP_STATE.cabang;
-  // Seluruh cabang aktif — dipakai layar "intip stok", termasuk cabang yang user ini
-  // tidak berhak bertransaksi di sana. Yang ditampilkan hanya jumlah stok, bukan harga modal.
-  APP_STATE.daftarCabangSemua = daftarCabang.map(c => c.kode).sort(urutNama);
+  await bacaCabangKeState();
 
   const pel = await DB.all('pelanggan');
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
@@ -3647,6 +3642,33 @@ const LAP_BAGIAN = [
  * persis seperti pemilih cabang aktif di puncak layar: dropdown berisi satu
  * pilihan bukan pilihan, ia hiasan yang mengundang klik tanpa hasil.
  */
+/**
+ * Daftar cabang dari simpanan lokal ke APP_STATE.
+ *
+ * Dipanggil DUA kali: saat master dimuat, dan tiap kali master turun lagi.
+ * Sebelum 17 Sep 2026 isinya hanya ditulis sekali saat sesi dimulai, jadi
+ * cabang yang baru dibuat di back office tidak muncul di SATU PUN dropdown
+ * sampai halaman dimuat ulang — dan tidak ada tanda apa pun bahwa ada yang
+ * hilang. Dilaporkan pemilik hari itu: SKG01 sudah ada di server DAN di
+ * simpanan perangkat, tapi formulir akun tetap menawarkan tiga cabang.
+ *
+ * Kesimpulan yang wajar diambil orang dari layar seperti itu: "pembuatan
+ * cabangnya gagal" — lalu cabang kedua dibuat, dan sekarang ada dua.
+ */
+async function bacaCabangKeState() {
+  const daftar = await DB.kvGet('cabang_list', []);
+  const cab = daftar.find(c => c.kode === APP_STATE.cabang);
+  APP_STATE.namaCabang = cab ? cab.nama : APP_STATE.cabang;
+  /* Seluruh cabang aktif — dipakai layar "intip stok", termasuk cabang yang
+     user ini tidak berhak bertransaksi di sana. Yang ditampilkan hanya jumlah
+     stok, bukan harga modal. */
+  APP_STATE.daftarCabangSemua = daftar.map(c => c.kode).sort(urutNama);
+}
+
+/* Pendengar `change` pemilih cabang Laporan dipasang SEKALI seumur halaman —
+   lihat ujung pasangPilihCabangLaporan(). */
+let _pendengarCabangLaporan = false;
+
 function pasangPilihCabangLaporan() {
   const el = $('#lapCabang'), grup = $('#grupLapCabang');
   if (!el || !grup) return;
@@ -3660,8 +3682,14 @@ function pasangPilihCabangLaporan() {
   const daftar = sumber.slice().sort(urutNama);
   if (!APP_STATE.flag.akses_lintas_cabang || daftar.length < 2) return;   // tetap tersembunyi
 
+  /* Pilihannya DIPERTAHANKAN saat opsinya digambar ulang. Membangun ulang
+     innerHTML mengembalikan pilihan ke "Semua cabang" sementara LAP.cabang
+     masih memegang cabang yang lama — dropdown dan angka di bawahnya lalu
+     bercerita dua hal berbeda, dan yang salah justru yang terlihat benar. */
+  const dipilih = el.value;
   el.innerHTML = '<option value="*">Semua cabang</option>' +
     daftar.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (dipilih && Array.from(el.options).some(o => o.value === dipilih)) el.value = dipilih;
   grup.classList.remove('sembunyi');
 
   /* Digambar ulang SEKETIKA. Layar ini menyimpan hasil tiap tab selama
@@ -3669,6 +3697,11 @@ function pasangPilihCabangLaporan() {
      angka cabang lama tetap terpampang di bawah nama cabang yang baru — angka
      yang terlihat masuk akal dan sepenuhnya keliru. `tampilkanLaporan()`
      membuang seluruh simpanan itu. */
+  /* SEKALI saja. Fungsi ini dipanggil lagi tiap master turun supaya cabang
+     baru ikut masuk daftar; memasang pendengarnya berulang berarti satu kali
+     ganti cabang memicu dua tarikan penuh ke server. */
+  if (_pendengarCabangLaporan) return;
+  _pendengarCabangLaporan = true;
   el.addEventListener('change', () => {
     if (!LAP.dari || !LAP.sampai) { LAP.cabang = el.value; return; }
     tampilkanLaporan();
@@ -6064,8 +6097,12 @@ function pasangEvent() {
       APP_STATE.setting = await DB.kvGet('setting', {});
       bacaSettingKeState();
       APP_STATE.daftarPetugas = await DB.all('petugas');
+      await bacaCabangKeState();
     } catch (e) { return; }
     gambarPilihanPetugas();
+    /* Pemilih cabang Laporan digambar sekali saat mulai, jadi ia TIDAK ikut
+       tersegarkan oleh APP_STATE saja — opsinya sudah terlanjur jadi HTML. */
+    pasangPilihCabangLaporan();
   });
 
   $('#btnGantiPin').addEventListener('click', async () => {
