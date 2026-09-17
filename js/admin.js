@@ -5420,7 +5420,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   function kartuPulsa() {
     if (!bolehIzin('setting', 'lihat')) return '';
-    return `<div class="kartu set-grup">
+    return `<div class="kartu">
       <div class="bar-alat"><h3>Laporan Pulsa</h3></div>
       <p class="petunjuk">Sumber kedua buku konsolidasi. POS <strong>membaca</strong>
          spreadsheet Laporan Pulsa — tidak pernah menulis ke sana. Yang dibaca sheet
@@ -5429,9 +5429,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="keadaanPulsa" class="pesan info">Memeriksa sambungan…</div>
       ${bolehIzin('setting', 'ubah') ? `
         <label>Id spreadsheet Laporan Pulsa</label>
-        <input type="text" id="idPulsa" placeholder="potongan panjang di URL, antara /d/ dan /edit">
-        <p class="petunjuk">Ambil dari URL spreadsheet-nya:
-           <code>docs.google.com/spreadsheets/d/<strong>ID_INI</strong>/edit</code></p>
+        <input type="text" id="idPulsa" placeholder="tempel id di sini">
+        <p class="petunjuk">Buka spreadsheet Laporan Pulsa, lihat alamatnya di peramban.
+           Id-nya bagian panjang di antara <code>/d/</code> dan <code>/edit</code>.</p>
         <button class="tombol utama" id="btnSetupPulsa">Sambungkan &amp; periksa</button>` : ''}
     </div>`;
   }
@@ -5458,7 +5458,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       el.className = k.shift_tutup ? 'pesan sukses' : 'pesan';
       el.innerHTML = k.shift_tutup
         ? `Tersambung. <strong>${k.shift_tutup}</strong> shift tertutup
-           (${esc(k.tanggal_awal)} s.d. ${esc(k.tanggal_akhir)}), total penjualan
+           (${esc(tglTampil(k.tanggal_awal))} s.d. ${esc(tglTampil(k.tanggal_akhir))}), total penjualan
            <strong>${rp(k.total_penjualan)}</strong>.`
         : 'Tersambung, strukturnya sah — tetapi <strong>belum ada satu pun shift yang ditutup</strong> di sana. ' +
           'Jadi belum ada yang bisa dikonsolidasikan; ini bukan sambungan yang rusak.';
