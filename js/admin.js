@@ -5279,7 +5279,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatCabang() {
     memuat('#isiCabang');
     try {
-      $('#isiCabang')._rows = await API.daftarCabangAdmin();
+      /* Dua panggilan, satu layar. Daftar meja ditarik dengan `allSettled`
+         supaya kegagalannya tidak ikut menjatuhkan daftar cabang — dan yang
+         GAGAL dibedakan dari yang KOSONG. Kalau keduanya dijadikan `[]`,
+         layarnya akan berbohong: ia menulis "belum ada meja" untuk sesuatu
+         yang sebenarnya tidak berhasil ditanya. Jebakan yang sama pernah
+         menggigit Laporan Kerugian (KONTEKS bagian 175). */
+      const [cab, lini] = await Promise.allSettled([
+        API.daftarCabangAdmin(), API.daftarLini()
+      ]);
+      if (cab.status === 'rejected') throw cab.reason;
+      $('#isiCabang')._rows = cab.value;
+      $('#isiCabang')._lini = lini.status === 'fulfilled' ? lini.value : null;
+      $('#isiCabang')._liniGagal = lini.status === 'rejected'
+        ? (lini.reason?.message || String(lini.reason)) : '';
       gambarCabang();
     } catch (e) { galat('#isiCabang', e); }
   }
@@ -5303,7 +5316,73 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Prefix nota', kunci: 'prefix_nota' },
           { judul: '', render: r => `<button class="tombol kecil" data-edit-cabang="${esc(r.kode_cabang)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true, kunci: 'cabang' })}
+      </div>
+      ${gambarLini()}`;
+  }
+
+  /**
+   * Kartu MEJA (lini usaha) — sumbu kedua di sebelah cabang.
+   *
+   * Ditaruh di layar yang sama dengan cabang, bukan di layarnya sendiri,
+   * karena keduanya menjawab pertanyaan yang bersebelahan: cabang menjawab DI
+   * MANA sebuah nota lahir, meja menjawab DIVISI MANA yang memilikinya. Izin
+   * keduanya pun sama (`cabang.lihat` / `cabang.buat`), jadi memisahkannya
+   * cuma akan menambah satu menu tanpa menambah satu pun kemampuan.
+   */
+  function gambarLini() {
+    const w = $('#isiCabang');
+    const rows = w._lini;
+    const kepala = `<div class="bar-alat"><h3>Meja &middot; lini usaha</h3><div style="flex:1"></div>` +
+      (rows && bolehIzin('cabang', 'buat') ? tombolTambah('btnLiniBaru', 'Meja baru') : '') +
+      (rows ? menuTindakan({ id: 'menuLini', kunci: 'lini', idTombol: 'btnMenuLini',
+                            isi: butirNonaktif('lini', hitungMati(rows)) }) : '') + `</div>`;
+
+    /* Gagal ditanya TIDAK sama dengan tidak punya. Sebabnya ditulis apa
+       adanya, dan tabelnya tidak digambar sama sekali. */
+    if (!rows) {
+      return `<div class="kartu">${kepala}
+        <div class="pesan galat">Daftar meja gagal ditarik${
+          w._liniGagal ? ' — ' + esc(w._liniGagal) : ''}. Daftar cabang di atas tetap sahih.</div>
       </div>`;
+    }
+
+    return `<div class="kartu">${kepala}
+      <p class="petunjuk">Cabang menjawab <strong>di mana</strong> sebuah nota lahir; meja
+         menjawab <strong>divisi mana</strong> yang memilikinya. Satu toko bisa punya
+         beberapa meja dengan laci dan tanggung jawab sendiri-sendiri — tanpa sumbu ini
+         laporan hanya bisa bilang "SK01 untung sekian", tidak pernah bisa bilang divisi
+         mana yang menyubsidi divisi mana.</p>
+      <p class="petunjuk">Meja dilekatkan ke <strong>perangkat</strong>, bukan ke orang —
+         lihat layar Pengguna. Tablet menempel di mejanya sedangkan petugas berganti shift.</p>
+      ${tabel([
+        { judul: 'Kode', kunci: 'kode_lini' },
+        { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
+        { judul: 'Urutan', kunci: 'urutan', angka: true },
+        { judul: '', render: r => bolehIzin('cabang', 'ubah')
+            ? `<button class="tombol kecil" data-edit-lini="${esc(r.kode_lini)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>`
+            : '' }
+      ], rows, { kosong: 'Belum ada meja', pisahNonaktif: true, kunci: 'lini' })}
+    </div>`;
+  }
+
+  function editorLini(kode) {
+    const l = kode ? ($('#isiCabang')._lini || []).find(x => x.kode_lini === kode) : null;
+    bukaModal(l ? 'Ubah meja' : 'Meja baru', `
+      <div class="baris2">
+        <div class="grup"><label>Kode meja *</label>
+          <input type="text" id="lKode" value="${esc(l?.kode_lini || '')}" ${l ? 'disabled' : ''}
+                 placeholder="VOUCHER" maxlength="12"></div>
+        <div class="grup"><label>Nama *</label>
+          <input type="text" id="lNama" value="${esc(l?.nama || '')}" placeholder="Voucher &amp; Aksesoris"></div>
+      </div>
+      <div class="grup"><label>Urutan</label>
+        <input type="number" id="lUrutan" value="${esc(String(l?.urutan ?? 0))}" min="0"></div>
+      ${l ? `<label class="cek"><input type="checkbox" id="lAktif" ${l.aktif ? 'checked' : ''}> Aktif</label>` : ''}
+      <p class="petunjuk">Kode tidak bisa diubah setelah dibuat — ia sudah membeku pada
+         setiap nota yang lahir di meja ini. Namanya bebas diganti kapan saja.</p>
+      ${l ? '<p class="petunjuk">Meja yang masih dipakai perangkat tidak bisa dinonaktifkan; lepaskan dulu perangkatnya di layar Pengguna.</p>' : ''}`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanLini">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   function editorCabang(kode) {
@@ -7087,7 +7166,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       petugas:   gambarPetugas,
       user:      gambarPengguna,
       perangkat: gambarPengguna,
-      cabang:    gambarCabang
+      cabang:    gambarCabang,
+      /* Kartu meja tinggal DI DALAM layar Cabang, jadi yang menggambarnya
+         ulang pun gambarCabang() — ia yang memasang kedua kartunya. */
+      lini:      gambarCabang
     });
 
     /* Klik judul kolom = urutkan. Pendengarnya SATU, di dokumen, bukan dipasang
@@ -7596,6 +7678,28 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       /* --- cabang --- */
       if (t.id === 'btnCabangBaru') return editorCabang(null);
+      if (t.id === 'btnLiniBaru') return editorLini(null);
+      if (d.editLini) return editorLini(d.editLini);
+
+      if (t.id === 'btnSimpanLini') {
+        const kodeLama = $('#lKode').disabled ? $('#lKode').value : '';
+        try {
+          await API.simpanLini({
+            kode_lini: $('#lKode').value, nama: nilai('lNama'),
+            urutan: angka('lUrutan'),
+            aktif: $('#lAktif') ? centang('lAktif') : true
+          });
+          tutupModal();
+          /* Daftar meja ikut turun lewat `tarik_master`, dan dropdown di layar
+             Pengguna membacanya dari APP_STATE — bukan dari layar ini. Tanpa
+             tarikan paksa, meja yang baru dibuat tidak muncul di sana sampai
+             jajak berikutnya. Pola yang sama dipakai sesudah simpan petugas. */
+          await Sync.tarikMaster(true);
+          await muat('cabang');
+          toast(kodeLama ? 'Meja disimpan.' : 'Meja baru dibuat.');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
       if (d.editCabang)             return editorCabang(d.editCabang);
       if (t.id === 'btnSimpanCabang') {
         t.disabled = true;
