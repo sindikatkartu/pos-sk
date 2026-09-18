@@ -1728,6 +1728,21 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 @media (max-width: 1100px) { .petak-mini.petak-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px)  { .petak-mini.petak-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
+/* Kotak yang isinya UANG. 180px bukan selera: "Rp 2.602.411.130" pada
+   --fs-19 mengukur 154px, ditambah padding .mini 2 x 12px = 178px, dibulatkan
+   ke 180. Di bawah itu angkanya terpotong jadi "Rp 2.602.41…" — dan neraca
+   yang angkanya tidak terbaca kehilangan seluruh gunanya.
+
+   uji-rupa TIDAK menangkap ini: teks ber-ellipsis memang dikecualikan di sana,
+   karena ellipsis adalah cara yang sah untuk memendekkan nama. Untuk uang ia
+   tidak sah, jadi penjaganya berdiri sendiri di uji/uji-angka-utuh.mjs.
+
+   Kalau --fs-19 berubah, angka 180 ini ikut berubah. Penjaganya yang akan
+   memberi tahu, bukan mata orang. */
+.petak-mini.petak-uang {
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+}
+
 /* Petak kartu: tiga per baris, SAMA TINGGI (stretch); empat untuk baris
    peringkat; dua di tablet; satu di HP. Tidak ada kartu yang digabung —
    hanya lebar kolomnya yang diatur. */

@@ -5459,6 +5459,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const w = $('#hasilKons');
     if (!w) return;
     const kartu = (s) => {
+      if (s.gagal) {
+        /* Bacaan yang GAGAL tidak boleh tergambar sebagai "belum ada berkas":
+           yang hilang bukan nol, melainkan tidak diketahui. */
+        return `<div class="kartu rapat kartu-dash">
+          <h4>${esc(s.nama)} <span class="sub">tidak bisa dibaca</span></h4>
+          <div class="isi-dash"><div class="mini-nilai">?</div>
+            <p class="pesan galat">Berkas yang tersimpan tidak bisa dibaca:
+               ${esc(s.gagal)}. Angka Accurate TIDAK ikut dijumlahkan.</p></div>
+        </div>`;
+      }
       if (s.kode === 'ACCURATE' && s.belum_tersambung) {
         return `<div class="kartu rapat kartu-dash">
           <h4>${esc(s.nama)} <span class="sub">belum ada berkas</span></h4>
@@ -5493,12 +5503,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>`;
     };
 
+    /* Petak KPI di layar ini TIDAK memakai .petak-kpi. Kelas itu grid ENAM
+       KOLOM TETAP, dibuat untuk enam kotak Dasbor. Baris di sini isinya 2-4
+       kotak, jadi tiap kotak cuma kebagian seperenam lebar dan angka miliaran
+       terpotong jadi "Rp 2.602.41…" — diukur 19 Sep 2026: dapat 123px, butuh
+       154px, dan uji-rupa buta terhadapnya karena teks ber-ellipsis memang
+       dikecualikan di sana. .petak-mini sendirian sudah auto-fit: lebarnya
+       ikut isinya lewat .petak-uang, yang ambang lebarnya dihitung dari angka
+       terpanjang yang mungkin muncul, dan baris berisi dua kotak tidak lagi
+       menyisakan empat
+       kolom kosong. */
     w.innerHTML = `
       ${d.pulsa_gagal ? `<div class="kartu"><p class="pesan galat">
          <strong>Bagian pulsa tidak digambar</strong> karena datanya tidak bisa dibaca:
          ${esc(d.pulsa_gagal)}. Angka POS di bawah karena itu masih memuat pulsa di dalamnya —
          yang hilang bukan nol, melainkan tidak diketahui.</p></div>` : ''}
-      <div class="petak-mini petak-kpi">
+      <div class="petak-mini petak-uang">
         ${miniKons('Penjualan bersih', rp(d.penjualan_bersih), 'seluruh cabang & sumber')}
         ${miniKons('Laba kotor', rp(d.laba_kotor), 'sesudah HPP')}
         ${miniKons('Laba bersih', rp(d.laba_bersih), 'sesudah beban')}
@@ -5508,7 +5528,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${d.gabungan_penjualan !== null && d.gabungan_penjualan !== undefined ? `
       <div class="kartu">
         <h3>Gabungan POS + Accurate</h3>
-        <div class="petak-mini petak-kpi">
+        <div class="petak-mini petak-uang">
           ${miniKons('Penjualan gabungan', rp(d.gabungan_penjualan), 'buku POS + buku Accurate')}
           ${miniKons('Laba bersih gabungan', rp(d.gabungan_laba), 'buku POS + buku Accurate')}
         </div>
@@ -5518,6 +5538,39 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            barang pun yang tercatat di dua aplikasi — kalau suatu hari beririsan, angka
            inilah yang pertama harus dicabut.</p>
       </div>` : ''}
+      <div class="kartu">
+        <h3>Neraca Accurate</h3>
+        ${d.accurate_neraca_gagal ? `
+          <p class="pesan galat">Neraca yang tersimpan <strong>tidak bisa
+             dibaca</strong>: ${esc(d.accurate_neraca_gagal)}. Layar ini sengaja
+             tidak bilang "belum ada berkas" — yang hilang bukan nol, melainkan
+             tidak diketahui.</p>
+        ` : d.accurate_neraca ? `
+          <div class="petak-mini petak-uang">
+            ${miniKons('Aset', rpAtau(d.accurate_neraca.aset), 'jumlah aset')}
+            ${miniKons('Liabilitas', rpAtau(d.accurate_neraca.kewajiban), 'jumlah kewajiban')}
+            ${miniKons('Ekuitas', rpAtau(d.accurate_neraca.ekuitas), 'jumlah ekuitas')}
+          </div>
+          ${d.accurate_neraca.seimbang === false
+            ? `<p class="pesan galat"><strong>Neraca ini tidak seimbang.</strong>
+               Aset tidak sama dengan liabilitas ditambah ekuitas. Berkasnya lolos
+               waktu diunggah, jadi barisnya kemungkinan berubah sesudah itu —
+               unggah ulang ekspornya sebelum angka ini dipakai.</p>`
+            : d.accurate_neraca.seimbang === null
+              ? `<p class="pesan peringatan">Keseimbangannya <strong>tidak bisa
+                 diperiksa</strong>: salah satu baris totalnya tidak ketemu di berkas.
+                 Itu bukan berarti seimbang.</p>`
+              : `<p class="pesan sukses">Seimbang: aset = liabilitas + ekuitas.</p>`}
+          <p class="petunjuk">${esc(d.accurate_neraca.berkas || '')} ·
+             ${esc(waktuTampil(d.accurate_neraca.diunggah))}</p>
+          <div class="aksi">${tombolUnggahNeraca('Ganti berkas neraca')}</div>
+        ` : `
+          <p class="petunjuk">Belum ada berkas neraca untuk periode ini. Unggah hasil
+             ekspor <strong>Excel</strong> Neraca dari Accurate. Laba rugi menjawab
+             berapa yang dihasilkan; neraca menjawab apa yang dimiliki dan dihutangi —
+             dan hanya neraca yang bisa membuktikan pembukuannya utuh.</p>
+          <div class="aksi">${tombolUnggahNeraca()}</div>`}
+      </div>
       <div class="kartu">
         <h3>Kenapa angkanya bisa dipercaya</h3>
         <p class="petunjuk">Totalnya diambil apa adanya dari <strong>Laba Rugi lintas cabang</strong>,
@@ -5529,8 +5582,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>`;
 
     const inp = w.querySelector('#fileAcc');
-    if (inp) inp.addEventListener('change', () => kirimBerkasAcc(inp));
+    if (inp) inp.addEventListener('change', () => kirimBerkasAcc(inp, 'LR'));
+    const inpN = w.querySelector('#fileNer');
+    if (inpN) inpN.addEventListener('change', () => kirimBerkasAcc(inpN, 'NERACA'));
   }
+
+  const tombolUnggahNeraca = (label) =>
+    `<button class="tombol kecil" id="btnUnggahNer">${esc(label || 'Unggah Neraca')}</button>` +
+    `<input type="file" accept=".xlsx" id="fileNer" class="sembunyi">`;
+
+  /* rp(null) memulangkan "Rp 0". Baris total yang TIDAK KETEMU di berkas
+     karena itu terbaca sebagai aset nol — nol yang dikarang, dan yang paling
+     berbahaya justru karena bentuknya wajar. */
+  const rpAtau = (n) => (n === null || n === undefined) ? '—' : rp(n);
 
   const tombolUnggahAcc = (label) =>
     `<button class="tombol kecil" id="btnUnggahAcc">${esc(label || 'Unggah Laba Rugi')}</button>` +
@@ -5548,23 +5612,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
   }
 
-  async function kirimBerkasAcc(input) {
+  async function kirimBerkasAcc(input, jenis) {
     const f = input.files && input.files[0];
     if (!f) return;
     input.value = '';
     try {
       toast('Mengunggah dan memeriksa berkas…');
       const h = await API.unggahAccurate({
-        jenis: 'LR', periode: $('#konsPeriode').value,
+        jenis: jenis, periode: $('#konsPeriode').value,
         nama_berkas: f.name, data: await berkasKeBase64(f)
       });
       await muatHasilKons();
       const tak = (h.periksa || []).filter(x => x.status === 'TAK_TERPERIKSA');
       /* Pemeriksaan yang TIDAK BISA dijalankan disebut, bukan didiamkan: nol
          pemeriksaan yang gagal terlihat persis sama dengan nol yang lolos. */
+      /* Jenisnya disebut di pesannya: dua tombol mengirim ke tempat yang sama,
+         dan "Tersimpan" saja tidak memberi tahu yang mana yang barusan masuk. */
+      const jn = jenis === 'NERACA' ? 'Neraca' : 'Laba rugi';
       toast(tak.length
-        ? ('Tersimpan, tapi ' + tak.length + ' pemeriksaan tidak bisa dijalankan — baris totalnya tidak ketemu.')
-        : ('Tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.'));
+        ? (jn + ' tersimpan, tapi ' + tak.length + ' pemeriksaan tidak bisa dijalankan — baris totalnya tidak ketemu.')
+        : (jn + ' tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.'));
     } catch (e) { toast(e.message, 'galat'); }
   }
 
@@ -8413,6 +8480,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
       if (d.tabpulsa) return muatPulsa(d.tabpulsa);
       if (t.id === 'btnUnggahAcc') { $('#fileAcc')?.click(); return; }
+      if (t.id === 'btnUnggahNer') { $('#fileNer')?.click(); return; }
       if (t.id === 'btnKeluarBaru') {
         const w = $('#isiShiftpulsa');
         if (w && w._keluar) { w._keluar.push({ keterangan: '', jumlah: 0 }); gambarShiftpulsa(); }
