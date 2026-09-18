@@ -158,6 +158,7 @@ const MENU = [
      yang belum ada adalah janji palsu — alasan yang sama dipakai saat
      `utang` dibuang dari MODUL di v1.65. */
   { id: 'sumberpulsa', label: 'Sumber Saldo', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
+  { id: 'shiftpulsa', label: 'Shift Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
   { id: 'sistem',     label: 'Pengaturan Sistem', grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },

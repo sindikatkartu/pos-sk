@@ -5418,6 +5418,170 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * Tombol bernama "Simpan" untuk sesuatu yang juga memeriksa membuat orang
    * mengira diamnya berarti berhasil.
    */
+  /* Angka tanpa "Rp" — untuk isi kolom input, yang harus bisa diketik ulang. */
+  const rp0 = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+  /* ==================== SHIFT PULSA ====================
+     Tahap 2 (bagian 189). Shift pulsa berdiri sendiri — dua laci terpisah,
+     jadi kas pulsa punya kas awal, kas fisik, dan selisihnya sendiri.
+
+     Angka di layar ini DIHITUNG ULANG setiap ketikan, tapi yang menentukan
+     tetap server: klien cuma memperlihatkan lebih awal apa yang akan dijawab
+     server, supaya yang mengisi tidak menekan Tutup lalu ditolak. */
+  async function muatShiftpulsa() {
+    memuat('#isiShiftpulsa');
+    try {
+      const d = await API.shiftPulsaAktif({});
+      $('#isiShiftpulsa')._st = d;
+      gambarShiftpulsa();
+    } catch (e) { galat('#isiShiftpulsa', e); }
+  }
+
+  /** Hitungan yang SAMA dengan _hitungShiftPulsa di server. */
+  function hitungShiftpulsa(st, keluar) {
+    let modal = 0, jual = 0, deposit = 0, reward = 0;
+    (st.sumber || []).forEach(s => {
+      modal += (+s.saldo_awal || 0) + (+s.deposit || 0) - (+s.saldo_akhir || 0);
+      jual += (+s.penjualan || 0); deposit += (+s.deposit || 0); reward += (+s.reward || 0);
+    });
+    const kasSistem = (+st.kas_awal || 0) + jual - deposit - (+keluar || 0);
+    return { modal, jual, deposit, reward, kasSistem, margin: jual - modal - (+keluar || 0) };
+  }
+
+  function gambarShiftpulsa() {
+    const w = $('#isiShiftpulsa');
+    if (!w) return;
+    const st = w._st || {};
+    if (!st.aktif) return gambarBukaShiftpulsa(w, st);
+    gambarTutupShiftpulsa(w, st);
+  }
+
+  function gambarBukaShiftpulsa(w, st) {
+    const sumber = st.sumber || [];
+    w.innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Buka shift pulsa</h3></div>
+        ${sumber.length ? '' : `<p class="pesan galat">Belum ada sumber saldo untuk cabang ini.
+           Isi dulu di menu Sumber Saldo — shift tidak bisa dibuka tanpa satu pun sumber.</p>`}
+        <div class="saring-baris">
+          <div class="kendali-tetap"><label>Jenis shift</label><select id="spsJenis">
+            ${['PAGI', 'SIANG', 'MALAM'].map(j => `<option value="${j}">${j}</option>`).join('')}
+          </select></div>
+          <div class="kendali-tetap"><label>Kas awal</label>
+            <input type="text" id="spsKasAwal" value="${rp0(st.kas_awal)}" ${st.kas_awal ? 'disabled' : ''}></div>
+        </div>
+        <p class="petunjuk">${st.kas_awal
+          ? 'Kas awal diwarisi dari shift sebelumnya di cabang ini — tidak bisa diketik.'
+          : 'Belum ada shift sebelumnya di cabang ini, jadi kas awalnya diisi sekali di sini.'}</p>
+      </div>
+      <div class="kartu">
+        <h3>Saldo awal yang diwarisi</h3>
+        <p class="petunjuk">Angka ini saldo akhir shift sebelumnya. Lihat dulu sebelum menekan
+           Buka — sesudah shift berjalan, saldo awalnya tidak bisa diubah.</p>
+        <div class="gulir-x">
+          <table class="tabel">
+            <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th></tr></thead>
+            <tbody>${sumber.map(s => `<tr>
+              <td data-l="Sumber">${esc(s.nama)} <span class="petunjuk">${esc(s.kode_sumber)}</span></td>
+              <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="kartu"><div class="aksi">
+        <button class="tombol utama" id="btnBukaShiftPulsa" ${sumber.length ? '' : 'disabled'}>Buka shift</button>
+      </div></div>`;
+  }
+
+  function gambarTutupShiftpulsa(w, st) {
+    const keluar = w._keluar || 0;
+    const h = hitungShiftpulsa(st, keluar);
+    const selisih = (+w._kasFisik || 0) - h.kasSistem;
+    const ganjil = [];
+    if (selisih !== 0) ganjil.push('selisih kas ' + rp(selisih));
+    if (h.margin < 0) ganjil.push('margin ' + rp(h.margin));
+
+    w.innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Tutup shift pulsa</h3></div>
+        <p class="petunjuk">${esc(st.kode_cabang)} · ${esc(st.jenis_shift)} · dibuka
+           ${esc(waktuTampil(st.buka))} · id <code>${esc(st.id_shift)}</code></p>
+      </div>
+      <div class="kartu">
+        <h3>Saldo per sumber</h3>
+        <div class="gulir-x">
+          <table class="tabel">
+            <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th><th class="kanan">Deposit masuk</th>
+              <th class="kanan">Saldo akhir</th><th class="kanan">Konsumsi (modal)</th>
+              <th class="kanan">Penjualan</th><th class="kanan">Reward</th></tr></thead>
+            <tbody>${(st.sumber || []).map((s, i) => `<tr>
+              <td data-l="Sumber">${esc(s.nama)}<br><span class="petunjuk">${esc(s.kode_sumber)}</span></td>
+              <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}<br><span class="petunjuk">terkunci</span></td>
+              <td data-l="Deposit masuk"><input type="text" class="kanan uang spsAngka" data-sp="deposit" data-i="${i}" value="${rp0(s.deposit)}"></td>
+              <td data-l="Saldo akhir"><input type="text" class="kanan uang spsAngka" data-sp="saldo_akhir" data-i="${i}" value="${rp0(s.saldo_akhir)}"></td>
+              <td class="kanan" data-l="Konsumsi (modal)"><strong>${rp((+s.saldo_awal || 0) + (+s.deposit || 0) - (+s.saldo_akhir || 0))}</strong></td>
+              <td data-l="Penjualan"><input type="text" class="kanan uang spsAngka" data-sp="penjualan" data-i="${i}" value="${rp0(s.penjualan)}"></td>
+              <td data-l="Reward"><input type="text" class="kanan uang spsAngka" data-sp="reward" data-i="${i}" value="${rp0(s.reward)}"></td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="kartu">
+        <h3>Kas</h3>
+        <div class="saring-baris">
+          <div class="kendali-tetap"><label>Kas awal</label><input type="text" value="${rp0(st.kas_awal)}" disabled></div>
+          <div class="kendali-tetap"><label>Kas akhir fisik</label><input type="text" id="spsKasFisik" class="uang spsAngka" data-sp="kas_fisik" value="${rp0(w._kasFisik)}"></div>
+          <div class="kendali-tetap"><label>Pengeluaran lain</label><input type="text" id="spsKeluar" class="uang spsAngka" data-sp="keluar" value="${rp0(keluar)}"></div>
+        </div>
+        <p class="petunjuk">Kas akhir fisik = hasil menghitung uang sungguhan di laci, bukan angka
+           yang dicocokkan supaya selisihnya nol.</p>
+      </div>
+      <div class="kartu">
+        <h3>Hasil hitung</h3>
+        <div class="petak-mini petak-kpi">
+          ${miniSp('Total penjualan', rp(h.jual), 'dari kolom Penjualan')}
+          ${miniSp('Modal saldo', rp(h.modal), 'konsumsi seluruh sumber')}
+          ${miniSp('Margin laba', rp(h.margin), 'penjualan − modal − pengeluaran')}
+          ${miniSp('Selisih kas', rp(selisih), 'fisik − sistem')}
+        </div>
+        ${ganjil.length ? `<p class="pesan galat"><strong>Perlu catatan sebelum ditutup:</strong>
+           ${ganjil.join(' dan ')}. Periksa dulu angkanya — deposit yang terbaca sebagai saldo
+           terpakai membuat modal melonjak melewati penjualan. Kalau angkanya memang benar,
+           tulis sebabnya di bawah.</p>` : ''}
+        <div class="grup"><label>Catatan${ganjil.length ? ' *' : ''}</label>
+          <input type="text" id="spsCatatan" value="${esc(w._catatan || '')}"
+                 placeholder="${ganjil.length ? 'wajib diisi' : 'boleh dikosongkan'}"></div>
+      </div>
+      <div class="kartu"><div class="aksi">
+        <button class="tombol utama" id="btnTutupShiftPulsa">Tutup shift</button>
+      </div></div>`;
+
+    /* Digambar ulang pada CHANGE, bukan INPUT: menggambar ulang di tiap ketikan
+       mencabut fokus dari kolom yang sedang diisi, dan yang mengisi kehilangan
+       tempatnya di tengah angka. */
+    w.querySelectorAll('.spsAngka').forEach(el => {
+      el.addEventListener('change', () => { ubahAngkaShiftpulsa(el); gambarShiftpulsa(); });
+    });
+    const cat = w.querySelector('#spsCatatan');
+    if (cat) cat.addEventListener('input', () => { w._catatan = cat.value; });
+  }
+
+  const miniSp = (label, nilai, ekor) =>
+    `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div>` +
+    `<div class="mini-nilai">${nilai}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
+
+  /* Angka ditulis ke keadaan layar, BUKAN dibaca ulang dari DOM saat menyimpan.
+     Membacanya dari DOM berarti satu kolom yang lupa dibaca mengirim nol tanpa
+     satu pun tanda — dan nol di kolom saldo akhir melonjakkan modal. */
+  function ubahAngkaShiftpulsa(el) {
+    const w = $('#isiShiftpulsa');
+    if (!w || !w._st) return;
+    const v = angkaDari(el.value);
+    const sp = el.dataset.sp;
+    if (sp === 'kas_fisik') { w._kasFisik = v; }
+    else if (sp === 'keluar') { w._keluar = v; }
+    else { const s = (w._st.sumber || [])[+el.dataset.i]; if (s) s[sp] = v; }
+  }
+
   /* ==================== SUMBER SALDO PULSA ====================
      Master sumber saldo — aplikasi multi payment dan provider resmi tempat
      saldo pulsa dibeli. Tahap 1 perpindahan pulsa ke POS (bagian 187).
@@ -7298,6 +7462,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
                       diskon: '#isiDiskon',
                       sumberpulsa: '#isiSumberpulsa',
+                      shiftpulsa: '#isiShiftpulsa',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
         $(wadah).innerHTML = `<div class="pesan info">Menu ini butuh koneksi internet.
@@ -7327,6 +7492,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
       case 'sumberpulsa': return muatSumberpulsa();
+      case 'shiftpulsa': return muatShiftpulsa();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
     }
@@ -7910,6 +8076,42 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editCabang)             return editorCabang(d.editCabang);
       if (d.editSumber)             return editorSumberpulsa(d.editSumber);
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
+      if (t.id === 'btnBukaShiftPulsa') {
+        t.disabled = true;
+        try {
+          await API.bukaShiftPulsa({
+            jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
+            kas_awal: $('#spsKasAwal') ? angkaDari($('#spsKasAwal').value) : 0
+          });
+          await muat('shiftpulsa');
+          toast('Shift pulsa dibuka.');
+        } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
+        return;
+      }
+      if (t.id === 'btnTutupShiftPulsa') {
+        t.disabled = true;
+        const w = $('#isiShiftpulsa');
+        const st = (w && w._st) || {};
+        try {
+          const h = await API.tutupShiftPulsa({
+            id_shift: st.id_shift,
+            kas_fisik: +w._kasFisik || 0,
+            total_keluar: +w._keluar || 0,
+            catatan: (w._catatan || '').trim(),
+            /* Angka dikirim dari KEADAAN layar, bukan dibaca ulang dari DOM:
+               satu kolom yang lupa dibaca mengirim nol tanpa tanda apa pun, dan
+               nol di kolom saldo akhir melonjakkan modal. */
+            sumber: (st.sumber || []).map(s => ({
+              kode_sumber: s.kode_sumber, deposit: +s.deposit || 0,
+              saldo_akhir: +s.saldo_akhir || 0, penjualan: +s.penjualan || 0,
+              reward: +s.reward || 0
+            }))
+          });
+          await muat('shiftpulsa');
+          toast('Shift ditutup. Margin ' + rp(h.margin) + ', selisih kas ' + rp(h.selisih) + '.');
+        } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
+        return;
+      }
       if (t.id === 'btnSiapkanPulsaPos') {
         t.disabled = true;
         const el = $('#keadaanPulsaPos');
