@@ -5420,6 +5420,158 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   /* Angka tanpa "Rp" — untuk isi kolom input, yang harus bisa diketik ulang. */
   const rp0 = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+  /* ==================== RINGKASAN GABUNGAN ====================
+     Bagian 191. Tiga sumber yang membentuk seluruh usaha, dibaca dari SATU
+     angka resmi: Laba Rugi lintas cabang. Layar ini tidak menjumlahkan sendiri
+     kartu-kartu di atasnya — jumlah kartu bisa berbeda karena pembulatan, dan
+     yang dipercaya orang adalah angka yang paling besar tercetak. */
+  const PERIODE_KONS = { id: 'konsPeriodePilih', dari: 'konsPeriode', bulanan: true,
+                         nilai: 'bulan', label: 'Periode' };
+
+  async function muatKonsolidasi() {
+    const w = $('#isiKonsolidasi');
+    if (!w) return;
+    if (!$('#konsPeriode')) {
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3>Ringkasan gabungan</h3>
+            <span class="wadah-periode" id="wadahPeriodeKons"></span></div>
+          <p class="petunjuk">Tiga sumber yang membentuk seluruh usaha. Angkanya dibaca dari
+             Laba Rugi lintas cabang — laporan yang sama persis dengan menu Keuangan, bukan
+             hitungan kedua yang cepat atau lambat akan menyimpang darinya.</p>
+        </div>
+        <div id="hasilKons"></div>`;
+      $('#wadahPeriodeKons').innerHTML = Periode.html(PERIODE_KONS);
+      Periode.pasang(PERIODE_KONS, muatHasilKons);
+    }
+    return muatHasilKons();
+  }
+
+  async function muatHasilKons() {
+    memuat('#hasilKons');
+    try {
+      const d = await API.ringkasanKonsolidasi({ periode: $('#konsPeriode').value });
+      gambarKons(d);
+    } catch (e) { galat('#hasilKons', e); }
+  }
+
+  function gambarKons(d) {
+    const w = $('#hasilKons');
+    if (!w) return;
+    const kartu = (s) => {
+      if (s.kode === 'ACCURATE' && s.belum_tersambung) {
+        return `<div class="kartu rapat kartu-dash">
+          <h4>${esc(s.nama)} <span class="sub">belum ada berkas</span></h4>
+          <div class="isi-dash"><div class="mini-nilai">—</div>
+            <p class="petunjuk">Unggah hasil ekspor <strong>Excel</strong> Laba Rugi dari
+               Accurate untuk periode ini. Sengaja tidak menampilkan angka: nol yang
+               dikarang di sini terbaca "Accurate tidak menjual apa-apa".</p></div>
+          <div class="kaki-dash">${tombolUnggahAcc()}</div>
+        </div>`;
+      }
+      if (s.belum_tersambung) {
+        return `<div class="kartu rapat kartu-dash">
+          <h4>${esc(s.nama)} <span class="sub">belum tersambung</span></h4>
+          <div class="isi-dash"><div class="mini-nilai">—</div></div>
+        </div>`;
+      }
+      if (s.dari_berkas) {
+        return `<div class="kartu rapat kartu-dash">
+          <h4>${esc(s.nama)} <span class="sub">dari berkas</span></h4>
+          <div class="isi-dash"><div class="mini-nilai">${rp(s.penjualan)}</div>
+            <p class="petunjuk">Laba bersih ${rp(s.laba)}<br>
+               <span class="petunjuk">${esc(s.berkas || '')} · ${esc(waktuTampil(s.diunggah))}</span></p></div>
+          <div class="kaki-dash">${tombolUnggahAcc('Ganti berkas')}</div>
+        </div>`;
+      }
+      return `<div class="kartu rapat kartu-dash">
+        <h4>${esc(s.nama)} <span class="sub">${s.sisa ? 'sisanya' : (s.shift || 0) + ' shift'}</span></h4>
+        <div class="isi-dash"><div class="mini-nilai">${rp(s.penjualan)}</div>
+          <p class="petunjuk">Laba ${rp(s.laba)}${s.selisih_kas
+            ? ` · selisih kas <span class="delta turun">${rp(s.selisih_kas)}</span>` : ''}</p></div>
+        <div class="kaki-dash"><span class="pesan sukses">Terjurnal</span></div>
+      </div>`;
+    };
+
+    w.innerHTML = `
+      ${d.pulsa_gagal ? `<div class="kartu"><p class="pesan galat">
+         <strong>Bagian pulsa tidak digambar</strong> karena datanya tidak bisa dibaca:
+         ${esc(d.pulsa_gagal)}. Angka POS di bawah karena itu masih memuat pulsa di dalamnya —
+         yang hilang bukan nol, melainkan tidak diketahui.</p></div>` : ''}
+      <div class="petak-mini petak-kpi">
+        ${miniKons('Penjualan bersih', rp(d.penjualan_bersih), 'seluruh cabang & sumber')}
+        ${miniKons('Laba kotor', rp(d.laba_kotor), 'sesudah HPP')}
+        ${miniKons('Laba bersih', rp(d.laba_bersih), 'sesudah beban')}
+        ${miniKons('Margin bersih', (d.margin_bersih_persen || 0) + ' %', 'dari penjualan bersih')}
+      </div>
+      <div class="petak-dash">${(d.sumber || []).map(kartu).join('')}</div>
+      ${d.gabungan_penjualan !== null && d.gabungan_penjualan !== undefined ? `
+      <div class="kartu">
+        <h3>Gabungan POS + Accurate</h3>
+        <div class="petak-mini petak-kpi">
+          ${miniKons('Penjualan gabungan', rp(d.gabungan_penjualan), 'buku POS + buku Accurate')}
+          ${miniKons('Laba bersih gabungan', rp(d.gabungan_laba), 'buku POS + buku Accurate')}
+        </div>
+        <p class="petunjuk"><strong>Angka ini tidak akan cocok dengan Laba Rugi di menu
+           Keuangan, dan memang tidak seharusnya.</strong> Accurate punya pembukuannya
+           sendiri dan tidak dijurnal di POS. Penjumlahan ini sah karena tidak ada satu
+           barang pun yang tercatat di dua aplikasi — kalau suatu hari beririsan, angka
+           inilah yang pertama harus dicabut.</p>
+      </div>` : ''}
+      <div class="kartu">
+        <h3>Kenapa angkanya bisa dipercaya</h3>
+        <p class="petunjuk">Totalnya diambil apa adanya dari <strong>Laba Rugi lintas cabang</strong>,
+           bukan dijumlahkan dari kartu di atas. Pulsa sudah masuk buku besar sejak v1.203.0, jadi
+           total itu memang sudah memuatnya — dan justru karena itu bagian POS dihitung sebagai
+           <strong>sisanya</strong>, bukan diukur sendiri. Dua pengukuran atas hal yang sama pasti
+           menyimpang, dan yang menyimpang di laporan konsolidasi adalah angka yang dibawa orang
+           ke luar.</p>
+      </div>`;
+
+    const inp = w.querySelector('#fileAcc');
+    if (inp) inp.addEventListener('change', () => kirimBerkasAcc(inp));
+  }
+
+  const tombolUnggahAcc = (label) =>
+    `<button class="tombol kecil" id="btnUnggahAcc">${esc(label || 'Unggah Laba Rugi')}</button>` +
+    `<input type="file" accept=".xlsx" id="fileAcc" class="sembunyi">`;
+
+  /* Berkas dikirim base64 TELANJANG, tanpa awalan "data:…;base64,". Awalan
+     yang ikut terkirim membuat Utilities.base64Decode melempar, dan galatnya
+     tidak menyebut sebabnya sama sekali. */
+  function berkasKeBase64(file) {
+    return new Promise((selesai, gagalkan) => {
+      const r = new FileReader();
+      r.onload = () => { const s = String(r.result); selesai(s.slice(s.indexOf(',') + 1)); };
+      r.onerror = () => gagalkan(new Error('Berkas tidak bisa dibaca.'));
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function kirimBerkasAcc(input) {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    input.value = '';
+    try {
+      toast('Mengunggah dan memeriksa berkas…');
+      const h = await API.unggahAccurate({
+        jenis: 'LR', periode: $('#konsPeriode').value,
+        nama_berkas: f.name, data: await berkasKeBase64(f)
+      });
+      await muatHasilKons();
+      const tak = (h.periksa || []).filter(x => x.status === 'TAK_TERPERIKSA');
+      /* Pemeriksaan yang TIDAK BISA dijalankan disebut, bukan didiamkan: nol
+         pemeriksaan yang gagal terlihat persis sama dengan nol yang lolos. */
+      toast(tak.length
+        ? ('Tersimpan, tapi ' + tak.length + ' pemeriksaan tidak bisa dijalankan — baris totalnya tidak ketemu.')
+        : ('Tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.'));
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  const miniKons = (label, nilai, ekor) =>
+    `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div>` +
+    `<div class="mini-nilai">${nilai}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
+
   /* ==================== MENU PULSA — SATU PINTU ====================
      Diminta pemilik 18 Sep 2026: "pulsa ya semua terkait dengan pulsa kumpul
      disatu menu", jangan terpecah-pecah. Shift, master sumber saldo, dan
@@ -7645,6 +7797,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
                       diskon: '#isiDiskon',
                       pulsa: '#isiPulsa',
+                      konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
         $(wadah).innerHTML = `<div class="pesan info">Menu ini butuh koneksi internet.
@@ -7674,6 +7827,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
       case 'pulsa': return muatPulsa();
+      case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
     }
@@ -8258,6 +8412,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editSumber)             return editorSumberpulsa(d.editSumber);
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
       if (d.tabpulsa) return muatPulsa(d.tabpulsa);
+      if (t.id === 'btnUnggahAcc') { $('#fileAcc')?.click(); return; }
       if (t.id === 'btnKeluarBaru') {
         const w = $('#isiShiftpulsa');
         if (w && w._keluar) { w._keluar.push({ keterangan: '', jumlah: 0 }); gambarShiftpulsa(); }
