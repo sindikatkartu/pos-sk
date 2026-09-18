@@ -152,6 +152,12 @@ const MENU = [
   { id: 'poin',       label: 'Poin & Performa', grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
+  /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
+     Isinya BARU SATU dan itu disengaja: Ringkasan Gabungan, Laporan Pulsa,
+     dan Accurate menyusul bersama layarnya masing-masing. Menu untuk layar
+     yang belum ada adalah janji palsu — alasan yang sama dipakai saat
+     `utang` dibuang dari MODUL di v1.65. */
+  { id: 'sumberpulsa', label: 'Sumber Saldo', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
   { id: 'sistem',     label: 'Pengaturan Sistem', grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
@@ -182,7 +188,7 @@ const MENU = [
    "Tentang" adalah urusan PRIBADI pemakai — selalu tampil untuk semua peran —
    sementara Sistem berisi pengaturan yang mengubah keadaan seluruh toko.
    Mencampurnya membuat kelompok Sistem panjang dan isinya tidak sederajat. */
-const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Laporan', 'Sistem', 'Akun'];
+const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Laporan', 'Konsolidasi', 'Sistem', 'Akun'];
 
 /**
  * IKON — digambar sebaris sebagai SVG, BUKAN diambil dari CDN ikon.

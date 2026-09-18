@@ -5418,6 +5418,126 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * Tombol bernama "Simpan" untuk sesuatu yang juga memeriksa membuat orang
    * mengira diamnya berarti berhasil.
    */
+  /* ==================== SUMBER SALDO PULSA ====================
+     Master sumber saldo — aplikasi multi payment dan provider resmi tempat
+     saldo pulsa dibeli. Tahap 1 perpindahan pulsa ke POS (bagian 187).
+
+     Layarnya sengaja polos: dua baris yang berubah setahun sekali tidak butuh
+     saringan, ekspor, maupun mode nonaktif. Menambahkannya sekarang berarti
+     merawat tiga hal yang tidak pernah dipakai siapa pun. */
+  async function muatSumberpulsa() {
+    memuat('#isiSumberpulsa');
+    try {
+      const d = await API.daftarSumberPulsa();
+      $('#isiSumberpulsa')._rows = d.sumber || [];
+      gambarSumberpulsa();
+    } catch (e) { galat('#isiSumberpulsa', e); }
+  }
+
+  /* Dipisah dari render tabelnya semata supaya template literal tidak
+     bersarang tiga lapis — yang bersarang begitu mudah salah dibaca. */
+  const tombolUbahSumber = (kode) =>
+    bolehIzin('pulsa', 'ubah')
+      ? `<button class="tombol kecil" data-edit-sumber="${esc(kode)}" title="Ubah">`
+        + `${ikonAlat('ubah')}<span>Ubah</span></button>`
+      : '';
+
+  function gambarSumberpulsa() {
+    const w = $('#isiSumberpulsa');
+    if (!w) return;
+    const rows = w._rows || [];
+    w.innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Sumber saldo pulsa</h3><div style="flex:1"></div>
+          ${bolehIzin('pulsa', 'ubah') ? tombolTambah('btnSumberBaru', 'Sumber baru') : ''}</div>
+        <p class="petunjuk">Saldo awal, deposit, dan saldo akhir dicatat per sumber di tiap
+           shift — selisihnya itulah modal pulsa yang terjual.</p>
+        ${tabel([
+          { judul: 'Kode', kunci: 'kode_sumber' },
+          { judul: 'Nama', kunci: 'nama' },
+          { judul: 'Jenis', kunci: 'jenis' },
+          { judul: 'Cabang', render: r => String(r.cabang || '*') === '*' ? 'Semua cabang' : esc(String(r.cabang)) },
+          { judul: 'Urutan', kunci: 'urutan' },
+          { judul: '', render: r => tombolUbahSumber(r.kode_sumber) }
+        ], rows, { kosong: 'Belum ada sumber saldo' })}
+      </div>`;
+  }
+
+  function editorSumberpulsa(kode) {
+    const s = kode ? ($('#isiSumberpulsa')._rows || []).find(x => x.kode_sumber === kode) : null;
+    bukaModal(s ? 'Ubah sumber saldo' : 'Sumber saldo baru', `
+      <div class="baris2">
+        <div class="grup"><label>Kode *</label>
+          <input type="text" id="spKode" value="${esc(s?.kode_sumber || '')}" ${s ? 'disabled' : ''} placeholder="MP01" maxlength="12"></div>
+        <div class="grup"><label>Nama *</label><input type="text" id="spNama" value="${esc(s?.nama || '')}" placeholder="BOS PULSA"></div>
+      </div>
+      <div class="baris2">
+        <div class="grup"><label>Jenis</label><select id="spJenis">
+          ${['MULTI_PAYMENT', 'PROVIDER_RESMI'].map(j =>
+            `<option value="${j}" ${String(s?.jenis || 'MULTI_PAYMENT') === j ? 'selected' : ''}>${j}</option>`).join('')}
+        </select></div>
+        <div class="grup"><label>Urutan</label><input type="text" id="spUrutan" value="${esc(String(s?.urutan ?? 99))}"></div>
+      </div>
+      <div class="grup"><label>Cabang</label><input type="text" id="spCabang" value="${esc(String(s?.cabang || '*'))}" placeholder="* atau SK01,SK02"></div>
+      <p class="petunjuk">Isi <code>*</code> kalau sumber ini dipakai seluruh cabang, atau daftar
+         kode cabang dipisah koma. Kode yang tidak dikenal ditolak server — salah ketik di
+         sini baru terlihat berbulan-bulan kemudian sebagai sumber yang tidak pernah muncul
+         di cabang mana pun.</p>
+      ${s ? `<label class="cek"><input type="checkbox" id="spAktif" ${s.aktif === false ? '' : 'checked'}> Aktif</label>` : ''}`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanSumber">${ikonAlat('simpan')}<span>Simpan</span></button>`);
+  }
+
+  /**
+   * Database pulsa milik POS — kartunya sendiri di layar Sistem.
+   *
+   * Berkasnya dibuat dari sini, SEKALI, bukan oleh `susulanRilis()`. Panggilan
+   * pertama sesudah versi berganti sudah membayar 32,7 detik untuk memigrasikan
+   * empat berkas yang ada (bagian 186) — melewati batas 30 detik di sisi klien —
+   * dan menambahkan berkas kelima di sana membebani satu-satunya panggilan yang
+   * paling tidak mampu menanggungnya.
+   */
+  function kartuPulsaPos() {
+    if (!bolehIzin('setting', 'lihat')) return '';
+    return `<div class="kartu">
+      <div class="bar-alat"><h3>Database pulsa</h3></div>
+      <p class="petunjuk">Berkas tempat POS mencatat shift pulsa, saldo per sumber, dan
+         pengeluarannya. Terpisah dari database kasir maupun buku besar.</p>
+      <div id="keadaanPulsaPos" class="pesan info">Memeriksa…</div>
+      ${bolehIzin('setting', 'ubah')
+        ? `<button class="tombol utama" id="btnSiapkanPulsaPos">Siapkan database pulsa</button>
+           <p class="petunjuk">Aman ditekan berulang: yang sudah ada hanya disusulkan sheet
+              atau kolom yang kurang, tidak satu pun baris data disentuh. Pembuatan berkas
+              baru di Drive bisa memakan waktu sampai satu menit — jangan tutup jendela.</p>`
+        : ''}
+    </div>`;
+  }
+
+  async function muatKeadaanPulsaPos() {
+    const el = $('#keadaanPulsaPos');
+    if (!el) return;
+    try {
+      const k = await API.keadaanPulsaPos();
+      if (!k.siap) {
+        el.className = 'pesan';
+        /* Tiga keadaan dibedakan — belum dibuat, dibuat tapi tidak terbaca, dan
+           kurang sheet — karena ketiganya menuntut tindakan yang berbeda.
+           Diringkas jadi satu pesan, dua di antaranya jadi salah (bagian 183). */
+        el.textContent = !k.id ? 'Belum dibuat. Tekan tombol di bawah satu kali.'
+          : k.pesan ? ('Berkasnya ada tapi tidak bisa dibuka: ' + k.pesan)
+          : ('Sheet yang belum ada: ' + (k.sheet_kurang || []).join(', ') + '. Tekan tombol di bawah.');
+        return;
+      }
+      el.className = 'pesan sukses';
+      el.textContent = 'Siap. ' + (k.jumlah_sumber
+        ? (k.jumlah_sumber + ' sumber saldo terdaftar.')
+        : 'Belum ada sumber saldo — isi lewat menu Sumber Saldo.');
+    } catch (e) {
+      el.className = 'pesan galat';
+      el.textContent = e.message;
+    }
+  }
+
   function kartuPulsa() {
     if (!bolehIzin('setting', 'lihat')) return '';
     return `<div class="kartu">
@@ -5744,7 +5864,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <span class="set-jejak" id="jejakSetting">Belum ada perubahan.</span>
           <button class="tombol utama besar" id="btnSimpanSetting" disabled>Simpan pengaturan</button>
         </div>` : ''}
+        ${kartuPulsaPos()}
         ${kartuPulsa()}`;
+      muatKeadaanPulsaPos();
       muatKeadaanPulsa();
       /* Dipasang sebagai PROPERTI, bukan addEventListener: layar ini digambar
          ulang setiap kali menunya dibuka, dan pendengar yang ditambahkan akan
@@ -7175,6 +7297,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
                       permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
                       diskon: '#isiDiskon',
+                      sumberpulsa: '#isiSumberpulsa',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
         $(wadah).innerHTML = `<div class="pesan info">Menu ini butuh koneksi internet.
@@ -7203,6 +7326,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'opname':    return muatOpname();
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
+      case 'sumberpulsa': return muatSumberpulsa();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
     }
@@ -7784,6 +7908,45 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.editCabang)             return editorCabang(d.editCabang);
+      if (d.editSumber)             return editorSumberpulsa(d.editSumber);
+      if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
+      if (t.id === 'btnSiapkanPulsaPos') {
+        t.disabled = true;
+        const el = $('#keadaanPulsaPos');
+        if (el) { el.className = 'pesan info'; el.textContent = 'Menyiapkan berkas di Drive — bisa sampai satu menit…'; }
+        try {
+          const h = await API.siapkanPulsaPos();
+          toast(h.baru ? ('Berkas ' + h.nama + ' dibuat.') : 'Database pulsa diperbarui.');
+        } catch (x) {
+          toast(x.message, 'galat');
+        } finally {
+          /* Tombol dihidupkan lagi dan keadaannya digambar ulang APA PUN hasilnya:
+             pembuatan yang gagal di tengah meninggalkan berkas setengah jadi, dan
+             yang perlu dilihat orang justru keadaan sesudahnya. */
+          t.disabled = false;
+          await muatKeadaanPulsaPos();
+        }
+        return;
+      }
+      if (t.id === 'btnSimpanSumber') {
+        t.disabled = true;
+        try {
+          await API.simpanSumberPulsa({
+            kode_sumber: $('#spKode').value, nama: nilai('spNama'),
+            jenis: $('#spJenis').value, cabang: nilai('spCabang'),
+            urutan: angka('spUrutan'),
+            aktif: $('#spAktif') ? centang('spAktif') : true
+          });
+          tutupModal();
+          await muat('sumberpulsa');
+          toast('Sumber saldo disimpan.');
+        } catch (x) {
+          /* Tombol DIHIDUPKAN lagi saat gagal. Dibiarkan mati, satu salah ketik
+             mengunci modalnya dan yang tersisa cuma menutup lalu mengisi ulang. */
+          toast(x.message, 'galat'); t.disabled = false;
+        }
+        return;
+      }
       if (t.id === 'btnSimpanCabang') {
         t.disabled = true;
         const baru = !$('#bKode').disabled;
