@@ -172,6 +172,53 @@ const API = (() => {
     return e.kode === 'SERVER_HTML' || e.kode === 'JARINGAN' || e.kode === 'TIMEOUT';
   }
 
+  /* ---------- Permintaan yang tertahan saat tabnya dibekukan ---------- */
+
+  /**
+   * BATAS WAKTU YANG TIDAK IKUT MATI BERSAMA TABNYA.
+   *
+   * `_sekali()` menjaga dirinya dengan `setTimeout(… ctrl.abort())`. Itu cukup
+   * selama halamannya hidup, dan tidak cukup sama sekali begitu Chrome
+   * MEMBEKUKAN tabnya: tab beku tidak menjalankan apa pun. Timernya tidak
+   * berdetak, callback fetch-nya tidak diproses, dan `finally` tidak pernah
+   * sampai — jadi `_sibuk` tertinggal di atas nol dan layarnya terkunci
+   * "sedang memuat" padahal tidak ada satu pun yang sedang berjalan.
+   *
+   * Terjadi 18 Sep 2026 pada `setup_pulsa`, di laptop: diukur 196 detik masih
+   * menunggu, batas 60 detiknya TIDAK menggigit, dan dasbor eksekusi Apps
+   * Script tidak mencatat satu pun doPost pada jam itu — permintaannya bahkan
+   * belum sempat berangkat. Empat gejala, satu sebab (KONTEKS bagian 185).
+   *
+   * Yang bisa diperbuat BUKAN menggigit selama beku — tidak ada kode kita yang
+   * jalan di sana — melainkan menggigit begitu tabnya BANGUN. Karena itu
+   * ukurannya JAM DINDING, bukan timer: jam dinding tetap maju selama tabnya
+   * tidur, timer tidak. Penjaga yang bersandar pada timer untuk menjaga dari
+   * matinya timer tidak menjaga apa-apa.
+   *
+   * Dipasang di sini, satu pintu yang dilalui SETIAP permintaan — bukan di
+   * delapan puluh pemanggil.
+   */
+  const _tertahan = new Set();
+
+  function _periksaTertahan() {
+    const kini = Date.now();
+    _tertahan.forEach((p) => {
+      /* `signal.aborted` yang dibaca, bukan bendera sendiri: satu keadaan
+         lebih sedikit, dan yang dibaca persis yang menentukan. */
+      if (p.ctrl.signal.aborted) return;
+      if (kini - p.mulai < p.batas) return;
+      p.ctrl.abort();
+    });
+  }
+
+  /* Hanya saat tabnya TERLIHAT lagi. Yang masih tersembunyi dibiarkan
+     berjalan: tab latar yang sehat memang harus boleh menyelesaikan
+     sinkronisasinya, dan membatalkannya di sana berarti sinkronisasi berkala
+     mati setiap kali orang berpindah tab. */
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) _periksaTertahan();
+  });
+
   /**
    * SATU percobaan: kirim, tunggu, urai. Melempar galat berkode dan tidak
    * menghitung apa pun — penghitung dan jejak milik panggil(), supaya tiga
@@ -179,7 +226,12 @@ const API = (() => {
    */
   async function _sekali(aksi, data, opsi) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opsi.timeout || 30000);
+    const batas = opsi.timeout || 30000;
+    const timer = setTimeout(() => ctrl.abort(), batas);
+    /* Didaftarkan supaya `_periksaTertahan()` masih bisa menemukannya kalau
+       timer di atas ikut mati bersama tabnya. Dicabut lagi di `finally`. */
+    const pantau = { ctrl, mulai: Date.now(), batas };
+    _tertahan.add(pantau);
     try {
       const resp = await fetch(CONFIG.API_URL, {
         method: 'POST',
@@ -225,6 +277,7 @@ const API = (() => {
       throw e;
     } finally {
       clearTimeout(timer);
+      _tertahan.delete(pantau);
     }
   }
 
@@ -252,9 +305,17 @@ const API = (() => {
           }
           /* Tulisan tanpa penjaga yang jawabannya hilang: jangan menyuruh
              "coba lagi" — suruh MEMERIKSA. Kode galatnya tetap, hanya pesannya. */
-          if (!bolehUlang && (e.kode === 'SERVER_HTML' || (e.kode === 'HTTP' && STATUS_SEMENTARA.has(e.status)))) {
+          /* TIMEOUT ikut di sini sejak v1.200: batas waktu yang menggigit
+             SESUDAH tabnya bangun tidak tahu apa-apa soal nasib permintaannya
+             — ia bisa saja sudah sampai dan sudah ditulis. "Coba lagi" untuk
+             tulisan tanpa penjaga persis kalimat yang melahirkan pembelian
+             101 baris dua kali (5 Sep 2026). */
+          if (!bolehUlang && (e.kode === 'SERVER_HTML' || e.kode === 'TIMEOUT' ||
+                              (e.kode === 'HTTP' && STATUS_SEMENTARA.has(e.status)))) {
             e.message = 'Jawaban server hilang di jalan (' +
-              (e.kode === 'HTTP' ? 'HTTP ' + e.status : 'halaman, bukan data') +
+              (e.kode === 'HTTP' ? 'HTTP ' + e.status :
+               e.kode === 'TIMEOUT' ? 'tidak ada jawaban sampai batas waktu' :
+               'halaman, bukan data') +
               '). Datanya mungkin sudah masuk — periksa dulu sebelum mengulang.';
           }
           throw e;
@@ -502,6 +563,17 @@ const API = (() => {
 
     /** Jalur umum — untuk aksi baru yang belum punya pembungkus khusus. */
     call: (aksi, d, opsi) => panggil(aksi, d || {}, opsi || {}),
+
+    /**
+     * Berapa permintaan yang masih menunggu jawaban.
+     *
+     * Diekspor demi PENJAGANYA. `_tertahan` yang lupa dicabut di `finally`
+     * tidak kelihatan dari mana pun — aplikasinya tetap benar, himpunannya
+     * cuma tumbuh terus, dan yang menemukannya adalah tablet kasir yang
+     * kehabisan memori setelah seharian. Angka yang tidak bisa dibaca tidak
+     * bisa dijaga.
+     */
+    menunggu: () => _tertahan.size,
 
     /* --- diagnosa waktu (lihat _jejak di atas) --- */
     ringkasanWaktu,
