@@ -147,6 +147,7 @@ const API = (() => {
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
+    'rincian_shift_pulsa',
     /* tulisan yang servernya menjaga duplikat per uuid */
     'simpan_kas', 'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
@@ -505,6 +506,10 @@ const API = (() => {
     bukaShiftPulsa:    (d) => panggil('buka_shift_pulsa', d, { timeout: 90000 }),
     tutupShiftPulsa:   (d) => panggil('tutup_shift_pulsa', d, { timeout: 90000 }),
     daftarShiftPulsa:  (d) => panggil('daftar_shift_pulsa', d || {}, { timeout: 60000 }),
+    rincianShiftPulsa: (d) => panggil('rincian_shift_pulsa', d, { timeout: 60000 }),
+    /* Foto dikirim base64; batas waktunya panjang karena unggahan ke Drive
+       melewati jaringan toko yang tidak selalu kencang. */
+    unggahFotoPulsa:   (d) => panggil('unggah_foto_pulsa', d, { timeout: 120000 }),
     simpanLini:        (d) => panggil('simpan_lini', d),
     tambahCabang:      (d) => panggil('tambah_cabang', d, { timeout: 120000 }),
     simpanCabang:      (d) => panggil('simpan_cabang', d),

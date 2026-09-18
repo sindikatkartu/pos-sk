@@ -5420,6 +5420,98 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   /* Angka tanpa "Rp" — untuk isi kolom input, yang harus bisa diketik ulang. */
   const rp0 = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+  /* ==================== MENU PULSA — SATU PINTU ====================
+     Diminta pemilik 18 Sep 2026: "pulsa ya semua terkait dengan pulsa kumpul
+     disatu menu", jangan terpecah-pecah. Shift, master sumber saldo, dan
+     laporannya karena itu tinggal di SATU layar dengan tab.
+
+     Tabnya menampilkan-menyembunyikan wadah yang masing-masing sudah punya
+     pemuatnya sendiri — bukan membongkar penggambarnya jadi satu fungsi
+     raksasa. Yang dipindah cuma pintunya. */
+  const TAB_PULSA = [
+    ['shift', 'Shift'],
+    ['sumber', 'Sumber Saldo'],
+    ['laporan', 'Laporan']
+  ];
+
+  async function muatPulsa(tab) {
+    const w = $('#isiPulsa');
+    const aktif = tab || w?._tab || 'shift';
+    if (w) {
+      w._tab = aktif;
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3>Pulsa</h3>
+            <span class="seg" id="tabPulsa" role="group" aria-label="Bagian pulsa">
+              ${TAB_PULSA.map(([id, label]) =>
+                `<button type="button" data-tabpulsa="${id}" class="${id === aktif ? 'aktif' : ''}">${label}</button>`).join('')}
+            </span>
+          </div>
+        </div>`;
+    }
+    const peta = { shift: '#isiShiftpulsa', sumber: '#isiSumberpulsa', laporan: '#isiLaporanpulsa' };
+    Object.entries(peta).forEach(([id, sel]) => {
+      const el = $(sel);
+      if (el) el.hidden = (id !== aktif);
+    });
+    if (aktif === 'shift') return muatShiftpulsa();
+    if (aktif === 'sumber') return muatSumberpulsa();
+    return muatLaporanpulsa();
+  }
+
+  /* ---------- Tab laporan ---------- */
+  async function muatLaporanpulsa() {
+    memuat('#isiLaporanpulsa');
+    try {
+      const d = await API.daftarShiftPulsa({});
+      $('#isiLaporanpulsa')._rows = d.shift || [];
+      gambarLaporanpulsa();
+    } catch (e) { galat('#isiLaporanpulsa', e); }
+  }
+
+  function gambarLaporanpulsa() {
+    const w = $('#isiLaporanpulsa');
+    if (!w) return;
+    const rows = w._rows || [];
+    const t = rows.reduce((a, r) => ({
+      jual: a.jual + (+r.total_penjualan || 0), modal: a.modal + (+r.total_modal_saldo || 0),
+      margin: a.margin + (+r.margin || 0), selisih: a.selisih + (+r.selisih || 0)
+    }), { jual: 0, modal: 0, margin: 0, selisih: 0 });
+
+    w.innerHTML = `
+      <div class="kartu">
+        <h3>Shift pulsa yang sudah ditutup</h3>
+        <p class="pesan info">Angka di layar ini <strong>sudah masuk buku besar</strong> sejak
+           v1.203 — tiap shift yang ditutup langsung dijurnal. Yang belum dijurnal ditandai
+           merah di kolom terakhir, dan itu berarti sebabnya perlu dibereskan, bukan diabaikan.</p>
+        <div class="gulir-x">
+          <table class="tabel">
+            <thead><tr><th>Tanggal</th><th>Cabang</th><th>Shift</th><th class="kanan">Penjualan</th>
+              <th class="kanan">Modal</th><th class="kanan">Margin</th><th class="kanan">Selisih kas</th>
+              <th>Status</th></tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td data-l="Tanggal">${esc(String(r.tanggal))}</td>
+              <td data-l="Cabang">${esc(String(r.kode_cabang))}</td>
+              <td data-l="Shift">${esc(String(r.jenis_shift))}</td>
+              <td class="kanan" data-l="Penjualan">${rp(r.total_penjualan)}</td>
+              <td class="kanan" data-l="Modal">${rp(r.total_modal_saldo)}</td>
+              <td class="kanan" data-l="Margin">${(+r.margin || 0) < 0
+                ? `<span class="delta turun">${rp(r.margin)}</span>` : rp(r.margin)}</td>
+              <td class="kanan" data-l="Selisih kas">${(+r.selisih || 0) !== 0
+                ? `<span class="delta turun">${rp(r.selisih)}</span>` : '—'}</td>
+              <td data-l="Status">${esc(String(r.status))}${r.catatan
+                ? ` <span class="petunjuk">${esc(String(r.catatan).slice(0, 40))}</span>` : ''}</td>
+            </tr>`).join('')}</tbody>
+            ${rows.length ? `<tfoot><tr><th colspan="3">Total ${rows.length} shift</th>
+              <th class="kanan">${rp(t.jual)}</th><th class="kanan">${rp(t.modal)}</th>
+              <th class="kanan">${rp(t.margin)}</th><th class="kanan">${rp(t.selisih)}</th>
+              <th></th></tr></tfoot>` : ''}
+          </table>
+        </div>
+        ${rows.length ? '' : '<p class="pesan">Belum ada shift pulsa yang ditutup.</p>'}
+      </div>`;
+  }
+
   /* ==================== SHIFT PULSA ====================
      Tahap 2 (bagian 189). Shift pulsa berdiri sendiri — dua laci terpisah,
      jadi kas pulsa punya kas awal, kas fisik, dan selisihnya sendiri.
@@ -5461,7 +5553,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="kartu">
         <div class="bar-alat"><h3>Buka shift pulsa</h3></div>
         ${sumber.length ? '' : `<p class="pesan galat">Belum ada sumber saldo untuk cabang ini.
-           Isi dulu di menu Sumber Saldo — shift tidak bisa dibuka tanpa satu pun sumber.</p>`}
+           Isi dulu di tab Sumber Saldo — shift tidak bisa dibuka tanpa satu pun sumber.</p>`}
         <div class="saring-baris">
           <div class="kendali-tetap"><label>Jenis shift</label><select id="spsJenis">
             ${['PAGI', 'SIANG', 'MALAM'].map(j => `<option value="${j}">${j}</option>`).join('')}
@@ -5493,12 +5585,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function gambarTutupShiftpulsa(w, st) {
-    const keluar = w._keluar || 0;
-    const h = hitungShiftpulsa(st, keluar);
+    if (!w._keluar) w._keluar = (st.keluar || []).map(x => ({ keterangan: x.keterangan, jumlah: +x.jumlah || 0 }));
+    const keluarBaris = w._keluar;
+    const totalKeluar = keluarBaris.reduce((a, x) => a + (+x.jumlah || 0), 0);
+    const h = hitungShiftpulsa(st, totalKeluar);
     const selisih = (+w._kasFisik || 0) - h.kasSistem;
     const ganjil = [];
     if (selisih !== 0) ganjil.push('selisih kas ' + rp(selisih));
     if (h.margin < 0) ganjil.push('margin ' + rp(h.margin));
+    const foto = st.foto || [];
 
     w.innerHTML = `
       <div class="kartu">
@@ -5524,16 +5619,47 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             </tr>`).join('')}</tbody>
           </table>
         </div>
+        <p class="petunjuk">Reward tidak dijurnal terpisah: ia sudah menambah saldo akhir, jadi
+           sudah ikut mengecilkan konsumsi. Menghitungnya dua kali membesarkan untung yang sama.</p>
       </div>
       <div class="kartu">
         <h3>Kas</h3>
         <div class="saring-baris">
           <div class="kendali-tetap"><label>Kas awal</label><input type="text" value="${rp0(st.kas_awal)}" disabled></div>
           <div class="kendali-tetap"><label>Kas akhir fisik</label><input type="text" id="spsKasFisik" class="uang spsAngka" data-sp="kas_fisik" value="${rp0(w._kasFisik)}"></div>
-          <div class="kendali-tetap"><label>Pengeluaran lain</label><input type="text" id="spsKeluar" class="uang spsAngka" data-sp="keluar" value="${rp0(keluar)}"></div>
+          <div class="kendali-tetap"><label>Pengeluaran</label><input type="text" value="${rp0(totalKeluar)}" disabled></div>
         </div>
         <p class="petunjuk">Kas akhir fisik = hasil menghitung uang sungguhan di laci, bukan angka
-           yang dicocokkan supaya selisihnya nol.</p>
+           yang dicocokkan supaya selisihnya nol. Pengeluaran dijumlah dari rinciannya di bawah.</p>
+      </div>
+      <div class="kartu">
+        <h3>Pengeluaran lain</h3>
+        <div class="gulir-x">
+          <table class="tabel">
+            <thead><tr><th>Keterangan</th><th class="kanan">Jumlah</th><th></th></tr></thead>
+            <tbody>${keluarBaris.length ? keluarBaris.map((x, i) => `<tr>
+              <td data-l="Keterangan"><input type="text" class="spsKel" data-kel="keterangan" data-i="${i}" value="${esc(x.keterangan || '')}" placeholder="mis. beli plastik"></td>
+              <td data-l="Jumlah"><input type="text" class="kanan uang spsKel" data-kel="jumlah" data-i="${i}" value="${rp0(x.jumlah)}"></td>
+              <td><button class="tombol kecil" data-hapuskel="${i}" title="Hapus">Hapus</button></td>
+            </tr>`).join('') : `<tr><td colspan="3">Belum ada pengeluaran.</td></tr>`}</tbody>
+          </table>
+        </div>
+        <div class="aksi"><button class="tombol" id="btnKeluarBaru">Tambah pengeluaran</button></div>
+        <p class="petunjuk">Uang yang keluar dari laci pulsa selain deposit. Tiap baris WAJIB
+           berketerangan — server menolak yang kosong. "Pengeluaran lain" adalah tempat paling
+           mudah menyembunyikan selisih kas, dan itu sebabnya rinciannya disimpan, bukan cuma
+           totalnya.</p>
+      </div>
+      <div class="kartu">
+        <h3>Foto buku catatan</h3>
+        ${foto.length ? `<ul class="daftar-rapat">${foto.map(f =>
+          `<li>${esc(f.nama_file)} <span class="petunjuk">${Math.round((+f.ukuran || 0) / 1024)} KB · ${esc(waktuTampil(f.waktu_unggah))}</span></li>`).join('')}</ul>`
+          : '<p class="pesan">Belum ada foto.</p>'}
+        <input type="file" accept="image/*" capture="environment" id="spsFoto" class="sembunyi">
+        <div class="aksi"><button class="tombol" id="btnFotoPulsa">Ambil / pilih foto</button></div>
+        <p class="petunjuk">Foto dikecilkan dulu di perangkat sebelum dikirim, jadi tidak
+           menghabiskan kuota. Hanya bisa diunggah selama shift berjalan — foto yang masuk
+           sesudah shift ditutup tidak bisa dibedakan dari yang membetulkan cerita.</p>
       </div>
       <div class="kartu">
         <h3>Hasil hitung</h3>
@@ -5561,8 +5687,65 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.querySelectorAll('.spsAngka').forEach(el => {
       el.addEventListener('change', () => { ubahAngkaShiftpulsa(el); gambarShiftpulsa(); });
     });
+    w.querySelectorAll('.spsKel').forEach(el => {
+      el.addEventListener('change', () => {
+        const b = w._keluar[+el.dataset.i];
+        if (!b) return;
+        if (el.dataset.kel === 'jumlah') b.jumlah = angkaDari(el.value);
+        else b.keterangan = el.value;
+        gambarShiftpulsa();
+      });
+    });
     const cat = w.querySelector('#spsCatatan');
     if (cat) cat.addEventListener('input', () => { w._catatan = cat.value; });
+    const fot = w.querySelector('#spsFoto');
+    if (fot) fot.addEventListener('change', () => kirimFotoPulsa(fot, st));
+  }
+
+  /**
+   * Kecilkan lalu kirim foto buku.
+   *
+   * Dikecilkan DI PERANGKAT, bukan dikirim apa adanya: foto HP sekarang 3–8 MB,
+   * dan yang dibutuhkan cuma tulisan tangan di buku yang masih terbaca pada
+   * 1280px. Mengirim aslinya menghabiskan kuota petugas dan menabrak batas
+   * permintaan Apps Script.
+   */
+  async function kirimFotoPulsa(input, st) {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    input.value = '';
+    try {
+      toast('Mengecilkan foto…');
+      const data = await kecilkanGambar(f, 1280, 0.72);
+      await API.unggahFotoPulsa({
+        id_shift: st.id_shift, nama_file: st.id_shift + '-buku.jpg',
+        mime: 'image/jpeg', data
+      });
+      await muat('pulsa');
+      toast('Foto tersimpan.');
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  function kecilkanGambar(file, maksSisi, mutu) {
+    return new Promise((selesai, gagalkan) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const skala = Math.min(1, maksSisi / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * skala);
+        c.height = Math.round(img.height * skala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const url2 = c.toDataURL('image/jpeg', mutu);
+        /* Yang dikirim base64 TELANJANG, tanpa awalan "data:image/jpeg;base64,".
+           Awalan itu ikut terkirim akan membuat Utilities.base64Decode melempar,
+           dan galatnya tidak menyebut sebabnya sama sekali. */
+        selesai(url2.slice(url2.indexOf(',') + 1));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); gagalkan(new Error('Berkas ini bukan gambar yang bisa dibaca.')); };
+      img.src = url;
+    });
   }
 
   const miniSp = (label, nilai, ekor) =>
@@ -5695,7 +5878,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       el.className = 'pesan sukses';
       el.textContent = 'Siap. ' + (k.jumlah_sumber
         ? (k.jumlah_sumber + ' sumber saldo terdaftar.')
-        : 'Belum ada sumber saldo — isi lewat menu Sumber Saldo.');
+        : 'Belum ada sumber saldo — isi lewat menu Pulsa, tab Sumber Saldo.');
     } catch (e) {
       el.className = 'pesan galat';
       el.textContent = e.message;
@@ -7461,8 +7644,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
                       permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
                       diskon: '#isiDiskon',
-                      sumberpulsa: '#isiSumberpulsa',
-                      shiftpulsa: '#isiShiftpulsa',
+                      pulsa: '#isiPulsa',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
         $(wadah).innerHTML = `<div class="pesan info">Menu ini butuh koneksi internet.
@@ -7491,8 +7673,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'opname':    return muatOpname();
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
-      case 'sumberpulsa': return muatSumberpulsa();
-      case 'shiftpulsa': return muatShiftpulsa();
+      case 'pulsa': return muatPulsa();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
     }
@@ -8076,6 +8257,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editCabang)             return editorCabang(d.editCabang);
       if (d.editSumber)             return editorSumberpulsa(d.editSumber);
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
+      if (d.tabpulsa) return muatPulsa(d.tabpulsa);
+      if (t.id === 'btnKeluarBaru') {
+        const w = $('#isiShiftpulsa');
+        if (w && w._keluar) { w._keluar.push({ keterangan: '', jumlah: 0 }); gambarShiftpulsa(); }
+        return;
+      }
+      if (d.hapuskel !== undefined) {
+        const w = $('#isiShiftpulsa');
+        if (w && w._keluar) { w._keluar.splice(+d.hapuskel, 1); gambarShiftpulsa(); }
+        return;
+      }
+      if (t.id === 'btnFotoPulsa') { $('#spsFoto')?.click(); return; }
       if (t.id === 'btnBukaShiftPulsa') {
         t.disabled = true;
         try {
@@ -8083,7 +8276,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
             kas_awal: $('#spsKasAwal') ? angkaDari($('#spsKasAwal').value) : 0
           });
-          await muat('shiftpulsa');
+          await muat('pulsa');
           toast('Shift pulsa dibuka.');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
@@ -8096,7 +8289,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           const h = await API.tutupShiftPulsa({
             id_shift: st.id_shift,
             kas_fisik: +w._kasFisik || 0,
-            total_keluar: +w._keluar || 0,
+            /* Rincian pengeluaran DIKIRIM, bukan totalnya saja: total tanpa
+               rinciannya tidak bisa diperiksa siapa pun sesudahnya. */
+            keluar: (w._keluar || []).map(x => ({ keterangan: x.keterangan, jumlah: +x.jumlah || 0 })),
             catatan: (w._catatan || '').trim(),
             /* Angka dikirim dari KEADAAN layar, bukan dibaca ulang dari DOM:
                satu kolom yang lupa dibaca mengirim nol tanpa tanda apa pun, dan
@@ -8107,8 +8302,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               reward: +s.reward || 0
             }))
           });
-          await muat('shiftpulsa');
-          toast('Shift ditutup. Margin ' + rp(h.margin) + ', selisih kas ' + rp(h.selisih) + '.');
+          await muat('pulsa');
+          /* Jurnal yang gagal DISEBUT, tidak ditelan: shift yang tertutup tanpa
+             jurnal terlihat persis sama dengan yang berjurnal. */
+          if (h.jurnal_gagal) toast('Shift ditutup, TAPI jurnalnya gagal: ' + h.jurnal_gagal, 'galat');
+          else toast('Shift ditutup. Margin ' + rp(h.margin) + ', selisih kas ' + rp(h.selisih) + '.');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }

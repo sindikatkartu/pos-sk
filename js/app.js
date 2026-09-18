@@ -157,8 +157,11 @@ const MENU = [
      dan Accurate menyusul bersama layarnya masing-masing. Menu untuk layar
      yang belum ada adalah janji palsu — alasan yang sama dipakai saat
      `utang` dibuang dari MODUL di v1.65. */
-  { id: 'sumberpulsa', label: 'Sumber Saldo', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
-  { id: 'shiftpulsa', label: 'Shift Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
+  /* SATU menu untuk seluruh urusan pulsa — diminta pemilik 18 Sep 2026:
+     "pulsa ya semua terkait dengan pulsa kumpul disatu menu". Shift, master
+     sumber saldo, dan laporannya jadi tab di dalam satu layar, bukan tiga
+     baris di sidebar yang isinya sudah tidak muat di layar mana pun. */
+  { id: 'pulsa', label: 'Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
   { id: 'sistem',     label: 'Pengaturan Sistem', grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
