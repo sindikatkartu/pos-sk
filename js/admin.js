@@ -5476,7 +5476,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <p class="petunjuk">Unggah hasil ekspor <strong>Excel</strong> Laba Rugi dari
                Accurate untuk periode ini. Sengaja tidak menampilkan angka: nol yang
                dikarang di sini terbaca "Accurate tidak menjual apa-apa".</p></div>
-          <div class="kaki-dash">${tombolUnggahAcc()}</div>
+          <div class="kaki-dash"><span class="petunjuk">Unggah berkasnya
+            di menu Accurate.</span></div>
         </div>`;
       }
       if (s.belum_tersambung) {
@@ -5491,7 +5492,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="isi-dash"><div class="mini-nilai">${rp(s.penjualan)}</div>
             <p class="petunjuk">Laba bersih ${rp(s.laba)}<br>
                <span class="petunjuk">${esc(s.berkas || '')} · ${esc(waktuTampil(s.diunggah))}</span></p></div>
-          <div class="kaki-dash">${tombolUnggahAcc('Ganti berkas')}</div>
+          <div class="kaki-dash"><span class="pesan sukses">Dari berkas</span></div>
         </div>`;
       }
       return `<div class="kartu rapat kartu-dash">
@@ -5563,14 +5564,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               : `<p class="pesan sukses">Seimbang: aset = liabilitas + ekuitas.</p>`}
           <p class="petunjuk">${esc(d.accurate_neraca.berkas || '')} ·
              ${esc(waktuTampil(d.accurate_neraca.diunggah))}</p>
-          <div class="aksi">${tombolUnggahNeraca('Ganti berkas neraca')}</div>
         ` : `
-          <p class="petunjuk">Belum ada berkas neraca untuk periode ini. Unggah hasil
-             ekspor <strong>Excel</strong> Neraca dari Accurate. Laba rugi menjawab
-             berapa yang dihasilkan; neraca menjawab apa yang dimiliki dan dihutangi —
-             dan hanya neraca yang bisa membuktikan pembukuannya utuh.</p>
-          <div class="aksi">${tombolUnggahNeraca()}</div>`}
+          <p class="petunjuk">Belum ada berkas neraca untuk periode ini. Unggahnya
+             di <strong>menu Accurate</strong>. Laba rugi menjawab berapa yang
+             dihasilkan; neraca menjawab apa yang dimiliki dan dihutangi — dan hanya
+             neraca yang bisa membuktikan pembukuannya utuh.</p>`}
       </div>
+      <div id="kekayaanKons"></div>
       <div class="kartu">
         <h3>Kenapa angkanya bisa dipercaya</h3>
         <p class="petunjuk">Totalnya diambil apa adanya dari <strong>Laba Rugi lintas cabang</strong>,
@@ -5581,24 +5581,69 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            ke luar.</p>
       </div>`;
 
-    const inp = w.querySelector('#fileAcc');
-    if (inp) inp.addEventListener('change', () => kirimBerkasAcc(inp, 'LR'));
-    const inpN = w.querySelector('#fileNer');
-    if (inpN) inpN.addEventListener('change', () => kirimBerkasAcc(inpN, 'NERACA'));
+    /* Tidak ditunggu: rapornya sudah tergambar, dan baris ini butuh setengah
+       menit. Menunggunya berarti layar kosong selama itu. */
+    muatKekayaan(d.accurate_neraca);
   }
 
-  const tombolUnggahNeraca = (label) =>
-    `<button class="tombol kecil" id="btnUnggahNer">${esc(label || 'Unggah Neraca')}</button>` +
-    `<input type="file" accept=".xlsx" id="fileNer" class="sembunyi">`;
+  /* Neraca POS diukur 28 detik lewat POS sungguhan (19 Sep 2026): ia memanggil
+     ULANG laba rugi untuk SETIAP bulan sejak Januari. Menyatukannya dengan
+     ringkasan konsolidasi (5 dtk) berarti 34 detik — lewat dari batas 30 detik
+     _sekali(), dan seluruh layar mati gara-gara satu baris tambahan. Karena itu
+     ia panggilan kedua yang menyusul, bukan bagian dari yang pertama. */
+  async function muatKekayaan(nerAcc) {
+    const w = $('#kekayaanKons');
+    if (!w) return;
+    /* Tanpa neraca Accurate tidak ada yang digabungkan. Ini BUKAN kegagalan,
+       jadi tidak ada yang perlu dikatakan — kartunya memang tidak ada. */
+    if (!nerAcc || nerAcc.aset === null || nerAcc.kewajiban === null ||
+        nerAcc.ekuitas === null) { w.innerHTML = ''; return; }
+    w.innerHTML = `<div class="kartu"><h3>Kekayaan usaha gabungan</h3>
+      <p class="petunjuk">Menghitung… neraca POS butuh sekitar setengah menit,
+         jadi angka di atas sengaja tidak menunggunya.</p></div>`;
+    try {
+      const n = await API.neraca({ periode: $('#konsPeriode').value, cabang: '*' });
+      gambarKekayaan(nerAcc, n);
+    } catch (e) {
+      /* Neraca POS yang gagal ditarik TIDAK boleh jadi "kekayaannya sebesar
+         Accurate saja". Separuh angka bukan angka. */
+      w.innerHTML = `<div class="kartu"><h3>Kekayaan usaha gabungan</h3>
+        <p class="pesan galat">Neraca POS tidak bisa dibaca: ${esc(e.message)}.
+           Gabungannya sengaja TIDAK dihitung — yang hilang bukan nol,
+           melainkan tidak diketahui.</p></div>`;
+    }
+  }
+
+  function gambarKekayaan(a, n) {
+    const w = $('#kekayaanKons');
+    if (!w) return;
+    w.innerHTML = `<div class="kartu">
+      <h3>Kekayaan usaha gabungan</h3>
+      <div class="petak-mini petak-uang">
+        ${miniKons('Aset', rp(n.total_aset + a.aset), 'POS + Accurate')}
+        ${miniKons('Liabilitas', rp(n.total_liabilitas + a.kewajiban), 'POS + Accurate')}
+        ${miniKons('Ekuitas', rp(n.total_ekuitas + a.ekuitas), 'POS + Accurate')}
+      </div>
+      <p class="petunjuk">Aset POS ${rp(n.total_aset)} + Accurate ${rp(a.aset)}.
+         <strong>Penjumlahan ini sah karena tidak ada aset yang tercatat di dua
+         buku</strong> — rekening, kas, dan persediaannya terpisah, ditegaskan
+         pemilik 19 Sep 2026. Kalau suatu hari beririsan, baris inilah yang
+         pertama harus dicabut. Laba rugi menjawab untung atau tidak; baris ini
+         menjawab sehat atau tidak, dan keduanya bisa berlawanan.</p>
+    </div>`;
+  }
+
 
   /* rp(null) memulangkan "Rp 0". Baris total yang TIDAK KETEMU di berkas
      karena itu terbaca sebagai aset nol — nol yang dikarang, dan yang paling
      berbahaya justru karena bentuknya wajar. */
   const rpAtau = (n) => (n === null || n === undefined) ? '—' : rp(n);
 
-  const tombolUnggahAcc = (label) =>
-    `<button class="tombol kecil" id="btnUnggahAcc">${esc(label || 'Unggah Laba Rugi')}</button>` +
-    `<input type="file" accept=".xlsx" id="fileAcc" class="sembunyi">`;
+  /* SATU kolom berkas untuk dua tombol, jenisnya dititipkan di elemennya.
+     Dua kolom dengan dua id pernah dipakai dan bekerja, tapi berarti dua
+     penangan, dua id, dan dua tempat yang bisa lupa diperbarui. */
+  const tombolUnggahAcc = (jenis, label) =>
+    `<button class="tombol kecil" data-unggahacc="${jenis}">${esc(label || ('Unggah ' + (jenis === 'NERACA' ? 'Neraca' : 'Laba Rugi')))}</button>`;
 
   /* Berkas dikirim base64 TELANJANG, tanpa awalan "data:…;base64,". Awalan
      yang ikut terkirim membuat Utilities.base64Decode melempar, dan galatnya
@@ -5619,20 +5664,111 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try {
       toast('Mengunggah dan memeriksa berkas…');
       const h = await API.unggahAccurate({
-        jenis: jenis, periode: $('#konsPeriode').value,
+        jenis: jenis, periode: $('#accPeriode').value,
         nama_berkas: f.name, data: await berkasKeBase64(f)
       });
-      await muatHasilKons();
+      await muatHasilAcc();
       const tak = (h.periksa || []).filter(x => x.status === 'TAK_TERPERIKSA');
       /* Pemeriksaan yang TIDAK BISA dijalankan disebut, bukan didiamkan: nol
          pemeriksaan yang gagal terlihat persis sama dengan nol yang lolos. */
-      /* Jenisnya disebut di pesannya: dua tombol mengirim ke tempat yang sama,
-         dan "Tersimpan" saja tidak memberi tahu yang mana yang barusan masuk. */
+      /* Jenisnya disebut di pesannya: dua tombol mengirim lewat satu kolom
+         berkas, dan "Tersimpan" saja tidak memberi tahu yang mana yang masuk. */
       const jn = jenis === 'NERACA' ? 'Neraca' : 'Laba rugi';
       toast(tak.length
         ? (jn + ' tersimpan, tapi ' + tak.length + ' pemeriksaan tidak bisa dijalankan — baris totalnya tidak ketemu.')
         : (jn + ' tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.'));
     } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  /* ==================== MENU ACCURATE — SATU PINTU ====================
+     Diminta pemilik 19 Sep 2026: "tools yang berkaitan dengan accurate
+     dipisah dengan menu tersendiri, ringkasan gabungan murni rapor".
+     Aturan yang sama dengan menu Pulsa (bagian 190): satu urusan, satu menu.
+
+     Layar ini yang MENERIMA; layar Ringkasan yang MELAPORKAN. Tidak ada
+     tombol unggah di luar sini. */
+  const PERIODE_ACC = { id: 'accPeriodePilih', dari: 'accPeriode', bulanan: true,
+                        nilai: 'bulan', label: 'Periode' };
+
+  const RINGKAS_ACC = {
+    LR: [['penjualan', 'Penjualan'], ['hpp', 'Beban pokok'], ['laba_kotor', 'Laba kotor'],
+         ['beban', 'Beban operasional'], ['laba_bersih', 'Laba bersih']],
+    NERACA: [['aset', 'Aset'], ['kewajiban', 'Liabilitas'], ['ekuitas', 'Ekuitas']]
+  };
+  const JUDUL_ACC = { LR: 'Laba Rugi', NERACA: 'Neraca' };
+
+  async function muatAccurate() {
+    const w = $('#isiAccurate');
+    if (!w) return;
+    if (!$('#accPeriode')) {
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3>Accurate</h3>
+            <span class="wadah-periode" id="wadahPeriodeAcc"></span></div>
+          <p class="petunjuk">Unggah hasil ekspor <strong>Excel</strong> Laba Rugi dan
+             Neraca dari Accurate, satu kali tiap bulan. Angkanya dipakai menu
+             <strong>Ringkasan Gabungan</strong> — layar itu sengaja tidak punya tombol
+             apa pun, karena rapor tidak menerima masukan.</p>
+          <input type="file" accept=".xlsx" id="fileAcc" class="sembunyi">
+        </div>
+        <div id="hasilAcc"></div>`;
+      $('#wadahPeriodeAcc').innerHTML = Periode.html(PERIODE_ACC);
+      Periode.pasang(PERIODE_ACC, muatHasilAcc);
+      const inp = $('#fileAcc');
+      if (inp) inp.addEventListener('change', () => kirimBerkasAcc(inp, inp._jenis));
+    }
+    return muatHasilAcc();
+  }
+
+  async function muatHasilAcc() {
+    memuat('#hasilAcc');
+    try {
+      const d = await API.accuratePeriode({ periode: $('#accPeriode').value });
+      gambarAcc(d);
+    } catch (e) { galat('#hasilAcc', e); }
+  }
+
+  function gambarAcc(d) {
+    const w = $('#hasilAcc');
+    if (!w) return;
+    const lap = d.laporan || {};
+    w.innerHTML = ['LR', 'NERACA'].map((j) => kartuAcc(j, lap[j])).join('');
+  }
+
+  function kartuAcc(jenis, lap) {
+    const judul = JUDUL_ACC[jenis];
+    if (!lap) {
+      return `<div class="kartu">
+        <h3>${esc(judul)}</h3>
+        <p class="petunjuk">Belum ada berkas ${esc(judul)} untuk periode ini.</p>
+        <div class="aksi">${tombolUnggahAcc(jenis)}</div>
+      </div>`;
+    }
+    const baris = lap.baris || [];
+    return `<div class="kartu">
+      <h3>${esc(judul)} <span class="sub">${esc(lap.periode_teks || '')}</span></h3>
+      <div class="petak-mini petak-uang">
+        ${RINGKAS_ACC[jenis].map(([k, l]) =>
+          miniKons(l, rpAtau(lap.ringkas ? lap.ringkas[k] : null), 'dari berkas')).join('')}
+      </div>
+      <p class="petunjuk">${esc(lap.nama_berkas)} · ${esc(waktuTampil(lap.diunggah))} ·
+         oleh ${esc(lap.oleh)} · ${baris.length} baris · ${esc(lap.usaha || '')}</p>
+      <div class="aksi">
+        ${tombolUnggahAcc(jenis, 'Ganti berkas')}
+        <button class="tombol kecil" data-rinciacc="${jenis}">Lihat rinciannya</button>
+      </div>
+      <div id="rinci${jenis}" hidden>
+        <div class="gulir-x">
+          <table class="tabel">
+            <thead><tr><th>Keterangan</th><th class="kanan">Nilai</th></tr></thead>
+            <tbody>${baris.map((x) => `<tr>
+              <td data-l="Keterangan" class="acc-lv${Math.min(x.level || 0, 4)}">${esc(x.deskripsi)}</td>
+              <td class="kanan" data-l="Nilai">${x.nilai === null ? '' : rp(x.nilai)}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
   }
 
   const miniKons = (label, nilai, ekor) =>
@@ -7864,6 +8000,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
                       diskon: '#isiDiskon',
                       pulsa: '#isiPulsa',
+                      accurate: '#isiAccurate',
                       konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
@@ -7894,6 +8031,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'returbeli': return muatReturbeli();
       case 'arsip':     return muatArsip();
       case 'pulsa': return muatPulsa();
+      case 'accurate': return muatAccurate();
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
@@ -8479,8 +8617,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editSumber)             return editorSumberpulsa(d.editSumber);
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
       if (d.tabpulsa) return muatPulsa(d.tabpulsa);
-      if (t.id === 'btnUnggahAcc') { $('#fileAcc')?.click(); return; }
-      if (t.id === 'btnUnggahNer') { $('#fileNer')?.click(); return; }
+      if (d.unggahacc) {
+        /* Jenisnya dititipkan di kolom berkasnya, bukan dibaca ulang dari DOM
+           saat berkasnya masuk — tombolnya sudah tergambar ulang waktu itu. */
+        const i = $('#fileAcc');
+        if (i) { i._jenis = d.unggahacc; i.click(); }
+        return;
+      }
+      if (d.rinciacc) {
+        const r = $('#rinci' + d.rinciacc);
+        if (r) {
+          r.hidden = !r.hidden;
+          t.textContent = r.hidden ? 'Lihat rinciannya' : 'Sembunyikan rincian';
+        }
+        return;
+      }
       if (t.id === 'btnKeluarBaru') {
         const w = $('#isiShiftpulsa');
         if (w && w._keluar) { w._keluar.push({ keterangan: '', jumlah: 0 }); gambarShiftpulsa(); }

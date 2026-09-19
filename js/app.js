@@ -162,9 +162,15 @@ const MENU = [
      sumber saldo, dan laporannya jadi tab di dalam satu layar, bukan tiga
      baris di sidebar yang isinya sudah tidak muat di layar mana pun. */
   { id: 'pulsa', label: 'Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
-  /* Accurate TIDAK diberi menunya sendiri: ia belum tersambung, dan menu yang
-     selalu berbunyi "belum ada apa-apa" cuma memanjangkan sidebar. Ia muncul
-     sebagai kartu di dalam Ringkasan, di tempat angkanya nanti berada. */
+  /* Accurate punya menunya sendiri sejak 19 Sep 2026. Sampai v1.205.0 ia cuma
+     kartu di dalam Ringkasan — alasannya waktu itu benar (belum tersambung,
+     dan menu yang selalu berbunyi "belum ada apa-apa" cuma memanjangkan
+     sidebar), tapi alasan itu habis begitu unggahannya jalan.
+
+     Pemilik memisahkannya dengan kalimat yang jadi aturan: "ringkasan gabungan
+     murni rapor". Rapor tidak menerima masukan. Seluruh tombol unggah pindah
+     ke sini, dan layar Ringkasan tidak punya satu tombol pun. */
+  { id: 'accurate', label: 'Accurate', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   { id: 'konsolidasi', label: 'Ringkasan Gabungan', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },

@@ -1739,6 +1739,15 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 
    Kalau --fs-19 berubah, angka 180 ini ikut berubah. Penjaganya yang akan
    memberi tahu, bukan mata orang. */
+/* Kedalaman baris rincian Accurate. Dibawa dari BERKASNYA (spasi awal dibagi
+   empat), bukan ditebak dari katanya — "Kas" bisa induk di satu laporan dan
+   anak di laporan lain. Empat tingkat cukup: ekspor 19 Sep 2026 paling dalam
+   tiga, dan yang lebih dalam dipatok ke tingkat empat, bukan dibuang. */
+.acc-lv1 { padding-left: 16px; }
+.acc-lv2 { padding-left: 32px; }
+.acc-lv3 { padding-left: 48px; }
+.acc-lv4 { padding-left: 64px; }
+
 .petak-mini.petak-uang {
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
 }
