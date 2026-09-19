@@ -85,6 +85,14 @@
   --sumber-pos:       #22c07a;
   --sumber-pulsa:     #f0a132;
   --sumber-accurate:  #6f7bf7;
+  /* Lapisan tipis kolom Gabungan. HITAM di tema terang, PUTIH di gelap —
+     satu nilai untuk keduanya mustahil: yang menggelapkan latar terang akan
+     menggelapkan latar gelap juga, dan kolomnya berubah jadi lubang. */
+  --kons-gabung:      rgba(0,0,0,.03);
+  --kons-gabung-tot:  rgba(0,0,0,.06);
+  /* Merah untuk angka minus DI ATAS kepala gelap. `--bahaya` dibuat untuk
+     latar terang; di atas #12243a ia terlalu tua dan hampir hilang. */
+  --kons-minus:       #ff9090;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #fbe7e7;
   --bahaya-garis:  #f0a9a9;
@@ -244,6 +252,9 @@ html[data-tema="gelap"] {
   --sumber-pos:       #5fd6a0;
   --sumber-pulsa:     #f5bd6b;
   --sumber-accurate:  #9aa4fb;
+  --kons-gabung:      rgba(255,255,255,.045);
+  --kons-gabung-tot:  rgba(255,255,255,.09);
+  --kons-minus:       #ff9090;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #221313;
   --bahaya-garis:  #5c2626;
@@ -2168,14 +2179,81 @@ table.matriks-kons .kode {
 table.matriks-kons tr.subtotal td {
   background: var(--panel-2); font-weight: 700; border-top: 1px solid var(--garis-rangka);
 }
-table.matriks-kons .gabung { background: rgba(0,0,0,.03); font-weight: 700; }
+table.matriks-kons .gabung { background: var(--kons-gabung); font-weight: 700; }
+/* Sel yang SEKALIGUS subtotal dan kolom Gabungan. Tanpa aturan ini pita
+   subtotalnya terputus tepat di kolom terakhir — `.gabung` berbobot dua
+   kelas dan menang atas latar subtotalnya, jadi barisnya terlihat
+   putus-putus. Dilaporkan pemilik 20 Sep 2026 di tema gelap. */
+table.matriks-kons tr.subtotal td.gabung {
+  background: var(--panel-2); box-shadow: inset 0 0 0 999px var(--kons-gabung-tot);
+}
 /* Nol dan "tidak ada angkanya" sengaja DIBEDAKAN, dan keduanya dipucatkan:
    di tabel lima kolom, nol yang setegas angka lain membuat mata berhenti
    di tempat yang tidak ada isinya. */
 table.matriks-kons .nol { color: var(--teks-redup); opacity: .5; }
 table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 
-.tukar-kons { display: flex; gap: 6px; }
+/* Angka minus: tanda di depan dan berwarna. Warnanya `--bahaya`, yang sama
+   dengan delta turun — satu warna untuk satu arti. Di kepala gelap ia
+   diganti rona yang lebih terang, sebab merah tua di atas latar pekat
+   nyaris tidak terbaca. */
+.uang-minus { color: var(--bahaya); font-weight: 700; }
+.uang-minus .rp { color: inherit; opacity: .7; }
+.kepala-kons .uang-minus { color: var(--kons-minus); }
+.kepala-kons .uang-minus .rp { color: inherit; opacity: .6; }
+
+/* KOLOM AKUN MELEKAT. Nama akunnya diam di kiri sementara angkanya digeser
+   — yang dilakukan setiap aplikasi spreadsheet, dan satu-satunya cara
+   membaca tabel lima kolom di layar sempit tanpa kehilangan barisnya.
+
+   Latarnya WAJIB pekat. Sel melekat yang tembus pandang membiarkan angka
+   yang lewat di bawahnya terbaca menembus nama akunnya. */
+table.matriks-kons th.akun, table.matriks-kons td.akun {
+  position: sticky; left: 0; z-index: 1; background: var(--panel);
+}
+table.matriks-kons thead th.akun { background: var(--panel); }
+table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
+
+/* Rincian per sumber di dalam sel akun. DISEMBUNYIKAN di layar lebar —
+   di sana kolomnya sendiri yang bicara, dan mengulangnya cuma kebisingan. */
+.rinci-sumber { display: none; }
+
+/* HP: satu baris per akun, Gabungan di kanan, rincian per sumber jadi
+   baris kecil di bawah namanya.
+
+   Tabel ini TIDAK ikut menumpuk seperti tabel lain (aturan umum ≤620px):
+   dua puluh baris × empat kolom jadi delapan puluh baris tumpukan, dan
+   seluruh gunanya layar ini justru membaca satu kolom dari atas ke bawah.
+   Tidak juga digeser dengan jari — mata kehilangan tempatnya tiap kali
+   digeser balik. Yang dipakai: tiga kolom sumbernya disembunyikan, isinya
+   pindah ke bawah nama akunnya. Tidak ada angka yang hilang. */
+@media (max-width: 620px) {
+  .gulir-x > table.matriks-kons,
+  .gulir-x > table.matriks-kons > thead,
+  .gulir-x > table.matriks-kons > tbody,
+  .gulir-x > table.matriks-kons > tbody > tr,
+  .gulir-x > table.matriks-kons > tbody > tr > td { display: revert; }
+  .gulir-x > table.matriks-kons > thead {
+    position: static; width: auto; height: auto; overflow: visible; clip: auto;
+  }
+  .gulir-x > table.matriks-kons > tbody > tr > td::before { content: none; }
+  .gulir-x > table.matriks-kons > tbody > tr > td { padding: 8px 0; }
+
+  /* Tiga kolom sumber disembunyikan — isinya sudah pindah ke bawah nama. */
+  table.matriks-kons th.angka:not(.gabung),
+  table.matriks-kons td.angka:not(.gabung) { display: none; }
+  /* Tidak ada lagi yang digeser, jadi tidak ada yang perlu melekat. */
+  table.matriks-kons th.akun, table.matriks-kons td.akun {
+    position: static; min-width: 0; white-space: normal;
+  }
+  .rinci-sumber {
+    display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 3px;
+    font-size: var(--fs-11); color: var(--teks-redup);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Di baris subtotal rinciannya ikut menebal — ia bagian dari pitanya. */
+  tr.subtotal .rinci-sumber { font-weight: 600; }
+}
 /* Lencana di atas latar pekat: yang bawaan dibuat untuk latar terang dan
    di sini nyaris tidak terbaca. */
 .pita-kons .lencana {
@@ -2290,7 +2368,11 @@ th.sempit, td.sempit { width: 1%; white-space: nowrap; }
   font-variant-numeric: tabular-nums; margin-left: auto;
 }
 .meta-kecil { font-size: var(--fs-12); color: var(--teks-redup); margin-top: 4px; }
-.petunjuk { font-size: var(--fs-13); color: var(--teks-redup); line-height: 1.6; margin: 6px 0 12px; }
+/* Margin bawah = --irama, sama dengan jarak antar blok. Yang 6px di atas
+   runtuh ke dalam margin blok di atasnya, jadi yang benar-benar menentukan
+   cuma yang bawah; 12px membuat keterangan menempel lebih rapat ke blok
+   BERIKUTNYA daripada ke blok yang ia terangkan (bagian 205). */
+.petunjuk { font-size: var(--fs-13); color: var(--teks-redup); line-height: 1.6; margin: 6px 0 var(--irama); }
 
 /* Kode user di belakang namanya. Diredupkan, bukan dibuang: dua orang bisa
    bernama sama, dan kode itulah satu-satunya yang mencocokkan baris ini
@@ -2508,6 +2590,10 @@ input.sudah-hitung {
 }
 
 @media (max-width: 620px) {
+  /* BLOK-HP-UTAMA — penjaga di uji/uji.js memotong blok INI, dan mencarinya
+     lewat penanda di baris ini, bukan lewat "yang pertama ketemu". Blok 620px
+     lain boleh ditulis di mana saja, di atas maupun di bawahnya. Penandanya
+     harus tetap tunggal; ada penjaganya sendiri. */
   /* Nota ditahan: dua tombolnya turun ke baris sendiri, masing-masing setengah
      lebar kartu — selebar jari, bukan dua tombol kecil berdempetan. */
   /* Kepala Ringkasan Gabungan menyusut di HP: angka 32px memenuhi separuh

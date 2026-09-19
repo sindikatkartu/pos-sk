@@ -5509,18 +5509,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const tombolUlangKons = () =>
     `<button class="tombol kecil" data-ulangkons="1">Coba lagi</button>`;
 
-  /* ANGKA NEGATIF DALAM KURUNG, cara akuntansi.
+  /* ANGKA NEGATIF: TANDA DI DEPAN, DAN BERWARNA.
 
-     `rp()` umum menulis "Rp-9.996.109". Di laporan keuangan tanda minus yang
-     menempel angka mudah terlewat justru pada baris yang paling perlu dilihat.
-     Kurung adalah konvensi yang dibaca siapa pun yang pernah memegang neraca.
+     Mula-mula dipakai kurung akuntansi `(Rp 8.000.000)`. Diputuskan pemilik
+     20 Sep 2026: "jangan pakai (8.000.000) tapi -8.000.000 warna merah".
+     Alasannya masuk akal — kurung itu konvensi yang harus DIPELAJARI dulu,
+     sementara minus merah langsung terbaca siapa pun.
+
+     Merahnya `--bahaya`, warna yang SUDAH dipakai delta turun. Satu warna
+     untuk satu arti; merah kedua yang khusus uang cuma menambah kosakata
+     yang harus dihafal.
+
+     Minus ditaruh SEBELUM "Rp", bukan di antara Rp dan angkanya. `rp()`
+     umum menghasilkan "Rp-9.996.109" — tanda yang terselip di tengah, dan
+     justru di baris yang paling perlu dilihat ia paling mudah terlewat.
 
      HANYA di layar ini. Mengubah `rp()` seluruh aplikasi menyentuh belasan
-     pemanggil dan enam berkas uji — pekerjaan tersendiri, bukan tempelan di
-     tengah perombakan layar. */
+     pemanggil dan enam berkas uji — pekerjaan tersendiri. */
   const rpK = (n) => {
     const v = Math.round(Number(n) || 0);
-    return v < 0 ? '(' + rp(-v) + ')' : rp(v);
+    return v < 0 ? '<span class="uang-minus">-' + rp(-v) + '</span>' : rp(v);
   };
   /* Nol dipucatkan supaya mata jatuh ke kolom yang BERISI; di matriks lima
      kolom, nol yang setegas angka lain membuat seluruh tabel terbaca rata.
@@ -5529,17 +5537,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ? '<span class="kosong">—</span>'
     : (Number(n) === 0 ? '<span class="nol">0</span>' : rpK(n));
 
-  /* Pilihan tampilan matriks disimpan per perangkat. Bawaannya BEDA menurut
-     lebar: di HP lima kolom tidak akan pernah muat, jadi yang masuk akal
-     Gabungan saja; di PC justru per sumber yang menjawab "dari mana". */
-  const KUNCI_MODE_KONS = 'kons_mode';
-  const modeKons = () => {
-    try {
-      const m = localStorage.getItem(KUNCI_MODE_KONS);
-      if (m === 'sumber' || m === 'gabungan') return m;
-    } catch (e) { /* penyimpanan diblokir — pakai bawaan menurut lebar */ }
-    return window.innerWidth <= 720 ? 'gabungan' : 'sumber';
-  };
 
   const KOLOM_KONS = [
     { kunci: 'pos', judul: 'POS' },
@@ -5550,14 +5547,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const jumlahBaris = (b) => (Number(b.pos) || 0) + (Number(b.pulsa) || 0) +
     ((b.accurate === null || b.accurate === undefined) ? 0 : Number(b.accurate));
 
-  function matriksKons(judul, baris, mode, ekor) {
-    const kol = mode === 'sumber' ? KOLOM_KONS : [];
+  function matriksKons(judul, baris, ekor) {
+    const kol = KOLOM_KONS;
     const kepala = kol.map(k => `<th class="angka">${esc(k.judul)}</th>`).join('');
     const isi = (baris || []).map((b) => {
-      const sel = kol.map(k => `<td class="angka">${selK(b[k.kunci])}</td>`).join('');
+      const sel = kol.map(k =>
+        `<td class="angka" data-l="${esc(k.judul)}">${selK(b[k.kunci])}</td>`).join('');
+      /* Rincian per sumber DALAM sel akunnya. Tersembunyi di layar lebar —
+         di sana kolomnya sendiri yang bicara — dan muncul di HP sebagai
+         satu baris kecil, menggantikan tiga kolom yang tidak akan muat.
+         Digambar SELALU, bukan digambar ulang waktu layarnya berubah:
+         yang menentukan lebar itu CSS, dan JS yang ikut menebak lebar
+         akan salah tiap kali layarnya diputar. */
+      const rinci = kol.map(k =>
+        `<span>${esc(k.judul)} ${selK(b[k.kunci])}</span>`).join('');
       return `<tr class="${b.total ? 'subtotal' : ''}">
-        <td class="akun">${b.kode ? '<span class="kode">' + esc(b.kode) + '</span> ' : ''}${esc(b.nama)}</td>
-        ${sel}<td class="angka gabung">${selK(jumlahBaris(b))}</td></tr>`;
+        <td class="akun">${b.kode ? '<span class="kode">' + esc(b.kode) + '</span> ' : ''}${esc(b.nama)}
+          <span class="rinci-sumber">${rinci}</span></td>
+        ${sel}<td class="angka gabung" data-l="Gabungan">${selK(jumlahBaris(b))}</td></tr>`;
     }).join('');
     return `<div class="kartu">
       <div class="bar-alat"><h3>${esc(judul)}</h3>
@@ -5579,7 +5586,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const w = $('#hasilKons');
     if (!w) return;
     dataKons = d;
-    const mode = modeKons();
     const acc = (d.sumber || []).filter(s => s.kode === 'ACCURATE')[0] || {};
 
     /* Bacaan yang GAGAL tidak boleh tergambar sebagai "belum ada": yang hilang
@@ -5614,15 +5620,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kotakTumbuh = (label, x) => miniHtml(label, rpK(x ? x.kini : 0),
       `${arah(x)} dari ${esc(t.periode || 'periode sebelumnya')}`);
 
-    const bersih = d.penjualan_bersih || 0;
+    /* SATU cakupan untuk kepala DAN rasio. Sebelum bagian 205 kepala memakai
+       angka gabungan sementara rasio memakai buku POS — dua "pendapatan"
+       berbeda di satu layar, dan tidak ada apa pun yang memberi tahu
+       pembacanya. Sekarang keduanya membaca bungkus yang sama, dan cakupannya
+       ditulis di bawah tiap deretan.
+
+       Jatuh ke buku POS kalau servernya lama dan belum mengirim `gabungan`:
+       angka yang benar dengan keterangan yang benar, bukan layar kosong. */
+    const gab = d.gabungan || {
+      dengan_accurate: false,
+      penjualan: d.penjualan_bersih, laba_kotor: d.laba_kotor,
+      beban_operasional: d.beban_operasional, laba_bersih: d.laba_bersih
+    };
+    const lingkup = (b) => b ? 'gabungan — POS + Pulsa + Accurate' : 'buku POS + Pulsa saja';
+    const bersih = gab.penjualan || 0;
     const pst = (a, b) => b ? (Math.round(a / b * 1000) / 10).toLocaleString('id-ID') + ' %' : '—';
     const rasio = (label, nilai, ekor) => miniHtml(label, esc(nilai), esc(ekor || ''));
 
-    const tukar = `<div class="tukar-kons" role="group" aria-label="Tampilan matriks">
-      <button class="tombol kecil ${mode === 'sumber' ? 'utama' : ''}"
-        data-konsmode="sumber">Per sumber</button>
-      <button class="tombol kecil ${mode === 'gabungan' ? 'utama' : ''}"
-        data-konsmode="gabungan">Gabungan</button></div>`;
 
     /* Seimbang atau tidak DIPAJANG, tidak disembunyikan. Neraca yang tidak
        seimbang adalah satu-satunya hal di layar ini yang harus berteriak. */
@@ -5642,16 +5657,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${bannerPulsa}${bannerAcc}
       <div class="kepala-kons">
         <div class="utama">
-          <div class="label">Laba bersih gabungan</div>
-          <div class="besar">${rpK((d.gabungan_laba === null || d.gabungan_laba === undefined)
-            ? d.laba_bersih : d.gabungan_laba)}</div>
-          <div class="sub">Periode ${esc(d.periode)} · POS + Pulsa${
-            acc.dari_berkas ? ' + Accurate' : ''}</div>
+          <div class="label">Laba bersih</div>
+          <div class="besar">${rpK(gab.laba_bersih)}</div>
+          <div class="sub">Periode ${esc(d.periode)} · ${esc(lingkup(gab.dengan_accurate))}</div>
         </div>
-        <div class="kotak"><div class="label">Pendapatan gabungan</div>
-          <div class="nilai">${rpK((d.gabungan_penjualan === null || d.gabungan_penjualan === undefined)
-            ? d.penjualan_bersih : d.gabungan_penjualan)}</div></div>
-        <div class="kotak"><div class="label">Total aset gabungan</div>
+        <div class="kotak"><div class="label">Pendapatan</div>
+          <div class="nilai">${rpK(gab.penjualan)}</div></div>
+        <div class="kotak"><div class="label">Total aset</div>
           <div class="nilai">${selK(jumlahBaris(tA))}</div></div>
         <div class="pita-kons">${(d.sumber || []).map((sb) => {
           const nilai = sb.gagal ? '?'
@@ -5674,17 +5686,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${kotakTumbuh('Laba kotor', t.laba_kotor)}
         ${kotakTumbuh('Laba bersih', t.laba_bersih)}
         ${kotakTumbuh('Total beban', t.beban)}
-      </div>`}
+      </div>
+      <p class="petunjuk lingkup-kons">Pertumbuhan dihitung dari
+         <strong>${esc(lingkup(t.dengan_accurate))}</strong>${
+           t.dengan_accurate ? '' :
+           ' — Accurate tidak ikut karena salah satu dari kedua bulannya belum punya berkas, dan membandingkan bulan yang ber-Accurate dengan yang tidak akan melonjak tanpa ada yang berubah di toko'
+         }.</p>`}
 
       <div class="petak-mini petak-kpi">
-        ${rasio('Margin laba kotor', pst(d.laba_kotor, bersih), 'laba kotor dibagi pendapatan')}
-        ${rasio('Margin laba bersih', pst(d.laba_bersih, bersih), 'laba bersih dibagi pendapatan')}
-        ${rasio('Beban thd pendapatan', pst(d.beban_operasional, bersih), 'makin kecil makin ringan')}
-        ${rasio('Shift pulsa', shiftPulsa === undefined ? '—' : String(shiftPulsa), 'yang sudah ditutup')}
+        ${rasio('Margin laba kotor', pst(gab.laba_kotor, bersih), 'dari pendapatan')}
+        ${rasio('Margin laba bersih', pst(gab.laba_bersih, bersih), 'dari pendapatan')}
+        ${rasio('Beban thd pendapatan', pst(gab.beban_operasional, bersih), 'dari pendapatan')}
+        ${rasio('Shift pulsa', shiftPulsa === undefined ? '—' : String(shiftPulsa), 'sudah ditutup')}
       </div>
+      <p class="petunjuk lingkup-kons">Rasio di atas dihitung dari
+         <strong>${esc(lingkup(gab.dengan_accurate))}</strong>.</p>
 
-      ${matriksKons('Laba Rugi', d.matriks && d.matriks.lr, mode, tukar)}
-      ${matriksKons('Neraca', ner, mode, lencanaNer)}
+      ${matriksKons('Laba Rugi', d.matriks && d.matriks.lr)}
+      ${matriksKons('Neraca', ner, lencanaNer)}
 
       <div class="kartu"><h3>Komposisi beban</h3>
         <div class="gulir-x"><table class="matriks-kons"><thead><tr>
@@ -8951,17 +8970,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          diulang SELURUH layarnya, bukan bagian yang gagal saja: ketiga
          kegagalannya lahir dari satu panggilan yang sama. */
       if (d.ulangkons) return muatHasilKons();
-      if (d.konsmode) {
-        /* Digambar ulang dari muatan yang SUDAH ADA — tanpa panggilan
-           server. Pilihannya disimpan supaya tidak perlu ditukar tiap
-           kali layarnya dibuka. */
-        try { localStorage.setItem('kons_mode', d.konsmode); } catch (x) {
-          /* Penyimpanan diblokir (mode penyamaran, kuota penuh). Pilihannya
-             tetap berlaku untuk kunjungan ini; yang hilang cuma ingatannya. */
-        }
-        if (dataKons) gambarKons(dataKons, tiketKons);
-        return;
-      }
       if (d.fotopulsa) return bukaFotoPulsa(d.fotopulsa);
       if (d.simpanacc) return simpanBerkasAcc();
       if (d.unggahacc) {
