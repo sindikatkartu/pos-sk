@@ -1743,13 +1743,44 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 /* Enam kotak KPI: 6 sebaris di PC, 3 × 2 di tablet (dulu 5 + 1 yatim dengan
    angka terpotong "Rp 1.250.0…"), 2 × 3 di HP — ambang 2 kolom di 360 px
    dijaga uji-dashboard. */
+/* Jumlah kolomnya DIHITUNG dari angkanya, bukan dipatok. Sampai v1.208.0
+   barisnya 6 kolom di PC, 3 di tablet, 2 di HP — dan pada ketiganya kotak
+   itu cuma menyediakan 112-147px isi, sedangkan "Rp 9.999.999.999" pada
+   --fs-19 butuh 155px. Angka miliaran terpotong di SEMUA lebar.
+
+   Pemilik menetapkan 19 Sep 2026: "anggap saja semua bagian nominal cukup
+   buat milyaran rupiah", lalu memilih kolomnya yang menyesuaikan, bukan
+   hurufnya yang mengecil — "angka KPI sekecil teks keterangan" di layar yang
+   justru dibuat untuk dibaca sekilas.
+
+   184 = 155px teks + padding .mini 2 x 12px, dibulatkan. Hasilnya 5 kolom di
+   PC, 4 di laptop, 3 di tablet, 1 di HP. */
+/* Susunan 6 / 3 / 2 milik pemilik DIPERTAHANKAN — itu yang dibeli dengan
+   mengecilkan "Rp" (lihat .rp di atas). Bentuk nominalnya turun dari 155px
+   jadi 139px, dan enam kolom di 1366px menyediakan 143px. Muat, dengan sisa
+   4px.
+
+   Ambang tengahnya DINAIKKAN dari 1100 ke 1300: di 1180px enam kolom cuma
+   memberi 112px, jauh di bawah 139px. Itu lubang yang sudah ada sejak dulu dan
+   baru terlihat waktu nominalnya diukur — bukan lahir dari perubahan ini.
+
+   Sisa 4px memang tipis, dan itu disengaja diterima pemilik sesudah ditawari
+   pilihan yang lebih longgar (3 kolom x 2 baris). Yang menjaganya uji-nominal,
+   yang mengukur KLON elemen sungguhan di empat lebar — bukan mata. */
 .petak-mini.petak-kpi { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-@media (max-width: 1100px) { .petak-mini.petak-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1300px) { .petak-mini.petak-kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px)  { .petak-mini.petak-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* Kotak yang isinya UANG. 180px bukan selera: "Rp 2.602.411.130" pada
-   --fs-19 mengukur 154px, ditambah padding .mini 2 x 12px = 178px, dibulatkan
-   ke 180. Di bawah itu angkanya terpotong jadi "Rp 2.602.41…" — dan neraca
+/* Kotak yang isinya UANG. 184px dihitung dari angka TERPANJANG yang boleh
+   muncul: "Rp 9.999.999.999" pada --fs-19 mengukur 155px, ditambah padding
+   .mini 2 x 12px = 179. Dibulatkan ke 184.
+
+   Sebelumnya 180, dihitung dari "Rp 2.602.411.130" yang kebetulan ada di
+   neraca waktu itu — berlebih SATU piksel, dan ambang yang selamat satu
+   piksel bukan ambang melainkan kebetulan. Pemilik menetapkan 19 Sep 2026:
+   "anggap saja semua bagian nominal cukup buat milyaran rupiah".
+
+   Di bawah ambang ini angkanya terpotong jadi "Rp 2.602.41…" — dan neraca
    yang angkanya tidak terbaca kehilangan seluruh gunanya.
 
    uji-rupa TIDAK menangkap ini: teks ber-ellipsis memang dikecualikan di sana,
@@ -1768,7 +1799,7 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .acc-lv4 { padding-left: 64px; }
 
 .petak-mini.petak-uang {
-  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(184px, 100%), 1fr));
 }
 
 /* Petak kartu: tiga per baris, SAMA TINGGI (stretch); empat untuk baris
@@ -1884,6 +1915,30 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    HP dan bertahan di semua lebar lain. */
 .petak > *, .petak-2 > *, .petak-mini > *, .petak-tunggal > * { margin-bottom: 0; min-width: 0; }
 .petak > .statistik { align-self: stretch; }
+
+/* Kotak statistik berisi UANG. Jalur 180px milik `.petak` cukup untuk teks
+   biasa, tapi tidak untuk rupiah pada --fs-24: angkanya PATAH setelah "Rp"
+   dan kotaknya jadi dua baris. Dilaporkan pemilik 19 Sep 2026 lewat potret
+   layar Laporan — "Rp" di baris pertama, "16.871.000" di bawahnya.
+
+   220px dihitung dari angka TERPANJANG yang boleh muncul, bukan dari angka
+   yang kebetulan ada hari ini. Pemilik menetapkan 19 Sep 2026: "anggap saja
+   semua bagian nominal cukup buat milyaran rupiah". "Rp 9.999.999.999"
+   mengukur 187px pada --fs-24, ditambah padding `.kartu` 2 x 16px = 219,
+   dibulatkan ke 220.
+
+   Ambang yang dihitung dari angka yang KEBETULAN ada sekarang akan patah
+   lagi pada hari omzetnya naik satu digit — dan yang melaporkannya tetap
+   pemilik, bukan uji.
+
+   TIDAK berlaku di <= 620px, dan itu wajib: di sana `.petak` sudah dipatok
+   dua kolom dan `.statistik .nilai` turun ke --fs-19, jadi sudah muat.
+   Karena `.petak.petak-uang` lebih spesifik daripada `.petak`, ia harus
+   dinolkan lagi di dalam media query itu — kalau tidak, HP berubah jadi
+   satu kolom dan empat angka ringkasan memakan satu layar penuh. */
+.petak.petak-uang {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
 /* EMPAT kotak angka dalam satu baris.
 
    `minmax(180px, 1fr)` hanya memuat tiga kolom di lebar tablet, jadi kotak
@@ -1893,7 +1948,42 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    angka memang pendek. Kekhususannya (0,2,0) MENGALAHKAN aturan dua kolom di
    layar sempit, jadi aturan itu ditulis ulang untuk kelas ini di dalam blok
    @media — bergantung pada urutan berkas di sini akan diam-diam salah. */
-.petak.petak-4 { grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); }
+/* Empat kotak angka sebaris — SELAMA muat. Nilainya --fs-21, jadi
+   "Rp 9.999.999.999" butuh 164px + padding .kartu 2 x 16px = 196. Di tablet
+   empat kolom cuma memberi 147px isi, dan angkanya patah.
+
+   Dibiarkan auto-fit, bukan dipatok empat: di PC tetap empat (isi ~1100px
+   cukup untuk 4 x 196), di tablet turun jadi tiga, di HP satu. Hampir setiap
+   baris .petak-4 memuat sedikitnya satu nominal — omzet, nilai persediaan,
+   kerugian — jadi ambang ini berlaku untuk semuanya, bukan ditandai satu per
+   satu dan terlewat di baris berikutnya. */
+.petak.petak-4 { grid-template-columns: repeat(auto-fit, minmax(min(196px, 100%), 1fr)); }
+/* Di bawah 900px DIPATOK dua kolom, bukan dibiarkan auto-fit jadi tiga.
+   Barisnya selalu EMPAT kotak: tiga kolom meninggalkan kotak keempat sendirian
+   di baris kedua — 236px di baris selebar 740px — dan itu persis keluhan yang
+   dulu melahirkan .petak-4 (uji-ruang kategori 3, "isi yang menciut di dalam
+   wadahnya"). Dua kolom memberi 362px per kotak, jauh di atas ambang 196px,
+   dan 4 = 2 x 2 tanpa sisa. */
+@media (max-width: 900px) { .petak.petak-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Tangga umur piutang & utang: LIMA kotak berurutan (belum jatuh tempo, 1-30,
+   31-60, 61-90, >90). Lima itu bilangan prima, jadi jumlah kolom yang TIDAK
+   meninggalkan kotak yatim cuma 5, 3, atau 1 — empat memberi 4+1 dan dua
+   memberi 2+2+1, keduanya menyisakan satu kotak sendirian di baris terakhir
+   (uji-ruang kategori 3).
+
+   Karena itu dipatok, bukan auto-fit: auto-fit berambang 220px memilih EMPAT
+   kolom di laptop dan justru melahirkan yatim itu. Tiga kolom di 1366px memberi
+   356px per kotak, dan lima kolom baru dipakai kalau isinya benar-benar cukup
+   (5 x 220 + 4 x 16 = 1164px, tercapai di sekitar 1440px). */
+.petak.petak-tangga { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 1440px) { .petak.petak-tangga { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+/* Dua kolom di HP, bukan satu: 141px isi lawan 135px yang dibutuhkan sejak
+   "Rp" dikecilkan. Lima kotak jadi 2+2+1 — kotak terakhir memang sendirian,
+   tapi di HP setiap baris memang cuma dua kotak dan mata tidak membacanya
+   sebagai baris yang timpang; uji-ruang pun cuma menandai yatim pada baris
+   tiga kolom ke atas. */
+@media (max-width: 760px)  { .petak.petak-tangga { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* Empat kolom berarti kotaknya sempit, dan "Rp 3.820.000" pada ukuran angka
    penuh membungkus jadi dua baris — satu kotak menaikkan tinggi seluruh
    barisnya, dan tiga kotak lain berlubang 37px di dalam. Angkanya diperkecil
@@ -1904,6 +1994,24 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    kotak centang tanpa label; diratakan di atas, kotak centangnya melayang 30px
    di atas input yang sebaris dengannya. */
 .petak.petak-form { align-items: end; }
+
+/* "Rp" di dalam nominal: lebih kecil, menempel angkanya, sedikit lebih pucat.
+   Yang dibaca orang angkanya; "Rp" cuma menerangkan satuannya.
+
+   Diukur 19 Sep 2026: "Rp 9.999.999.999" pada --fs-19 selebar 155px, bentuk
+   ini 139px. Hemat 16px, dan itu yang membuat susunan kolom yang sudah
+   disetujui pemilik tetap bisa dipertahankan sambil memuat miliaran.
+
+   0.62em, BUKAN ukuran tetap: satu aturan ini dipakai di --fs-24, --fs-21,
+   --fs-19, dan ukuran tabel sekaligus, jadi perbandingannya harus ikut
+   hurufnya. Pada --fs-19 ia jatuh di 11.8px — persis yang diukur.
+
+   Spasinya dibuang dari teksnya, bukan dari sini: spasi itu sendiri memakan
+   5-6px, dan itu sebagian dari penghematannya. */
+.rp {
+  font-size: .62em; font-weight: 600; color: var(--teks-redup);
+  margin-right: 1px; letter-spacing: 0;
+}
 .statistik .nilai {
   font-size: var(--fs-24); font-weight: 600; margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -2301,7 +2409,37 @@ input.sudah-hitung {
   .petak { grid-template-columns: 1fr 1fr; }
   /* Ditulis ulang, bukan diwarisi: `.petak.petak-4` lebih khusus dan akan
      menang tanpa baris ini — empat kotak berdesakan di layar 390px. */
-  .petak.petak-4 { grid-template-columns: 1fr 1fr; }
+  /* DUA kolom, dan itu kembali mungkin sejak "Rp" dikecilkan: petak 362px
+     memberi 141px isi per kolom, sedangkan nominal miliaran butuh 135px pada
+     --fs-19. Sempat diturunkan ke satu kolom waktu "Rp" masih seukuran penuh
+     (butuh 164px) — dan itu mematahkan uji-hp yang menjaga "kartu statistik
+     dua per baris" sejak lama.
+
+     Hurufnya ikut diturunkan ke --fs-19 di lebar ini. Tanpa itu baris
+     .petak-4 memakai huruf LEBIH BESAR daripada baris nominal biasa di layar
+     yang sama — 21 lawan 19 — dan justru barisnya yang tidak muat. */
+  .petak.petak-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .petak-4 .statistik .nilai { font-size: var(--fs-19); }
+  /* Kartu dasbor juga satu kolom di HP. Dua kolom di 390px memberi kartu
+     156px — isinya 137px — sedangkan nominal miliaran butuh 155px pada
+     --fs-19. Sama sebabnya dengan .petak-4 di atasnya. */
+  .petak-dash, .petak-dash-4 { grid-template-columns: 1fr; }
+  /* Dan petak stok-mini. Dua kolom di 360px memberi 137px isi, miliaran
+     butuh 155px.
+
+     DITARUH DI SINI, bukan di blok @media sendiri di dekat aturannya —
+     uji.js mengiris blok ini dari kemunculan PERTAMA "@media (max-width:
+     620px)" sampai kurung tutupnya, jadi blok 620px kedua di mana pun di atas
+     sini akan membuat irisannya salah alamat dan dua penjaga merah tanpa ada
+     yang salah di tata letaknya. Satu lebar, satu blok. */
+  .petak-mini.petak-stok-mini { grid-template-columns: 1fr; }
+  /* Kotak nominal SATU kolom di HP, bukan dua. Dua kolom di 390px memberi
+     kotak 156px — isinya 124px sesudah padding — sedangkan "Rp 9.999.999.999"
+     butuh 155px bahkan pada --fs-19. Tidak ada ukuran huruf di skala yang
+     membuatnya muat tanpa mengecilkannya sampai terbaca seperti keterangan,
+     bukan angka utama. Keputusan yang sama sudah berlaku untuk
+     `.petak-mini.petak-uang` (bagian 193). */
+  .petak.petak-uang { grid-template-columns: 1fr; }
   /* `margin-bottom: 16px` bawaan `.kartu` DITAMBAHKAN ke `gap` di dalam grid:
      jarak antar baris jadi 24px sementara antar kolom 8px. Di layar lebar
      `.petak` hampir selalu satu baris jadi tidak terlihat; di HP ia selalu

@@ -4284,7 +4284,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const item = kumpulkanAnak('beli');
     const sub = item.reduce((a, i) => a + (Number(i.qty) || 0) * (Number(i.harga_satuan) || 0), 0);
     const total = sub - angka('beliDiskon') + angka('beliPpn');
-    $('#beliTotal').textContent = rp(total);
+    $('#beliTotal').innerHTML = rp(total);
   }
 
   async function simpanPembelian() {
@@ -4824,7 +4824,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const d = await API.daftarPiutang({});
       const a = d.aging;
       $('#isiPiutang').innerHTML = `
-        <div class="petak">
+        <div class="petak petak-tangga">
           <div class="kartu statistik"><div class="label">Belum jatuh tempo</div><div class="nilai">${rp(a.lancar)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 1–30 hari</div><div class="nilai">${rp(a.h30)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 31–60</div><div class="nilai">${rp(a.h60)}</div></div>
@@ -4887,7 +4887,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const d = await API.daftarUtang({});
       const a = d.aging;
       $('#isiUtang').innerHTML = `
-        <div class="petak">
+        <div class="petak petak-tangga">
           <div class="kartu statistik"><div class="label">Belum jatuh tempo</div><div class="nilai">${rp(a.lancar)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 1–30 hari</div><div class="nilai">${rp(a.h30)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 31–60</div><div class="nilai">${rp(a.h60)}</div></div>
@@ -5434,8 +5434,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#konsPeriode')) {
       w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Ringkasan gabungan</h3>
-            <span class="wadah-periode" id="wadahPeriodeKons"></span></div>
+          <h3>Ringkasan gabungan</h3>
+          <div class="saring-baris">
+            <span class="wadah-periode" id="wadahPeriodeKons"></span>
+          </div>
           <p class="petunjuk">Tiga sumber yang membentuk seluruh usaha. Angkanya dibaca dari
              Laba Rugi lintas cabang — laporan yang sama persis dengan menu Keuangan, bukan
              hitungan kedua yang cepat atau lambat akan menyimpang darinya.</p>
@@ -5492,7 +5494,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="isi-dash"><div class="mini-nilai">${rp(s.penjualan)}</div>
             <p class="petunjuk">Laba bersih ${rp(s.laba)}<br>
                <span class="petunjuk">${esc(s.berkas || '')} · ${esc(waktuTampil(s.diunggah))}</span></p></div>
-          <div class="kaki-dash"><span class="pesan sukses">Dari berkas</span></div>
+          <div class="kaki-dash">${lencanaDash('Dari berkas', 'hijau')}</div>
         </div>`;
       }
       return `<div class="kartu rapat kartu-dash">
@@ -5500,7 +5502,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="isi-dash"><div class="mini-nilai">${rp(s.penjualan)}</div>
           <p class="petunjuk">Laba ${rp(s.laba)}${s.selisih_kas
             ? ` · selisih kas <span class="delta turun">${rp(s.selisih_kas)}</span>` : ''}</p></div>
-        <div class="kaki-dash"><span class="pesan sukses">Terjurnal</span></div>
+        <div class="kaki-dash">${lencanaDash('Terjurnal', 'hijau')}</div>
       </div>`;
     };
 
@@ -5703,8 +5705,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#accPeriode')) {
       w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Accurate</h3>
-            <span class="wadah-periode" id="wadahPeriodeAcc"></span></div>
+          <h3>Accurate</h3>
+          <div class="saring-baris">
+            <span class="wadah-periode" id="wadahPeriodeAcc"></span>
+          </div>
           <p class="petunjuk">Unggah hasil ekspor <strong>Excel</strong> Laba Rugi dan
              Neraca dari Accurate, satu kali tiap bulan. Angkanya dipakai menu
              <strong>Ringkasan Gabungan</strong> — layar itu sengaja tidak punya tombol
@@ -5843,8 +5847,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#lapulsaDari')) {
       w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Shift pulsa yang sudah ditutup</h3>
-            <span class="wadah-periode" id="wadahPeriodeLapulsa"></span></div>
+          <h3>Shift pulsa yang sudah ditutup</h3>
+          <div class="saring-baris">
+            <span class="wadah-periode" id="wadahPeriodeLapulsa"></span>
+          </div>
         </div>
         <div id="hasilLapulsa"></div>`;
       $('#wadahPeriodeLapulsa').innerHTML = Periode.html(PERIODE_LAPULSA);
@@ -6690,7 +6696,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const d = await API.laporanDiskon({ dari: $('#dskDari').value, sampai: $('#dskSampai').value });
       const r = d.ringkas;
       w.innerHTML = `
-        <div class="petak">
+        <div class="petak petak-uang">
           <div class="kartu statistik"><div class="label">Nota berdiskon</div>
             <div class="nilai">${r.nota_berdiskon}</div>
             <div class="meta-kecil">dari ${r.jumlah_nota} nota</div></div>
@@ -7718,11 +7724,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const r = nilai('rt'), p = nilai('rp');
     const selisih = p - r;
 
-    $('#rtNilaiRetur').textContent = rp(r);
-    $('#rtNilaiPengganti').textContent = rp(p);
+    $('#rtNilaiRetur').innerHTML = rp(r);
+    $('#rtNilaiPengganti').innerHTML = rp(p);
     $('#rtLabelSelisih').textContent = selisih < 0 ? 'Uang dikembalikan' :
                                        (selisih > 0 ? 'Pelanggan menambah bayar' : 'Selisih');
-    $('#rtSelisih').textContent = rp(Math.abs(selisih));
+    $('#rtSelisih').innerHTML = rp(Math.abs(selisih));
     $('#rtSelisih').style.color = selisih > 0 ? 'var(--sukses)' : (selisih < 0 ? 'var(--bahaya)' : 'var(--teks)');
   }
 
@@ -7898,7 +7904,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function hitungReturBeli() {
     const t = kumpulkanAnak('rb')
       .reduce((a, i) => a + (Number(i.qty) || 0) * (Number(i.harga_beli) || 0), 0);
-    if ($('#rbTotal')) $('#rbTotal').textContent = rp(t);
+    if ($('#rbTotal')) $('#rbTotal').innerHTML = rp(t);
   }
 
   /* ==================== ARSIP ==================== */

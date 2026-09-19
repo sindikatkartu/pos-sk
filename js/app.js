@@ -26,7 +26,27 @@ const APP_STATE = {
 
 const $  = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
-const rp = (n) => CONFIG.MATA_UANG + ' ' + new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+/**
+ * Nominal rupiah. "Rp" DIKECILKAN dan MENEMPEL angkanya — keputusan pemilik
+ * 19 Sep 2026, diukur: "Rp 9.999.999.999" pada --fs-19 selebar 155px, bentuk
+ * ini 139px. Hemat 16px, dan itu yang membuat susunan kolom yang sudah
+ * disetujui tetap bisa dipertahankan sambil memuat miliaran.
+ *
+ * Huruf kapitalnya TETAP. "rp" huruf kecil menghemat 3px lagi dan ditolak:
+ * singkatan rupiah yang baku "Rp", dan di layar yang dipakai memutuskan soal
+ * uang huruf kecil terbaca seperti salah ketik.
+ *
+ * MEMULANGKAN HTML, bukan teks. Pemanggil yang menulis ke `textContent` akan
+ * menampilkan markupnya mentah — ketigabelasnya sudah dipindah ke `innerHTML`
+ * bersamaan dengan perubahan ini. Yang menambah pemanggil baru: pakai
+ * `innerHTML`, atau `rpTeks()` kalau memang butuh teks polos.
+ */
+const rp = (n) => '<span class="rp">' + CONFIG.MATA_UANG + '</span>' +
+  new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+
+/** Teks polos, untuk tempat yang memang bukan HTML (judul, ekspor, salin). */
+const rpTeks = (n) => CONFIG.MATA_UANG + ' ' +
+  new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
 /**
  * Lolos-kan teks untuk HTML — termasuk kutip TUNGGAL.
  *
@@ -2149,12 +2169,12 @@ function gambarKeranjang() {
     </div>`).join('')
     : '<p style="color:var(--teks-redup);text-align:center;padding:36px 0">Keranjang kosong</p>';
 
-  $('#tSubtotal').textContent = rp(t.bruto);
-  $('#tDiskon').textContent = rp(t.diskon_item + t.diskon_nota);
-  $('#tPpn').textContent = rp(t.ppn);
-  $('#tTotal').textContent = rp(t.total);
+  $('#tSubtotal').innerHTML = rp(t.bruto);
+  $('#tDiskon').innerHTML = rp(t.diskon_item + t.diskon_nota);
+  $('#tPpn').innerHTML = rp(t.ppn);
+  $('#tTotal').innerHTML = rp(t.total);
   $('#pegHitung').textContent = t.jumlah_item + ' item';
-  $('#pegTotal').textContent = rp(t.total);
+  $('#pegTotal').innerHTML = rp(t.total);
   $('#btnBayar').disabled = b.length === 0;
 }
 
@@ -2814,7 +2834,7 @@ function gambarMetode() {
              layarnya. (Tanpa petik-balik: blok ini di dalam template literal.) */''}
       <div class="pecahan-baris">
         ${PECAHAN.map(n => `<button type="button" class="cip uang u-${n}" data-i="${i}" data-f="pecahan"
-            data-nilai="${n}" title="Tambah ${rp(n)}"><span>${labelPecahan(n)}</span></button>`).join('')}
+            data-nilai="${n}" title="Tambah ${rpTeks(n)}"><span>${labelPecahan(n)}</span></button>`).join('')}
       </div>
       <div class="pecahan-baris">
         <button type="button" class="cip pas" data-i="${i}" data-f="pas">Uang pas</button>
@@ -2827,7 +2847,7 @@ function gambarBayar() { gambarMetode(); gambarRingkasBayar(); }
 
 function gambarRingkasBayar() {
   const t = Keranjang.total();
-  $('#byrTotal').textContent = rp(t.total);
+  $('#byrTotal').innerHTML = rp(t.total);
 
   /* Baris PIUTANG dihitung, tidak diketik: nilainya adalah sisa yang belum
      tertutup metode lain. Itu definisi utang, bukan pilihan — dan server
@@ -2846,10 +2866,10 @@ function gambarRingkasBayar() {
   const selisih = dibayar - t.total;
   const adaPiutang = iPiutang >= 0;
 
-  $('#byrDibayar').textContent = rp(dibayar);
+  $('#byrDibayar').innerHTML = rp(dibayar);
   segarkanLipatanOpsional();
   $('#byrLabelSisa').textContent = selisih >= 0 ? 'Kembali' : 'Kurang';
-  $('#byrSisa').textContent = rp(Math.abs(selisih));
+  $('#byrSisa').innerHTML = rp(Math.abs(selisih));
   $('#byrSisa').style.color = selisih < 0 ? 'var(--bahaya)' : 'var(--sukses)';
   $('#grupJatuhTempo').classList.toggle('sembunyi', !adaPiutang);
   /* Tidak ada lagi pengecualian untuk nota bon. Dulu `!adaPiutang && selisih < 0`
@@ -4155,7 +4175,19 @@ function gambarLapRingkas(w, d) {
           esc(tglTampil(d.rentang_lalu.dari))} – ${esc(tglTampil(d.rentang_lalu.sampai))}</p>
       </div>
 
-      ${petakAngka(angkaRingkasLaporan(d))}
+      ${petakAngka(angkaRingkasLaporan(d), 'petak-uang')}
+
+      ${d.ringkas.laba_kotor !== undefined ? `
+      <div class="kartu">
+        <p class="pesan info"><strong>Laba kotor di sini memakai harga modal saat barang
+           DIJUAL, bukan yang akhirnya dibayar.</strong> Barang yang terjual ketika stok
+           sistem masih minus dicatat dengan modal perkiraan — harga beli terakhir — dan
+           harga sebenarnya baru diketahui saat pembeliannya diinput. Selisihnya dibukukan
+           di buku besar, tidak di notanya.
+           Karena itu angka di layar ini <strong>lebih optimis</strong> daripada Laba Rugi
+           di menu Keuangan selama stok minus masih dicicil — 19 Sep 2026 bedanya 4,29 juta
+           dalam sebulan. Untuk keputusan uang, pakai yang di Keuangan.</p>
+      </div>` : ''}
 
       <div class="kartu" data-bagian="Tren harian"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
 
