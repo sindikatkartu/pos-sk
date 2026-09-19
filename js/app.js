@@ -4910,8 +4910,13 @@ async function tampilkanUji() {
     const d = await API.ujiKebenaran({ periode: $('#keuPeriode').value });
     w.innerHTML = `<div class="kartu"><h3>Uji kebenaran pembukuan — ${esc(d.periode)}</h3>
       <div class="gulir-x"><table><tr><th>Pemeriksaan</th><th>Nilai</th><th>Hasil</th></tr>
+      ${/* TIGA keadaan. `lulus === null` berarti pemeriksaannya TIDAK BISA
+           dijalankan — biasanya karena datanya gagal dibaca — dan itu bukan
+           lulus maupun gagal. Menggambarnya sebagai salah satunya membuat
+           pemeriksaan yang mati terlihat persis sama dengan yang hidup. */''}
       ${d.hasil.map(h => `<tr><td>${esc(h.uji)}</td><td>${esc(h.nilai)}</td>
-        <td class="${h.lulus ? 'uji-lulus' : 'uji-gagal'}">${h.lulus ? 'LULUS' : 'GAGAL'}</td></tr>`).join('')}
+        <td class="${h.lulus === null ? 'uji-tak' : h.lulus ? 'uji-lulus' : 'uji-gagal'}">${
+          h.lulus === null ? 'TIDAK BISA DIPERIKSA' : h.lulus ? 'LULUS' : 'GAGAL'}</td></tr>`).join('')}
       </table></div></div>`;
   } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }

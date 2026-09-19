@@ -2067,6 +2067,9 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
+/* Pemeriksaan yang TIDAK BISA dijalankan: bukan hijau, bukan merah. Dua
+   warna untuk tiga keadaan memaksa salah satunya berbohong. */
+.uji-tak { color: var(--peringatan); font-weight: 700; }
 
 .bar-alat { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 /* Judul di dalam bar alat: tanpa margin, dari kelas — bukan `style="margin:0"`

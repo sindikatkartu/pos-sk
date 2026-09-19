@@ -5457,6 +5457,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#hasilKons', e); }
   }
 
+  /* Kartu yang GAGAL harus punya jalan keluar. Tanpa tombol, satu-satunya
+     cara mencoba lagi adalah pindah menu lalu kembali — dan orang yang tidak
+     tahu jalan pintas itu menyimpulkan layarnya rusak, lalu berhenti memakai
+     fiturnya. Ketiga kartu kegagalan di layar ini berarti hal yang sama
+     (satu bacaan gagal), jadi tombolnya satu dan sama, bukan tiga penangan.
+
+     body.tunggu sudah mengunci semua <button> selama memuat, jadi tidak ada
+     yang perlu ditambahkan supaya tombol ini tidak bisa diklik dua kali. */
+  const tombolUlangKons = () =>
+    `<button class="tombol kecil" data-ulangkons="1">Coba lagi</button>`;
+
   function gambarKons(d) {
     const w = $('#hasilKons');
     if (!w) return;
@@ -5469,6 +5480,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="isi-dash"><div class="mini-nilai">?</div>
             <p class="pesan galat">Berkas yang tersimpan tidak bisa dibaca:
                ${esc(s.gagal)}. Angka Accurate TIDAK ikut dijumlahkan.</p></div>
+          <div class="kaki-dash">${tombolUlangKons()}</div>
         </div>`;
       }
       if (s.kode === 'ACCURATE' && s.belum_tersambung) {
@@ -5520,7 +5532,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${d.pulsa_gagal ? `<div class="kartu"><p class="pesan galat">
          <strong>Bagian pulsa tidak digambar</strong> karena datanya tidak bisa dibaca:
          ${esc(d.pulsa_gagal)}. Angka POS di bawah karena itu masih memuat pulsa di dalamnya —
-         yang hilang bukan nol, melainkan tidak diketahui.</p></div>` : ''}
+         yang hilang bukan nol, melainkan tidak diketahui.</p>
+         <p>${tombolUlangKons()}</p></div>` : ''}
       <div class="petak-mini petak-uang">
         ${miniKons('Penjualan bersih', rp(d.penjualan_bersih), 'seluruh cabang & sumber')}
         ${miniKons('Laba kotor', rp(d.laba_kotor), 'sesudah HPP')}
@@ -5548,6 +5561,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              dibaca</strong>: ${esc(d.accurate_neraca_gagal)}. Layar ini sengaja
              tidak bilang "belum ada berkas" — yang hilang bukan nol, melainkan
              tidak diketahui.</p>
+          <p>${tombolUlangKons()}</p>
         ` : d.accurate_neraca ? `
           <div class="petak-mini petak-uang">
             ${miniKons('Aset', rpAtau(d.accurate_neraca.aset), 'jumlah aset')}
@@ -5676,9 +5690,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Jenisnya disebut di pesannya: dua tombol mengirim lewat satu kolom
          berkas, dan "Tersimpan" saja tidak memberi tahu yang mana yang masuk. */
       const jn = jenis === 'NERACA' ? 'Neraca' : 'Laba rugi';
-      toast(tak.length
+      /* Periode yang TIDAK BISA diperiksa disebut, bukan didiamkan. Server
+         menolak berkas yang bulannya BEDA, tapi kepala laporan yang tidak
+         terbaca membuatnya lolos tanpa diperiksa — dan diam di situ terbaca
+         sebagai "sudah dicocokkan". */
+      const pesan = tak.length
         ? (jn + ' tersimpan, tapi ' + tak.length + ' pemeriksaan tidak bisa dijalankan — baris totalnya tidak ketemu.')
-        : (jn + ' tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.'));
+        : (jn + ' tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.');
+      toast(h.periode_terperiksa === false
+        ? (pesan + ' Bulan di berkasnya tidak terbaca, jadi kecocokan periodenya TIDAK diperiksa.')
+        : pesan);
     } catch (e) { toast(e.message, 'galat'); }
   }
 
@@ -8663,6 +8684,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editSumber)             return editorSumberpulsa(d.editSumber);
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
       if (d.tabpulsa) return muatPulsa(d.tabpulsa);
+      /* Satu tombol untuk ketiga kartu gagal di Ringkasan gabungan. Yang
+         diulang SELURUH layarnya, bukan bagian yang gagal saja: ketiga
+         kegagalannya lahir dari satu panggilan yang sama. */
+      if (d.ulangkons) return muatHasilKons();
       if (d.unggahacc) {
         /* Jenisnya dititipkan di kolom berkasnya, bukan dibaca ulang dari DOM
            saat berkasnya masuk — tombolnya sudah tergambar ulang waktu itu. */
