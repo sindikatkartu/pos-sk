@@ -76,6 +76,15 @@
   --ungu-lembut:   #efeafb;
   --teal:          #0f766e;
   --teal-lembut:   #e3f3f1;
+  /* Ringkasan Gabungan (bagian 204). Kepala gelapnya bukan warna bermerek
+     mana pun yang sudah ada — ia latar pekat tempat satu angka besar berdiri
+     sendiri. Ketiga rona sumber dipisah dari palet makna: ia penanda
+     IDENTITAS kolom, bukan "sukses" atau "peringatan". */
+  --kons-kepala:      #12243a;
+  --kons-kepala-teks: #f7fafc;
+  --sumber-pos:       #22c07a;
+  --sumber-pulsa:     #f0a132;
+  --sumber-accurate:  #6f7bf7;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #fbe7e7;
   --bahaya-garis:  #f0a9a9;
@@ -227,6 +236,14 @@ html[data-tema="gelap"] {
   --ungu-lembut:   #26213a;
   --teal:          #5fc9be;
   --teal-lembut:   #16302d;
+  /* Di tema gelap kepala Ringkasan Gabungan tidak boleh lebih pekat daripada
+     halamannya — ia harus tetap terbaca sebagai panel yang TERANGKAT. Ketiga
+     rona sumber ikut dinaikkan, pola yang sama dengan --ungu dan --teal. */
+  --kons-kepala:      #1b2436;
+  --kons-kepala-teks: #faf9f5;
+  --sumber-pos:       #5fd6a0;
+  --sumber-pulsa:     #f5bd6b;
+  --sumber-accurate:  #9aa4fb;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #221313;
   --bahaya-garis:  #5c2626;
@@ -2090,6 +2107,82 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    bawaan peramban, tidak sejajar dengan apa pun di sekelilingnya. Kelas
    yang dipanggil tapi tidak pernah ditulis tidak berbunyi apa-apa; ia cuma
    diam-diam tidak bekerja. */
+/* ---------- Ringkasan Gabungan (bagian 204) ---------- */
+
+/* Kepala gelap: satu angka besar, dua pendamping, dan pita per sumber.
+   Warnanya lewat variabel, bukan heksa yang ditanam — kalau suatu hari ada
+   mode gelap, kartu inilah yang pertama salah kalau warnanya dipatok. */
+.kepala-kons {
+  background: var(--kons-kepala); color: var(--kons-kepala-teks);
+  border-radius: 14px; padding: 18px 20px; margin-bottom: 14px;
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;
+}
+.kepala-kons .utama { flex: 1; min-width: 230px; }
+.kepala-kons .label {
+  font-size: var(--fs-11); letter-spacing: .09em; text-transform: uppercase;
+  opacity: .65;
+}
+.kepala-kons .besar { font-size: 32px; font-weight: 700; line-height: 1.15; margin-top: 4px; }
+.kepala-kons .sub { font-size: var(--fs-12); opacity: .6; margin-top: 3px; }
+.kepala-kons .kotak {
+  background: rgba(255,255,255,.08); border-radius: 10px;
+  padding: 10px 14px; min-width: 150px;
+}
+.kepala-kons .kotak .nilai { font-size: var(--fs-17); font-weight: 700; margin-top: 3px; }
+/* "Rp" pucat di atas latar gelap: `.rp` umum memakai --teks-redup yang
+   dibuat untuk latar terang, dan di sini ia nyaris hilang. */
+.kepala-kons .rp { color: rgba(255,255,255,.55); }
+.pita-kons {
+  flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 18px;
+  border-top: 1px solid rgba(255,255,255,.12); padding-top: 12px;
+  font-size: var(--fs-12);
+}
+.pita-kons b { font-weight: 700; margin-left: 5px; }
+.pita-kons i {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; margin-right: 6px; background: var(--teks-redup);
+}
+.pita-kons i[data-sumber="POS"]      { background: var(--sumber-pos); }
+.pita-kons i[data-sumber="PULSA"]    { background: var(--sumber-pulsa); }
+.pita-kons i[data-sumber="ACCURATE"] { background: var(--sumber-accurate); }
+
+/* Matriks: baris akun, kolom sumber. Angkanya rata kanan dan berlebar
+   tetap (`tabular-nums`) supaya digitnya bertumpuk lurus antar baris —
+   tanpa itu mata harus membaca tiap angka utuh untuk membandingkannya. */
+table.matriks-kons { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+table.matriks-kons th {
+  font-size: var(--fs-11); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--teks-redup); font-weight: 700; padding: 7px 10px; white-space: nowrap;
+  text-align: right;
+}
+table.matriks-kons th.akun, table.matriks-kons td.akun {
+  text-align: left; white-space: normal; min-width: 180px;
+}
+table.matriks-kons td {
+  padding: 7px 10px; border-top: 1px solid var(--garis-halus); white-space: nowrap;
+}
+table.matriks-kons td.angka { text-align: right; font-variant-numeric: tabular-nums; }
+table.matriks-kons .kode {
+  font-size: var(--fs-11); color: var(--teks-redup); font-variant-numeric: tabular-nums;
+}
+table.matriks-kons tr.subtotal td {
+  background: var(--panel-2); font-weight: 700; border-top: 1px solid var(--garis-rangka);
+}
+table.matriks-kons .gabung { background: rgba(0,0,0,.03); font-weight: 700; }
+/* Nol dan "tidak ada angkanya" sengaja DIBEDAKAN, dan keduanya dipucatkan:
+   di tabel lima kolom, nol yang setegas angka lain membuat mata berhenti
+   di tempat yang tidak ada isinya. */
+table.matriks-kons .nol { color: var(--teks-redup); opacity: .5; }
+table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
+
+.tukar-kons { display: flex; gap: 6px; }
+/* Lencana di atas latar pekat: yang bawaan dibuat untuk latar terang dan
+   di sini nyaris tidak terbaca. */
+.pita-kons .lencana {
+  margin-left: 6px; background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.18); color: var(--kons-kepala-teks);
+}
+
 .daftar-rapat { list-style: none; margin: 0; padding: 0; }
 .daftar-rapat > li {
   display: flex; align-items: center; gap: 10px;
@@ -2417,6 +2510,13 @@ input.sudah-hitung {
 @media (max-width: 620px) {
   /* Nota ditahan: dua tombolnya turun ke baris sendiri, masing-masing setengah
      lebar kartu — selebar jari, bukan dua tombol kecil berdempetan. */
+  /* Kepala Ringkasan Gabungan menyusut di HP: angka 32px memenuhi separuh
+     layar sendirian. Ditaruh DI SINI, bukan di blok 620px tersendiri —
+     blok kedua untuk lebar yang sama membuat penjaga yang memotong dari
+     kemunculan pertama membaca blok yang salah (bagian 204). */
+  .kepala-kons { padding: 14px 16px; }
+  .kepala-kons .besar { font-size: var(--fs-28); }
+  .kepala-kons .kotak { flex: 1; min-width: 140px; }
   .tahanan-aksi { flex: 1 1 100%; }
   .tahanan-aksi .tombol { flex: 1; }
   .bar-atas h1 { font-size: var(--fs-15); }
