@@ -158,6 +158,33 @@ const API = (() => {
        persetujuan meninggalkan admin menebak apakah notanya jadi batal. */
     'ajukan_void', 'putus_minta_void', 'tarik_minta_void'
   ]);
+  /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
+     ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
+     (19 Sep 2026; enam di antaranya menulis lewat fungsi lain — _siapVoid,
+     cabutSesi, audit — jadi penyapu penanda sederhana melewatkannya).
+
+     Daftar ini ada bukan untuk dibaca manusia, melainkan supaya endpoint BARU
+     tidak bisa lolos tanpa keputusan: uji statis menuntut setiap `case` di
+     04_Api.gs muncul di salah satu dari dua daftar ini. Yang tidak terdaftar
+     berarti BELUM DIPUTUSKAN, bukan berarti aman — dan sebelum penjaga ini ada,
+     sebuah endpoint baca yang lupa didaftarkan akan melempar galat ke layar
+     tiap kali Google menjawab 404 sesaat. */
+  const TIDAK_DIULANG = new Set([
+    'batal_opname', 'batal_pembelian', 'batal_permintaan', 'batal_transfer',
+    'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
+    'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
+    'hapus_perangkat', 'impor_master', 'impor_produk', 'kirim_penjualan',
+    'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
+    'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
+    'setup_pulsa', 'siapkan_pulsa_pos', 'simpan_cabang', 'simpan_hitungan',
+    'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
+    'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
+    'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
+    'tandai_butuh_pasang', 'template_impor', 'terima_transfer', 'tutup_buku',
+    'tutup_shift', 'tutup_shift_pulsa', 'unggah_accurate', 'unggah_foto_pulsa',
+    'void_penjualan'
+  ]);
+
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
      408/429 (antre), 5xx (pintu depan). 400/401/403 bukan — itu jawaban tentang
      permintaannya, dan mengulanginya cuma mengulangi penolakannya. */
@@ -201,6 +228,10 @@ const API = (() => {
    * delapan puluh pemanggil.
    */
   const _tertahan = new Set();
+/* Sekali saja per pemuatan halaman. Dipasang waktu jawaban PERTAMA tiba —
+   berhasil atau gagal — karena yang menandakan susulanRilis sudah lewat
+   adalah servernya sempat menjawab, bukan jawabannya bagus. */
+let _pernahJawab = false;
 
   function _periksaTertahan() {
     const kini = Date.now();
@@ -228,7 +259,23 @@ const API = (() => {
    */
   async function _sekali(aksi, data, opsi) {
     const ctrl = new AbortController();
-    const batas = opsi.timeout || 30000;
+    /* Panggilan PERTAMA sesudah halaman dimuat menanggung susulanRilis(), yang
+       memigrasikan skema sekali per versi. Terukur 44,7 detik — di atas batas
+       bawaan 30 detik, jadi orang pertama yang membuka POS sesudah rilis melihat
+       "tidak ada jawaban" padahal servernya sedang bekerja, lalu mengulang dan
+       membuatnya bekerja dua kali.
+
+       Yang dilonggarkan HANYA nilai BAWAANNYA, dan hanya untuk panggilan pertama.
+       Dua batas yang sengaja TIDAK disentuh:
+
+       - batas yang diminta pemanggil. Percobaan pertama memakai Math.max dan
+         menimpanya; uji-tertahan langsung merah enam kali, karena pemanggil yang
+         meminta satu detik memang bermaksud satu detik. Penjaga yang membatalkan
+         niat pemanggilnya lebih berbahaya daripada tidak ada.
+       - seluruh panggilan sesudah yang pertama. Batas longgar untuk semuanya
+         berarti kasir menunggu dua menit sebelum tahu jaringannya mati — obat
+         yang lebih buruk dari penyakitnya. */
+    const batas = opsi.timeout || (_pernahJawab ? 30000 : 120000);
     const timer = setTimeout(() => ctrl.abort(), batas);
     /* Didaftarkan supaya `_periksaTertahan()` masih bisa menemukannya kalau
        timer di atas ikut mati bersama tabnya. Dicabut lagi di `finally`. */
@@ -242,6 +289,11 @@ const API = (() => {
         signal: ctrl.signal,
         redirect: 'follow'
       });
+      /* Servernya SEMPAT menjawab, jadi susulanRilis sudah lewat. Dipasang
+         SEBELUM status diperiksa: 404 pun membuktikan pintunya menjawab, dan
+         yang ditunggu batas 120 detik itu bukan jawaban yang bagus melainkan
+         jawaban yang sampai. */
+      _pernahJawab = true;
       if (!resp.ok) throw Object.assign(new Error('HTTP ' + resp.status), { kode: 'HTTP', status: resp.status });
 
       /* Apps Script bisa menjawab HALAMAN HTML dengan status 200.
