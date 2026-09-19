@@ -276,9 +276,25 @@ const Struk = (() => {
     const enc = new TextEncoder();
     const buf = [];
     const push = (arr) => buf.push(...arr);
-    push(ESC.INIT); push(ESC.TENGAH); push(ESC.TEBAL_ON);
+    /* TIDAK ada perintah rata-tengah di sini, dan itu disengaja.
+
+       `satuBaris()` di baris() SUDAH menambahkan spasi supaya teksnya duduk di
+       tengah kertas. Sampai v1.207.0 baris pertama juga dikirimi ESC a 1, jadi
+       printer menengahkan LAGI teks yang sudah berspasi — nama toko tercetak
+       bergeser ke kanan sebanyak separuh spasi yang sudah ditambahkan. Dilaporkan
+       pemilik 19 Sep 2026: "nama tokonya tidak center ditengah".
+
+       Gejala keduanya lebih halus dan menunjuk ke sebab yang sama: nama toko yang
+       sampai DUA baris tercetak timpang — baris pertama bergeser, baris kedua
+       tidak, karena ESC a 0 dikirim tepat di antara keduanya.
+
+       Sekarang perataan datang dari SATU tempat saja, yaitu spasi di dalam
+       teksnya. Itu juga yang membuat jalur HTML dan jalur Bluetooth mencetak hal
+       yang sama persis: pratinjau di layar tidak lagi berbeda dari kertasnya.
+       Tebal tetap dipakai — ESC E tidak mengubah lebar karakter. */
+    push(ESC.INIT); push(ESC.TEBAL_ON);
     push(Array.from(enc.encode(isi[0] + '\n')));
-    push(ESC.TEBAL_OFF); push(ESC.KIRI);
+    push(ESC.TEBAL_OFF);
     isi.slice(1).forEach(b => push(Array.from(enc.encode(b + '\n'))));
     for (let i = 0; i < ekor.umpan; i++) push([0x0a]);
     if (ekor.potong) push(ESC.POTONG);

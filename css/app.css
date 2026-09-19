@@ -447,6 +447,17 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 .sisi-isi .item-nav.aktif .sisi-lencana { color: var(--teks); }
 
+/* Penanda MODUL. Sengaja lebih kecil dan lebih pucat daripada `.sisi-lencana`:
+   yang itu memberi tahu ADA YANG HARUS DIKERJAKAN, yang ini cuma menerangkan
+   JENIS menunya. Dua lencana sepadan di satu baris membuat keduanya berhenti
+   dibaca — dan yang paling rugi adalah lencana angka, yang memang mendesak. */
+.sisi-modul {
+  flex: none; padding: 1px 6px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--garis-halus);
+  color: var(--teks-redup); font-size: var(--fs-11); font-weight: 600;
+  line-height: 1.5; letter-spacing: .04em; text-transform: uppercase;
+}
+
 /* Teks yang hanya untuk pembaca layar. Bukan `display:none` dan bukan
    `visibility:hidden` — keduanya mencabutnya dari pohon aksesibilitas, yang
    persis kebalikan dari yang diminta. */
@@ -575,6 +586,14 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    yang dipaksa muat akan menutupi ikonnya sendiri — sementara yang perlu
    diketahui pada lebar ini cuma "ada sesuatu di sini". Angkanya kembali di
    flyout, satu gerakan tetikus kemudian. */
+/* Terlipat: HILANG dari mata, tetap ada untuk pembaca layar dan flyout — sama
+   seperti `.item-nama`. BUKAN dijadikan titik seperti lencana angka: titik
+   kedua di bahu ikon akan terbaca "ada yang perlu dikerjakan", padahal ini
+   cuma keterangan jenis yang tidak pernah berubah. */
+#app.sisi-lipat .sisi-isi .item-nav .sisi-modul {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; flex: none;
+}
 #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
   position: absolute; top: 6px; right: 12px;
   min-width: 0; width: 8px; height: 8px; padding: 0;
@@ -2190,6 +2209,11 @@ input.sudah-hitung {
   #app.sisi-lipat .sisi-isi .item-nav .item-nama {
     position: static; width: auto; height: auto; margin: 0;
     overflow: visible; clip: auto; flex: 1; min-width: 0;
+  }
+  /* Jadi laci, "terlipat" tidak berlaku — penanda modulnya ikut kembali. */
+  #app.sisi-lipat .sisi-isi .item-nav .sisi-modul {
+    position: static; width: auto; height: auto; margin: 0;
+    padding: 1px 6px; overflow: visible; clip: auto; flex: none;
   }
   #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
     position: static; width: auto; height: auto; min-width: 20px;

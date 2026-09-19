@@ -161,7 +161,7 @@ const MENU = [
      "pulsa ya semua terkait dengan pulsa kumpul disatu menu". Shift, master
      sumber saldo, dan laporannya jadi tab di dalam satu layar, bukan tiga
      baris di sidebar yang isinya sudah tidak muat di layar mana pun. */
-  { id: 'pulsa', label: 'Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true },
+  { id: 'pulsa', label: 'Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true, modul: true },
   /* Accurate punya menunya sendiri sejak 19 Sep 2026. Sampai v1.205.0 ia cuma
      kartu di dalam Ringkasan — alasannya waktu itu benar (belum tersambung,
      dan menu yang selalu berbunyi "belum ada apa-apa" cuma memanjangkan
@@ -170,7 +170,7 @@ const MENU = [
      Pemilik memisahkannya dengan kalimat yang jadi aturan: "ringkasan gabungan
      murni rapor". Rapor tidak menerima masukan. Seluruh tombol unggah pindah
      ke sini, dan layar Ringkasan tidak punya satu tombol pun. */
-  { id: 'accurate', label: 'Accurate', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  { id: 'accurate', label: 'Accurate', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true, modul: true },
   { id: 'konsolidasi', label: 'Ringkasan Gabungan', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
@@ -903,6 +903,14 @@ function bangunNav() {
        harus tahu urutan anak `<a>`; menyalakan `hidden` tidak. */
     `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1">` +
     `${svgIkon(m.id)}<span class="item-nama">${esc(m.label)}</span>` +
+    /* Penanda MODUL, diminta pemilik 19 Sep 2026: "supaya orang awam sekalipun
+       tahu kalau itu modul". TIDAK di-aria-hidden — bagi pembaca layar "Pulsa,
+       modul" memang keterangan yang berguna, bukan hiasan.
+
+       Digambar hanya bila m.modul, bukan selalu-lalu-disembunyikan seperti
+       kotak lencana angka di sebelahnya: yang itu isinya berubah-ubah tiap
+       jajak, yang ini tidak pernah berubah sepanjang umur menu. */
+    `${m.modul ? '<span class="sisi-modul">modul</span>' : ''}` +
     `<span class="sisi-lencana" data-lencana="${m.id}" hidden></span></a></li>`;
 
   $('#navSisi').innerHTML = kelompokMenu(diGrup).map((g, i) => {

@@ -5782,7 +5782,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
      Tabnya menampilkan-menyembunyikan wadah yang masing-masing sudah punya
      pemuatnya sendiri — bukan membongkar penggambarnya jadi satu fungsi
-     raksasa. Yang dipindah cuma pintunya. */
+     raksasa. Yang dipindah cuma pintunya.
+
+     TOMBOLNYA berbunyi "Mulai hitungan" dan "Kunci hitungan", bukan "Buka shift"
+     dan "Tutup shift" (19 Sep 2026, diputuskan pemilik). Sebabnya dari lapangan:
+     petugas cuma login, input, lalu logout — kata "buka/tutup shift" di TOMBOL
+     menjanjikan kedisiplinan jam kerja yang tidak pernah diminta.
+
+     Yang diganti HANYA kedua tombol itu, diputuskan pemilik sesudah melihat
+     hasil penggantian yang lebih luas. Judul, tab, kolom tabel, pesan server,
+     dan nama kolom database tetap memakai kata shift — itu kosakata yang sudah
+     dikenal, dan menggantinya di mana-mana menukar satu kebingungan dengan
+     kebingungan lain. Tombol adalah tempat orang MEMUTUSKAN, jadi di situlah
+     kalimatnya harus paling tidak menyesatkan. */
   const TAB_PULSA = [
     ['shift', 'Shift'],
     ['sumber', 'Sumber Saldo'],
@@ -5815,17 +5827,44 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   /* ---------- Tab laporan ---------- */
+  /* Rentang tanggalnya memakai komponen Periode standar (aturan tetap sejak
+     v1.182): satu dropdown, Kustom membuka kolom tanggalnya, tiap perubahan
+     langsung memuat, tanpa tombol Tampilkan.
+
+     Servernya SUDAH menerima dari/sampai sejak v1.202.0 — yang hilang cuma
+     pengirimnya, jadi layar ini selalu menampilkan 500 shift terakhir apa pun
+     yang dicari orang. Tidak ada perubahan server untuk ini. */
+  const PERIODE_LAPULSA = { id: 'lapulsaPeriodePilih', dari: 'lapulsaDari',
+                            sampai: 'lapulsaSampai', nilai: 'bulan', label: 'Periode' };
+
   async function muatLaporanpulsa() {
-    memuat('#isiLaporanpulsa');
+    const w = $('#isiLaporanpulsa');
+    if (!w) return;
+    if (!$('#lapulsaDari')) {
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3>Shift pulsa yang sudah ditutup</h3>
+            <span class="wadah-periode" id="wadahPeriodeLapulsa"></span></div>
+        </div>
+        <div id="hasilLapulsa"></div>`;
+      $('#wadahPeriodeLapulsa').innerHTML = Periode.html(PERIODE_LAPULSA);
+      Periode.pasang(PERIODE_LAPULSA, muatHasilLapulsa);
+    }
+    return muatHasilLapulsa();
+  }
+
+  async function muatHasilLapulsa() {
+    memuat('#hasilLapulsa');
     try {
-      const d = await API.daftarShiftPulsa({});
-      $('#isiLaporanpulsa')._rows = d.shift || [];
+      const d = await API.daftarShiftPulsa({
+        dari: $('#lapulsaDari').value, sampai: $('#lapulsaSampai').value });
+      $('#hasilLapulsa')._rows = d.shift || [];
       gambarLaporanpulsa();
-    } catch (e) { galat('#isiLaporanpulsa', e); }
+    } catch (e) { galat('#hasilLapulsa', e); }
   }
 
   function gambarLaporanpulsa() {
-    const w = $('#isiLaporanpulsa');
+    const w = $('#hasilLapulsa');
     if (!w) return;
     const rows = w._rows || [];
     const t = rows.reduce((a, r) => ({
@@ -5835,7 +5874,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     w.innerHTML = `
       <div class="kartu">
-        <h3>Shift pulsa yang sudah ditutup</h3>
         <p class="pesan info">Angka di layar ini <strong>sudah masuk buku besar</strong> sejak
            v1.203 — tiap shift yang ditutup langsung dijurnal. Yang belum dijurnal ditandai
            merah di kolom terakhir, dan itu berarti sebabnya perlu dibereskan, bukan diabaikan.</p>
@@ -5911,7 +5949,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            Isi dulu di tab Sumber Saldo — shift tidak bisa dibuka tanpa satu pun sumber.</p>`}
         <div class="saring-baris">
           <div class="kendali-tetap"><label>Jenis shift</label><select id="spsJenis">
-            ${['PAGI', 'SIANG', 'MALAM'].map(j => `<option value="${j}">${j}</option>`).join('')}
+            ${/* Dua saja — pemilik, 19 Sep 2026. Servernya menolak selain ini,
+                 jadi dropdown dan penjaga server tidak bisa menyimpang diam-diam. */
+              ['PAGI', 'MALAM'].map(j => `<option value="${j}">${j}</option>`).join('')}
           </select></div>
           <div class="kendali-tetap"><label>Kas awal</label>
             <input type="text" id="spsKasAwal" value="${rp0(st.kas_awal)}" ${st.kas_awal ? 'disabled' : ''}></div>
@@ -5935,7 +5975,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
       </div>
       <div class="kartu"><div class="aksi">
-        <button class="tombol utama" id="btnBukaShiftPulsa" ${sumber.length ? '' : 'disabled'}>Buka shift</button>
+        <button class="tombol utama" id="btnBukaShiftPulsa" ${sumber.length ? '' : 'disabled'}>Mulai hitungan</button>
       </div></div>`;
   }
 
@@ -6018,7 +6058,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="kartu">
         <h3>Hasil hitung</h3>
-        <div class="petak-mini petak-kpi">
+        <div class="petak-mini petak-uang">
           ${miniSp('Total penjualan', rp(h.jual), 'dari kolom Penjualan')}
           ${miniSp('Modal saldo', rp(h.modal), 'konsumsi seluruh sumber')}
           ${miniSp('Margin laba', rp(h.margin), 'penjualan − modal − pengeluaran')}
@@ -6033,7 +6073,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                  placeholder="${ganjil.length ? 'wajib diisi' : 'boleh dikosongkan'}"></div>
       </div>
       <div class="kartu"><div class="aksi">
-        <button class="tombol utama" id="btnTutupShiftPulsa">Tutup shift</button>
+        <button class="tombol utama" id="btnTutupShiftPulsa">Kunci hitungan</button>
       </div></div>`;
 
     /* Digambar ulang pada CHANGE, bukan INPUT: menggambar ulang di tiap ketikan
