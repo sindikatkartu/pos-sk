@@ -425,6 +425,12 @@ const Admin = (() => {
    */
   let stokDuaCabang = null;
 
+  /* Berkas Accurate yang sedang DIPRATINJAU, menunggu ditekan Simpan.
+     Dideklarasikan di sini, bersama keadaan modal yang lain, karena
+     `tutupModal()` di bawah melepasnya — dan keadaan yang dilepas satu fungsi
+     sebaiknya lahir di dekat fungsi itu, bukan delapan ribu baris jauhnya. */
+  let accTertunda = null;
+
   function bukaModal(judul, isi, aksi) {
     stokDuaCabang = null;
     $('#modalUmum').innerHTML = `<h3>${esc(judul)}</h3>${isi}
@@ -432,7 +438,17 @@ const Admin = (() => {
           ikonAlat('batal') + '<span>Tutup</span></button>')}</div>`;
     $('#tiraiUmum').classList.add('tampil');
   }
-  const tutupModal = () => $('#tiraiUmum').classList.remove('tampil');
+  /* Menutup modal MELEPAS berkas Accurate yang menunggu disetujui.
+     Ditemukan uji-acc-pratinjau: tanpa baris ini, Batal cuma menyembunyikan
+     layarnya — berkasnya tetap menggantung, dan penekanan Simpan berikutnya
+     menyimpan berkas yang tadi sudah DIBATALKAN. Membatalkan yang tidak
+     benar-benar membatalkan lebih buruk daripada tidak ada tombol Batal.
+     Ditaruh di sini, bukan di penangan tombolnya, supaya jalan keluar mana
+     pun — Batal, klik latar, tangan lain — melepasnya sekaligus. */
+  const tutupModal = () => {
+    accTertunda = null;
+    $('#tiraiUmum').classList.remove('tampil');
+  };
 
   /* ==================== TANYA — pengganti confirm() dan prompt() ==================== */
 
@@ -5673,27 +5689,111 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
   }
 
+  /* `accTertunda` dideklarasikan di dekat tutupModal() — isinya berkas yang
+     sedang dipratinjau, DISIMPAN di sana dan bukan dibaca ulang dari kolom
+     berkasnya: `input.value` sudah dikosongkan supaya berkas yang sama bisa
+     dipilih lagi, dan membacanya ulang berarti Simpan bisa mengirim berkas
+     yang BERBEDA dari yang barusan dilihat orangnya. */
+  const BARIS_PRATINJAU_ACC = {
+    LR: [['penjualan', 'Penjualan'], ['hpp', 'Beban pokok'],
+         ['laba_kotor', 'Laba kotor'], ['beban', 'Beban operasional'],
+         ['laba_usaha', 'Laba usaha'], ['laba_bersih', 'Laba bersih']],
+    NERACA: [['aset', 'Aset'], ['kewajiban', 'Liabilitas'], ['ekuitas', 'Ekuitas']]
+  };
+
+  /**
+   * Langkah SATU: baca dan periksa, jangan simpan apa pun.
+
+   * Diminta pemilik 19 Sep 2026 sesudah mengunggah dua berkas dan tidak tahu
+   * apa yang masuk. Servernya memang sudah mengerjakan seluruh pemeriksaan
+   * sebelum menulis, jadi pratinjau ini jalur yang SAMA — dihentikan lebih
+   * awal, bukan jalur kedua yang harus dijaga tetap sama.
+   */
   async function kirimBerkasAcc(input, jenis) {
     const f = input.files && input.files[0];
     if (!f) return;
     input.value = '';
+    accTertunda = null;
     try {
-      toast('Mengunggah dan memeriksa berkas…');
-      const h = await API.unggahAccurate({
+      toast('Membaca dan memeriksa berkas…');
+      const kirim = {
         jenis: jenis, periode: $('#accPeriode').value,
         nama_berkas: f.name, data: await berkasKeBase64(f)
-      });
+      };
+      const h = await API.unggahAccurate(Object.assign({ pratinjau: true }, kirim));
+      accTertunda = kirim;
+      gambarPratinjauAcc(h);
+    } catch (e) { accTertunda = null; toast(e.message, 'galat'); }
+  }
+
+  function gambarPratinjauAcc(h) {
+    const k = h.kepala || {}, r = h.ringkas || {};
+    const jn = h.jenis === 'NERACA' ? 'Neraca' : 'Laba Rugi';
+
+    /* Angka yang tidak ketemu barisnya digambar "—", bukan Rp 0. Nol yang
+       dikarang di layar pratinjau adalah nol yang disetujui orangnya. */
+    const angka = (BARIS_PRATINJAU_ACC[h.jenis] || []).map(([kunci, label]) =>
+      `<tr><td>${esc(label)}</td><td class="angka">${rpAtau(r[kunci])}</td></tr>`)
+      .join('');
+
+    /* lencanaDash(), bukan <span class="lencana …"> tulisan tangan: warna
+       lencana sudah punya satu tempat, dan menyalinnya berarti satu tempat
+       lagi yang lupa ikut berubah. */
+    const cek = (h.periksa || []).map((x) => {
+      const warna = x.status === 'COCOK' ? 'hijau'
+                  : x.status === 'BEDA' ? 'merah' : 'kuning';
+      const kata = x.status === 'COCOK' ? 'cocok'
+                 : x.status === 'BEDA' ? 'BEDA' : 'tidak bisa diperiksa';
+      return `<li>${esc(x.nama)} ${lencanaDash(kata, warna)}</li>`;
+    }).join('');
+
+    const isi = `
+      <table>
+        <tr><td>Berkas</td><td><strong>${esc(accTertunda.nama_berkas)}</strong></td></tr>
+        <tr><td>Jenis</td><td>${esc(k.judul || jn)}</td></tr>
+        <tr><td>Usaha</td><td>${esc(k.usaha) || '<span class="petunjuk">tidak terbaca</span>'}</td></tr>
+        <tr><td>Periode di berkas</td><td>${esc(k.periode) || '<span class="petunjuk">tidak terbaca</span>'}</td></tr>
+        <tr><td>Disimpan ke bulan</td><td><strong>${esc(h.periode)}</strong></td></tr>
+        <tr><td>Jumlah baris</td><td>${h.jumlah_baris}</td></tr>
+      </table>
+      <h4>Angkanya</h4>
+      <table>${angka}</table>
+      <h4>Pemeriksaan</h4>
+      <ul>${cek}</ul>
+      ${h.periode_terperiksa === false ? `<p class="pesan peringatan">Bulan di berkasnya
+         <strong>tidak terbaca</strong>, jadi kecocokannya dengan bulan yang dipilih
+         tidak bisa diperiksa. Pastikan sendiri sebelum menyimpan.</p>` : ''}
+      ${h.menggantikan && h.menggantikan.gagal
+        ? `<p class="pesan peringatan">Tidak bisa dipastikan apakah bulan ini sudah
+           punya berkas: ${esc(h.menggantikan.gagal)}.</p>`
+        : h.menggantikan
+          ? `<p class="pesan peringatan">Ini <strong>menggantikan</strong>
+             ${esc(h.menggantikan.berkas)} yang diunggah
+             ${esc(waktuTampil(h.menggantikan.diunggah))}. Yang lama tidak dihapus,
+             cuma tidak dipakai lagi.</p>`
+          : ''}
+      <p class="petunjuk">Belum ada yang disimpan. Tekan <strong>Simpan</strong>
+         kalau isinya benar.</p>`;
+
+    bukaModal('Periksa dulu — belum disimpan', isi,
+      '<button class="tombol utama" data-simpanacc="1">Simpan</button>' +
+      '<button class="tombol" data-tutup="1">Batal</button>');
+  }
+
+  /** Langkah DUA: berkas yang SAMA dikirim lagi, kali ini untuk disimpan. */
+  async function simpanBerkasAcc() {
+    if (!accTertunda) return;
+    const kirim = accTertunda;
+    accTertunda = null;
+    tutupModal();
+    try {
+      toast('Menyimpan…');
+      const h = await API.unggahAccurate(kirim);
       await muatHasilAcc();
       const tak = (h.periksa || []).filter(x => x.status === 'TAK_TERPERIKSA');
       /* Pemeriksaan yang TIDAK BISA dijalankan disebut, bukan didiamkan: nol
          pemeriksaan yang gagal terlihat persis sama dengan nol yang lolos. */
-      /* Jenisnya disebut di pesannya: dua tombol mengirim lewat satu kolom
-         berkas, dan "Tersimpan" saja tidak memberi tahu yang mana yang masuk. */
-      const jn = jenis === 'NERACA' ? 'Neraca' : 'Laba rugi';
-      /* Periode yang TIDAK BISA diperiksa disebut, bukan didiamkan. Server
-         menolak berkas yang bulannya BEDA, tapi kepala laporan yang tidak
-         terbaca membuatnya lolos tanpa diperiksa — dan diam di situ terbaca
-         sebagai "sudah dicocokkan". */
+      const jn = kirim.jenis === 'NERACA' ? 'Neraca' : 'Laba rugi';
       const pesan = tak.length
         ? (jn + ' tersimpan, tapi ' + tak.length + ' pemeriksaan tidak bisa dijalankan — baris totalnya tidak ketemu.')
         : (jn + ' tersimpan. ' + h.jumlah_baris + ' baris, angkanya menjumlah.');
@@ -8688,6 +8788,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          diulang SELURUH layarnya, bukan bagian yang gagal saja: ketiga
          kegagalannya lahir dari satu panggilan yang sama. */
       if (d.ulangkons) return muatHasilKons();
+      if (d.simpanacc) return simpanBerkasAcc();
       if (d.unggahacc) {
         /* Jenisnya dititipkan di kolom berkasnya, bukan dibaca ulang dari DOM
            saat berkasnya masuk — tombolnya sudah tergambar ulang waktu itu. */

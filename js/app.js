@@ -921,16 +921,24 @@ function bangunNav() {
        Kotak lencananya SELALU digambar, kosong dan `hidden`. Menyisipkan dan
        mencabut simpul tiap kali angkanya berubah berarti penggambar lencana
        harus tahu urutan anak `<a>`; menyalakan `hidden` tidak. */
-    `<li><a class="item-nav" href="#/${m.id}" data-layar="${m.id}" tabindex="-1">` +
-    `${svgIkon(m.id)}<span class="item-nama">${esc(m.label)}</span>` +
     /* Penanda MODUL, diminta pemilik 19 Sep 2026: "supaya orang awam sekalipun
-       tahu kalau itu modul". TIDAK di-aria-hidden — bagi pembaca layar "Pulsa,
-       modul" memang keterangan yang berguna, bukan hiasan.
+       tahu kalau itu modul". Sejak v1.211.0 ia bukan lencana kata di sebelah
+       nama melainkan PIL YANG MELINGKUPI namanya — sebabnya ditulis panjang di
+       app.css. Di sini yang tersisa cuma kelas penanda, keterangan hover, dan
+       teks untuk pembaca layar.
 
-       Digambar hanya bila m.modul, bukan selalu-lalu-disembunyikan seperti
-       kotak lencana angka di sebelahnya: yang itu isinya berubah-ubah tiap
-       jajak, yang ini tidak pernah berubah sepanjang umur menu. */
-    `${m.modul ? '<span class="sisi-modul">modul</span>' : ''}` +
+       `title` DITEMPELKAN KE `.item-nama`, bukan ke `<a>`-nya. Bagian 124
+       membuang `title=` dari item nav justru karena gelembung bawaan muncul
+       menimpa flyout setengah detik kemudian saat sidebar terlipat. Di mode
+       terlipat `.item-nama` terklip jadi 1px, jadi ia tidak pernah bisa
+       ter-hover — gelembungnya tidak pernah lahir, dan cacat lama itu tidak
+       kembali. */
+    `<li><a class="item-nav${m.modul ? ' modul' : ''}" href="#/${m.id}" data-layar="${m.id}" tabindex="-1">` +
+    `${svgIkon(m.id)}<span class="item-nama"${m.modul ? ' title="Modul tambahan"' : ''}>${esc(m.label)}</span>` +
+    /* Pil itu penanda VISUAL — ia berkata "ini lain", bukan "ini modul".
+       Kalimatnya tetap ada bagi pembaca layar, dan itu yang membuat
+       penandanya tetap punya arti bagi yang tidak bisa melihat bentuknya. */
+    `${m.modul ? '<span class="hanya-pembaca">, modul tambahan</span>' : ''}` +
     `<span class="sisi-lencana" data-lencana="${m.id}" hidden></span></a></li>`;
 
   $('#navSisi').innerHTML = kelompokMenu(diGrup).map((g, i) => {

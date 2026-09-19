@@ -447,16 +447,33 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 .sisi-isi .item-nav.aktif .sisi-lencana { color: var(--teks); }
 
-/* Penanda MODUL. Sengaja lebih kecil dan lebih pucat daripada `.sisi-lencana`:
-   yang itu memberi tahu ADA YANG HARUS DIKERJAKAN, yang ini cuma menerangkan
-   JENIS menunya. Dua lencana sepadan di satu baris membuat keduanya berhenti
-   dibaca — dan yang paling rugi adalah lencana angka, yang memang mendesak. */
-.sisi-modul {
-  flex: none; padding: 1px 6px; border-radius: 999px;
-  background: var(--panel-2); border: 1px solid var(--garis-halus);
-  color: var(--teks-redup); font-size: var(--fs-11); font-weight: 600;
-  line-height: 1.5; letter-spacing: .04em; text-transform: uppercase;
+/* Penanda MODUL — pil yang MELINGKUPI nama menunya, bukan lencana di
+   sebelahnya.
+
+   Sampai v1.211.0 ia lencana kata "MODUL" berdampingan dengan lencana
+   angka. Komentarnya mengklaim "sengaja lebih kecil dan lebih pucat",
+   padahal bedanya cuma satu piksel huruf: bentuknya sama bulat, latarnya
+   sama, warnanya sama. Dilaporkan pemilik: "sepertinya perlu dievaluasi
+   karena seperti lencana notifikasi". Dua pil sepadan di satu baris memang
+   terbaca sepasang — satu berisi 3, satu berisi MODUL, seolah MODUL itu
+   sejenis hitungan.
+
+   Melingkupi NAMA menyelesaikannya dengan sendirinya: pil yang membungkus
+   teks tidak pernah dipakai orang untuk mengabarkan jumlah, dan ia tidak
+   lagi berdiri sederajat dengan lencana angka di sebelah kanan.
+
+   BERGARIS, bukan berlatar. Waktu barisnya aktif seluruh baris mendapat
+   latar `--panel-2`; pil yang juga berlatar itu akan tertelan dan butuh
+   satu aturan khusus lagi untuk keadaan aktif. Garis tidak pernah hilang. */
+.sisi-isi .item-nav.modul .item-nama {
+  flex: 0 1 auto;
+  padding: 2px 10px; border-radius: 999px;
+  border: 1px solid var(--garis-rangka); background: none;
 }
+/* Yang mendorong lencana angka ke kanan sekarang lencananya SENDIRI, bukan
+   nama menunya. Berlaku untuk semua item, jadi menu tanpa penanda modul
+   tidak bergeser satu piksel pun. */
+.sisi-isi .item-nav .sisi-lencana { margin-left: auto; }
 
 /* Teks yang hanya untuk pembaca layar. Bukan `display:none` dan bukan
    `visibility:hidden` — keduanya mencabutnya dari pohon aksesibilitas, yang
@@ -581,19 +598,17 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat .sisi-isi .item-nav .item-nama {
   position: absolute; width: 1px; height: 1px; margin: -1px;
   padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; flex: none;
+  /* Pil penanda modul ikut hilang: yang tersisa di rel 68px cuma ikonnya. */
+  border: 0;
 }
 /* Lencana jadi TITIK di bahu ikon. Angkanya tidak muat di rel 68px, dan angka
    yang dipaksa muat akan menutupi ikonnya sendiri — sementara yang perlu
    diketahui pada lebar ini cuma "ada sesuatu di sini". Angkanya kembali di
    flyout, satu gerakan tetikus kemudian. */
-/* Terlipat: HILANG dari mata, tetap ada untuk pembaca layar dan flyout — sama
-   seperti `.item-nama`. BUKAN dijadikan titik seperti lencana angka: titik
+/* Terlipat, penanda modul tidak dijadikan titik seperti lencana angka: titik
    kedua di bahu ikon akan terbaca "ada yang perlu dikerjakan", padahal ini
-   cuma keterangan jenis yang tidak pernah berubah. */
-#app.sisi-lipat .sisi-isi .item-nav .sisi-modul {
-  position: absolute; width: 1px; height: 1px; margin: -1px;
-  padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; flex: none;
-}
+   cuma keterangan jenis yang tidak pernah berubah. Ia ikut lenyap bersama
+   nama yang dilingkupinya, dan kembali utuh di flyout. */
 #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
   position: absolute; top: 6px; right: 12px;
   min-width: 0; width: 8px; height: 8px; padding: 0;
@@ -2321,10 +2336,13 @@ input.sudah-hitung {
     position: static; width: auto; height: auto; margin: 0;
     overflow: visible; clip: auto; flex: 1; min-width: 0;
   }
-  /* Jadi laci, "terlipat" tidak berlaku — penanda modulnya ikut kembali. */
-  #app.sisi-lipat .sisi-isi .item-nav .sisi-modul {
-    position: static; width: auto; height: auto; margin: 0;
-    padding: 1px 6px; overflow: visible; clip: auto; flex: none;
+  /* Jadi laci, "terlipat" tidak berlaku — pil penanda modulnya ikut kembali.
+     Aturan di atas mengembalikan `flex: 1` untuk SEMUA nama; item modul
+     harus kembali ke `0 1 auto`, kalau tidak pilnya melar selebar barisnya
+     dan berhenti terbaca sebagai penanda. */
+  #app.sisi-lipat .sisi-isi .item-nav.modul .item-nama {
+    flex: 0 1 auto; padding: 2px 10px;
+    border: 1px solid var(--garis-rangka); border-radius: 999px;
   }
   #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
     position: static; width: auto; height: auto; min-width: 20px;
