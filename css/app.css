@@ -2082,6 +2082,20 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 
 .uji-lulus { color: var(--sukses); font-weight: 700; }
 .uji-gagal { color: var(--bahaya); font-weight: 700; }
+
+/* Daftar rapat: butir tanpa bulat, sejajar tepi kiri kartunya.
+
+   Kelas ini DIPAKAI sejak daftar foto shift pulsa lahir, dan tidak pernah
+   ada di berkas ini — jadi daftarnya tampil dengan bulatan dan indentasi
+   bawaan peramban, tidak sejajar dengan apa pun di sekelilingnya. Kelas
+   yang dipanggil tapi tidak pernah ditulis tidak berbunyi apa-apa; ia cuma
+   diam-diam tidak bekerja. */
+.daftar-rapat { list-style: none; margin: 0; padding: 0; }
+.daftar-rapat > li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--garis-halus);
+}
+.daftar-rapat > li:last-child { border-bottom: 0; }
 /* Pemeriksaan yang TIDAK BISA dijalankan: bukan hijau, bukan merah. Dua
    warna untuk tiga keadaan memaksa salah satunya berbohong. */
 .uji-tak { color: var(--peringatan); font-weight: 700; }

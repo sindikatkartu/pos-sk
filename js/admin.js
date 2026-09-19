@@ -5465,12 +5465,37 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return muatHasilKons();
   }
 
+  /* TIKET LAYAR RINGKASAN GABUNGAN.
+
+     Dilaporkan pemilik 20 Sep 2026: Laba Rugi dan Neraca Accurate berkata
+     "belum ada berkas", TAPI kartu kekayaan gabungan muncul — angka Agustus
+     di layar yang sedang menampilkan September.
+
+     Sebabnya bukan datanya. Layar ini menembakkan DUA panggilan, dan yang
+     kedua (neraca POS) makan beberapa detik. Pindah periode di tengah itu:
+
+       1. buka Agustus  → permintaan kekayaan Agustus berangkat
+       2. pindah September → layar digambar ulang, benar, "belum ada berkas"
+       3. jawaban Agustus sampai → ditulis ke layar September
+
+     Yang menang penulis TERAKHIR, bukan yang TERBARU. Dan angka keuangan
+     yang berlabel bulan yang salah adalah angka salah yang kelihatan benar.
+
+     Polanya disalin dari muatDashboard (`tiketDash`): tiap pemuatan ambil
+     nomor, dan tiap penulisan memeriksa nomornya masih yang terakhir. */
+  let tiketKons = 0;
+
   async function muatHasilKons() {
+    const tiket = ++tiketKons;
     memuat('#hasilKons');
     try {
       const d = await API.ringkasanKonsolidasi({ periode: $('#konsPeriode').value });
-      gambarKons(d);
-    } catch (e) { galat('#hasilKons', e); }
+      if (tiket !== tiketKons) return;   // periodenya sudah diganti
+      gambarKons(d, tiket);
+    } catch (e) {
+      if (tiket !== tiketKons) return;
+      galat('#hasilKons', e);
+    }
   }
 
   /* Kartu yang GAGAL harus punya jalan keluar. Tanpa tombol, satu-satunya
@@ -5484,7 +5509,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const tombolUlangKons = () =>
     `<button class="tombol kecil" data-ulangkons="1">Coba lagi</button>`;
 
-  function gambarKons(d) {
+  function gambarKons(d, tiket) {
     const w = $('#hasilKons');
     if (!w) return;
     const kartu = (s) => {
@@ -5613,9 +5638,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            ke luar.</p>
       </div>`;
 
-    /* Tidak ditunggu: rapornya sudah tergambar, dan baris ini butuh setengah
-       menit. Menunggunya berarti layar kosong selama itu. */
-    muatKekayaan(d.accurate_neraca);
+    /* Tidak ditunggu: rapornya sudah tergambar, dan baris ini butuh beberapa
+       detik. Menunggunya berarti layar kosong selama itu — tapi karena tidak
+       ditunggu, ia WAJIB membawa tiketnya. */
+    muatKekayaan(d.accurate_neraca, tiket);
   }
 
   /* Neraca POS diukur 28 detik lewat POS sungguhan (19 Sep 2026): ia memanggil
@@ -5623,9 +5649,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      ringkasan konsolidasi (5 dtk) berarti 34 detik — lewat dari batas 30 detik
      _sekali(), dan seluruh layar mati gara-gara satu baris tambahan. Karena itu
      ia panggilan kedua yang menyusul, bukan bagian dari yang pertama. */
-  async function muatKekayaan(nerAcc) {
+  async function muatKekayaan(nerAcc, tiket) {
     const w = $('#kekayaanKons');
     if (!w) return;
+    /* Tiket yang tidak diberikan dianggap yang berlaku sekarang — pemanggil
+       lama tidak boleh diam-diam berhenti bekerja. */
+    if (tiket === undefined) tiket = tiketKons;
+    if (tiket !== tiketKons) return;
     /* Tanpa neraca Accurate tidak ada yang digabungkan. Ini BUKAN kegagalan,
        jadi tidak ada yang perlu dikatakan — kartunya memang tidak ada. */
     if (!nerAcc || nerAcc.aset === null || nerAcc.kewajiban === null ||
@@ -5635,8 +5665,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          jadi angka di atas sengaja tidak menunggunya.</p></div>`;
     try {
       const n = await API.neraca({ periode: $('#konsPeriode').value, cabang: '*' });
+      if (tiket !== tiketKons) return;   // periodenya sudah diganti
       gambarKekayaan(nerAcc, n);
     } catch (e) {
+      if (tiket !== tiketKons) return;
       /* Neraca POS yang gagal ditarik TIDAK boleh jadi "kekayaannya sebesar
          Accurate saja". Separuh angka bukan angka. */
       w.innerHTML = `<div class="kartu"><h3>Kekayaan usaha gabungan</h3>
@@ -5778,6 +5810,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal('Periksa dulu — belum disimpan', isi,
       '<button class="tombol utama" data-simpanacc="1">Simpan</button>' +
       '<button class="tombol" data-tutup="1">Batal</button>');
+  }
+
+  /**
+   * Buka satu foto buku catatan di pop-up.
+   *
+   * Gambarnya datang sebagai base64 dari server, bukan dari tautan Drive:
+   * foldernya tidak dibagikan, jadi tautan Drive cuma terbuka bagi yang
+   * kebetulan punya akses ke Drive pemilik. Lewat server, siapa pun yang
+   * izin POS-nya membolehkan melihat pulsa bisa membukanya.
+   */
+  async function bukaFotoPulsa(fileId) {
+    try {
+      toast('Mengambil foto…');
+      const f = await API.fotoPulsa({ file_id: fileId });
+      bukaModal(f.nama_file || 'Foto buku catatan',
+        `<img src="data:${esc(f.mime || 'image/jpeg')};base64,${esc(f.data)}"
+              alt="${esc(f.nama_file)}"
+              style="max-width:100%;height:auto;border-radius:8px;display:block">`);
+    } catch (e) { toast(e.message, 'galat'); }
   }
 
   /** Langkah DUA: berkas yang SAMA dikirim lagi, kali ini untuk disimpan. */
@@ -6174,8 +6225,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="kartu">
         <h3>Foto buku catatan</h3>
+        ${/* Tiap baris BISA DIBUKA. Daftar nama berkas yang tidak bisa
+             dilihat isinya cuma memberi tahu bahwa fotonya pernah ada —
+             padahal seluruh gunanya foto buku catatan adalah dibaca waktu
+             angkanya dipertanyakan. Lewat server, bukan tautan Drive:
+             foldernya tidak dibagikan, dan Head Admin tidak punya akun
+             Google di sana. */''}
         ${foto.length ? `<ul class="daftar-rapat">${foto.map(f =>
-          `<li>${esc(f.nama_file)} <span class="petunjuk">${Math.round((+f.ukuran || 0) / 1024)} KB · ${esc(waktuTampil(f.waktu_unggah))}</span></li>`).join('')}</ul>`
+          `<li><button class="tombol kecil" data-fotopulsa="${esc(f.file_id)}">Lihat</button>
+             <span>${esc(f.nama_file)}</span>
+             <span class="petunjuk">${Math.round((+f.ukuran || 0) / 1024)} KB · ${esc(waktuTampil(f.waktu_unggah))}</span></li>`).join('')}</ul>`
           : '<p class="pesan">Belum ada foto.</p>'}
         <input type="file" accept="image/*" capture="environment" id="spsFoto" class="sembunyi">
         <div class="aksi"><button class="tombol" id="btnFotoPulsa">Ambil / pilih foto</button></div>
@@ -8788,6 +8847,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          diulang SELURUH layarnya, bukan bagian yang gagal saja: ketiga
          kegagalannya lahir dari satu panggilan yang sama. */
       if (d.ulangkons) return muatHasilKons();
+      if (d.fotopulsa) return bukaFotoPulsa(d.fotopulsa);
       if (d.simpanacc) return simpanBerkasAcc();
       if (d.unggahacc) {
         /* Jenisnya dititipkan di kolom berkasnya, bukan dibaca ulang dari DOM

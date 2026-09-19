@@ -147,6 +147,7 @@ const API = (() => {
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
+    'foto_pulsa',
     'rincian_shift_pulsa', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
     'simpan_kas', 'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
@@ -567,6 +568,10 @@ let _pernahJawab = false;
     /* Foto dikirim base64; batas waktunya panjang karena unggahan ke Drive
        melewati jaringan toko yang tidak selalu kencang. */
     unggahFotoPulsa:   (d) => panggil('unggah_foto_pulsa', d, { timeout: 120000 }),
+    /* Fotonya dibawa sebagai base64, jadi waktunya dilonggarkan — tapi tidak
+       selonggar mengunggah: yang turun sudah dikecilkan di perangkat waktu
+       diunggah dulu. */
+    fotoPulsa:         (d) => panggil('foto_pulsa', d, { timeout: 60000 }),
     simpanLini:        (d) => panggil('simpan_lini', d),
     tambahCabang:      (d) => panggil('tambah_cabang', d, { timeout: 120000 }),
     simpanCabang:      (d) => panggil('simpan_cabang', d),
