@@ -5472,7 +5472,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <span class="wadah-periode" id="wadahPeriodeKons"></span>
           </div>
           <p class="petunjuk">Tiga sumber yang membentuk seluruh usaha. Angkanya dibaca dari
-             Laba Rugi lintas cabang — laporan yang sama persis dengan menu Keuangan, bukan
+             Laba Rugi lintas cabang — laporan yang sama persis dengan menu Laporan Keuangan, bukan
              hitungan kedua yang cepat atau lambat akan menyimpang darinya.</p>
         </div>
         <div id="hasilKons"></div>`;
@@ -8651,7 +8651,49 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </table></div>
       <p class="petunjuk">Dibaca dari agregat bulanan buku besar — arus kasnya sudah
          dijurnal, tidak dihitung ulang dari daftar mutasi.</p>
+      ${tabelPerAkun(arus)}
     </div>`;
+  }
+
+  /**
+   * Rincian per akun: AKUN sebagai baris, BULAN sebagai kolom.
+   *
+   * Arahnya sengaja begini. Kalau bulan jadi baris dan akun jadi kolom,
+   * empat akun kali tiga angka jadi dua belas kolom — tabel yang tidak muat
+   * di layar mana pun. Dengan akun sebagai baris, pertanyaan yang benar-benar
+   * ditanyakan orang ("akun mana yang terus terkuras?") terbaca dengan
+   * menyusuri satu baris dari kiri ke kanan.
+   *
+   * Yang dipajang BERSIH, bukan saldo. Saldo tiap bulan hanya mengulang
+   * angka di tabel atasnya; yang belum pernah terlihat adalah pergerakannya.
+   */
+  function tabelPerAkun(arus) {
+    const ada = (arus.bulan || []).filter((b) => b.ada);
+    if (!ada.length || !Array.isArray(arus.akun)) return '';
+    /* Bulan TERTUA di kiri — dibaca seperti garis waktu, bukan seperti
+       daftar. Tabel di atasnya terbaru-dulu karena di sana yang dicari
+       kabar terakhir; di sini yang dicari arahnya. */
+    const bln = ada.slice().reverse();
+    const namaAkun = {};
+    ((kasData && kasData.ner && kasData.ner.aset) || []).forEach((a) => {
+      namaAkun[String(a.kode)] = a.nama;
+    });
+    return `<div class="gulir-x" style="margin-top:14px"><table class="tabel">
+      <thead><tr><th>Akun</th>
+        ${bln.map((b) => `<th class="kanan">${esc(bulanTeks(b.periode))}</th>`).join('')}
+        <th class="kanan">Jumlah</th></tr></thead>
+      <tbody>${arus.akun.map((k) => {
+        const sel = bln.map((b) => (b.per_akun && b.per_akun[k]) || { bersih: 0 });
+        const jml = sel.reduce((a, x) => a + (x.bersih || 0), 0);
+        return `<tr>
+          <td data-l="Akun">${esc(namaAkun[k] || k)}</td>
+          ${sel.map((x, i) => `<td class="kanan" data-l="${esc(bulanTeks(bln[i].periode))}">${rp(x.bersih || 0)}</td>`).join('')}
+          <td class="kanan" data-l="Jumlah">${rp(jml)}</td>
+        </tr>`; }).join('')}</tbody>
+    </table></div>
+    <p class="petunjuk">Angka di sini <strong>pergerakan bersih</strong> tiap bulan,
+       bukan saldonya — saldo sudah ada di tabel atas. Akun yang terus merah
+       adalah akun yang terus terkuras.</p>`;
   }
 
   /* Dua batang bertumpuk: masuk di atas, keluar di bawah. Panjangnya relatif

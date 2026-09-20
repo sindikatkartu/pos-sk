@@ -152,7 +152,7 @@ const MENU = [
      Digantung pada `kas.lihat`, bukan `.buat`: meja kerja ini juga dibaca
      untuk memeriksa mutasi, dan yang boleh membaca lebih luas daripada yang
      boleh mencatat. Tombol catatnya sendiri yang menuntut `.buat`. */
-  { id: 'kas',        label: 'Kas',        grup: 'Laporan',    izin: ['kas', 'lihat'],               admin: true, backoffice: true },
+  { id: 'kas',        label: 'Kas',        grup: 'Keuangan',   izin: ['kas', 'lihat'],               admin: true, backoffice: true },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
   { id: 'retur',      label: 'Retur Jual', grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
   /* Pembatalan digantung pada `void.lihat`, bukan `.buat`: kasir melihat
@@ -181,11 +181,11 @@ const MENU = [
   // `petugas.lihat` untuk memilih pramuniaga di layar kasir, tapi tidak boleh
   // membuka master petugas. Pola yang sama dipakai menu Produk.
   { id: 'petugas',    label: 'Petugas',    grup: 'Relasi',     izin: ['petugas', 'buat'],            admin: true, backoffice: true },
-  { id: 'piutang',    label: 'Piutang',    grup: 'Relasi',     izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
+  { id: 'piutang',    label: 'Piutang',    grup: 'Keuangan',   izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
   // Utang ke supplier — pasangan Piutang, ditambahkan 5 Sep 2026. Sebelumnya
   // pembelian kredit menaikkan saldo Utang Usaha tanpa satu pun layar untuk
   // melunasinya.
-  { id: 'utang',      label: 'Utang',      grup: 'Relasi',     izin: ['utang', 'lihat'],             admin: true, backoffice: true },
+  { id: 'utang',      label: 'Utang',      grup: 'Keuangan',   izin: ['utang', 'lihat'],             admin: true, backoffice: true },
   { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
   /* Label 'Poin & Performa' sejak 9 Sep 2026 — dulu 'Poin', lalu 'Performa'.
      Dua kali berganti karena dua kali salah arah: "Poin" menyempitkan isinya
@@ -196,7 +196,7 @@ const MENU = [
   // SENGAJA tidak ikut berganti: mengganti id memutus rute layar, dan
   // mengganti kunci izin mencabut akses semua peran yang punya.
   { id: 'poin',       label: 'Poin & Performa', grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
-  { id: 'keuangan',   label: 'Keuangan',   grup: 'Laporan',    izin: ['laporan_keuangan', 'lihat'] },
+  { id: 'keuangan',   label: 'Laporan Keuangan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
      Isinya BARU SATU dan itu disengaja: Ringkasan Gabungan, Laporan Pulsa,
@@ -248,7 +248,13 @@ const MENU = [
    "Tentang" adalah urusan PRIBADI pemakai — selalu tampil untuk semua peran —
    sementara Sistem berisi pengaturan yang mengubah keadaan seluruh toko.
    Mencampurnya membuat kelompok Sistem panjang dan isinya tidak sederajat. */
-const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Laporan', 'Konsolidasi', 'Sistem', 'Akun'];
+/* 'Keuangan' (v1.220) duduk sesudah Relasi dan sebelum Laporan: ia meja
+   KERJA, bukan laporan, tapi pekerjaannya bermuara ke laporan yang tepat di
+   bawahnya. Keputusan pemilik 20 Sep 2026, sesudah menimbang tiga tempat —
+   seluruh urusan uang admin back office dulu tersebar di dua grup yang
+   namanya bukan tentang uang (bagian 211). */
+const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Keuangan',
+                   'Laporan', 'Konsolidasi', 'Sistem', 'Akun'];
 
 /**
  * IKON — digambar sebaris sebagai SVG, BUKAN diambil dari CDN ikon.
@@ -4096,7 +4102,7 @@ function gambarLapRingkas(w, d) {
            harga sebenarnya baru diketahui saat pembeliannya diinput. Selisihnya dibukukan
            di buku besar, tidak di notanya.
            Karena itu angka di layar ini <strong>lebih optimis</strong> daripada Laba Rugi
-           di menu Keuangan selama stok minus masih dicicil — 19 Sep 2026 bedanya 4,29 juta
+           di menu Laporan Keuangan selama stok minus masih dicicil — 19 Sep 2026 bedanya 4,29 juta
            dalam sebulan. Untuk keputusan uang, pakai yang di Keuangan.</p>
       </div>` : ''}
 
