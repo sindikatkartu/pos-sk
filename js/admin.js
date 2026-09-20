@@ -8489,6 +8489,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const PERIODE_KAS = { id: 'kasPeriodePilih', dari: 'kasDari', sampai: 'kasSampai',
                         nilai: 'bulan', label: 'Periode' };
 
+  /* LINGKUP CABANG. Bawaannya SEMUA — back office menangani seluruh cabang,
+     dan daftar yang hanya memuat cabang tempat adminnya kebetulan login
+     menyembunyikan setoran cabang lain tanpa satu pun tanda (dilaporkan
+     pemilik 20 Sep 2026, beberapa jam sesudah layar ini terbit).
+
+     Peran tanpa `akses_lintas_cabang` tidak melihat pemilihnya sama sekali,
+     dan servernya tetap mengunci mereka ke cabangnya sendiri walau '*' yang
+     dikirim — menyembunyikan kendali bukan penjagaan. */
+  let cabangKas = '*';
+  const pilihCabangKas = () => bolehCabangDash()
+    ? `<div class="kendali-tetap"><label>Cabang</label>
+        <select id="kasCabang" class="kendali-tetap" title="Cabang">
+          <option value="*" ${cabangKas === '*' ? 'selected' : ''}>Semua cabang</option>
+          ${daftarKodeCabang().map((c) =>
+            `<option value="${esc(c)}" ${cabangKas === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+        </select></div>` : '';
+
   /* Jenis transaksi yang dilayani meja ini. Dipilih lebih dulu, karena ia yang
      menentukan kendali mana yang masuk akal sesudahnya — akun lawan sebuah
      pemindahan adalah akun kas lain, sementara akun lawan sebuah pengeluaran
@@ -8509,8 +8526,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#kasDari')) {
       w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Kas</h3>
+          <div class="saring-baris">
+            <h3 style="margin:0">Kas</h3>
             <span class="wadah-periode" id="wadahPeriodeKas"></span>
+            <span id="wadahCabangKas"></span>
           </div>
           <p class="petunjuk">Seluruh pergerakan uang yang bukan penjualan: beban,
              gaji, prive, setoran modal, pemindahan antar akun, dan serah terima
@@ -8519,7 +8538,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
         <div id="hasilKas"></div>`;
       $('#wadahPeriodeKas').innerHTML = Periode.html(PERIODE_KAS);
+      $('#wadahCabangKas').innerHTML = pilihCabangKas();
       Periode.pasang(PERIODE_KAS, muatHasilKas);
+      $('#kasCabang')?.addEventListener('change', (e) => {
+        cabangKas = e.target.value;
+        muatHasilKas();
+      });
     }
     return muatHasilKas();
   }
@@ -8531,10 +8555,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          membayar ~0,8 detik memuat proyek; berurutan berarti menunggu tiga
          kali lipat untuk data yang tidak saling bergantung. */
       const [kas, setor, ner] = await Promise.all([
-        API.daftarKas({ cabang: APP_STATE.cabang,
+        API.daftarKas({ cabang: cabangKas,
                         dari: nilai('kasDari'), sampai: nilai('kasSampai') }),
-        API.shiftBelumSetor({ cabang: APP_STATE.cabang }),
-        API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7), cabang: '*' })
+        API.shiftBelumSetor({ cabang: cabangKas }),
+        /* Neracanya ikut lingkupnya juga — saldo gabungan di atas daftar satu
+           cabang akan terbaca sebagai saldo cabang itu. */
+        API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7),
+                     cabang: cabangKas })
       ]);
       kasData = { kas, setor, ner };
       gambarKas();
@@ -8563,7 +8590,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <p class="petunjuk">Saldo di atas dibaca dari buku besar yang sudah dijurnal
          (neraca akhir periode), bukan dijumlahkan dari daftar di bawah — kas juga
-         bergerak lewat penjualan dan pembelian.</p>
+         bergerak lewat penjualan dan pembelian. Lingkupnya
+         <strong>${cabangKas === '*' ? 'seluruh cabang' : esc(cabangKas)}</strong>.</p>
 
       ${kartuSetoran(belum)}
       ${kartuCatatKas()}
@@ -8592,14 +8620,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return `<div class="kartu">
       <h3>Setoran toko ${lencanaDash(belum.length + ' belum diterima', 'kuning')}</h3>
       <div class="gulir-x"><table class="tabel">
-        <thead><tr><th>Shift</th><th>Tutup</th><th class="kanan">Uang dihitung</th>
+        <thead><tr><th>Cabang</th><th>Shift</th><th>Tutup</th>
+          <th class="kanan">Uang dihitung</th>
           <th class="kanan">Selisih</th><th></th></tr></thead>
         <tbody>${belum.map((sh) => `<tr>
+          <td data-l="Cabang">${esc(sh.kode_cabang || '')}</td>
           <td data-l="Shift">${esc(sh.id_shift)}</td>
           <td data-l="Tutup">${esc(waktuTampil(sh.tutup))}</td>
           <td class="kanan" data-l="Uang dihitung">${rp(sh.kas_fisik)}</td>
           <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
+          <!-- Cabangnya dari BARISNYA, bukan dari pemilih di bar. Menyetorkan
+               uang SK02 ke buku SK01 memindahkan uang yang tidak ada di sana. -->
           <td><button class="tombol kecil utama" data-terima-setor="${esc(sh.id_shift)}"
+              data-cabang="${esc(sh.kode_cabang || '')}"
               data-jumlah="${sh.kas_fisik}">Terima</button></td>
         </tr>`).join('')}</tbody>
       </table></div>
@@ -8615,6 +8648,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return `<div class="kartu">
       <h3>Catat</h3>
       <div class="saring-baris">
+        <!-- Saat lingkupnya seluruh cabang, catatan baru harus menyebut
+             cabangnya: jurnal mendarat di buku SATU cabang, dan menebaknya
+             dari tempat adminnya login akan salah untuk setiap cabang lain. -->
+        ${cabangKas === '*' && bolehCabangDash() ? `<div class="kendali-tetap">
+          <label>Cabang tujuan</label>
+          <select id="kasCabangTujuan" class="kendali-tetap">
+            ${daftarKodeCabang().map((c) =>
+              `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+          </select></div>` : ''}
         <div class="kendali-tetap"><label>Jenis</label>
           <select id="kasJenis" class="kendali-tetap">
             ${JENIS_KAS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}
@@ -8639,11 +8681,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function daftarMutasiKas(kas) {
     const rows = (kas && kas.kas) || [];
     if (!rows.length) return '<p class="petunjuk">Belum ada mutasi kas di periode ini.</p>';
+    const banyakCabang = cabangKas === '*';
     return `<div class="gulir-x"><table class="tabel">
-      <thead><tr><th>Tanggal</th><th>Dari akun</th><th>Akun lawan</th>
+      <thead><tr><th>Tanggal</th>
+        ${banyakCabang ? '<th>Cabang</th>' : ''}
+        <th>Dari akun</th><th>Akun lawan</th>
         <th class="kanan">Jumlah</th><th>Keterangan</th><th></th></tr></thead>
       <tbody>${rows.map((k) => `<tr>
         <td data-l="Tanggal">${esc(tglTampil(k.tanggal))}</td>
+        ${banyakCabang ? `<td data-l="Cabang">${esc(k.kode_cabang || '')}</td>` : ''}
         <td data-l="Dari akun">${esc(k.nama_akun_kas || k.akun_kas)}</td>
         <td data-l="Akun lawan">${esc(k.nama_akun)}${k.pindah_kas
           ? ' ' + lencanaDash('pindah', 'abu') : ''}</td>
@@ -8733,7 +8779,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     b.disabled = true;
     try {
       await API.simpanKas({
-        cabang: APP_STATE.cabang, uuid: uuidKas(),
+        cabang: nilai('kasCabangTujuan') ||
+                (cabangKas !== '*' ? cabangKas : APP_STATE.cabang),
+        uuid: uuidKas(),
         /* Meja ini tidak pernah berada di dalam shift. */
         id_shift: '', luar_laci: true,
         akun_kas: sumber, tipe, kode_akun: akun,
@@ -9625,14 +9673,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            mengetiknya ulang membuka jalan salah ketik pada angka yang tidak
            punya pembanding. */
         const jml = Number(t.dataset.jumlah) || 0;
+        const cab = t.dataset.cabang || APP_STATE.cabang;
         if (!(await tanya('Terima setoran shift ini?',
-              `<p class="petunjuk">${esc(d.terimaSetor)} · ${rp(jml)}</p>
+              `<p class="petunjuk">${esc(cab)} · ${esc(d.terimaSetor)} · ${rp(jml)}</p>
                <p class="petunjuk">Uangnya berpindah dari <strong>Kas di Tangan</strong>
                ke <strong>Kas Admin</strong>. Satu shift hanya bisa disetor sekali.</p>`,
               { ya: 'Terima setoran' }))) return;
         try {
           await API.simpanKas({
-            cabang: APP_STATE.cabang, uuid: uuidKas(),
+            /* Cabang BARISNYA. */
+            cabang: cab, uuid: uuidKas(),
             tipe: 'KELUAR', akun_kas: '1-1100', kode_akun: '1-1150',
             jumlah: jml, bukti: d.terimaSetor,
             keterangan: 'Setoran shift ' + d.terimaSetor,
@@ -9660,7 +9710,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!alasan) return;
         try {
           await API.simpanKas({
-            cabang: APP_STATE.cabang, uuid: uuidKas(),
+            /* Cabang BARIS yang dikoreksi, bukan tempat adminnya login. */
+            cabang: asli.kode_cabang || APP_STATE.cabang, uuid: uuidKas(),
             tipe: asli.tipe === 'KELUAR' ? 'MASUK' : 'KELUAR',
             akun_kas: asli.akun_kas, kode_akun: asli.kode_akun,
             jumlah: asli.jumlah,
