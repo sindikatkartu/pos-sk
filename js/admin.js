@@ -4264,9 +4264,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </select></div>
       </div>
       <div class="baris2">
+        <!-- TIDAK ADA BAWAAN. "Tunai" dulu jadi pilihan pertama, jadi ia
+             terpilih tanpa ada yang memutuskan: 74 dari 74 pembelian
+             September 2026 tercatat tunai, dan kas buku jatuh ke −71 juta
+             karena uang untuk membayarnya tidak pernah ada di buku.
+             Mekanismenya sendiri benar — AKUN_BAYAR memetakan transfer ke
+             Bank dan kredit ke Utang Usaha. Yang tidak ada: seseorang yang
+             memilih. Satu ketukan tambahan per pembelian adalah ongkos yang
+             sengaja dibayar (bagian 207). -->
         <div class="grup"><label>Cara bayar</label><select id="beliTipe">
-          <option value="tunai">Tunai</option><option value="transfer">Transfer</option>
-          <option value="kredit">Kredit (utang)</option></select></div>
+          <option value="">— pilih cara bayar —</option>
+          <option value="tunai">Tunai (kas berkurang)</option>
+          <option value="transfer">Transfer (bank berkurang)</option>
+          <option value="kredit">Kredit (jadi utang supplier)</option></select></div>
         <div class="grup"><label>Jatuh tempo (bila kredit)</label><input type="date" id="beliJatuhTempo"></div>
       </div>
 
@@ -4306,6 +4316,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function simpanPembelian() {
     const item = kumpulkanAnak('beli').filter(i => i.sku && Number(i.qty) > 0);
     if (!item.length) return toast('Minimal satu item.', 'galat');
+    /* Ditahan DI SINI, bukan diserahkan ke server: server yang menerima
+       tipe_bayar kosong akan jatuh ke AKUN.KAS lewat `AKUN_BAYAR[undefined]
+       || AKUN.KAS` — persis bawaan senyap yang sedang dibuang. */
+    if (!nilai('beliTipe')) {
+      return toast('Pilih cara bayarnya dulu — tunai, transfer, atau kredit. ' +
+                   'Ini yang menentukan uangnya keluar dari mana.', 'galat');
+    }
     const btn = $('#btnSimpanPembelian');
     btn.disabled = true;
     try {
@@ -5715,6 +5732,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk lingkup-kons">Rasio di atas dihitung dari
          <strong>${esc(lingkup(gab.dengan_accurate))}</strong>.</p>
 
+      ${kartuLikuid(d.likuiditas)}
+
       ${matriksKons('Laba Rugi', d.matriks && d.matriks.lr)}
       ${matriksKons('Neraca', ner, lencanaNer)}
 
@@ -6142,6 +6161,47 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!m) return String(p || '');
     return (BULAN_SINGKAT[Number(m[2]) - 1] || m[2]) + ' ' + m[1];
   };
+
+  /**
+   * Kartu Kas & likuiditas.
+   *
+   * TIDAK DIGAMBAR kalau blok likuiditasnya tidak datang. Menggambar nol
+   * untuk data yang gagal ditarik adalah kebohongan yang bentuknya
+   * meyakinkan — himpunan kosong dari panggilan yang gagal membalik
+   * kesimpulan, bukan mengosongkannya.
+   *
+   * Saldo kas negatif TIDAK dipajang sebagai angka merah lalu dibiarkan.
+   * Uang tunai tidak punya nilai negatif, jadi angka itu bukan kabar buruk
+   * tentang toko — ia kabar bahwa ada PEMASUKAN yang belum tercatat. Kartu
+   * yang cuma memerahkannya membuat orang mencari pengeluaran yang salah,
+   * yaitu tempat yang salah.
+   */
+  function kartuLikuid(lk) {
+    if (!lk || !Array.isArray(lk.akun) || !lk.akun.length) return '';
+    const kotak = lk.akun.map((a) => miniKons(a.nama, rp(a.jumlah), a.kode))
+      .concat([
+        miniKons(lk.deposit_nama || 'Deposit pulsa', rp(lk.deposit_pulsa), 'di aplikasi pulsa'),
+        miniKons(lk.piutang_nama || 'Piutang usaha', rp(lk.piutang), 'belum tertagih'),
+        miniKons(lk.utang_nama || 'Utang usaha', rp(lk.utang), 'belum dibayar')
+      ]).join('');
+    const minus = (lk.negatif || []).length
+      ? `<p class="pesan peringatan"><strong>Saldo kas di bawah nol.</strong>
+         Uang tunai tidak bisa kurang dari nol, jadi yang hilang bukan
+         pengeluaran yang kelebihan melainkan <strong>pemasukan yang belum
+         tercatat</strong> — setoran modal, pembelian yang sebenarnya kredit,
+         atau uang dari rekening di luar buku. Catat lewat menu
+         <strong>Kas</strong> (pilih <em>di luar laci</em> untuk uang yang tidak
+         lewat laci toko), lalu periksa lagi di Uji Kebenaran.</p>`
+      : '';
+    return `<div class="kartu">
+      <h3>Kas &amp; likuiditas</h3>
+      <div class="petak-mini petak-uang">${kotak}</div>
+      <p class="petunjuk">Kas &amp; setara ${rp(lk.kas_setara)} · ditambah deposit dan
+         piutang, dikurangi utang → <strong>posisi likuid ${rp(lk.posisi)}</strong>.
+         Semuanya dibaca dari buku besar yang sudah dijurnal, bukan dihitung ulang.</p>
+      ${minus}
+    </div>`;
+  }
 
   const miniKons = (label, nilai, ekor) =>
     `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div>` +

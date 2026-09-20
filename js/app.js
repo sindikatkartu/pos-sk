@@ -3412,16 +3412,51 @@ function gambarKeadaanShift() {
  * di kertas dan memasukkannya begitu tersambung — masih di shift yang sama.
  */
 
-/** Akun mana yang masuk akal jadi lawan kas. Kas & bank dikeluarkan: itu SISI kasnya. */
-const _AKUN_KAS_SENDIRI = ['1-1100', '1-1200', '1-1210'];
+/**
+ * AKUN YANG MEMEGANG UANG — salinan `AKUN_KAS` di apps-script/00_Config.gs.
+ *
+ * Dipakai dua arah di layar ini: mengisi dropdown SUMBER KAS, dan
+ * mengeluarkan akun yang sama dari dropdown akun LAWAN (kas lawan kas itu
+ * pemindahan, bukan transaksi — dan jurnalnya akan mendebit serta
+ * mengkredit akun yang sama).
+ *
+ * Salinan, karena klien tidak bisa membaca konstanta server. Ada penjaga
+ * statis yang membandingkannya dengan sumbernya — dua daftar yang
+ * sama-sama dipatok tangan akan menyimpang diam-diam.
+ */
+const AKUN_KAS = ['1-1100', '1-1200', '1-1210'];
 
 async function muatKas() {
   const adaShift = !!APP_STATE.idShift;
+
+  /* TOMBOLNYA TIDAK LAGI MATI TANPA SHIFT.
+
+     Sampai v1.216 mencatat kas menuntut shift KASIR terbuka, dan itu
+     membuat satu-satunya pintu uang MASUK ke buku terkunci di balik
+     pekerjaan kasir. Setoran modal pemilik tidak pernah lewat laci toko,
+     jadi pemilik harus berpura-pura jadi kasir untuk mencatatnya — dan
+     karena itu tidak pernah dicatat sama sekali.
+
+     Yang berubah bukan HAKNYA melainkan TUJUAN barisnya: tanpa shift,
+     catatannya wajib LUAR LACI, dan baris luar laci memang tidak pernah
+     ikut hitungan tutup laci. */
+  const pilihLaci = $('#kasLaci');
+  /* DITETAPKAN DUA ARAH, bukan cuma waktu shiftnya tidak ada. Menyetel ke
+     'LUAR' tanpa pernah mengembalikannya membuat pilihan itu MENEMPEL: kasir
+     yang membuka layar Kas sebelum shiftnya dibuka, lalu membuka shift, akan
+     mencatat uang laci sebagai luar laci tanpa satu pun tanda — dan uang itu
+     hilang dari hitungan tutup laci. Ketahuan uji-kas, bukan mata. */
+  pilihLaci.value = adaShift ? 'LACI' : 'LUAR';
+  pilihLaci.disabled = !adaShift;
+
   $('#infoKasShift').innerHTML = adaShift
-    ? `Dicatat ke shift <code>${esc(APP_STATE.idShift)}</code>.`
-    : '<span class="lencana kuning">Shift belum dibuka</span> — buka shift dulu di menu Shift. ' +
-      'Kas tanpa shift tidak akan ikut terhitung saat tutup laci.';
-  $('#btnSimpanKas').disabled = !adaShift;
+    ? `Dicatat ke shift <code>${esc(APP_STATE.idShift)}</code>, kecuali dipilih
+       <em>di luar laci</em>.`
+    : '<span class="lencana kuning">Shift belum dibuka</span> — catatan ini disimpan ' +
+      '<strong>di luar laci</strong>: tetap masuk buku besar, tapi tidak ikut ' +
+      'dihitung saat tutup laci. Itu yang benar untuk setoran modal, prive, dan ' +
+      'uang dari rekening di luar toko.';
+  $('#btnSimpanKas').disabled = false;
 
   /* Daftar akun diambil dari COA yang SUDAH tersinkron ke perangkat, bukan
      daftar mati di kode: begitu pemilik menambah akun beban baru, akun itu
@@ -3442,23 +3477,34 @@ async function muatKas() {
   const coa = await DB.kvGet('coa', []);
   const pilihan = (coa || [])
     .filter(c => c.transaksi === true || String(c.transaksi) === 'true')
-    .filter(c => _AKUN_KAS_SENDIRI.indexOf(String(c.kode)) === -1)
+    .filter(c => AKUN_KAS.indexOf(String(c.kode)) === -1)
     .map(c => `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`);
   $('#kasAkun').innerHTML = pilihan.length
     ? pilihan.join('')
+    : '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
+
+  /* SUMBER kasnya dari COA yang sama, disaring ke AKUN_KAS — bukan tiga
+     <option> yang dipatok di HTML. Kalau pemilik mengubah nama akunnya di
+     COA, yang tertulis di sini ikut berubah. */
+  const sumber = (coa || [])
+    .filter(c => AKUN_KAS.indexOf(String(c.kode)) !== -1)
+    .map(c => `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`);
+  $('#kasSumber').innerHTML = sumber.length
+    ? sumber.join('')
     : '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
 
   await gambarDaftarKas();
 }
 
 async function gambarDaftarKas() {
-  if (!APP_STATE.idShift) {
-    $('#ringkasKas').textContent = '';
-    $('#daftarKas').innerHTML = '<p class="petunjuk">Belum ada shift aktif.</p>';
-    return;
-  }
   try {
-    const d = await API.daftarKas({ cabang: APP_STATE.cabang, id_shift: APP_STATE.idShift });
+    /* Tanpa shift, `apiDaftarKas` memulangkan seluruh baris HARI INI di
+       cabang ini — termasuk yang di luar laci. Mengosongkan daftarnya
+       seperti dulu berarti pemilik mencatat setoran modal lalu tidak
+       melihat apa pun sebagai buktinya. */
+    const d = await API.daftarKas(APP_STATE.idShift
+      ? { cabang: APP_STATE.cabang, id_shift: APP_STATE.idShift }
+      : { cabang: APP_STATE.cabang });
     $('#ringkasKas').innerHTML =
       `Masuk ${rp(d.masuk)} · Keluar ${rp(d.keluar)} · <strong>Bersih ${rp(d.bersih)}</strong>`;
     $('#daftarKas').innerHTML = d.kas.length
@@ -3471,7 +3517,8 @@ async function gambarDaftarKas() {
           <td class="angka">${rp(k.jumlah)}</td>
           <td>${esc(k.keterangan)}</td></tr>`).join('') +
         '</tbody></table></div>'
-      : '<p class="petunjuk">Belum ada catatan kas di shift ini.</p>';
+      : `<p class="petunjuk">Belum ada catatan kas ${APP_STATE.idShift
+          ? 'di shift ini' : 'hari ini'}.</p>`;
   } catch (e) {
     // Offline bukan kegagalan yang perlu diteriakkan — form-nya tetap bisa dipakai
     // begitu tersambung, dan daftar ini cuma cermin.
@@ -3496,11 +3543,13 @@ function uuidKas() {
 }
 
 async function simpanKasBaru() {
-  if (!APP_STATE.idShift) return Admin.toast('Buka shift dulu sebelum mencatat kas.', 'galat');
   const akun = $('#kasAkun').value;
+  const sumberKas = $('#kasSumber').value;
+  const luarLaci = $('#kasLaci').value === 'LUAR' || !APP_STATE.idShift;
   const jumlah = angkaDari($('#kasJumlah').value);
   const ket = $('#kasKeterangan').value.trim();
   if (!akun) return Admin.toast('Pilih akun lawannya dulu.', 'galat');
+  if (!sumberKas) return Admin.toast('Pilih sumber kasnya dulu.', 'galat');
   if (!(jumlah > 0)) return Admin.toast('Jumlah harus lebih dari nol.', 'galat');
   if (!ket) return Admin.toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang keluar.', 'galat');
 
@@ -3518,7 +3567,13 @@ async function simpanKasBaru() {
          menyala dan pengeluaran yang sama tercatat dua kali. Audit 5 Sep 2026 —
          cacat yang sama dengan pembelian dobel. */
       uuid: uuidKas(),
-      id_shift: APP_STATE.idShift,
+      /* id_shift TETAP dikirim apa adanya. Yang memutuskan barisnya masuk
+         laci atau tidak adalah `luar_laci` di server, bukan mengosongkan
+         id_shift di sini — baris ber-id_shift kosong justru DISERAP ke
+         shift berjalan lewat rentang waktu. */
+      id_shift: APP_STATE.idShift || '',
+      luar_laci: luarLaci,
+      akun_kas: sumberKas,
       tipe: $('#kasTipe').value,
       kode_akun: akun,
       jumlah: jumlah,
