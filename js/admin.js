@@ -8554,16 +8554,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* TIGA panggilan sekaligus, bukan berurutan. Tiap panggilan Apps Script
          membayar ~0,8 detik memuat proyek; berurutan berarti menunggu tiga
          kali lipat untuk data yang tidak saling bergantung. */
-      const [kas, setor, ner] = await Promise.all([
+      const [kas, setor, ner, arus] = await Promise.all([
         API.daftarKas({ cabang: cabangKas,
                         dari: nilai('kasDari'), sampai: nilai('kasSampai') }),
         API.shiftBelumSetor({ cabang: cabangKas }),
         /* Neracanya ikut lingkupnya juga — saldo gabungan di atas daftar satu
            cabang akan terbaca sebagai saldo cabang itu. */
         API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7),
-                     cabang: cabangKas })
+                     cabang: cabangKas }),
+        API.arusKas({ cabang: cabangKas, bulan: 6 })
       ]);
-      kasData = { kas, setor, ner };
+      kasData = { kas, setor, ner, arus };
       gambarKas();
     } catch (e) { galat('#hasilKas', e); }
   }
@@ -8571,7 +8572,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function gambarKas() {
     const w = $('#hasilKas');
     if (!w || !kasData) return;
-    const { kas, setor, ner } = kasData;
+    const { kas, setor, ner, arus } = kasData;
 
     /* SALDO dari NERACA, bukan dijumlahkan dari daftar di bawahnya. Kas juga
        bergerak lewat penjualan, pembelian, dan piutang — menjumlahkan daftar
@@ -8593,6 +8594,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          bergerak lewat penjualan dan pembelian. Lingkupnya
          <strong>${cabangKas === '*' ? 'seluruh cabang' : esc(cabangKas)}</strong>.</p>
 
+      ${kartuArusKas(arus)}
       ${kartuSetoran(belum)}
       ${kartuCatatKas()}
 
@@ -8604,6 +8606,58 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $('#kasJenis')?.addEventListener('change', isiPilihanKas);
     $('#btnSimpanKas')?.addEventListener('click', simpanKasBaru);
   }
+
+  /**
+   * Arus kas per bulan — berapa masuk, berapa keluar, bukan cuma sisanya.
+   *
+   * Saldo akhir menjawab "berapa uang saya sekarang". Ia tidak pernah
+   * menjawab "ke mana perginya" — dan kas yang turun 73 juta dalam sebulan
+   * terlihat persis sama dengan kas yang memang sedikit, kalau yang dipajang
+   * hanya angka terakhirnya.
+   *
+   * Bulan yang agregatnya BELUM DIHITUNG digambar berbeda dari bulan yang
+   * nol. Deretan nol untuk bulan sebelum pembukuan dimulai terbaca sebagai
+   * bulan tanpa transaksi, dan itu bohong yang bentuknya meyakinkan.
+   */
+  function kartuArusKas(arus) {
+    if (!arus || !Array.isArray(arus.bulan) || !arus.bulan.length) return '';
+    /* Lebar batang relatif terhadap bulan TERSIBUK, bukan terhadap saldo —
+       yang dibandingkan mata di sini besarnya pergerakan antar bulan. */
+    const puncak = Math.max(1, ...arus.bulan.map((b) => Math.max(b.masuk, b.keluar)));
+    const lebar = (v) => Math.round((Math.abs(v) / puncak) * 100);
+    return `<div class="kartu">
+      <h3>Arus kas — 6 bulan terakhir</h3>
+      <div class="gulir-x"><table class="tabel">
+        <thead><tr><th>Bulan</th><th class="kanan">Masuk</th><th class="kanan">Keluar</th>
+          <th class="kanan">Bersih</th><th class="kanan">Saldo akhir</th>
+          <th style="width:120px"></th></tr></thead>
+        <tbody>${arus.bulan.map((b) => b.ada ? `<tr>
+          <td data-l="Bulan">${esc(bulanTeks(b.periode))}</td>
+          <td class="kanan" data-l="Masuk">${rp(b.masuk)}</td>
+          <td class="kanan" data-l="Keluar">${rp(-Math.abs(b.keluar))}</td>
+          <td class="kanan" data-l="Bersih">${rp(b.bersih)}</td>
+          <td class="kanan" data-l="Saldo akhir">${rp(b.saldo_akhir)}</td>
+          <td data-l="">${batangArus(lebar(b.masuk), lebar(b.keluar))}</td>
+        </tr>` : `<tr>
+          <td data-l="Bulan">${esc(bulanTeks(b.periode))}</td>
+          <td colspan="5" class="petunjuk">Agregat bulan ini belum pernah dihitung —
+             bukan berarti tidak ada transaksinya.</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr><th>Jumlah ${arus.bulan_terhitung} bulan</th>
+          <th class="kanan">${rp(arus.total_masuk)}</th>
+          <th class="kanan">${rp(-Math.abs(arus.total_keluar))}</th>
+          <th class="kanan">${rp(arus.total_masuk - arus.total_keluar)}</th>
+          <th></th><th></th></tr></tfoot>
+      </table></div>
+      <p class="petunjuk">Dibaca dari agregat bulanan buku besar — arus kasnya sudah
+         dijurnal, tidak dihitung ulang dari daftar mutasi.</p>
+    </div>`;
+  }
+
+  /* Dua batang bertumpuk: masuk di atas, keluar di bawah. Panjangnya relatif
+     terhadap bulan tersibuk, jadi yang dibaca mata perbandingan antar bulan. */
+  const batangArus = (mas, kel) =>
+    `<span class="batang-arus" aria-hidden="true"><i class="masuk" style="width:${mas}%"></i><i class="keluar" style="width:${kel}%"></i></span>`;
 
   /**
    * Shift yang uangnya belum diserahkan ke back office.

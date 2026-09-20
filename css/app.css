@@ -2203,6 +2203,16 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    membuat halaman terbaca seperti daftar kesalahan. Warna sudah cukup untuk
    membedakan; tebal itu penekanan kedua, dan penekanan yang dipakai di mana
    saja berhenti menekankan apa pun. */
+/* Dua batang bertumpuk di baris arus kas: masuk di atas, keluar di bawah.
+   Panjangnya relatif terhadap bulan TERSIBUK, bukan terhadap saldo — yang
+   dibaca mata di sini perbandingan pergerakan antar bulan, dan batang yang
+   diukur terhadap saldo membuat bulan bersaldo besar terlihat sepi.
+   Memakai token semantik yang sudah ada; tidak ada warna baru. */
+.batang-arus { display: block; width: 110px; }
+.batang-arus i { display: block; height: 5px; border-radius: 2px; min-width: 1px; }
+.batang-arus .masuk  { background: var(--sukses); margin-bottom: 2px; }
+.batang-arus .keluar { background: var(--bahaya); }
+
 .uang-minus { color: var(--bahaya); }
 .matriks-kons .uang-minus, .kepala-kons .uang-minus { font-weight: 700; }
 .uang-minus .rp { color: inherit; opacity: .7; }

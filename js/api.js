@@ -144,7 +144,7 @@ const API = (() => {
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
-    'shift_belum_setor',
+    'shift_belum_setor', 'arus_kas',
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
@@ -568,6 +568,7 @@ let _pernahJawab = false;
     /* Pembacaan, jadi aman diulang — dan memang perlu, sebab meja kerja kas
        memanggilnya tiap kali periodenya berganti. */
     shiftBelumSetor:   (d) => panggil('shift_belum_setor', d || {}, { timeout: 60000 }),
+    arusKas:           (d) => panggil('arus_kas', d || {}, { timeout: 90000 }),
     ringkasanKonsolidasi: (d) => panggil('ringkasan_konsolidasi', d || {}, { timeout: 90000 }),
     /* Berkas xlsx dikirim base64; batas waktunya panjang karena penguraiannya
        terjadi di server dan jaringan toko tidak selalu kencang. */
