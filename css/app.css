@@ -475,28 +475,38 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 .sisi-isi .item-nav.aktif .sisi-lencana { color: var(--teks); }
 
-/* Penanda MODUL — pil yang MELINGKUPI nama menunya, bukan lencana di
-   sebelahnya.
+/* Penanda MODUL — KETERANGAN KECIL di bawah nama menunya.
 
-   Sampai v1.211.0 ia lencana kata "MODUL" berdampingan dengan lencana
-   angka. Komentarnya mengklaim "sengaja lebih kecil dan lebih pucat",
-   padahal bedanya cuma satu piksel huruf: bentuknya sama bulat, latarnya
-   sama, warnanya sama. Dilaporkan pemilik: "sepertinya perlu dievaluasi
-   karena seperti lencana notifikasi". Dua pil sepadan di satu baris memang
-   terbaca sepasang — satu berisi 3, satu berisi MODUL, seolah MODUL itu
-   sejenis hitungan.
+   Riwayatnya tiga babak, dan tiap babak dihentikan pemilik sendiri:
 
-   Melingkupi NAMA menyelesaikannya dengan sendirinya: pil yang membungkus
-   teks tidak pernah dipakai orang untuk mengabarkan jumlah, dan ia tidak
-   lagi berdiri sederajat dengan lencana angka di sebelah kanan.
+   1. Lencana kata "MODUL" di sebelah lencana angka (sampai v1.211.0).
+      Komentarnya mengklaim "sengaja lebih kecil dan lebih pucat", padahal
+      diukur bersebelahan keduanya sama bulat, sama latar, sama warna —
+      bedanya satu piksel huruf. Pemilik membacanya sebagai notifikasi.
+   2. Pil bergaris yang MELINGKUPI nama (v1.211.0 s/d v1.222.0). Tidak lagi
+      terbaca sebagai hitungan, tapi pemilik: "kurang pas kalau cuma
+      dilingkari".
+   3. Sekarang: kata "modul" sebagai baris kedua, di bawah namanya.
 
-   BERGARIS, bukan berlatar. Waktu barisnya aktif seluruh baris mendapat
-   latar `--panel-2`; pil yang juga berlatar itu akan tertelan dan butuh
-   satu aturan khusus lagi untuk keadaan aktif. Garis tidak pernah hilang. */
+   Kenapa yang ketiga berhenti di sini. Dua babak pertama sama-sama menaruh
+   BENTUK pada item, dan bentuk pada item selalu bisa dibaca sebagai status
+   — bulat berarti hitungan, bergaris berarti terpilih, berwarna berarti
+   perlu perhatian. Yang ini memakai KATA. Kata "modul" tidak punya
+   tafsiran kedua, dan itulah yang diminta pemilik sejak awal: "supaya
+   orang awam sekalipun tahu kalau itu modul".
+
+   Digambar `::after`, BUKAN elemen di markup. Kalimat untuk pembaca layar
+   (", modul tambahan") sudah ada terpisah sebagai `.hanya-pembaca`, jadi
+   menambah simpul nyata berarti kata itu diumumkan dua kali. Dan
+   `.item-nama` dibaca flyout mode terlipat sebagai teks cadangan — sisipan
+   di dalamnya akan ikut terbawa ke gelembungnya. */
 .sisi-isi .item-nav.modul .item-nama {
-  flex: 0 1 auto;
-  padding: 2px 10px; border-radius: 999px;
-  border: 1px solid var(--garis-rangka); background: none;
+  display: flex; flex-direction: column; line-height: 1.15;
+}
+.sisi-isi .item-nav.modul .item-nama::after {
+  content: 'modul';
+  font-size: 9.5px; letter-spacing: .085em; text-transform: uppercase;
+  font-weight: 600; color: var(--teks-redup); margin-top: 2px;
 }
 /* Yang mendorong lencana angka ke kanan sekarang lencananya SENDIRI, bukan
    nama menunya. Berlaku untuk semua item, jadi menu tanpa penanda modul
@@ -626,7 +636,9 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 #app.sisi-lipat .sisi-isi .item-nav .item-nama {
   position: absolute; width: 1px; height: 1px; margin: -1px;
   padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; flex: none;
-  /* Pil penanda modul ikut hilang: yang tersisa di rel 68px cuma ikonnya. */
+  /* Keterangan "modul" ikut hilang: ia `::after` dari elemen ini, jadi ia
+     terklip bersama namanya. Yang tersisa di rel 68px cuma ikonnya, dan
+     itu memang satu-satunya yang muat. */
   border: 0;
 }
 /* Lencana jadi TITIK di bahu ikon. Angkanya tidak muat di rel 68px, dan angka
@@ -2214,6 +2226,45 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 .batang-arus .keluar { background: var(--bahaya); }
 
 .uang-minus { color: var(--bahaya); }
+/* ---- Tabel laporan: satuannya di JUDUL, bukan di tiap sel ----
+
+   Diminta pemilik 21 Sep 2026: "Rp1.000.000 hanya menampilkan 1.000.000
+   saja supaya di mata lebih clean". Di tabel padat, "Rp" terulang di
+   setiap baris tanpa menambah satu keterangan pun — yang dibaca orang
+   angkanya, dan satuannya cukup disebut sekali di kepala kartunya.
+   Itulah sebabnya laporan keuangan cetak di mana pun menulis
+   "(dalam rupiah)" di atas, bukan di tiap angka.
+
+   DISEMBUNYIKAN lewat CSS, bukan dibuang dari `rp()`. `rp()` dipakai
+   ratusan tempat — kartu ringkasan, struk, toast, dasbor — dan di sana
+   "Rp" justru perlu karena angkanya berdiri sendiri tanpa kepala kartu
+   yang menyebut satuannya. Yang berubah cuma tabel yang sudah menyebutnya.
+
+   Syaratnya SATU dan tidak boleh dilanggar: kartu yang memakai kelas ini
+   WAJIB menyebut "dalam Rupiah" di judulnya. Angka tanpa satuan dan tanpa
+   keterangan adalah angka yang tidak bisa dibaca siapa pun. Dijaga uji. */
+.laporan-uang table .rp { display: none; }
+/* Satu lebar per digit — tanpa ini kolom angka tidak pernah benar-benar
+   lurus, dan itu yang membuat tabel terbaca "berantakan". */
+.laporan-uang table td, .laporan-uang table th { font-variant-numeric: tabular-nums; }
+/* Kepala tabel lebih tenang: yang menonjol harus angkanya, bukan judul
+   kolomnya. */
+.laporan-uang table thead th {
+  background: transparent; border-bottom: 1.5px solid var(--garis);
+  font-size: var(--fs-11); letter-spacing: .06em; text-transform: uppercase;
+  color: var(--teks-redup); font-weight: 600;
+}
+/* Baris jumlah berdiri sendiri lewat garis, bukan lewat latar. */
+.laporan-uang table tr.subtotal td, .laporan-uang table tr.tebal td {
+  border-top: 1.5px solid var(--garis); font-weight: 700;
+}
+/* Satuan di judul kartu: menempel pada judulnya, jauh lebih kecil dan
+   lebih pucat — dan itu DIUKUR penjaganya, bukan cuma diklaim di sini. */
+.satuan-uang {
+  font-size: var(--fs-11); font-weight: 500; letter-spacing: .04em;
+  color: var(--teks-redup); margin-left: 8px;
+}
+
 .matriks-kons .uang-minus, .kepala-kons .uang-minus { font-weight: 700; }
 .uang-minus .rp { color: inherit; opacity: .7; }
 .kepala-kons .uang-minus { color: var(--kons-minus); }
@@ -2542,14 +2593,10 @@ input.sudah-hitung {
     position: static; width: auto; height: auto; margin: 0;
     overflow: visible; clip: auto; flex: 1; min-width: 0;
   }
-  /* Jadi laci, "terlipat" tidak berlaku — pil penanda modulnya ikut kembali.
-     Aturan di atas mengembalikan `flex: 1` untuk SEMUA nama; item modul
-     harus kembali ke `0 1 auto`, kalau tidak pilnya melar selebar barisnya
-     dan berhenti terbaca sebagai penanda. */
-  #app.sisi-lipat .sisi-isi .item-nav.modul .item-nama {
-    flex: 0 1 auto; padding: 2px 10px;
-    border: 1px solid var(--garis-rangka); border-radius: 999px;
-  }
+  /* Dulu di sini ada aturan khusus yang mengembalikan pil penanda modul di
+     mode laci, sebab `flex: 1` di atas membuat pilnya melar selebar baris.
+     Sejak penandanya jadi keterangan di bawah nama (bukan pil), aturan itu
+     tidak dibutuhkan lagi: baris kedua tidak peduli selebar apa induknya. */
   #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
     position: static; width: auto; height: auto; min-width: 20px;
     padding: 2px 6px; border-radius: 999px; overflow: visible; text-indent: 0;

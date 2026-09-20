@@ -5099,9 +5099,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Peran', render: r => `<span class="lencana">${esc(r.nama_peran)}</span>` },
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua' : esc(r.cabang) },
             { judul: 'Login terakhir', render: r => esc(waktuTampil(r.terakhir_login)) },
-            { judul: '', render: r => `
-              <button class="tombol kecil" data-edit-user="${esc(r.id_user)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>
-              ${bolehIzin('user', 'ubah') ? `<button class="tombol kecil" data-reset-pin="${esc(r.id_user)}">Reset PIN</button>` : ''}` }
+            /* IKON SAJA, diminta pemilik 21 Sep 2026. Sebelumnya "Ubah"
+               bertinggi 28 px (punya ikon) dan "Reset PIN" 27 px (tanpa
+               ikon), jadi keduanya meleset 4 px di baris yang sama.
+               Lewat tombolIkon keduanya memakai ukuran yang sama dengan
+               tombol ikon di tabel Perangkat — kelurusannya bukan diatur
+               satu per satu, ia akibat dari memakai pembuat yang sama. */
+            { judul: '', render: r => 
+              tombolIkon('', 'Ubah', IKON.ubah, `data-edit-user="${esc(r.id_user)}"`) +
+              (bolehIzin('user', 'ubah')
+                ? tombolIkon('', 'Reset PIN', IKON.reset_pin, `data-reset-pin="${esc(r.id_user)}"`)
+                : '') }
           ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true, kunci: 'user' })}
         </div>
 
@@ -5121,7 +5129,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: '', render: r => r.kode_peran === 'OWNER'
                 ? '<span class="lencana">terkunci</span>'
                 : bolehIzin('setting', 'ubah')
-                  ? `<button class="tombol kecil" data-edit-peran="${esc(r.kode_peran)}">Atur hak akses</button>`
+                  ? tombolIkon('', 'Atur hak akses', IKON.atur_akses, `data-edit-peran="${esc(r.kode_peran)}"`)
                   : '<span class="lencana">hanya pemegang Pengaturan</span>' }
           ], cachePeran)}
         </div>
@@ -5199,7 +5207,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ${bolehIzin('user', 'ubah')
                 ? tombolIkon('', 'Ganti nama perangkat', IKON.ubah,
                     `data-nama-perangkat="${esc(r.id_perangkat)}"`) +
-                  tombolIkon('', 'Tetapkan meja (lini usaha)', IKON.buka_menu,
+                  tombolIkon('', 'Tetapkan meja (lini usaha)', IKON.meja,
                     `data-meja-perangkat="${esc(r.id_perangkat)}"`) : ''}
               ${bolehIzin('user', 'setujui') ? `
                 ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON.setujui,
@@ -5588,7 +5596,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <span class="rinci-sumber">${rinci}</span></td>
         ${sel}<td class="angka gabung" data-l="Gabungan">${selK(jumlahBaris(b))}</td></tr>`;
     }).join('');
-    return `<div class="kartu">
+    return `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>${esc(judul)}</h3>
         <span class="petunjuk">dalam Rupiah</span>
         <div style="flex:1"></div>${ekor || ''}</div>
@@ -5736,7 +5744,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${matriksKons('Laba Rugi', d.matriks && d.matriks.lr)}
       ${matriksKons('Neraca', ner, lencanaNer)}
 
-      <div class="kartu"><h3>Komposisi beban</h3>
+      <div class="kartu laporan-uang">
+        <div class="bar-alat"><h3>Komposisi beban</h3>
+          <span class="satuan-uang">dalam Rupiah</span></div>
         <div class="gulir-x"><table class="matriks-kons"><thead><tr>
           <th class="akun">Akun</th><th class="angka">Jumlah</th>
           <th class="angka gabung">Porsi</th></tr></thead><tbody>

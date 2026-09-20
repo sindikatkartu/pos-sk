@@ -4819,7 +4819,7 @@ async function tampilkanLabaRugi() {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const d = await API.labaRugi(par);
     const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
-    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><div class="gulir-x"><table>
+    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
       ${brs('(−) Retur Penjualan', -d.retur_penjualan)}
@@ -4843,7 +4843,7 @@ async function tampilkanNeraca() {
   try {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const d = await API.neraca(par);
-    const tabel = (judul, arr, total) => `<div class="kartu"><h3>${judul}</h3><div class="gulir-x"><table>
+    const tabel = (judul, arr, total) => `<div class="kartu laporan-uang"><div class="bar-alat"><h3>${judul}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
       ${arr.map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
       <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div></div>`;
     w.innerHTML = tombolUnduh('neraca', par) + `
