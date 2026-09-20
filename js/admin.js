@@ -8465,6 +8465,289 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (btn) btn.classList.toggle('sembunyi', !(d.uji_coba && total > 0 && !d.peringatan.length));
   }
 
+  /* ==================== KAS — MEJA KERJA BACK OFFICE ====================
+
+     Dipindah dari sidebar kasir di v1.217 (bagian 208). Pemilik, 20 Sep 2026:
+     "petugas yang ada di toko tidak ada aktivitas kas ... itu semua dikerjakan
+     admin saya (back office)."
+
+     Keperluan rumah tangga toko memakai UANG TALANGAN yang sengaja tidak
+     dibukukan: ada dana tetap di toko, dipakai, lalu di-reimburse sampai utuh
+     lagi. Yang masuk buku cuma reimburse-nya — sebagai beban, dibayar dari
+     Kas Admin. Uang setoran tidak pernah diutak-atik.
+  */
+
+  /**
+   * AKUN YANG MEMEGANG UANG — salinan `AKUN_KAS` di apps-script/00_Config.gs.
+   *
+   * Salinan, karena klien tidak bisa membaca konstanta server. Ada penjaga
+   * statis yang membandingkannya dengan sumbernya — dua daftar yang sama-sama
+   * dipatok tangan akan menyimpang diam-diam.
+   */
+  const AKUN_KAS = ['1-1100', '1-1150', '1-1200', '1-1210'];
+
+  const PERIODE_KAS = { id: 'kasPeriodePilih', dari: 'kasDari', sampai: 'kasSampai',
+                        nilai: 'bulan', label: 'Periode' };
+
+  /* Jenis transaksi yang dilayani meja ini. Dipilih lebih dulu, karena ia yang
+     menentukan kendali mana yang masuk akal sesudahnya — akun lawan sebuah
+     pemindahan adalah akun kas lain, sementara akun lawan sebuah pengeluaran
+     justru tidak boleh akun kas. */
+  const JENIS_KAS = [
+    ['KELUAR', 'Kas keluar — beban, gaji, reimburse'],
+    ['MASUK',  'Kas masuk — setoran modal, pendapatan lain'],
+    ['PRIVE',  'Prive — uang pemilik diambil'],
+    ['PINDAH', 'Pindah antar akun kas — setor ke bank, pelimpahan QRIS'],
+    ['SETOR',  'Terima setoran shift toko']
+  ];
+
+  let kasData = null;
+
+  async function muatKas() {
+    const w = $('#isiKas');
+    if (!w) return;
+    if (!$('#kasDari')) {
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3>Kas</h3>
+            <span class="wadah-periode" id="wadahPeriodeKas"></span>
+          </div>
+          <p class="petunjuk">Seluruh pergerakan uang yang bukan penjualan: beban,
+             gaji, prive, setoran modal, pemindahan antar akun, dan serah terima
+             uang toko. Pembayaran utang supplier punya menunya sendiri di
+             <strong>Utang</strong>.</p>
+        </div>
+        <div id="hasilKas"></div>`;
+      $('#wadahPeriodeKas').innerHTML = Periode.html(PERIODE_KAS);
+      Periode.pasang(PERIODE_KAS, muatHasilKas);
+    }
+    return muatHasilKas();
+  }
+
+  async function muatHasilKas() {
+    memuat('#hasilKas');
+    try {
+      /* TIGA panggilan sekaligus, bukan berurutan. Tiap panggilan Apps Script
+         membayar ~0,8 detik memuat proyek; berurutan berarti menunggu tiga
+         kali lipat untuk data yang tidak saling bergantung. */
+      const [kas, setor, ner] = await Promise.all([
+        API.daftarKas({ cabang: APP_STATE.cabang,
+                        dari: nilai('kasDari'), sampai: nilai('kasSampai') }),
+        API.shiftBelumSetor({ cabang: APP_STATE.cabang }),
+        API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7), cabang: '*' })
+      ]);
+      kasData = { kas, setor, ner };
+      gambarKas();
+    } catch (e) { galat('#hasilKas', e); }
+  }
+
+  function gambarKas() {
+    const w = $('#hasilKas');
+    if (!w || !kasData) return;
+    const { kas, setor, ner } = kasData;
+
+    /* SALDO dari NERACA, bukan dijumlahkan dari daftar di bawahnya. Kas juga
+       bergerak lewat penjualan, pembelian, dan piutang — menjumlahkan daftar
+       ini saja akan memajang angka yang tidak pernah cocok dengan buku. */
+    const aset = (ner && ner.aset) || [];
+    const saldo = AKUN_KAS.map((k) => {
+      const a = aset.filter((x) => String(x.kode) === k)[0];
+      return { kode: k, nama: (a && a.nama) || k, jumlah: a ? a.jumlah : 0 };
+    });
+
+    const belum = (setor && setor.shift || []).filter((x) => !x.setoran);
+
+    w.innerHTML = `
+      <div class="petak-mini petak-uang">
+        ${saldo.map((x) => miniKons(x.nama, rp(x.jumlah), x.kode)).join('')}
+      </div>
+      <p class="petunjuk">Saldo di atas dibaca dari buku besar yang sudah dijurnal
+         (neraca akhir periode), bukan dijumlahkan dari daftar di bawah — kas juga
+         bergerak lewat penjualan dan pembelian.</p>
+
+      ${kartuSetoran(belum)}
+      ${kartuCatatKas()}
+
+      <div class="kartu">
+        <h3>Mutasi kas</h3>
+        ${daftarMutasiKas(kas)}
+      </div>`;
+    isiPilihanKas();
+    $('#kasJenis')?.addEventListener('change', isiPilihanKas);
+    $('#btnSimpanKas')?.addEventListener('click', simpanKasBaru);
+  }
+
+  /**
+   * Shift yang uangnya belum diserahkan ke back office.
+   *
+   * Inilah jembatan serah terimanya. Angkanya `kas_fisik` — uang yang
+   * benar-benar dihitung di laci, bukan yang seharusnya ada; selisihnya sudah
+   * dibukukan sendiri saat tutup shift.
+   */
+  function kartuSetoran(belum) {
+    if (!belum.length) {
+      return `<div class="kartu"><h3>Setoran toko</h3>
+        <p class="petunjuk">Tidak ada shift tertutup yang uangnya belum diserahkan.</p></div>`;
+    }
+    return `<div class="kartu">
+      <h3>Setoran toko ${lencanaDash(belum.length + ' belum diterima', 'kuning')}</h3>
+      <div class="gulir-x"><table class="tabel">
+        <thead><tr><th>Shift</th><th>Tutup</th><th class="kanan">Uang dihitung</th>
+          <th class="kanan">Selisih</th><th></th></tr></thead>
+        <tbody>${belum.map((sh) => `<tr>
+          <td data-l="Shift">${esc(sh.id_shift)}</td>
+          <td data-l="Tutup">${esc(waktuTampil(sh.tutup))}</td>
+          <td class="kanan" data-l="Uang dihitung">${rp(sh.kas_fisik)}</td>
+          <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
+          <td><button class="tombol kecil utama" data-terima-setor="${esc(sh.id_shift)}"
+              data-jumlah="${sh.kas_fisik}">Terima</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <p class="petunjuk">Menerima setoran memindahkan uangnya dari
+         <strong>Kas di Tangan</strong> ke <strong>Kas Admin</strong>. Shift yang
+         belum ditutup tidak muncul di sini — uang di laci yang masih dipakai
+         tidak boleh dipindahkan.</p>
+    </div>`;
+  }
+
+  function kartuCatatKas() {
+    if (!bolehIzin('kas', 'buat')) return '';
+    return `<div class="kartu">
+      <h3>Catat</h3>
+      <div class="saring-baris">
+        <div class="kendali-tetap"><label>Jenis</label>
+          <select id="kasJenis" class="kendali-tetap">
+            ${JENIS_KAS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}
+          </select></div>
+        <div class="kendali-tetap"><label>Sumber kas</label>
+          <select id="kasSumber" class="kendali-tetap"></select></div>
+        <div class="kendali-tetap"><label id="labelKasLawan">Akun lawan</label>
+          <select id="kasAkun" class="kendali-tetap"></select></div>
+        <div class="kendali-tetap"><label>Jumlah</label>
+          <input type="text" inputmode="numeric" class="uang kendali-tetap" id="kasJumlah" placeholder="0"></div>
+      </div>
+      <div class="grup"><label>Keterangan</label>
+        <input type="text" id="kasKeterangan" maxlength="120"
+               placeholder="mis. gaji September — 3 orang"></div>
+      <div class="aksi">
+        <button class="tombol utama" id="btnSimpanKas">Simpan catatan kas</button>
+      </div>
+      <p class="petunjuk" id="petunjukKas"></p>
+    </div>`;
+  }
+
+  function daftarMutasiKas(kas) {
+    const rows = (kas && kas.kas) || [];
+    if (!rows.length) return '<p class="petunjuk">Belum ada mutasi kas di periode ini.</p>';
+    return `<div class="gulir-x"><table class="tabel">
+      <thead><tr><th>Tanggal</th><th>Dari akun</th><th>Akun lawan</th>
+        <th class="kanan">Jumlah</th><th>Keterangan</th><th></th></tr></thead>
+      <tbody>${rows.map((k) => `<tr>
+        <td data-l="Tanggal">${esc(tglTampil(k.tanggal))}</td>
+        <td data-l="Dari akun">${esc(k.nama_akun_kas || k.akun_kas)}</td>
+        <td data-l="Akun lawan">${esc(k.nama_akun)}${k.pindah_kas
+          ? ' ' + lencanaDash('pindah', 'abu') : ''}</td>
+        <td class="kanan" data-l="Jumlah">${k.tipe === 'KELUAR'
+          ? rp(-Math.abs(k.jumlah)) : rp(k.jumlah)}</td>
+        <td data-l="Keterangan">${esc(k.keterangan)}${k.bukti
+          ? ' <span class="petunjuk">' + esc(k.bukti) + '</span>' : ''}</td>
+        <!-- Baris SERAH TERIMA tidak punya koreksi balik. Membalikkannya
+             meninggalkan shiftnya tetap bertanda sudah-disetor — penanda itu
+             dibaca dari baris aslinya, yang masih ada. Serah terima yang
+             salah dibetulkan dengan pemindahan biasa ke arah sebaliknya, dan
+             itu memang terlihat sebagai dua baris, karena memang dua kejadian. -->
+        <td>${bolehIzin('kas', 'buat') && !(k.pindah_kas && k.bukti)
+          ? `<button class="tombol kecil" data-balik-kas="${esc(k.uuid)}">Koreksi balik</button>`
+          : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <p class="petunjuk">Baris yang salah tidak disunting maupun dihapus —
+       <strong>koreksi balik</strong> membuat baris lawannya, dan jejak keduanya
+       tetap utuh. Jurnal yang sudah terbit tidak pernah ditulis ulang.</p>`;
+  }
+
+  /* Isi kedua dropdown menurut jenis yang dipilih. Dipanggil ulang tiap kali
+     jenisnya berganti: akun lawan sebuah PEMINDAHAN adalah akun kas lain,
+     sementara akun lawan sebuah pengeluaran justru tidak boleh akun kas. */
+  async function isiPilihanKas() {
+    const selJenis = $('#kasJenis');
+    if (!selJenis) return;
+    const coa = await DB.kvGet('coa', []);
+    const bisa = (coa || []).filter((c) => c.transaksi === true || String(c.transaksi) === 'true');
+    const opsi = (arr) => arr.map((c) =>
+      `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`).join('');
+
+    const jenis = selJenis.value;
+    const kasSaja = bisa.filter((c) => AKUN_KAS.indexOf(String(c.kode)) !== -1);
+    $('#kasSumber').innerHTML = opsi(kasSaja) ||
+      '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
+
+    let lawan, label, petunjuk;
+    if (jenis === 'PINDAH') {
+      lawan = kasSaja; label = 'Ke akun kas';
+      petunjuk = 'Uang berpindah tempat, bukan bertambah atau berkurang. Uang dari laci toko hanya bisa dipindahkan lewat Terima setoran di atas.';
+    } else if (jenis === 'PRIVE') {
+      lawan = bisa.filter((c) => String(c.kode) === '3-1200');
+      label = 'Akun prive';
+      petunjuk = 'Uang pemilik yang diambil dari usaha. Bukan beban — ia mengurangi ekuitas.';
+    } else if (jenis === 'SETOR') {
+      lawan = kasSaja; label = '—';
+      petunjuk = 'Pakai tombol Terima di kartu Setoran toko; jumlahnya diambil dari uang yang benar-benar dihitung saat tutup laci.';
+    } else {
+      lawan = bisa.filter((c) => AKUN_KAS.indexOf(String(c.kode)) === -1);
+      label = 'Akun lawan';
+      petunjuk = jenis === 'MASUK'
+        ? 'Uang masuk ke usaha: setoran modal (3-1100), pendapatan lain (7-1100).'
+        : 'Uang keluar dari usaha: gaji (6-1100), listrik, perlengkapan, reimburse uang talangan toko.';
+    }
+    $('#kasAkun').innerHTML = opsi(lawan) || '<option value="">(tidak ada)</option>';
+    $('#labelKasLawan').textContent = label;
+    $('#petunjukKas').textContent = petunjuk;
+    $('#kasAkun').disabled = jenis === 'SETOR';
+    $('#btnSimpanKas').disabled = jenis === 'SETOR';
+  }
+
+  /* uuid bertahan sampai catatannya BERHASIL tersimpan — bukan dibuat ulang
+     tiap penekanan tombol, supaya penjaga duplikat di server benar-benar
+     menyala kalau jawabannya hilang di jalan. */
+  let _uuidKas = null;
+  const uuidKas = () => (_uuidKas ||
+    (_uuidKas = 'KAS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)));
+
+  async function simpanKasBaru() {
+    const jenis = nilai('kasJenis');
+    const akun = nilai('kasAkun');
+    const sumber = nilai('kasSumber');
+    const jumlah = angka('kasJumlah');
+    const ket = nilai('kasKeterangan').trim();
+    if (!akun) return toast('Pilih akun lawannya dulu.', 'galat');
+    if (!sumber) return toast('Pilih sumber kasnya dulu.', 'galat');
+    if (!(jumlah > 0)) return toast('Jumlah harus lebih dari nol.', 'galat');
+    if (!ket) return toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang bergerak.', 'galat');
+
+    /* PRIVE dan PINDAH sama-sama KELUAR dari sumber kasnya; yang membedakan
+       akun lawannya, dan itu sudah dipilih dropdown di atas. */
+    const tipe = jenis === 'MASUK' ? 'MASUK' : 'KELUAR';
+    const b = $('#btnSimpanKas');
+    b.classList.add('sibuk');
+    b.disabled = true;
+    try {
+      await API.simpanKas({
+        cabang: APP_STATE.cabang, uuid: uuidKas(),
+        /* Meja ini tidak pernah berada di dalam shift. */
+        id_shift: '', luar_laci: true,
+        akun_kas: sumber, tipe, kode_akun: akun,
+        jumlah, keterangan: ket
+      });
+      _uuidKas = null;
+      $('#kasJumlah').value = '';
+      $('#kasKeterangan').value = '';
+      toast('Catatan kas tersimpan.');
+      await muatHasilKas();
+    } catch (e) { toast('Gagal menyimpan kas: ' + e.message, 'galat'); }
+    finally { b.classList.remove('sibuk'); b.disabled = false; }
+  }
+
   /* ==================== ROUTER LAYAR ==================== */
 
   /**
@@ -8492,6 +8775,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       diskon: '#isiDiskon',
                       pulsa: '#isiPulsa',
                       accurate: '#isiAccurate',
+                      kas: '#isiKas',
                       konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
@@ -8523,6 +8807,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'arsip':     return muatArsip();
       case 'pulsa': return muatPulsa();
       case 'accurate': return muatAccurate();
+      case 'kas': return muatKas();
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
@@ -9333,6 +9618,61 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.rincianBeli) return rincianPembelian(d.rincianBeli);
+
+      if (d.terimaSetor) {
+        /* Jumlahnya dari `kas_fisik` shift itu, bukan diketik ulang: uang yang
+           diserahkan adalah uang yang benar-benar dihitung di laci, dan
+           mengetiknya ulang membuka jalan salah ketik pada angka yang tidak
+           punya pembanding. */
+        const jml = Number(t.dataset.jumlah) || 0;
+        if (!(await tanya('Terima setoran shift ini?',
+              `<p class="petunjuk">${esc(d.terimaSetor)} · ${rp(jml)}</p>
+               <p class="petunjuk">Uangnya berpindah dari <strong>Kas di Tangan</strong>
+               ke <strong>Kas Admin</strong>. Satu shift hanya bisa disetor sekali.</p>`,
+              { ya: 'Terima setoran' }))) return;
+        try {
+          await API.simpanKas({
+            cabang: APP_STATE.cabang, uuid: uuidKas(),
+            tipe: 'KELUAR', akun_kas: '1-1100', kode_akun: '1-1150',
+            jumlah: jml, bukti: d.terimaSetor,
+            keterangan: 'Setoran shift ' + d.terimaSetor,
+            id_shift: '', luar_laci: true
+          });
+          _uuidKas = null;
+          toast('Setoran shift ' + d.terimaSetor + ' diterima.');
+          await muatHasilKas();
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
+      if (d.balikKas) {
+        const asli = ((kasData && kasData.kas && kasData.kas.kas) || [])
+          .filter((x) => String(x.uuid) === d.balikKas)[0];
+        if (!asli) return toast('Baris itu tidak ada lagi di daftar.', 'galat');
+        const alasan = await tanya('Koreksi balik baris ini?',
+          `<p class="petunjuk">${esc(asli.nama_akun_kas)} → ${esc(asli.nama_akun)} ·
+           ${rp(asli.jumlah)}</p>
+           <p class="petunjuk">Baris aslinya tetap ada. Yang dibuat baris
+           lawannya, supaya jejak keduanya utuh dan jurnal yang sudah terbit
+           tidak pernah ditulis ulang.</p>`,
+          { isian: 'Alasan koreksi (minimal 5 karakter)', minimal: 5,
+            ya: 'Buat koreksi balik', jenis: 'bahaya' });
+        if (!alasan) return;
+        try {
+          await API.simpanKas({
+            cabang: APP_STATE.cabang, uuid: uuidKas(),
+            tipe: asli.tipe === 'KELUAR' ? 'MASUK' : 'KELUAR',
+            akun_kas: asli.akun_kas, kode_akun: asli.kode_akun,
+            jumlah: asli.jumlah,
+            keterangan: 'Koreksi balik ' + asli.uuid + ' — ' + alasan,
+            id_shift: '', luar_laci: true
+          });
+          _uuidKas = null;
+          toast('Koreksi balik tercatat.');
+          await muatHasilKas();
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
 
       if (d.hapusShift) {
         /* Angka shiftnya ikut ditulis di pertanyaannya. Menghapus "shift" itu

@@ -144,6 +144,7 @@ const API = (() => {
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
+    'shift_belum_setor',
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
@@ -564,6 +565,9 @@ let _pernahJawab = false;
     /* Menghapus shift menyentuh tiga sheet berturut-turut di dalam satu kunci;
        batas waktunya mengikuti yang menulis, bukan yang membaca. */
     hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
+    /* Pembacaan, jadi aman diulang — dan memang perlu, sebab meja kerja kas
+       memanggilnya tiap kali periodenya berganti. */
+    shiftBelumSetor:   (d) => panggil('shift_belum_setor', d || {}, { timeout: 60000 }),
     ringkasanKonsolidasi: (d) => panggil('ringkasan_konsolidasi', d || {}, { timeout: 90000 }),
     /* Berkas xlsx dikirim base64; batas waktunya panjang karena penguraiannya
        terjadi di server dan jaringan toko tidak selalu kencang. */
