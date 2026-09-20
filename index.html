@@ -386,7 +386,6 @@
       <div class="kartu">
         <div class="bar-alat bar-alat-menu tanpa-cetak">
           <div class="saringan">
-            <h3>Laporan penjualan</h3>
             <!-- Dropdown periode + kolom kustom digambar komponen Periode (pos.js,
                  v1.182) — satu daftar pilihan untuk semua layar. Id-nya tetap:
                  #lapPeriode, #lapKustom, #lapDari, #lapSampai. -->
@@ -427,16 +426,29 @@
     <!-- ---------- KEUANGAN ---------- -->
     <section class="layar" id="layarKeuangan">
       <div class="kartu">
-        <h3>Laporan keuangan</h3>
         <div class="saring-baris">
           <span class="wadah-periode" id="wadahPeriodeKeu"></span>
           <div class="kendali-tetap"><label>Cabang</label><select id="keuCabang"></select></div>
           <div class="aksi">
-          <button class="tombol utama" id="btnLabaRugi"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg><span>Laba Rugi</span></button>
-          <button class="tombol utama" id="btnNeraca"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18"/><path d="m19 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M3 7h1a17 17 0 0 0 8-2 17 17 0 0 0 8 2h1"/><path d="m5 8 3 8a5 5 0 0 1-6 0zV7"/><path d="M7 21h10"/></svg><span>Neraca</span></button>
           <button class="tombol" id="btnUji"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><span>Uji kebenaran</span></button>
           <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
           </div>
+        </div>
+        <!-- TAB, bukan tombol. Diminta pemilik 21 Sep 2026: "tidak bisa
+             meniru cara seperti menu laporan penjualan menggunakan tab?"
+
+             Laba Rugi dan Neraca itu TAMPILAN yang dibuka untuk dibaca, jadi
+             mereka tab. Komentar di app.js sudah menyebutnya sejak lama —
+             "tiga tombolnya memilih laporan mana, bukan tampilkan" — tapi
+             bentuknya tidak pernah menyusul maksudnya.
+
+             Uji kebenaran dan Tutup buku SENGAJA tetap tombol: yang satu
+             pemeriksaan yang dijalankan, yang satu mengunci periode dan tidak
+             bisa dibatalkan. Menaruh tindakan yang tidak bisa dibatalkan di
+             deretan tab membuatnya satu ketukan meleset dari sekadar melihat. -->
+        <div class="tab-modal tanpa-cetak" id="tabKeu" style="margin-top:4px;margin-bottom:0">
+          <button data-tab-keu="labarugi" class="aktif">Laba Rugi</button>
+          <button data-tab-keu="neraca">Neraca</button>
         </div>
       </div>
       <div id="hasilKeuangan"></div>

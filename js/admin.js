@@ -5087,7 +5087,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const user = w._user || [], perangkat = w._perangkat || [];
     w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Pengguna</h3><div style="flex:1"></div>
+          <div class="bar-alat"><div style="flex:1"></div>
             ${bolehIzin('user', 'buat') ? tombolTambah('btnUserBaru', 'Pengguna') : ''}
             ${menuTindakan({ id: 'menuUser', kunci: 'user', idTombol: 'btnMenuUser',
                 isi: butirNonaktif('user', hitungMati(user)) })}</div>
@@ -5336,7 +5336,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const rows = w._rows || [];
     w.innerHTML = `
       <div class="kartu">
-        <div class="bar-alat"><h3>Cabang</h3><div style="flex:1"></div>
+        <div class="bar-alat"><div style="flex:1"></div>
           ${bolehIzin('cabang', 'buat') ? tombolTambah('btnCabangBaru', 'Cabang baru') : ''}
           ${menuTindakan({ id: 'menuCabang', kunci: 'cabang', idTombol: 'btnMenuCabang',
               isi: butirNonaktif('cabang', hitungMati(rows)) })}</div>
@@ -5467,7 +5467,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#konsPeriode')) {
       w.innerHTML = `
         <div class="kartu">
-          <h3>Ringkasan gabungan</h3>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeKons"></span>
           </div>
@@ -6032,7 +6031,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#accPeriode')) {
       w.innerHTML = `
         <div class="kartu">
-          <h3>Accurate</h3>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeAcc"></span>
           </div>
@@ -6240,11 +6238,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       w._tab = aktif;
       w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Pulsa</h3>
-            <span class="seg" id="tabPulsa" role="group" aria-label="Bagian pulsa">
-              ${TAB_PULSA.map(([id, label]) =>
-                `<button type="button" data-tabpulsa="${id}" class="${id === aktif ? 'aktif' : ''}">${label}</button>`).join('')}
-            </span>
+          <!-- .tab-modal, BUKAN .seg. Diminta pemilik 21 Sep 2026: "saya suka
+               gaya tab-nya laporan penjualan". Bedanya bukan selera semata —
+               .seg itu kelompok tombol berbingkai berhuruf kecil (fs-11) yang
+               tepat untuk pengalih DI DALAM kartu, seperti rentang grafik di
+               dashboard; .tab-modal itu tab bergaris bawah berhuruf fs-14 yang
+               menandakan pindah BAGIAN halaman. Tab Pulsa memindahkan bagian
+               halaman, jadi ia milik yang kedua.
+
+               #grafikMode di dashboard SENGAJA tetap .seg — ia pengalih di
+               dalam kartu, bukan tab halaman. Dua kelas, dua kegunaan.
+
+               margin-bottom:0 menyalin yang dipakai #tabLaporan: tanpa itu
+               .tab-modal membawa jarak 18 px yang menggantung di dasar kartu. -->
+          <div class="tab-modal" id="tabPulsa" role="group" aria-label="Bagian pulsa"
+               style="margin-bottom:0">
+            ${TAB_PULSA.map(([id, label]) =>
+              `<button type="button" data-tabpulsa="${id}" class="${id === aktif ? 'aktif' : ''}">${label}</button>`).join('')}
           </div>
         </div>`;
     }
@@ -7114,7 +7124,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#isiDiskon').innerHTML = `
         <div class="kartu">
           <div class="bar-alat dua-kendali">
-            <h3>Diskon</h3>
             ${Periode.html(PERIODE_DISKON)}
           </div>
           <p class="petunjuk">Persentase dihitung dari total diskon (baris + nota) terhadap nilai bruto.
@@ -8527,7 +8536,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       w.innerHTML = `
         <div class="kartu">
           <div class="saring-baris">
-            <h3 style="margin:0">Kas</h3>
             <span class="wadah-periode" id="wadahPeriodeKas"></span>
             <span id="wadahCabangKas"></span>
           </div>

@@ -186,7 +186,14 @@ const MENU = [
   // pembelian kredit menaikkan saldo Utang Usaha tanpa satu pun layar untuk
   // melunasinya.
   { id: 'utang',      label: 'Utang',      grup: 'Keuangan',   izin: ['utang', 'lihat'],             admin: true, backoffice: true },
-  { id: 'laporan',    label: 'Laporan',    grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'] },
+  /* "Laporan" di dalam grup "Laporan" tidak mengatakan apa-apa — yang
+     bertanya tetap harus membukanya dulu. Dilaporkan pemilik 21 Sep 2026,
+     dan ini kasus KEDUA yang sama: "Keuangan" di dalam grup "Keuangan"
+     dibetulkan sehari sebelumnya (v1.220). Yang pertama luput karena yang
+     memeriksa cuma melihat grup yang baru dibuat, tidak menyisir grup lama.
+     Namanya mengikuti apa yang sudah disebut kodenya sendiri: izinnya
+     `laporan_penjualan`, dan judul kartunya dulu 'Laporan penjualan'. */
+  { id: 'laporan',    label: 'Laporan Penjualan', grup: 'Laporan', izin: ['laporan_penjualan', 'lihat'] },
   /* Label 'Poin & Performa' sejak 9 Sep 2026 — dulu 'Poin', lalu 'Performa'.
      Dua kali berganti karena dua kali salah arah: "Poin" menyempitkan isinya
      (ada omzet, nota, peringkat cabang), sementara "Performa" menyembunyikan
@@ -1241,6 +1248,12 @@ function bukaLayar(id) {
      menunggu ditekan adalah langkah yang tidak perlu ada. Pembukaan berikutnya
      membiarkan rentang yang sedang dilihat. */
   if (id === 'laporan' && !LAP.dari) return terapkanPeriodeLaporan($('#lapPeriode')?.value || 'hari');
+  /* Alasan yang sama persis dengan Laporan di atas, diterapkan ke Keuangan
+     21 Sep 2026: layar yang terbuka kosong dan menunggu ditekan adalah
+     langkah yang tidak perlu ada. `!keuTerakhir` membuatnya sekali saja —
+     pembukaan berikutnya membiarkan tab yang sedang dilihat, dan tidak
+     menambah satu pun panggilan server. */
+  if (id === 'keuangan' && !keuTerakhir) return pilihTabKeu('labarugi');
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
   if (id === 'shift') return periksaShift();
@@ -4777,6 +4790,28 @@ const tombolUnduh = (jenis, par) => `<div class="kartu"><div class="bar-alat">
   ${Admin.tombolEkspor(jenis, par)}
 </div></div>`;
 
+/**
+ * Tampilan Keuangan yang sedang dibuka. Dipakai dua arah: penanda tab mana
+ * yang disorot, dan apa yang dihitung ulang saat periode/cabang berganti.
+ *
+ * Di scope modul, bukan di dalam pasangEvent(), karena bukaLayar() perlu
+ * membacanya untuk tahu layar ini sudah pernah dimuat atau belum.
+ */
+let keuTerakhir = null;
+
+/**
+ * Pindah tab Keuangan. `tab` null berarti yang tampil BUKAN salah satu tab
+ * (mis. hasil Uji kebenaran) — sorotannya dilepas semua, supaya deret tab
+ * tidak mengaku sedang menampilkan sesuatu yang tidak sedang ditampilkan.
+ */
+function pilihTabKeu(tab) {
+  const peta = { labarugi: tampilkanLabaRugi, neraca: tampilkanNeraca };
+  $$('#tabKeu button').forEach(b => b.classList.toggle('aktif', b.dataset.tabKeu === tab));
+  if (!tab) return;
+  keuTerakhir = peta[tab] || tampilkanLabaRugi;
+  return keuTerakhir();
+}
+
 async function tampilkanLabaRugi() {
   const w = $('#hasilKeuangan');
   w.innerHTML = '<div class="kartu">Menghitung…</div>';
@@ -6144,12 +6179,19 @@ function pasangEvent() {
   /* Keuangan: periode bulanan lewat komponen (Bulan ini · Bulan lalu · Kustom…).
      Laporan yang terakhir dibuka dihitung ulang saat periodenya berganti —
      tiga tombolnya memilih laporan mana, bukan "tampilkan". */
-  let keuTerakhir = null;
   $('#wadahPeriodeKeu').innerHTML = Periode.html(PERIODE_KEU);
   Periode.pasang(PERIODE_KEU, () => { if (keuTerakhir) keuTerakhir(); });
-  $('#btnLabaRugi').addEventListener('click', () => { keuTerakhir = tampilkanLabaRugi; tampilkanLabaRugi(); });
-  $('#btnNeraca').addEventListener('click', () => { keuTerakhir = tampilkanNeraca; tampilkanNeraca(); });
-  $('#btnUji').addEventListener('click', () => { keuTerakhir = tampilkanUji; tampilkanUji(); });
+  $('#tabKeu').addEventListener('click', e => {
+    const t = e.target.closest('[data-tab-keu]');
+    if (t) pilihTabKeu(t.dataset.tabKeu);
+  });
+  /* Uji kebenaran melepas sorotan tab: hasilnya menggantikan isi layar, dan
+     tab yang masih tersorot akan menunjuk laporan yang sudah tidak terlihat. */
+  $('#btnUji').addEventListener('click', () => {
+    pilihTabKeu(null);
+    keuTerakhir = tampilkanUji;
+    tampilkanUji();
+  });
   $('#btnTutupBuku').addEventListener('click', async () => {
     const periode = $('#keuPeriode').value;
     if (!(await Admin.tanya(`Kunci periode ${periode}?`,
