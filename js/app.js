@@ -36,13 +36,32 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
  * singkatan rupiah yang baku "Rp", dan di layar yang dipakai memutuskan soal
  * uang huruf kecil terbaca seperti salah ketik.
  *
+ * YANG NEGATIF bertanda minus DI DEPAN dan berwarna `--bahaya` — keputusan
+ * pemilik 20 Sep 2026, membalik kurung akuntansi yang dipakai v1.213:
+ * "nominal minus jangan pakai ( 8.000.000) tapi -8.000.000 warna merah".
+ * Tandanya mendahului "Rp", bukan menyusup di antaranya: -Rp8.000, bukan
+ * Rp-8.000. Dulu ini cuma berlaku di Ringkasan Gabungan lewat `rpK()`; dua
+ * gaya angka minus yang hidup berdampingan membuat yang membaca laporan
+ * bertanya mana yang benar, jadi `rpK` dibuang dan aturannya naik ke sini.
+ *
  * MEMULANGKAN HTML, bukan teks. Pemanggil yang menulis ke `textContent` akan
- * menampilkan markupnya mentah — ketigabelasnya sudah dipindah ke `innerHTML`
- * bersamaan dengan perubahan ini. Yang menambah pemanggil baru: pakai
- * `innerHTML`, atau `rpTeks()` kalau memang butuh teks polos.
+ * menampilkan markupnya mentah. Waktu aturan ini ditulis, klaimnya adalah
+ * "ketigabelasnya sudah dipindah ke innerHTML" — dan klaim itu tidak pernah
+ * dijaga apa pun. Diukur 20 Sep 2026: ENAM pemanggil masih mengirimnya ke
+ * muara teks polos, termasuk layar sukses kasir yang muncul di setiap
+ * pembayaran tunai berkembalian. Keenamnya dibetulkan, dan sekarang ada
+ * penjaga statis yang menolak `rp(` di baris yang bermuara ke
+ * `textContent`/`toast`/`sukses`/`alert`.
+ *
+ * Yang menambah pemanggil baru: pakai `innerHTML`, atau `rpTeks()` kalau
+ * memang butuh teks polos.
  */
-const rp = (n) => '<span class="rp">' + CONFIG.MATA_UANG + '</span>' +
-  new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
+const rp = (n) => {
+  const v = Math.round(Number(n) || 0);
+  const angka = '<span class="rp">' + CONFIG.MATA_UANG + '</span>' +
+    new Intl.NumberFormat(CONFIG.LOCALE).format(Math.abs(v));
+  return v < 0 ? '<span class="uang-minus">-' + angka + '</span>' : angka;
+};
 
 /** Teks polos, untuk tempat yang memang bukan HTML (judul, ekspor, salin). */
 const rpTeks = (n) => CONFIG.MATA_UANG + ' ' +
@@ -3148,7 +3167,11 @@ function bukaLayarSukses(arsip) {
 
   /* Layar ini tetap muncul walau kembaliannya nol. Gunanya bukan cuma angka:
      ia juga satu-satunya kepastian bahwa notanya benar-benar masuk. */
-  $('#skAngka').textContent = kembali > 0 ? 'Kembali ' + rp(kembali)
+  /* `rpTeks`, bukan `rp`: ini textContent. Sampai 20 Sep 2026 baris ini
+     menampilkan `Kembali <span class="rp">Rp</span>25.000` apa adanya di
+     setiap pembayaran tunai berkembalian — layar paling sering dilihat di
+     seluruh aplikasi. */
+  $('#skAngka').textContent = kembali > 0 ? 'Kembali ' + rpTeks(kembali)
                             : adaTunai    ? 'Uang pas'
                             :               'Lunas';
   $('#skNota').textContent = [arsip.no_nota || '', arsip._nama_pelanggan || 'Umum']
@@ -5823,7 +5846,7 @@ function pasangEvent() {
     /* Di HP panel keranjang (lembar bawah) dilipat lagi: keranjangnya kosong,
        dan yang dibutuhkan untuk pembeli berikutnya adalah daftar produk. */
     $('#panelKeranjang').classList.remove('buka');
-    Admin.toast(`Nota ditahan (${t.jumlah_item} item, ${rp(t.total)}).`, 'sukses');
+    Admin.toast(`Nota ditahan (${t.jumlah_item} item, ${rpTeks(t.total)}).`, 'sukses');
   };
   $('#btnTahan').addEventListener('click', tahanSekarang);
   $('#lncTahanan').addEventListener('click', () => Tahanan.bukaDaftar());

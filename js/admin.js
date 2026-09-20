@@ -5526,10 +5526,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
      HANYA di layar ini. Mengubah `rp()` seluruh aplikasi menyentuh belasan
      pemanggil dan enam berkas uji — pekerjaan tersendiri. */
-  const rpK = (n) => {
-    const v = Math.round(Number(n) || 0);
-    return v < 0 ? '<span class="uang-minus">-' + rp(-v) + '</span>' : rp(v);
-  };
+  /* `rpK` dibuang di v1.215 — aturan minus merah naik ke `rp()` sendiri dan
+     berlaku di seluruh aplikasi. Namanya dibiarkan hidup supaya layar ini
+     tidak perlu disisir enam kali untuk perubahan yang tidak mengubah apa pun
+     yang tergambar.
+
+     PEMBUNGKUS, bukan `const rpK = rp`. Yang kedua membaca `rp` SAAT MUAT,
+     dan `rp` tinggal di app.js — panggung uji hanya memuat pos.js, grafik.js
+     dan admin.js, jadi seluruh admin.js mati dengan "rp is not defined" dan
+     yang terlihat di uji adalah "Admin is not defined" di berkas lain. */
+  const rpK = (n) => rp(n);
   /* Nol dipucatkan supaya mata jatuh ke kolom yang BERISI; di matriks lima
      kolom, nol yang setegas angka lain membuat seluruh tabel terbaca rata.
      `null` itu BUKAN nol — ia "tidak ada angkanya", dan digambar em dash. */
@@ -5690,7 +5696,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk lingkup-kons">Pertumbuhan dihitung dari
          <strong>${esc(lingkup(t.dengan_accurate))}</strong>${
            t.dengan_accurate ? '' :
-           ' — Accurate tidak ikut karena salah satu dari kedua bulannya belum punya berkas, dan membandingkan bulan yang ber-Accurate dengan yang tidak akan melonjak tanpa ada yang berubah di toko'
+           /* BULANNYA disebut, bukan "salah satu dari keduanya". Yang membaca
+              ini sedang memutuskan berkas mana yang perlu diunggah, dan
+              keterangan yang tidak menyebut bulannya memaksa dia memeriksa
+              dua bulan satu per satu untuk tahu. */
+           ' — Accurate tidak ikut karena ' + ((t.acc_kurang || []).length
+               ? esc((t.acc_kurang || []).map(bulanTeks).join(' dan ')) + ' belum punya berkasnya'
+               : 'salah satu bulannya belum punya berkas') +
+             ', dan membandingkan bulan yang ber-Accurate dengan yang tidak akan melonjak tanpa ada yang berubah di toko'
          }.</p>`}
 
       <div class="petak-mini petak-kpi">
@@ -6031,8 +6044,57 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const w = $('#hasilAcc');
     if (!w) return;
     const lap = d.laporan || {};
-    w.innerHTML = ['LR', 'NERACA'].map((j) => kartuAcc(j, lap[j])).join('');
+    w.innerHTML = kartuRiwayatAcc(d.riwayat, d.periode) +
+                  ['LR', 'NERACA'].map((j) => kartuAcc(j, lap[j])).join('');
   }
+
+  /**
+   * Keadaan berkas beberapa bulan terakhir, dalam satu pandangan.
+   *
+   * Layar ini menampilkan SATU periode, jadi sampai v1.215 satu-satunya cara
+   * tahu Agustus sudah lengkap adalah mengganti dropdownnya dan melihat. Yang
+   * hanya bisa diketahui dengan mencoba satu per satu akan salah diingat —
+   * 20 Sep 2026 saya sendiri menulis "Agustus belum diunggah" di daftar hal
+   * tertunda, padahal berkasnya sudah ada sejak semalam sebelumnya.
+   *
+   * Bulan berjalan DITANDAI, bukan dianggap kurang: bulannya belum habis, dan
+   * ekspor Accurate yang final memang belum bisa dibuat. Menandainya merah
+   * akan menyuruh orang mengerjakan yang belum waktunya.
+   */
+  function kartuRiwayatAcc(riwayat, periodeKini) {
+    if (!Array.isArray(riwayat) || !riwayat.length) return '';
+    const kini = String(periodeKini || '');
+    const sel = (ada, berjalan) => ada ? '<span class="lencana hijau">ada</span>'
+      : (berjalan ? '<span class="lencana abu">belum waktunya</span>'
+                  : '<span class="lencana merah">belum</span>');
+    return `<div class="kartu">
+      <h3>Keadaan berkas</h3>
+      <div class="gulir-x">
+        <table class="tabel">
+          <thead><tr><th>Bulan</th><th>Laba Rugi</th><th>Neraca</th>
+            <th>Terakhir diunggah</th></tr></thead>
+          <tbody>${riwayat.map((r) => {
+            const berjalan = r.periode === BULAN_BERJALAN();
+            const lr = (r.ada || []).indexOf('LR') !== -1;
+            const nr = (r.ada || []).indexOf('NERACA') !== -1;
+            const waktu = [(r.berkas || {}).LR, (r.berkas || {}).NERACA]
+              .filter(Boolean).map((x) => String(x.diunggah)).sort().pop();
+            return `<tr>
+              <td data-l="Bulan">${esc(bulanTeks(r.periode))}${
+                r.periode === kini ? ' <span class="lencana">dilihat</span>' : ''}</td>
+              <td data-l="Laba Rugi">${sel(lr, berjalan)}</td>
+              <td data-l="Neraca">${sel(nr, berjalan)}</td>
+              <td data-l="Terakhir diunggah">${waktu ? esc(waktuTampil(waktu)) : '—'}</td>
+            </tr>`; }).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  /* Bulan berjalan menurut PERANGKAT. Dipakai hanya untuk melunakkan lencana
+     bulan yang belum habis; kalau jam perangkatnya meleset, yang terjadi
+     paling buruk satu lencana abu yang seharusnya merah. */
+  const BULAN_BERJALAN = () => tanggalLokal().substring(0, 7);
 
   function kartuAcc(jenis, lap) {
     const judul = JUDUL_ACC[jenis];
@@ -6069,6 +6131,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
     </div>`;
   }
+
+/* "2026-08" → "Agu 2026". Dipakai keterangan cakupan dan daftar keadaan
+   berkas Accurate. Bulan dalam angka memaksa yang membacanya menghitung
+   sendiri, dan '2026-08' di tengah kalimat terbaca seperti kode. */
+  const BULAN_SINGKAT = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+                         'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const bulanTeks = (p) => {
+    const m = /^(\d{4})-(\d{2})/.exec(String(p || ''));
+    if (!m) return String(p || '');
+    return (BULAN_SINGKAT[Number(m[2]) - 1] || m[2]) + ' ' + m[1];
+  };
 
   const miniKons = (label, nilai, ekor) =>
     `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div>` +
@@ -6164,6 +6237,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#hasilLapulsa', e); }
   }
 
+  /* Tombolnya disembunyikan tanpa izin, DAN endpointnya menuntut izin yang
+     sama. Yang pertama supaya layarnya tidak menawarkan yang tidak bisa
+     dilakukan; yang kedua karena menyembunyikan tombol bukan penjagaan. */
+  const bolehHapusShift = () => bolehIzin('pulsa', 'hapus');
+
   function gambarLaporanpulsa() {
     const w = $('#hasilLapulsa');
     if (!w) return;
@@ -6182,7 +6260,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <table class="tabel">
             <thead><tr><th>Tanggal</th><th>Cabang</th><th>Shift</th><th class="kanan">Penjualan</th>
               <th class="kanan">Modal</th><th class="kanan">Margin</th><th class="kanan">Selisih kas</th>
-              <th>Status</th></tr></thead>
+              <th>Status</th>${bolehHapusShift() ? '<th></th>' : ''}</tr></thead>
             <tbody>${rows.map(r => `<tr>
               <td data-l="Tanggal">${esc(String(r.tanggal))}</td>
               <td data-l="Cabang">${esc(String(r.kode_cabang))}</td>
@@ -6195,11 +6273,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? `<span class="delta turun">${rp(r.selisih)}</span>` : '—'}</td>
               <td data-l="Status">${esc(String(r.status))}${r.catatan
                 ? ` <span class="petunjuk">${esc(String(r.catatan).slice(0, 40))}</span>` : ''}</td>
+              ${bolehHapusShift() ? `<td data-l=""><button class="tombol kecil bahaya"
+                data-hapus-shift="${esc(String(r.id_shift))}"
+                title="Hapus shift ini beserta rincian saldo dan pengeluarannya"
+                >Hapus</button></td>` : ''}
             </tr>`).join('')}</tbody>
             ${rows.length ? `<tfoot><tr><th colspan="3">Total ${rows.length} shift</th>
               <th class="kanan">${rp(t.jual)}</th><th class="kanan">${rp(t.modal)}</th>
               <th class="kanan">${rp(t.margin)}</th><th class="kanan">${rp(t.selisih)}</th>
-              <th></th></tr></tfoot>` : ''}
+              <th></th>${bolehHapusShift() ? '<th></th>' : ''}</tr></tfoot>` : ''}
           </table>
         </div>
         ${rows.length ? '' : '<p class="pesan">Belum ada shift pulsa yang ditutup.</p>'}
@@ -8681,7 +8763,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           });
           lepasUuidDokumen('bayar_utang');
           tutupModal();
-          toast(r.lunas ? 'Utang LUNAS.' : 'Pembayaran tersimpan — sisa ' + rp(r.sisa));
+          toast(r.lunas ? 'Utang LUNAS.' : 'Pembayaran tersimpan — sisa ' + rpTeks(r.sisa));
           return muat('utang');
         } catch (e) {
           t.disabled = false;
@@ -8701,7 +8783,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             uuid_piutang: d.uuid, cabang: d.cabang, tanggal: nilai('bpTanggal'),
             jumlah: angka('bpJumlah'), metode: nilai('bpMetode'), referensi: nilai('bpRef')
           });
-          await sukses(r.lunas ? 'Piutang lunas.' : 'Pembayaran tercatat, sisa ' + rp(r.sisa), 'piutang');
+          await sukses(r.lunas ? 'Piutang lunas.' : 'Pembayaran tercatat, sisa ' + rpTeks(r.sisa), 'piutang');
         } catch (x) {
           $('#pesanBayarPiutang').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
           t.disabled = false;
@@ -9035,7 +9117,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           /* Jurnal yang gagal DISEBUT, tidak ditelan: shift yang tertutup tanpa
              jurnal terlihat persis sama dengan yang berjurnal. */
           if (h.jurnal_gagal) toast('Shift ditutup, TAPI jurnalnya gagal: ' + h.jurnal_gagal, 'galat');
-          else toast('Shift ditutup. Margin ' + rp(h.margin) + ', selisih kas ' + rp(h.selisih) + '.');
+          else toast('Shift ditutup. Margin ' + rpTeks(h.margin) + ', selisih kas ' + rpTeks(h.selisih) + '.');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
@@ -9192,6 +9274,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (d.rincianBeli) return rincianPembelian(d.rincianBeli);
 
+      if (d.hapusShift) {
+        /* Angka shiftnya ikut ditulis di pertanyaannya. Menghapus "shift" itu
+           abstrak; menghapus shift yang penjualannya Rp0 adalah keputusan yang
+           bisa diambil tanpa membuka layar lain. */
+        const r0 = (($('#hasilLapulsa') || {})._rows || [])
+          .filter((x) => String(x.id_shift) === d.hapusShift)[0] || {};
+        if (!(await tanya('Hapus shift pulsa ini?',
+              `<p class="petunjuk">${esc(String(r0.tanggal || ''))} · ${esc(String(r0.jenis_shift || ''))} · penjualan ${rp(r0.total_penjualan)}</p><p class="petunjuk">Baris saldo dan pengeluarannya ikut terhapus. Shift yang sudah menerbitkan jurnal akan <strong>ditolak</strong> server — jurnalnya harus dibatalkan lebih dulu.</p>`,
+              { ya: 'Hapus shift', jenis: 'bahaya' }))) return;
+        try {
+          const r = await API.hapusShiftPulsa({ id_shift: d.hapusShift });
+          /* Daftarnya dimuat ulang LANGSUNG, bukan lewat kunci layar: layar
+             Pulsa punya tiga tab, dan memuat ulang layarnya akan melempar
+             orang kembali ke tab pertama. */
+          toast(`Shift ${d.hapusShift} dihapus — ${r.saldo} baris saldo, ` +
+                `${r.keluar} baris pengeluaran.`);
+          await muatLaporanpulsa();
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+
       if (d.batalPembelian) {
         const alasan = await tanya('Batalkan pembelian ini?',
           '<p class="petunjuk">Stok dan jurnalnya dibalik. Alasannya ikut tercatat.</p>',
@@ -9201,7 +9304,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         try {
           const r = await API.batalPembelian({ uuid: d.batalPembelian, cabang: APP_STATE.cabang, alasan });
           await Sync.tarikStok();
-          await sukses(`Pembelian dibatalkan — ${rp(r.total)}, ${r.item} baris. Stok & jurnalnya sudah dibalik.`,
+          await sukses(`Pembelian dibatalkan — ${rpTeks(r.total)}, ${r.item} baris. Stok & jurnalnya sudah dibalik.`,
                        'pembelian');
         } catch (x) {
           /* Rinciannya ditampilkan, bukan cuma kalimat utamanya: kalau ditolak

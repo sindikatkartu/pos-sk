@@ -174,7 +174,8 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'impor_master', 'impor_produk', 'kirim_penjualan',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'impor_master', 'impor_produk',
+    'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
     'setup_pulsa', 'siapkan_pulsa_pos', 'simpan_cabang', 'simpan_hitungan',
@@ -560,6 +561,9 @@ let _pernahJawab = false;
     tutupShiftPulsa:   (d) => panggil('tutup_shift_pulsa', d, { timeout: 90000 }),
     daftarShiftPulsa:  (d) => panggil('daftar_shift_pulsa', d || {}, { timeout: 60000 }),
     rincianShiftPulsa: (d) => panggil('rincian_shift_pulsa', d, { timeout: 60000 }),
+    /* Menghapus shift menyentuh tiga sheet berturut-turut di dalam satu kunci;
+       batas waktunya mengikuti yang menulis, bukan yang membaca. */
+    hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
     ringkasanKonsolidasi: (d) => panggil('ringkasan_konsolidasi', d || {}, { timeout: 90000 }),
     /* Berkas xlsx dikirim base64; batas waktunya panjang karena penguraiannya
        terjadi di server dan jaringan toko tidak selalu kencang. */

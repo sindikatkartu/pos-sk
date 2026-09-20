@@ -2197,7 +2197,14 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    dengan delta turun — satu warna untuk satu arti. Di kepala gelap ia
    diganti rona yang lebih terang, sebab merah tua di atas latar pekat
    nyaris tidak terbaca. */
-.uang-minus { color: var(--bahaya); font-weight: 700; }
+/* Berlaku SELURUH aplikasi sejak v1.215, bukan cuma Ringkasan Gabungan.
+   Tebalnya TIDAK ikut naik: di matriks ia perlu supaya angka merah menang
+   melawan pita latar, tapi di tabel biasa setiap angka negatif yang menebal
+   membuat halaman terbaca seperti daftar kesalahan. Warna sudah cukup untuk
+   membedakan; tebal itu penekanan kedua, dan penekanan yang dipakai di mana
+   saja berhenti menekankan apa pun. */
+.uang-minus { color: var(--bahaya); }
+.matriks-kons .uang-minus, .kepala-kons .uang-minus { font-weight: 700; }
 .uang-minus .rp { color: inherit; opacity: .7; }
 .kepala-kons .uang-minus { color: var(--kons-minus); }
 .kepala-kons .uang-minus .rp { color: inherit; opacity: .6; }
