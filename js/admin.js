@@ -8539,6 +8539,196 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   let kasData = null;
 
+  /* ==================== ASET TETAP (bagian 216) ==================== */
+
+  const PERIODE_ASET = { id: 'asetPeriodePilih', dari: 'asetPeriode', bulanan: true,
+                         nilai: 'bulan', label: 'Periode' };
+  let asetData = null;
+
+  async function muatAset() {
+    const w = $('#isiAset');
+    if (!w) return;
+    if (!$('#asetPeriode')) {
+      const bolehUbah = bolehIzin('laporan_keuangan', 'ubah');
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="saring-baris">
+            <span class="wadah-periode" id="wadahPeriodeAset"></span>
+            <div class="aksi">
+              ${bolehUbah ? tombolTambah('btnAsetBaru', 'Aset') : ''}
+              ${bolehUbah ? `<button class="tombol" id="btnSusutkan" title="Hitung penyusutan periode ini">
+                  ${ikonAlat('jalankan')}<span>Hitung penyusutan</span></button>` : ''}
+            </div>
+          </div>
+          <p class="petunjuk">Penyusutan dihitung <strong>garis lurus</strong>: harga perolehan
+             dikurangi nilai residu, dibagi umur manfaat, sama tiap bulan. Bulan perolehan
+             dihitung penuh, dan bulan terakhir mengambil sisanya supaya totalnya pas.
+             Menutup buku bulanan menjalankannya sendiri.</p>
+        </div>
+        <div id="hasilAset"></div>`;
+      $('#wadahPeriodeAset').innerHTML = Periode.html(PERIODE_ASET);
+      Periode.pasang(PERIODE_ASET, muatHasilAset);
+    }
+    return muatHasilAset();
+  }
+
+  async function muatHasilAset() {
+    memuat('#hasilAset');
+    try {
+      asetData = await API.daftarAset({ periode: nilai('asetPeriode') });
+      gambarAset();
+    } catch (e) { galat('#hasilAset', e); }
+  }
+
+  function gambarAset() {
+    const d = asetData;
+    const w = $('#hasilAset');
+    if (!d || !w) return;
+
+    /* Tiga angka besar dulu, daftarnya sesudahnya: yang ditanyakan orang waktu
+       membuka layar ini "berapa nilai buku sekarang", bukan "aset nomor berapa
+       yang paling tua". */
+    const kabar = d.sudah_disusut
+      ? `Penyusutan ${esc(d.periode)} sudah dijurnal.`
+      : `Penyusutan ${esc(d.periode)} BELUM dijurnal — tekan Hitung penyusutan, atau tutup buku bulan ini.`;
+
+    /* KOTAK ANGKA, bukan tabel. Tabel dua kolom berisi tiga baris berubah
+       jadi tiga kartu dua baris di HP — bentuk yang benar untuk daftar
+       panjang, dan berlebihan untuk tiga angka ringkasan. */
+    const kotak = (label, nilai, ekor) =>
+      `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div><div class="mini-nilai">${rp(nilai)}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
+
+    const kpi = `<div class="kartu">
+      <div class="bar-alat"><h3>Ringkasan</h3>
+        <span class="satuan-uang">dalam Rupiah</span></div>
+      <!-- .petak-mini SAJA, tanpa .petak-kpi: kelas itu memaksa ENAM kolom
+           apa pun jumlah isinya, jadi tiga kotak masing-masing cuma dapat 1/6
+           lebar — 137 px, sementara Rp9.999.999.999 butuh 141 px. Konsolidasi
+           memakainya untuk PERSENTASE, yang memang pendek. -->
+      <div class="petak-mini" style="grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))">
+        ${kotak('Harga perolehan', d.total_perolehan, d.aset.length + ' aset')}
+        ${kotak('Akumulasi', d.total_akumulasi, 'sudah dijurnal')}
+        ${kotak('Nilai buku', d.total_nilai_buku, 'sisa di buku')}
+      </div>
+      <p class="petunjuk">${kabar}</p>
+    </div>`;
+
+    /* Kode, kategori, dan TANGGAL PEROLEHAN jadi satu baris keterangan di
+       bawah namanya. Sebelas kolom membuat tanggalnya pecah dua baris di PC
+       dan seluruh tabelnya terbaca berantakan; tanggal perolehan juga bukan
+       angka yang dibandingkan antar baris, jadi ia tidak butuh kolomnya
+       sendiri. */
+    const baris = (a) => `<tr>
+      <td data-l="Aset"><strong>${esc(a.nama)}</strong>
+        <span class="petunjuk" style="display:block">${esc(a.kode)}${a.kategori ? ' · ' + esc(a.kategori) : ''} · <span style="white-space:nowrap">diperoleh ${esc(tglTampil(a.tanggal_perolehan))}</span></span></td>
+      <td data-l="Cabang">${esc(a.kode_cabang)}</td>
+      <td class="kanan" data-l="Harga">${rp(a.harga_perolehan)}</td>
+      <td class="kanan" data-l="Residu">${rp(a.nilai_residu)}</td>
+      <td class="kanan" data-l="Umur" style="white-space:nowrap">${a.umur_bulan} bln</td>
+      <td class="kanan" data-l="Per bulan">${rp(a.per_bulan)}</td>
+      <td class="kanan" data-l="Akumulasi">${rp(a.akumulasi)}</td>
+      <td class="kanan" data-l="Nilai buku"><strong>${rp(a.nilai_buku)}</strong></td>
+      <td data-l="Keadaan">${a.status !== 'AKTIF' ? lencanaDash(esc(a.status), 'redup')
+        : (a.habis ? lencanaDash('habis disusutkan', 'redup') : '')}</td>
+      <td>${bolehIzin('laporan_keuangan', 'ubah')
+        ? tombolIkon('', 'Ubah aset', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`) : ''}</td>
+    </tr>`;
+
+    const kosong = `<p class="petunjuk">Belum ada aset tetap. Etalase, rak, komputer, dan
+       kendaraan yang dipakai bertahun-tahun masuk ke sini — tanpa itu, labanya
+       tercatat lebih besar daripada yang sebenarnya, tiap bulan.</p>`;
+
+    w.innerHTML = kpi + `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Daftar aset</h3>
+        <span class="satuan-uang">dalam Rupiah</span></div>
+      ${d.aset.length ? `<div class="gulir-x"><table class="tabel">
+        <thead><tr><th>Aset</th><th>Cabang</th>
+          <th class="kanan">Harga</th><th class="kanan">Residu</th>
+          <th class="kanan">Umur</th><th class="kanan">Per bulan</th>
+          <th class="kanan">Akumulasi</th><th class="kanan">Nilai buku</th>
+          <th>Keadaan</th><th></th></tr></thead>
+        <tbody>${d.aset.map(baris).join('')}</tbody></table></div>` : kosong}
+    </div>`;
+  }
+
+  /* Borang aset. Yang sudah pernah disusutkan DIKUNCI dasarnya — server
+     menolaknya juga, dan dua-duanya memang perlu: server supaya tidak bisa
+     ditembus, layar supaya orang tahu SEBELUM mengetik satu angka pun. */
+  function borangAset(a) {
+    const k = a || {};
+    const kunci = num(k.akumulasi) > 0;
+    const mati = kunci ? 'disabled' : '';
+    const alasan = kunci
+      ? `<p class="petunjuk">Aset ini sudah disusutkan ${rpTeks(k.akumulasi)}. Harga,
+         residu, umur, dan tanggal perolehan tidak bisa diubah lagi — angsuran lama
+         dan baru akan dihitung dari dua dasar berbeda, dan totalnya tidak akan pernah
+         bertemu dengan akumulasinya. Nama, kategori, dan catatannya tetap bisa.</p>`
+      : '';
+    return `<div class="baris-form">
+      <label>Nama aset</label>
+      <input id="asNama" value="${esc(k.nama || '')}" placeholder="Etalase kaca depan">
+      <label>Kategori</label>
+      <input id="asKategori" value="${esc(k.kategori || '')}" placeholder="Perabot, Elektronik, Kendaraan">
+      <label>Cabang</label>
+      <select id="asCabang">${daftarKodeCabang().map((c) =>
+        `<option value="${esc(c)}" ${k.kode_cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <label>Tanggal perolehan</label>
+      <input type="date" id="asTanggal" value="${esc(k.tanggal_perolehan || '')}" ${mati}>
+      <label>Harga perolehan</label>
+      <input type="number" id="asHarga" value="${k.harga_perolehan || ''}" ${mati}>
+      <label>Nilai residu</label>
+      <input type="number" id="asResidu" value="${k.nilai_residu || 0}" ${mati}>
+      <label>Umur manfaat (bulan)</label>
+      <input type="number" id="asUmur" value="${k.umur_bulan || ''}" ${mati}>
+      <label>Catatan</label>
+      <input id="asCatatan" value="${esc(k.catatan || '')}">
+      ${alasan}
+    </div>`;
+  }
+
+  function bukaBorangAset(kode) {
+    const a = kode ? (asetData.aset || []).filter((x) => x.kode === kode)[0] : null;
+    bukaModal(kode ? 'Ubah aset' : 'Aset tetap baru', borangAset(a),
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol utama" data-simpan-aset="${esc(kode || '')}">Simpan</button>`);
+  }
+
+  async function simpanAsetLayar(kode) {
+    /* Yang terkunci dikirim APA ADANYA dari data lama, bukan dari kolom yang
+       disabled: kolom disabled tidak ikut terbaca, dan mengirimkannya kosong
+       akan ditolak server sebagai input tidak sah — pesan yang benar untuk
+       sebab yang salah. */
+    const lama = kode ? (asetData.aset || []).filter((x) => x.kode === kode)[0] : null;
+    const kunci = lama && num(lama.akumulasi) > 0;
+    await API.simpanAset({
+      kode: kode || '',
+      nama: nilai('asNama'),
+      kategori: nilai('asKategori'),
+      kode_cabang: nilai('asCabang'),
+      tanggal_perolehan: kunci ? lama.tanggal_perolehan : nilai('asTanggal'),
+      harga_perolehan: kunci ? lama.harga_perolehan : angka('asHarga'),
+      nilai_residu: kunci ? lama.nilai_residu : angka('asResidu'),
+      umur_bulan: kunci ? lama.umur_bulan : angka('asUmur'),
+      catatan: nilai('asCatatan')
+    });
+    tutupModal();
+    sukses(kode ? 'Aset diperbarui.' : 'Aset ditambahkan.');
+    return muatHasilAset();
+  }
+
+  async function jalankanSusut() {
+    const periode = nilai('asetPeriode');
+    if (!(await tanya(`Hitung penyusutan ${periode}?`,
+          '<p class="petunjuk">Jurnal penyusutan dibuat untuk seluruh aset aktif di semua ' +
+          'cabang. Periode yang sudah pernah disusutkan dilewati, jadi menekannya dua kali ' +
+          'tidak melahirkan jurnal kedua.</p>',
+          { ya: 'Hitung' }))) return;
+    const h = await API.susutkan({ periode });
+    sukses(h.dilewati ? `Dilewati — ${h.alasan}.`
+                      : `Penyusutan ${periode} dijurnal untuk ${h.jurnal.length} cabang.`);
+    return muatHasilAset();
+  }
+
   async function muatKas() {
     const w = $('#isiKas');
     if (!w) return;
@@ -8937,6 +9127,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       diskon: '#isiDiskon',
                       pulsa: '#isiPulsa',
                       accurate: '#isiAccurate',
+                      aset: '#isiAset',
                       kas: '#isiKas',
                       konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
@@ -8969,6 +9160,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'arsip':     return muatArsip();
       case 'pulsa': return muatPulsa();
       case 'accurate': return muatAccurate();
+      case 'aset': return muatAset();
       case 'kas': return muatKas();
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
@@ -9295,6 +9487,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           $('#pesanBayarPiutang').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
           t.disabled = false;
         }
+        return;
+      }
+
+      /* --- aset tetap (bagian 216) --- */
+      if (t.id === 'btnAsetBaru')  return bukaBorangAset(null);
+      if (d.editAset)              return bukaBorangAset(d.editAset);
+      if (d.simpanAset !== undefined) {
+        /* Tombolnya dimatikan selama simpan. Dua ketukan cepat pada borang
+           aset BARU melahirkan dua aset dengan kode berbeda, dan keduanya
+           akan menyusut sendiri-sendiri bulan depan. */
+        t.disabled = true;
+        try { await simpanAsetLayar(d.simpanAset); }
+        finally { t.disabled = false; }
+        return;
+      }
+      if (t.id === 'btnSusutkan') {
+        t.disabled = true;
+        try { await jalankanSusut(); } finally { t.disabled = false; }
         return;
       }
 

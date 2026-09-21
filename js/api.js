@@ -140,6 +140,7 @@ const API = (() => {
     'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
+    'daftar_aset',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'daftar_pembelian',
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
@@ -180,6 +181,16 @@ const API = (() => {
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
     'setup_pulsa', 'siapkan_pulsa_pos', 'simpan_cabang', 'simpan_hitungan',
+    /* `simpan_aset` membuat kode baru tiap kali untuk aset yang belum punya
+       kode — ulangan sesudah timeout melahirkan aset kedua yang identik.
+
+       `susutkan` MEMANG idempoten (periode yang sudah berjurnal dilewati),
+       tapi pemeriksaannya membaca lalu menulis tanpa kunci. Dua panggilan
+       yang berbarengan — persis yang dilakukan ulangan otomatis sesudah
+       timeout — bisa sama-sama melihat "belum ada jurnal". Jurnal penyusutan
+       ganda itu uang di buku, dan membatalkannya jauh lebih mahal daripada
+       menyuruh orang menekan tombolnya sekali lagi. */
+    'simpan_aset', 'susutkan',
     'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
     'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
@@ -600,6 +611,11 @@ let _pernahJawab = false;
     laporanPoin:       (d) => panggil('laporan_poin', d, { timeout: 90000 }),
 
     tutupBuku:         (d) => panggil('tutup_buku', d, { timeout: 120000 }),
+    daftarAset:        (d) => panggil('daftar_aset', d),
+    simpanAset:        (d) => panggil('simpan_aset', d),
+    /* Sama longgarnya dengan tutup buku: keduanya menjurnal lalu menghitung
+       ulang saldo bulanan, dan itu pembacaan sheet penuh. */
+    susutkan:          (d) => panggil('susutkan', d, { timeout: 120000 }),
 
     /* --- transfer & stok antar cabang --- */
     kirimTransfer:   (d) => panggil('kirim_transfer', d, { timeout: 90000 }),

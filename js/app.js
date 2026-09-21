@@ -213,6 +213,11 @@ const MENU = [
   // SENGAJA tidak ikut berganti: mengganti id memutus rute layar, dan
   // mengganti kunci izin mencabut akses semua peran yang punya.
   { id: 'poin',       label: 'Poin & Performa', grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
+  /* Aset Tetap menumpang izin `laporan_keuangan`, bukan modul izin sendiri:
+     modul baru bertanda `sengaja-manual`, jadi instalasi yang sudah berjalan
+     tidak ikut berubah dan tiap peran harus dicentang tangan. Yang mengurus
+     aset tetap memang orang yang sama dengan yang menutup buku. */
+  { id: 'aset',       label: 'Aset Tetap', grup: 'Keuangan',   izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Laporan Keuangan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).

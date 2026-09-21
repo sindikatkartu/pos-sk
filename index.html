@@ -527,6 +527,13 @@
          sebagai "selisih kas" dan dibukukan jadi Beban/Pendapatan Lain-lain yang
          tidak pernah terjadi. Layarnya dikunci pada shift yang sedang terbuka: kas
          tanpa id_shift tidak akan pernah ikut terhitung di tutup shift. -->
+    <!-- ASET TETAP (bagian 216). Isinya digambar admin.js: bentuknya
+         berubah menurut apakah periode itu sudah dijurnal, dan kendali
+         semacam itu tidak bisa dipatok di HTML. -->
+    <section class="layar" id="layarAset">
+      <div id="isiAset"></div>
+    </section>
+
     <section class="layar" id="layarKas">
       <!-- Isinya digambar admin.js (meja kerja kas back office, bagian 208).
            Sampai v1.216 layar ini milik kasir dan seluruh kendalinya dipatok

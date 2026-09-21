@@ -1166,6 +1166,7 @@ var IKON_SUMBER = {
   pulsa: 'signal',
   accurate: 'file-spreadsheet',
   konsolidasi: 'layers',
+  aset      : 'armchair',
   pengguna  : 'users',
   cabang    : 'store',
   sistem    : 'settings',
@@ -1342,6 +1343,7 @@ var IKON = {
   reset_pin : '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
   atur_akses: '<path d="M10 5H3"/> <path d="M12 19H3"/> <path d="M14 3v4"/> <path d="M16 17v4"/> <path d="M21 12h-9"/> <path d="M21 19h-5"/> <path d="M21 5h-7"/> <path d="M8 10v4"/> <path d="M8 12H3"/>',
   /* --- Kendali antarmuka. Dulu digambar sebaris di admin.js dan index.html --- */
+  aset      : '<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/> <path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v1.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V11a2 2 0 0 0-4 0z"/> <path d="M5 18v2"/> <path d="M19 18v2"/>',
   titik_tiga: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
   buka_menu : '<path d="m6 9 6 6 6-6"/>',
   tutup_menu: '<path d="m18 15-6-6-6 6"/>',
