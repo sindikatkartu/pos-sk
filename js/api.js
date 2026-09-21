@@ -190,7 +190,7 @@ const API = (() => {
        timeout — bisa sama-sama melihat "belum ada jurnal". Jurnal penyusutan
        ganda itu uang di buku, dan membatalkannya jauh lebih mahal daripada
        menyuruh orang menekan tombolnya sekali lagi. */
-    'simpan_aset', 'susutkan',
+    'simpan_aset', 'susutkan', 'lepas_aset',
     'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
     'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
@@ -616,6 +616,7 @@ let _pernahJawab = false;
     /* Sama longgarnya dengan tutup buku: keduanya menjurnal lalu menghitung
        ulang saldo bulanan, dan itu pembacaan sheet penuh. */
     susutkan:          (d) => panggil('susutkan', d, { timeout: 120000 }),
+    lepasAset:         (d) => panggil('lepas_aset', d, { timeout: 120000 }),
 
     /* --- transfer & stok antar cabang --- */
     kirimTransfer:   (d) => panggil('kirim_transfer', d, { timeout: 90000 }),

@@ -1207,6 +1207,11 @@ var IKON_SUMBER = {
   jalankan  : 'play',
   cetak     : 'printer',
   nonaktif  : 'circle-slash',
+  /* Aset yang dijual, dihibahkan, atau dibuang KELUAR dari buku — pintu
+     dengan panah keluar, bukan `hapus`: datanya tetap ada, yang berakhir
+     kepemilikannya. Tempat sampah di situ akan terbaca sebagai hapus
+     baris, dan orang akan takut menekannya justru saat harus. */
+  lepas     : 'log-out',
   /* --- Kendali antarmuka. Dulu digambar sebaris di admin.js dan index.html --- */
   titik_tiga: 'ellipsis-vertical',
   buka_menu : 'chevron-down',
@@ -1339,6 +1344,7 @@ var IKON = {
      ia bisa diaktifkan lagi. Ikon hapus di tombol yang tidak
      menghapus adalah janji yang salah. */
   nonaktif  : '<circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/>',
+  lepas     : '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
   meja      : '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
   reset_pin : '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
   atur_akses: '<path d="M10 5H3"/> <path d="M12 19H3"/> <path d="M14 3v4"/> <path d="M16 17v4"/> <path d="M21 12h-9"/> <path d="M21 19h-5"/> <path d="M21 5h-7"/> <path d="M8 10v4"/> <path d="M8 12H3"/>',

@@ -607,6 +607,27 @@ const Admin = (() => {
   };
   const centang = (id) => !!$('#' + id)?.checked;
 
+  /**
+   * Angka dari NILAI (bukan dari kolom isian) — pasangan `angka()` di atas.
+   *
+   * Lahir 21 Sep 2026 sebagai perbaikan, bukan sebagai penambahan: empat tempat
+   * di berkas ini memanggil `num()` dan tidak pernah ada satu pun definisinya.
+   * Tiga di antaranya baru lahir di v1.225.0, dan akibatnya tombol "Aset tetap
+   * baru" serta "Ubah aset" MATI sejak hari rilisnya — ditekan, tidak terjadi
+   * apa-apa, dan satu-satunya jejaknya baris merah di konsol yang tidak dilihat
+   * siapa pun. Yang keempat lebih tua (v1.192.0) dan merusak seluruh baris
+   * tabel Perangkat begitu ada yang terkunci gara-gara salah PIN.
+   *
+   * 1930 penjaga statis tidak melihatnya karena tidak satu pun MENJALANKAN
+   * borangnya. Penawarnya `uji/uji-aset-layar.mjs`, yang membuka kedua borang
+   * di peramban sungguhan dan menuntut konsolnya bersih.
+   *
+   * SENGAJA `Number`, bukan `angkaDari`: `angkaDari` membuang koma (ia untuk
+   * kolom rupiah berformat), dan akumulasi penyusutan memang berdesimal —
+   * 749.999,97 akan terbaca 74999997.
+   */
+  const num = (v) => Number(v) || 0;
+
   /** Bilang "berhasil" lalu muat ulang layar yang sedang aktif. */
   /**
    * Konfirmasi DULU, baru muat ulang layarnya.
@@ -8630,8 +8651,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <td class="kanan" data-l="Nilai buku"><strong>${rp(a.nilai_buku)}</strong></td>
       <td data-l="Keadaan">${a.status !== 'AKTIF' ? lencanaDash(esc(a.status), 'redup')
         : (a.habis ? lencanaDash('habis disusutkan', 'redup') : '')}</td>
-      <td>${bolehIzin('laporan_keuangan', 'ubah')
-        ? tombolIkon('', 'Ubah aset', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`) : ''}</td>
+      <!-- nowrap: dua tombol di sel tanpa lebar akan membungkus ke bawah,
+           dan baris tabelnya jadi setinggi dua tombol. -->
+      <td style="white-space:nowrap">${bolehIzin('laporan_keuangan', 'ubah') ? (
+        tombolIkon('', 'Ubah aset', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`) +
+        /* Yang sudah DILEPAS tidak menawarkan tombolnya lagi: melepas dua
+           kali mengkreditkan asetnya dua kali dan mendebit akumulasinya dua
+           kali, dan neraca timpang persis sebesar satu aset. */
+        (a.status === 'AKTIF'
+          ? tombolIkon('', 'Lepas aset — dijual, dihibahkan, atau dibuang', IKON.lepas,
+                       `data-lepas-aset="${esc(a.kode)}"`) : '')
+      ) : ''}</td>
     </tr>`;
 
     const kosong = `<p class="petunjuk">Belum ada aset tetap. Etalase, rak, komputer, dan
@@ -8666,9 +8696,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       : '';
     return `<div class="baris-form">
       <label>Nama aset</label>
-      <input id="asNama" value="${esc(k.nama || '')}" placeholder="Etalase kaca depan">
+      <input type="text" id="asNama" value="${esc(k.nama || '')}" placeholder="Etalase kaca depan">
       <label>Kategori</label>
-      <input id="asKategori" value="${esc(k.kategori || '')}" placeholder="Perabot, Elektronik, Kendaraan">
+      <input type="text" id="asKategori" value="${esc(k.kategori || '')}" placeholder="Perabot, Elektronik, Kendaraan">
       <label>Cabang</label>
       <select id="asCabang">${daftarKodeCabang().map((c) =>
         `<option value="${esc(c)}" ${k.kode_cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
@@ -8681,8 +8711,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <label>Umur manfaat (bulan)</label>
       <input type="number" id="asUmur" value="${k.umur_bulan || ''}" ${mati}>
       <label>Catatan</label>
-      <input id="asCatatan" value="${esc(k.catatan || '')}">
+      <input type="text" id="asCatatan" value="${esc(k.catatan || '')}">
       ${alasan}
+      ${a ? '' : `<hr style="border:none;border-top:1px solid var(--garis);margin:16px 0">
+      <label>Ongkosnya sudah dicatat sebagai apa?</label>
+      <select id="asSumber">${SUMBER_ASET.map(([v, t]) =>
+        `<option value="${v}">${esc(t)}</option>`).join('')}</select>
+      <label id="labelAsAkun">Dibayar dari</label>
+      <select id="asAkun"></select>
+      <p class="petunjuk" id="petunjukAsSumber"></p>`}
     </div>`;
   }
 
@@ -8691,6 +8728,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal(kode ? 'Ubah aset' : 'Aset tetap baru', borangAset(a),
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" data-simpan-aset="${esc(kode || '')}">Simpan</button>`);
+    /* Daftar akunnya diisi SESUDAH modalnya ada di DOM, dan berganti tiap
+       jawabannya berganti: akun lawan sebuah pembelian tunai adalah kas,
+       sementara akun lawan sebuah pemindahan justru tidak boleh kas. */
+    if (!kode) {
+      isiPilihanAset();
+      $('#asSumber')?.addEventListener('change', isiPilihanAset);
+    }
   }
 
   async function simpanAsetLayar(kode) {
@@ -8709,10 +8753,141 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       harga_perolehan: kunci ? lama.harga_perolehan : angka('asHarga'),
       nilai_residu: kunci ? lama.nilai_residu : angka('asResidu'),
       umur_bulan: kunci ? lama.umur_bulan : angka('asUmur'),
-      catatan: nilai('asCatatan')
+      catatan: nilai('asCatatan'),
+      /* Hanya untuk aset BARU. Servernya juga mengabaikannya saat mengubah,
+         dan dua-duanya memang perlu: server supaya tidak bisa ditembus,
+         layar supaya kolomnya tidak pernah muncul dan menggoda. */
+      sumber_dana: kode ? null : { jenis: nilai('asSumber'), akun: nilai('asAkun') }
     });
     tutupModal();
     sukses(kode ? 'Aset diperbarui.' : 'Aset ditambahkan.');
+    return muatHasilAset();
+  }
+
+  /**
+   * SUMBER DANA — hanya untuk aset BARU (bagian 217).
+   *
+   * Sampai v1.225.0 layar ini menyimpan spesifikasi aset dan tidak menjurnal
+   * apa pun, jadi `1-2100` tetap nol sementara akumulasinya menumpuk. Yang
+   * memasukkan aset sekarang harus menjawab satu pertanyaan: ongkosnya sudah
+   * dicatat sebagai apa?
+   *
+   * Tiga jawaban, tiga akibat yang berbeda — dan yang tengah paling mahal
+   * kalau salah. Etalase yang dibayar tunai biasanya SUDAH tercatat sebagai
+   * beban di meja Kas & Bank; menjurnalnya lagi dari kas memotong laba dua
+   * kali dan mengurangi kas yang tidak berkurang lagi.
+   *
+   * Untuk aset yang DIUBAH, bagian ini tidak digambar sama sekali: perolehannya
+   * sudah pernah dijurnal (atau sengaja dilewati), dan menanyakannya lagi cuma
+   * mengundang jurnal kedua atas barang yang sama.
+   */
+  const SUMBER_ASET = [
+    ['KAS',   'Uangnya baru keluar sekarang — potong dari kas/bank'],
+    ['BEBAN', 'Terlanjur dicatat sebagai beban — pindahkan ke aset'],
+    ['SUDAH', 'Sudah benar di buku — jangan jurnal apa pun']
+  ];
+
+  async function isiPilihanAset() {
+    const sel = $('#asSumber');
+    if (!sel) return;
+    const coa = await DB.kvGet('coa', []);
+    const bisa = (coa || []).filter((c) => c.transaksi === true || String(c.transaksi) === 'true');
+    const opsi = (arr) => arr.map((c) =>
+      `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`).join('');
+
+    const jenis = sel.value;
+    let daftar, label, petunjuk;
+    if (jenis === 'KAS') {
+      daftar = bisa.filter((c) => AKUN_KAS.indexOf(String(c.kode)) !== -1);
+      label = 'Dibayar dari';
+      petunjuk = 'Dr aset, Cr kas/bank. Pilih ini kalau uangnya baru keluar sekarang dan ' +
+                 'BELUM dicatat di meja Kas & Bank.';
+    } else if (jenis === 'BEBAN') {
+      /* Beban = 5-, 6-, 8-. Servernya menolak yang lain; daftarnya disaring di
+         sini supaya orang tidak perlu ditolak untuk tahu. */
+      daftar = bisa.filter((c) => '568'.indexOf(String(c.kode).charAt(0)) !== -1);
+      label = 'Dulu dicatat sebagai';
+      petunjuk = 'Dr aset, Cr akun beban itu. Ongkosnya dipindahkan, bukan dicatat ulang — ' +
+                 'labanya sudah terpotong sekali, dan sekali saja yang benar.';
+    } else {
+      daftar = [];
+      label = '—';
+      petunjuk = 'Tidak ada jurnal yang dibuat. Pilih ini kalau pembukuan asetnya sudah benar ' +
+                 'dari sistem lain, atau kalau bulan perolehannya sudah dikunci.';
+    }
+    $('#asAkun').innerHTML = opsi(daftar) ||
+      (jenis === 'SUDAH' ? '<option value="">(tidak perlu)</option>'
+                         : '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>');
+    $('#asAkun').disabled = jenis === 'SUDAH';
+    $('#labelAsAkun').textContent = label;
+    $('#petunjukAsSumber').textContent = petunjuk;
+  }
+
+  /**
+   * LEPAS ASET — dijual, dihibahkan, atau dibuang (bagian 217).
+   *
+   * Sampai v1.225.0 status DILEPAS hanya menghentikan penyusutan; asetnya tetap
+   * duduk di neraca dengan harga perolehan dan akumulasinya, selamanya.
+   *
+   * Nilai bukunya DIBACA dari yang sudah dikirim server, tidak dihitung ulang
+   * di sini: hitungan kedua atas hal yang sama pasti menyimpang, dan yang
+   * menyimpang adalah angka yang dipakai orang memutuskan harga jual.
+   */
+  function borangLepas(a) {
+    return `<div class="baris-form">
+      <p class="petunjuk">${esc(a.nama)} · ${esc(a.kode)} · diperoleh
+        ${esc(tglTampil(a.tanggal_perolehan))}</p>
+      <label>Nilai buku sekarang</label>
+      <input type="text" value="${esc(rpTeks(a.nilai_buku))}" disabled>
+      <label>Tanggal pelepasan</label>
+      <input type="date" id="lpTanggal" value="${tanggalLokal()}">
+      <label>Harga jual</label>
+      <input type="number" id="lpHarga" value="0" min="0">
+      <label id="labelLpKas">Uangnya masuk ke</label>
+      <select id="lpAkun"></select>
+      <p class="petunjuk">Harga jual 0 berarti dibuang atau dihibahkan — seluruh nilai
+        bukunya jadi rugi pelepasan, dan tidak ada uang yang masuk.</p>
+      <p class="petunjuk">Jurnalnya: kas didebit sebesar harga jual, akumulasinya didebit
+        sebesar ${esc(rpTeks(a.akumulasi))}, asetnya dikredit sebesar
+        ${esc(rpTeks(a.harga_perolehan))}, dan selisihnya masuk Laba atau Rugi Pelepasan
+        Aset Tetap. Sesudah ini aset tersebut berhenti disusutkan.</p>
+    </div>`;
+  }
+
+  async function bukaBorangLepas(kode) {
+    const a = (asetData.aset || []).filter((x) => x.kode === kode)[0];
+    if (!a) return;
+    bukaModal('Lepas aset', borangLepas(a),
+      `<button class="tombol" data-tutup="1">Batal</button>
+       <button class="tombol utama" data-lepas-simpan="${esc(kode)}">Lepaskan</button>`);
+    const coa = await DB.kvGet('coa', []);
+    const kas = (coa || []).filter((c) =>
+      (c.transaksi === true || String(c.transaksi) === 'true') &&
+      AKUN_KAS.indexOf(String(c.kode)) !== -1);
+    const sel = $('#lpAkun');
+    if (sel) {
+      sel.innerHTML = kas.map((c) =>
+        `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`).join('') ||
+        '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
+    }
+  }
+
+  async function lepaskanAset(kode) {
+    const h = await API.lepasAset({
+      kode,
+      tanggal: nilai('lpTanggal'),
+      harga_jual: angka('lpHarga'),
+      akun_kas: nilai('lpAkun')
+    });
+    tutupModal();
+    /* Untung/ruginya dibacakan DARI JAWABAN SERVER, bukan dihitung lagi di
+       sini — itu angka yang sudah dijurnal, dan cuma ada satu yang benar. */
+    const d = h || {};
+    sukses(d.hasil === 'LABA'
+      ? `Aset dilepas. Laba pelepasan ${rpTeks(d.selisih)}.`
+      : (d.hasil === 'RUGI'
+          ? `Aset dilepas. Rugi pelepasan ${rpTeks(Math.abs(num(d.selisih)))}.`
+          : 'Aset dilepas, persis sebesar nilai bukunya.'));
     return muatHasilAset();
   }
 
@@ -9493,6 +9668,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- aset tetap (bagian 216) --- */
       if (t.id === 'btnAsetBaru')  return bukaBorangAset(null);
       if (d.editAset)              return bukaBorangAset(d.editAset);
+      if (d.lepasAset)             return bukaBorangLepas(d.lepasAset);
+      if (d.lepasSimpan) {
+        t.disabled = true;
+        try { await lepaskanAset(d.lepasSimpan); }
+        finally { t.disabled = false; }
+        return;
+      }
       if (d.simpanAset !== undefined) {
         /* Tombolnya dimatikan selama simpan. Dua ketukan cepat pada borang
            aset BARU melahirkan dua aset dengan kode berbeda, dan keduanya

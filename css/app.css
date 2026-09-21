@@ -1321,6 +1321,18 @@ input[type=month], input[type=tel], input[type=search], textarea {
   transition: border-color .08s, box-shadow .08s;
 }
 textarea { min-height: 72px; }
+
+/* Kolom yang DIKUNCI harus TERLIHAT terkunci.
+   Tanpa ini sebuah kolom `disabled` tampil persis seperti kolom yang bisa
+   diisi — bingkai sama, latar sama — dan orang mengetik ke dalamnya lalu
+   mengira papan ketiknya rusak. Ada 19 di back office: SKU yang tidak bisa
+   diubah sesudah produknya lahir, kode supplier, dan dasar penyusutan aset
+   yang sudah mulai disusutkan. Nol di layar Kasir, jadi aturan ini tidak
+   menyentuhnya sama sekali. Ditemukan 21 Sep 2026 lewat potret borang
+   "Lepas aset", yang memajang nilai buku di kolom mati. */
+select:disabled, input:disabled, textarea:disabled {
+  opacity: .6; cursor: not-allowed; background: var(--panel-2);
+}
 select:focus, input:focus, textarea:focus { outline: none; border-color: var(--utama); box-shadow: var(--cincin); }
 input[type=number], input.uang, td .angka { font-variant-numeric: tabular-nums; }
 
