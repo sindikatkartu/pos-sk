@@ -230,7 +230,19 @@ const Sync = (() => {
        beberapa detik kemudian baru muncul notifikasi". */
     return API.tugas(async () => {
       const versi = await DB.kvGet('versi_master', '0');
-      const d = await API.tarikMaster({ versi, paksa }, { latar });
+      /* Galat senyap MENUMPANG denyut ini (bagian 219) — bukan panggilan
+         sendiri. Denyutnya sudah jalan tiap 5 menit per perangkat, jadi
+         ongkos servernya nol panggilan tambahan.
+
+         Dikosongkan HANYA kalau permintaannya berhasil. Kalau gagal,
+         antreannya tetap utuh dan ikut denyut berikutnya — galat yang
+         hilang karena jaringan sedang putus adalah galat yang tidak
+         pernah dilaporkan sama sekali, dan justru saat jaringan bermasalah
+         itulah yang paling banyak pecah. */
+      const galat = (typeof antreanGalat === 'function') ? antreanGalat() : [];
+      const d = await API.tarikMaster(
+        galat.length ? { versi, paksa, galat } : { versi, paksa }, { latar });
+      if (galat.length && typeof kosongkanAntreanGalat === 'function') kosongkanAntreanGalat();
       if (!d.perubahan) {
         await DB.kvSet('master_diperbarui', new Date().toISOString());
         return d;

@@ -7115,11 +7115,45 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== AUDIT ==================== */
 
-  async function muatAudit() {
-    memuat('#isiAudit');
+  /* ==================== GALAT APLIKASI (bagian 219) ====================
+   *
+   * Tab kedua di layar Audit, bukan menu sendiri: menu Audit sudah ada,
+   * izinnya sudah ada, dan isinya memang "apa yang terjadi di sistem".
+   *
+   * Yang dipajang JENIS galat, bukan kejadiannya. Satu bug yang mengamuk 500
+   * kali muncul sebagai satu baris berangka 500 — daftar yang menumpuk 500
+   * baris yang sama memaksa orang membacanya satu per satu untuk sadar itu
+   * masalah yang sama.
+   */
+  const TAB_AUDIT = [['jejak', 'Jejak audit'], ['galat', 'Galat aplikasi']];
+
+  async function muatAudit(tab) {
+    const w = $('#isiAudit');
+    if (!w) return;
+    const aktif = tab || w._tab || 'jejak';
+    w._tab = aktif;
+    w.innerHTML = `
+      <div class="kartu">
+        <div class="tab-modal" id="tabAudit" role="group" aria-label="Bagian audit"
+             style="margin-bottom:0">
+          ${TAB_AUDIT.map(([id, label]) =>
+            `<button type="button" data-tabaudit="${id}" class="${id === aktif ? 'aktif' : ''}">${esc(label)}</button>`).join('')}
+        </div>
+      </div>
+      <div id="hasilAudit"></div>`;
+    /* Dua baris `if` + `return`, bukan ternary. Penjaga "rantai menu → API →
+       izin" menelusuri layar bertab dengan mencari pemuat tab yang dikembalikan
+       langsung; ternary memutus penelusurannya. Bentuknya sama persis dengan
+       layar Pulsa. */
+    if (aktif === 'galat') return muatGalatAudit();
+    return muatJejakAudit();
+  }
+
+  async function muatJejakAudit() {
+    memuat('#hasilAudit');
     try {
       const rows = await API.logAudit({ batas: 300 });
-      $('#isiAudit').innerHTML = `
+      $('#hasilAudit').innerHTML = `
         <div class="kartu">
           <div class="bar-alat"><h3>Jejak audit</h3>
             <div style="flex:1"></div>${menuEkspor('audit')}</div>
@@ -7138,7 +7172,64 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Perubahan', render: r => `<span class="meta-kecil">${esc((r.nilai_baru || '').substring(0, 90))}</span>` }
           ], rows, { kosong: 'Belum ada catatan audit' })}
         </div>`;
-    } catch (e) { galat('#isiAudit', e); }
+    } catch (e) { galat('#hasilAudit', e); }
+  }
+
+  async function muatGalatAudit() {
+    memuat('#hasilAudit');
+    try {
+      const d = await API.logGalat({ batas: 200 });
+      const rows = d.galat || [];
+      const bolehTandai = bolehIzin('audit', 'ubah');
+
+      /* Kosong di sini kabar BAIK, dan kalimatnya harus mengatakan itu.
+         "Belum ada data" terbaca seperti fitur yang belum jalan — dan orang
+         yang membacanya begitu akan berhenti mempercayainya justru saat ia
+         benar-benar kosong karena tidak ada yang rusak. */
+      const kosong = `<p class="petunjuk">Tidak ada galat yang tercatat. Ini kabar baik:
+         artinya tidak ada satu pun kerusakan diam-diam sejak catatan ini dimulai.</p>`;
+
+      const baris = (r) => `<tr>
+        <td data-l="Terakhir">${esc(waktuTampil(r.waktu_terakhir))}
+          <span class="petunjuk" style="display:block">pertama ${esc(waktuTampil(r.waktu_pertama))}</span></td>
+        <td data-l="Galat">${boolOf(r.dibaca) ? '' : lencanaDash('baru', 'merah') + ' '}<strong>${esc(r.pesan)}</strong>
+          <span class="petunjuk" style="display:block">${esc(r.sumber || '—')}${
+            r.layar ? ' · layar ' + esc(r.layar) : ''}${r.versi ? ' · v' + esc(r.versi) : ''}</span></td>
+        <td class="kanan" data-l="Kali">${esc(String(r.jumlah))}</td>
+        <td data-l="Cabang">${esc(r.cabang || '')}</td>
+        <td>${bolehTandai && !boolOf(r.dibaca)
+          ? tombolIkon('', 'Tandai sudah diperiksa', IKON.setujui, `data-galat-baca="${esc(r.sidik)}"`) : ''}</td>
+      </tr>`;
+
+      $('#hasilAudit').innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat"><h3>Galat aplikasi</h3>
+            <div style="flex:1"></div>
+            ${bolehTandai && d.belum ? `<button class="tombol" id="btnGalatSemua">
+                ${ikonAlat('setujui')}<span>Tandai semua diperiksa</span></button>` : ''}</div>
+          <p class="petunjuk">Kerusakan yang TIDAK terlihat siapa pun — tombol yang ditekan tanpa
+             terjadi apa-apa, layar yang berhenti di tengah. Yang sudah muncul sebagai pesan merah
+             ke petugas tidak dicatat di sini. Satu baris per jenis; kolom Kali menghitung
+             berapa kali ia terulang.</p>
+          ${rows.length ? `<div class="gulir-x"><table class="tabel">
+            <thead><tr><th>Terakhir</th><th>Galat</th><th class="kanan">Kali</th>
+              <th>Cabang</th><th></th></tr></thead>
+            <tbody>${rows.map(baris).join('')}</tbody></table></div>` : kosong}
+        </div>`;
+    } catch (e) { galat('#hasilAudit', e); }
+  }
+
+  async function tandaiGalat(sidik) {
+    await API.tandaiGalatDibaca(sidik ? { sidik } : {});
+    /* Lencana nav ikut disegarkan — angka yang masih menyala sesudah
+       dibereskan membuat orang berhenti mempercayainya.
+
+       Lewat PERISTIWA, bukan memanggil `tarikLencanaNav` langsung: fungsi
+       itu milik app.js, dan admin.js tidak boleh menambah ketergantungan
+       baru padanya — ada penjaga yang menuntut itu, dan alasannya app.js
+       ikut dimuat layar Kasir sementara admin.js tidak. */
+    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
+    return muatGalatAudit();
   }
 
   /* ==================== LAPORAN DISKON ====================
@@ -9947,6 +10038,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editSumber)             return editorSumberpulsa(d.editSumber);
       if (t.id === 'btnSumberBaru') return editorSumberpulsa('');
       if (d.tabpulsa) return muatPulsa(d.tabpulsa);
+      if (d.tabaudit) return muatAudit(d.tabaudit);
+      if (d.galatBaca) {
+        t.disabled = true;
+        try { await tandaiGalat(d.galatBaca); } finally { t.disabled = false; }
+        return;
+      }
+      if (t.id === 'btnGalatSemua') {
+        t.disabled = true;
+        try { await tandaiGalat(null); } finally { t.disabled = false; }
+        return;
+      }
       /* Satu tombol untuk ketiga kartu gagal di Ringkasan gabungan. Yang
          diulang SELURUH layarnya, bukan bagian yang gagal saja: ketiga
          kegagalannya lahir dari satu panggilan yang sama. */

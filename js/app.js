@@ -1098,6 +1098,135 @@ let _lencanaTerakhir = 0;
  * penanda sibuk menyala dan layar mengunci diri sendiri tiap lima menit tanpa
  * ada yang menekan apa pun — lihat _sibukOrang di api.js.
  */
+/* ==================== GALAT YANG SENYAP (bagian 219) ====================
+ *
+ * LATAR BELAKANG. v1.225.0 terbit dengan tombol "Aset tetap baru" yang MATI,
+ * dan tidak ada yang tahu selama sehari penuh. Ditekan, tidak terjadi apa-apa.
+ * Satu-satunya jejaknya sebaris merah di konsol peramban yang tidak pernah
+ * dibuka siapa pun — tidak ada galat di server, tidak ada keluhan, tidak ada
+ * satu pun angka yang berubah.
+ *
+ * Yang ditangkap di sini HANYA yang tidak tertangkap siapa pun: `error` yang
+ * lolos sampai window, dan promise yang gagal tanpa catch. Kegagalan yang
+ * sudah jadi toast merah ke petugas TIDAK ikut — itu percakapan yang sudah
+ * terjadi, dan mencampurnya membuat catatan ini ramai oleh hal normal sampai
+ * yang sungguhan tenggelam.
+ *
+ * Antreannya menumpang denyut `tarik_master` yang sudah jalan tiap 5 menit,
+ * jadi ongkos servernya NOL panggilan tambahan (bagian 167-168).
+ */
+
+/* Batas di KLIEN, bukan cuma di server. Yang dijaga di sini ukuran
+   permintaan: antrean tanpa batas pada halaman yang galatnya beruntun akan
+   membengkakkan denyut yang justru harus tetap ringan. */
+const GALAT_MAKS_JENIS = 20;
+
+/* Sidik jari HARUS sama bentuknya dengan `_sidikGalat` di 01_Util.gs — nomor
+   baris dibuang, sebab bundel yang dibangun ulang menggesernya dan galat yang
+   sama akan terhitung sebagai jenis baru tiap rilis. Yang di sini cuma untuk
+   menggabung sebelum dikirim; yang menentukan tetap server. */
+function _sidikGalatKlien(pesan, sumber) {
+  return String(pesan || '').trim() + '|' + String(sumber || '').replace(/:\d+(:\d+)?$/, '');
+}
+
+/* Antrean hidup di memori DAN di localStorage. Alasannya: galat yang paling
+   mahal justru yang membuat halamannya tidak bisa dipakai lagi, dan orang
+   memuat ulang sebelum denyut berikutnya sempat jalan. Yang cuma di memori
+   hilang bersama halaman yang ia coba laporkan. */
+const GALAT_KUNCI = 'possk_galat';
+
+function antreanGalat() {
+  try { return JSON.parse(localStorage.getItem(GALAT_KUNCI) || '[]') || []; }
+  /* Mode privat, kuota penuh, atau isi yang rusak: antrean kosong adalah
+     jawaban yang benar. Melempar di sini menjatuhkan denyut sinkronisasi
+     gara-gara catatan galat — menukar satu keluhan senyap dengan satu toko
+     yang berhenti bekerja. */
+  catch (e) { return []; }
+}
+
+/* Kuota penuh atau mode privat membuat `setItem` MELEMPAR — dan itu sengaja
+   dibiarkan lolos ke `catatGalat`, yang membungkus seluruh jalur ini. Sebuah
+   try/catch kedua sempat ditulis di sini; uji mutasi membuktikan ia membuat
+   penjagaan "tidak melingkar" mustahil dibuat merah oleh mutasi mana pun —
+   dua jaring bertumpuk untuk satu lubang, dan yang di bawah menyembunyikan
+   apakah yang di atas masih ada. Fungsi ini hanya dipanggil dari `catatGalat`,
+   jadi jaring itu memang berlebih. */
+function simpanAntreanGalat(a) {
+  localStorage.setItem(GALAT_KUNCI, JSON.stringify(a.slice(0, GALAT_MAKS_JENIS)));
+}
+
+function kosongkanAntreanGalat() {
+  /* Sama seperti di atas: gagal mengosongkan berarti antreannya terkirim
+     dua kali, dan server menggabungnya lewat sidik jari. Itu akibat yang
+     jauh lebih ringan daripada melempar di tengah denyut. */
+  try { localStorage.removeItem(GALAT_KUNCI); } catch (e) { /* lihat alasannya di atas */ }
+}
+
+/* Penjaga terhadap DIRINYA SENDIRI: seluruh isi `catatGalat` dibungkus
+   try/catch, jadi tidak ada satu pun lemparan yang lolos ke window.onerror
+   untuk memanggilnya lagi. Lingkaran yang ditakutkan tidak bisa terbentuk.
+
+   Sebuah bendera `_sedangCatatGalat` sempat ditulis di sini sebagai penjaga
+   KEDUA. Uji mutasi membuktikan ia tidak pernah mengubah apa pun — dicabut,
+   seluruh ujinya tetap hijau — jadi dibuang. Kode yang tidak bisa dibuat
+   merah adalah kode yang tidak dijaga siapa pun, dan yang membacanya nanti
+   akan mengira ia menahan sesuatu. Yang benar-benar menahan: try/catch. */
+function catatGalat(pesan, sumber, jejak) {
+  try {
+    const p = String(pesan || '').trim();
+    if (!p) return;
+    const sidik = _sidikGalatKlien(p, sumber);
+    const a = antreanGalat();
+    const ada = a.filter(x => x.sidik === sidik)[0];
+    if (ada) { ada.jumlah = (ada.jumlah || 1) + 1; simpanAntreanGalat(a); return; }
+    /* Batasnya ada SATU, di `simpanAntreanGalat` (slice). Penjaga kedua
+       sempat ditulis di sini juga; uji mutasi membuktikan ia tidak pernah
+       mengubah apa pun, sebab slice sudah memotong sebelum disimpan — dan
+       kode yang tidak bisa dibuat merah adalah kode yang tidak dijaga
+       siapa pun. */
+    a.push({
+      sidik,
+      pesan: p.substring(0, 300),
+      sumber: String(sumber || '').substring(0, 200),
+      jejak: String(jejak || '').substring(0, 800),
+      versi: (typeof CONFIG !== 'undefined' && CONFIG.VERSI) ? String(CONFIG.VERSI) : '',
+      layar: (location.hash || '').replace(/^#\/?/, '').substring(0, 40),
+      jumlah: 1
+    });
+    simpanAntreanGalat(a);
+  } catch (e) {
+    /* Sengaja diam. Pencatat galat yang berisik saat gagal adalah sumber galat
+       berikutnya, dan inilah yang benar-benar memutus lingkarannya. */
+  }
+}
+
+function pasangPenangkapGalat() {
+  /* DUA penangkap, dan keduanya wajib. `error` tidak pernah melihat promise
+     yang gagal, dan `unhandledrejection` tidak pernah melihat galat sinkron.
+     Memasang salah satunya saja meninggalkan separuh galat tetap senyap —
+     dan separuh yang ditinggalkan justru yang lebih sering di kode yang
+     penuh `async` seperti ini. Ada penjaga di uji.js yang menuntut keduanya. */
+  window.addEventListener('error', (e) => {
+    try {
+      const sumber = (e.filename || '') + (e.lineno ? ':' + e.lineno : '');
+      catatGalat(e.message || String(e.error || 'galat tanpa pesan'), sumber,
+                 e.error && e.error.stack ? e.error.stack : '');
+    /* Penangkap galat yang sendirinya melempar memanggil dirinya lagi lewat
+       window.onerror, dan seterusnya sampai halamannya mati. */
+    } catch (x) { /* lihat alasannya di atas */ }
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    try {
+      const r = e.reason;
+      const pesan = r && r.message ? r.message : String(r);
+      catatGalat('Promise gagal: ' + pesan, (r && r.fileName) || '',
+                 r && r.stack ? r.stack : '');
+    /* Sama seperti penangkap di atas: tidak boleh melempar, apa pun
+       bentuk `reason` yang datang. */
+    } catch (x) { /* lihat alasannya di atas */ }
+  });
+}
+
 async function tarikLencanaNav(latar) {
   if (!API.online) return;
   _lencanaTerakhir = Date.now();
@@ -6405,6 +6534,11 @@ function pantauVersiBaru() {
      Jawaban ping membawa versi yang sedang dijalankan server. Kalau berbeda
      dari yang sedang berjalan di sini, tablet ini tertinggal — titik. */
   periksaVersiServer();
+  pasangPenangkapGalat();
+  /* Pintu satu arah untuk admin.js: ia boleh MEMINTA lencana disegarkan
+     tanpa memanggil fungsi app.js. Arahnya sengaja cuma satu — app.js
+     tidak pernah memanggil apa pun milik admin.js. */
+  document.addEventListener('possk:segarkan-lencana', () => tarikLencanaNav(true));
   setInterval(periksaVersiServer, CONFIG.VERSI_POLL_MS);
   /* Tahapnya maju sendiri walau tidak ada permintaan baru, dan kuncinya
      menunggu keranjang kosong — keduanya butuh jam yang berdetak. */

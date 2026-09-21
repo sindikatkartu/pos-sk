@@ -141,7 +141,8 @@ const API = (() => {
     'daftar_produk', 'produk_satu', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_aset',
-    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'daftar_pembelian',
+    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
+    'daftar_pembelian',
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
@@ -191,6 +192,12 @@ const API = (() => {
        ganda itu uang di buku, dan membatalkannya jauh lebih mahal daripada
        menyuruh orang menekan tombolnya sekali lagi. */
     'simpan_aset', 'susutkan', 'lepas_aset',
+    /* `tandai_galat_dibaca` MEMANG idempoten — menandai yang sudah ditandai
+       tidak mengubah apa pun. Yang membuatnya masuk daftar ini barisnya di
+       log_audit: tiap ulangan menulis satu BACA_GALAT lagi, dan jejak audit
+       yang penuh duplikat dari ulangan otomatis jadi lebih sulit dibaca
+       persis saat orang sedang menelusuri sesuatu. */
+    'tandai_galat_dibaca',
     'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
     'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
@@ -602,6 +609,8 @@ let _pernahJawab = false;
     daftarUtang:       (d) => panggil('daftar_utang', d, { timeout: 60000 }),
     bayarUtang:        (d) => panggil('bayar_utang', d),
     logAudit:          (d) => panggil('log_audit', d, { timeout: 60000 }),
+    logGalat:          (d) => panggil('log_galat', d, { timeout: 60000 }),
+    tandaiGalatDibaca: (d) => panggil('tandai_galat_dibaca', d),
     daftarPembelian:   (d) => panggil('daftar_pembelian', d),
     rincianPembelian:  (d) => panggil('rincian_pembelian', d),
 
