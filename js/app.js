@@ -152,7 +152,17 @@ const MENU = [
      Digantung pada `kas.lihat`, bukan `.buat`: meja kerja ini juga dibaca
      untuk memeriksa mutasi, dan yang boleh membaca lebih luas daripada yang
      boleh mencatat. Tombol catatnya sendiri yang menuntut `.buat`. */
-  { id: 'kas',        label: 'Kas',        grup: 'Keuangan',   izin: ['kas', 'lihat'],               admin: true, backoffice: true },
+  /* "Kas" lebih sempit daripada isinya, dan itu terukur: layarnya menangani
+     EMPAT akun — 1-1100 Kas di Tangan, 1-1150 Kas Admin, 1-1200 Bank, dan
+     1-1210 Dana Mengendap QRIS/EDC — dua di antaranya bukan kas. Salah satu
+     jenis transaksinya bahkan berbunyi "setor ke bank, pelimpahan QRIS".
+
+     Admin yang mau mencatat transfer bank tidak punya alasan menduga
+     tempatnya di menu bernama "Kas"; kalau tidak ketemu ia akan mengira
+     sistemnya belum bisa mencatat itu. "Kas & Bank" juga label baku di
+     perangkat lunak akuntansi, jadi istilahnya sudah dikenal waktu
+     direkonsiliasi dengan Accurate. Keputusan pemilik 21 Sep 2026. */
+  { id: 'kas',        label: 'Kas & Bank', grup: 'Keuangan',   izin: ['kas', 'lihat'],               admin: true, backoffice: true },
   // Retur: digambar admin.js, tapi BUKAN back office — kasir wajib bisa mengaksesnya.
   { id: 'retur',      label: 'Retur Jual', grup: 'Penjualan',  izin: ['retur', 'buat'],              admin: true },
   /* Pembatalan digantung pada `void.lihat`, bukan `.buat`: kasir melihat
