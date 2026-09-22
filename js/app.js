@@ -5852,7 +5852,10 @@ function pasangEvent() {
       else if (e.shiftKey && document.activeElement === awal) { e.preventDefault(); akhir.focus(); }
       else if (!$('#sisi').contains(document.activeElement)) { e.preventDefault(); awal.focus(); }
     }
-    if (e.key.toLowerCase() === 'b' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+    /* String(e.key || ''): sebagian perangkat mengirim keydown TANPA key
+       (IME / isi-otomatis / pemindai). 19 kali sehari di Dasbor, 22 Sep 2026,
+       ditangkap telinga bagian 219 — bagian 230. */
+    if (String(e.key || '').toLowerCase() === 'b' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
       e.preventDefault();
       terapkanLipat(!$('#app').classList.contains('sisi-lipat'));
     }

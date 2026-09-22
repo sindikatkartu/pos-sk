@@ -175,7 +175,7 @@ const API = (() => {
      sebuah endpoint baca yang lupa didaftarkan akan melempar galat ke layar
      tiap kali Google menjawab 404 sesaat. */
   const TIDAK_DIULANG = new Set([
-    'batal_opname', 'batal_pembelian', 'batal_permintaan', 'batal_transfer',
+    'batal_opname', 'batal_pembelian', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
     'hapus_perangkat', 'hapus_shift_pulsa', 'impor_master', 'impor_produk',
@@ -522,6 +522,7 @@ let _pernahJawab = false;
        dokumen dobel. */
     simpanPembelian: (d) => panggil('simpan_pembelian', d, { timeout: 120000 }),
     batalPembelian:  (d) => panggil('batal_pembelian', d, { timeout: 90000 }),
+    periksaPembelian: (d) => panggil('periksa_pembelian', d, { timeout: 90000 }),
     simpanKas:       (d) => panggil('simpan_kas', d),
     daftarKas:       (d) => panggil('daftar_kas', d),
 

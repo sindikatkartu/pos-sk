@@ -627,6 +627,10 @@ const Admin = (() => {
    * 749.999,97 akan terbaca 74999997.
    */
   const num = (v) => Number(v) || 0;
+  /* Cermin boolOf() di 01_Util.gs — nilai boolean yang lewat Sheets bisa datang
+     sebagai true, "TRUE", atau 1. Tab Galat memakainya tanpa pernah ada
+     definisinya di klien: ReferenceError di toko, 22 Sep 2026 (bagian 230). */
+  const boolOf = (v) => v === true || String(v).toLowerCase() === 'true' || String(v) === '1';
 
   /** Bilang "berhasil" lalu muat ulang layar yang sedang aktif. */
   /**
@@ -4100,6 +4104,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== PEMBELIAN ==================== */
 
+  /* Lencana status dokumen pembelian (bagian 229). AKTIF = status lama sebelum
+     alur pemeriksaan ada — dibaca sebagai sudah diperiksa. */
+  const lencanaStatusBeli = (st) => ({
+    MENUNGGU: lencanaDash('Menunggu periksa', 'kuning'),
+    DIPERIKSA: lencanaDash('Diperiksa', 'hijau'),
+    AKTIF: lencanaDash('Diperiksa', 'hijau'),
+    DITOLAK: lencanaDash('Ditolak', 'merah'),
+    DIBATALKAN: lencanaDash('Dibatalkan', 'merah')
+  })[String(st)] || lencanaDash(esc(String(st || '')), 'redup');
+
   async function muatPembelian() {
     memuat('#isiPembelian');
     try {
@@ -4111,7 +4125,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>
             ${bolehIzin('pembelian', 'buat') ? tombolTambah('btnPembelianBaru', 'Pembelian baru') : ''}
           </div>
-          <p class="petunjuk">Barang yang dibeli dari supplier. Mencatatnya menaikkan stok dan mencatat utang; pembayarannya lewat menu Utang.</p>
+          <p class="petunjuk">Staf gudang mencatat barang yang diterima dari supplier — stok dan utangnya langsung tercatat. Head Admin memeriksa dokumennya terhadap faktur; yang sudah diperiksa dibayar lewat menu Utang.</p>
         </div>
         <div class="kartu">
           <!-- "rata-rata bergerak" — keterangan yang salah sejak awal dan diperbaiki
@@ -4130,16 +4144,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'No dokumen', kunci: 'no_dokumen',
               render: r => `<span class="tautan-baris">${esc(r.no_dokumen || '(tanpa nomor)')}</span>` },
             { judul: 'Supplier', kunci: 'nama_supplier' },
-            { judul: 'Bayar', render: r => `<span class="lencana">${esc(r.tipe_bayar)}</span>` },
             { judul: 'Total', angka: true, render: r => rp(r.total) },
             /* Status ditampilkan sejak v1.94: kolomnya sudah ada di sheet sejak awal
                tapi tidak pernah tergambar, jadi dokumen yang dibatalkan terlihat
                persis seperti yang masih berlaku. */
-            { judul: 'Status', render: r => r.status === 'DIBATALKAN'
-                ? '<span class="lencana merah">DIBATALKAN</span>'
-                : '<span class="lencana hijau">AKTIF</span>' },
-            { judul: '', render: r => r.status !== 'DIBATALKAN' && bolehIzin('pembelian', 'hapus')
-                ? `<button class="tombol kecil bahaya" data-batal-pembelian="${esc(r.uuid)}">Batal</button>` : '' }
+            { judul: 'Status', render: r => lencanaStatusBeli(r.status) },
+            { judul: '', render: r => [
+                /* Periksa membuka rinciannya — keputusannya diambil sambil melihat barisnya. */
+                r.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui')
+                  ? tombolBaris('utama', 'Periksa', IKON.setujui, `data-periksa-beli="${esc(r.uuid)}"`) : '',
+                !['DIBATALKAN', 'DITOLAK'].includes(r.status) && bolehIzin('pembelian', 'hapus')
+                  ? tombolBaris('bahaya', 'Batal', IKON.batal, `data-batal-pembelian="${esc(r.uuid)}"`) : ''
+              ].join(' ') }
           ], rows, { kosong: 'Belum ada pembelian tercatat',
                      dataAttr: r => `data-rincian-beli="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
@@ -4174,14 +4190,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     const item = d.item || [];
     const janggal = item.filter(i => i.sebab_janggal);
-    const bolehBatal = d.status !== 'DIBATALKAN' && bolehIzin('pembelian', 'hapus');
+    const bolehBatal = !['DIBATALKAN', 'DITOLAK'].includes(d.status) && bolehIzin('pembelian', 'hapus');
+    const bolehPeriksa = d.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui');
 
     bukaModal(`Pembelian ${d.no_dokumen || '(tanpa nomor)'}`, `
       <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.nama_supplier || '—')} ·
-        <span class="lencana">${esc(d.tipe_bayar)}</span>
-        ${d.status === 'DIBATALKAN'
-          ? '<span class="lencana merah">DIBATALKAN</span>'
-          : '<span class="lencana hijau">AKTIF</span>'}
+        ${lencanaStatusBeli(d.status)}
         ${d.jatuh_tempo ? `<br>Jatuh tempo ${esc(tglTampil(d.jatuh_tempo))}` : ''}
         ${d.catatan ? `<br>Catatan: ${esc(d.catatan)}` : ''}</p>
       ${janggal.length ? `<div class="pesan galat">${janggal.length} baris isinya janggal.
@@ -4212,7 +4226,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${d.ppn ? `<div class="total-baris"><span>PPN</span><span>${rp(d.ppn)}</span></div>` : ''}
       <div class="total-baris besar"><span>TOTAL</span><span>${rp(d.total)}</span></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
-       ${bolehBatal
+       ${bolehPeriksa
+         ? `<button class="tombol bahaya" data-periksa-tolak="${esc(d.uuid)}">${ikonAlat('blokir')}<span>Tolak…</span></button>
+            <button class="tombol sukses" data-periksa-ok="${esc(d.uuid)}">${ikonAlat('setujui')}<span>Sudah diperiksa</span></button>`
+         : ''}
+       ${bolehBatal && !bolehPeriksa
          ? `<button class="tombol bahaya" data-batal-pembelian="${esc(d.uuid)}">Batalkan pembelian</button>`
          : ''}`);
   }
@@ -4304,12 +4322,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              Bank dan kredit ke Utang Usaha. Yang tidak ada: seseorang yang
              memilih. Satu ketukan tambahan per pembelian adalah ongkos yang
              sengaja dibayar (bagian 207). -->
-        <div class="grup"><label>Cara bayar</label><select id="beliTipe">
-          <option value="">— pilih cara bayar —</option>
-          <option value="tunai">Tunai (kas berkurang)</option>
-          <option value="transfer">Transfer (bank berkurang)</option>
-          <option value="kredit">Kredit (jadi utang supplier)</option></select></div>
-        <div class="grup"><label>Jatuh tempo (bila kredit)</label><input type="date" id="beliJatuhTempo"></div>
+        <!-- Cara bayar DIBUANG (bagian 229, pemilik 22 Sep 2026): semua pembelian
+             jadi utang dulu; uang keluar lewat menu Utang sesudah Head Admin
+             memeriksa. Servernya memaksa 'kredit' apa pun yang dikirim. Sejarahnya
+             di bagian 207: pilihan pertama "Tunai" sempat terpilih tanpa ada yang
+             memutuskan dan kas buku jatuh ke minus 71 juta. -->
+        <div class="grup"><label>Jatuh tempo pembayaran</label><input type="date" id="beliJatuhTempo"></div>
+        <div class="grup"><label>&nbsp;</label><p class="petunjuk" style="margin:0">Dicatat sebagai utang supplier. Dibayar lewat menu Utang sesudah Head Admin memeriksa.</p></div>
       </div>
 
       <label>Item</label>
@@ -4348,13 +4367,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function simpanPembelian() {
     const item = kumpulkanAnak('beli').filter(i => i.sku && Number(i.qty) > 0);
     if (!item.length) return toast('Minimal satu item.', 'galat');
-    /* Ditahan DI SINI, bukan diserahkan ke server: server yang menerima
-       tipe_bayar kosong akan jatuh ke AKUN.KAS lewat `AKUN_BAYAR[undefined]
-       || AKUN.KAS` — persis bawaan senyap yang sedang dibuang. */
-    if (!nilai('beliTipe')) {
-      return toast('Pilih cara bayarnya dulu — tunai, transfer, atau kredit. ' +
-                   'Ini yang menentukan uangnya keluar dari mana.', 'galat');
-    }
     const btn = $('#btnSimpanPembelian');
     btn.disabled = true;
     try {
@@ -4362,7 +4374,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         uuid: uuidPembelian,
         cabang: APP_STATE.cabang,
         tanggal: nilai('beliTanggal'), no_dokumen: nilai('beliNo'),
-        kode_supplier: nilai('beliSupplier'), tipe_bayar: nilai('beliTipe'),
+        kode_supplier: nilai('beliSupplier'),   // cara bayar: selalu utang (bagian 229)
         jatuh_tempo: nilai('beliJatuhTempo'),
         diskon: angka('beliDiskon'), ppn: angka('beliPpn'),
         /* SATUAN DIKUNCI 'pcs' DAN ISINYA 1, mati, bukan dibaca dari layar.
@@ -4966,8 +4978,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="kartu laporan-uang">
           <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3><span class="satuan-uang">dalam Rupiah</span>
             <div style="flex:1"></div>${menuEkspor('utang')}</div>
-          <p class="petunjuk">Hanya pembelian bertipe <strong>Kredit (utang)</strong> yang muncul di sini.
-             Pembelian yang dibayar Tunai atau Transfer sudah lunas saat dicatat.</p>
+          <p class="petunjuk">Setiap pembelian yang dicatat gudang masuk ke sini sebagai utang. Yang pembeliannya
+             <strong>belum diperiksa Head Admin</strong> belum bisa dibayar — periksa dulu di menu Pembelian.</p>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Supplier', kunci: 'nama_supplier' },
@@ -4977,8 +4989,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? `<span class="lencana ${r.hari_telat > 60 ? 'merah' : 'kuning'}">${r.hari_telat} hari</span>`
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
-            { judul: '', render: r => bolehIzin('utang', 'buat')
-                ? tombolBaris('utama', 'Bayar', IKON.kirim, `data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
+            { judul: '', render: r => r.status_pembelian === 'MENUNGGU'
+                /* Gerbangnya di server (apiBayarUtang); di sini cuma dikatakan. */
+                ? lencanaDash('belum diperiksa', 'kuning')
+                : (bolehIzin('utang', 'buat')
+                    ? tombolBaris('utama', 'Bayar', IKON.kirim, `data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '') }
           ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
         </div>`;
       $('#isiUtang')._rows = d.utang;
@@ -10395,6 +10410,31 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      if (d.periksaBeli) return rincianPembelian(d.periksaBeli);
+      if (d.periksaOk) {
+        if (!(await tanya('Tandai pembelian ini sudah diperiksa?',
+              '<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Sesudah ini utangnya bisa dibayar di menu Utang.</p>',
+              { ya: 'Sudah diperiksa' }))) return;
+        try {
+          await API.periksaPembelian({ uuid: d.periksaOk, cabang: APP_STATE.cabang, keputusan: 'DIPERIKSA' });
+          document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
+          await sukses('Pembelian ditandai sudah diperiksa — utangnya kini bisa dibayar di menu Utang.', 'pembelian');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+      if (d.periksaTolak) {
+        const alasanTolak = await tanya('Tolak pembelian ini?',
+          '<p class="petunjuk">Stok, jurnal, dan utangnya dibalik. Staf gudang mencatat ulang yang benar. Alasannya ikut tercatat dan dibaca gudang.</p>',
+          { isian: 'Alasan penolakan (minimal 5 karakter)', minimal: 5, ya: 'Tolak pembelian', jenis: 'bahaya' });
+        if (!alasanTolak) return;
+        try {
+          await API.periksaPembelian({ uuid: d.periksaTolak, cabang: APP_STATE.cabang, keputusan: 'DITOLAK', alasan: alasanTolak });
+          await Sync.tarikStok();
+          document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
+          await sukses('Pembelian ditolak — stok, jurnal, dan utangnya sudah dibalik.', 'pembelian');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
       if (d.batalPembelian) {
         const alasan = await tanya('Batalkan pembelian ini?',
           '<p class="petunjuk">Stok dan jurnalnya dibalik. Alasannya ikut tercatat.</p>',
