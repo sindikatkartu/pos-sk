@@ -1298,7 +1298,10 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kartu-peringatan-isi strong { color: var(--peringatan); font-size: var(--fs-14); }
 .kartu-peringatan-isi span { color: var(--teks-redup); font-size: var(--fs-13); }
 .tombol.besar  { padding: 14px; font-size: var(--fs-17); font-weight: 600; width: 100%; }
-.tombol.kecil  { padding: 4px 10px; font-size: var(--fs-13); }
+/* nowrap: label tombol kecil pendek dan tidak boleh patah — di sel tabel yang
+   sempit (tablet 800) "Koreksi balik" pernah jadi dua baris, 44 px di sebelah
+   tombol 28 px (§226). Selnya yang melebar, bukan tombolnya yang meninggi. */
+.tombol.kecil  { padding: 4px 10px; font-size: var(--fs-13); white-space: nowrap; }
 /* Tombol yang isinya CUMA ikon. Padding mendatarnya dipersempit supaya
    kotaknya mendekati bujur sangkar — dengan 10px, tiga ikon berjejer di satu
    baris tabel terlihat lebih lebar daripada tinggi dan barisnya jadi renggang

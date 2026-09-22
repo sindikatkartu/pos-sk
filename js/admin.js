@@ -4912,7 +4912,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
             { judul: '', render: r => bolehIzin('piutang', 'buat')
-                ? tombolIkon('utama', 'Terima bayar', IKON.terima, `data-bayar-piutang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
+                ? tombolBaris('utama', 'Terima bayar', IKON.terima, `data-bayar-piutang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
           ], d.piutang, { kosong: 'Tidak ada piutang beredar' })}
         </div>`;
       $('#isiPiutang')._rows = d.piutang;
@@ -4978,7 +4978,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
             { judul: '', render: r => bolehIzin('utang', 'buat')
-                ? tombolIkon('utama', 'Bayar', IKON.kirim, `data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
+                ? tombolBaris('utama', 'Bayar', IKON.kirim, `data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
           ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
         </div>`;
       $('#isiUtang')._rows = d.utang;
@@ -5029,6 +5029,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const tombolIkon = (gaya, judul, jalur, atribut) =>
     `<button class="tombol kecil ikon-saja ${gaya}" title="${esc(judul)}" aria-label="${esc(judul)}" ${atribut}>` +
     `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:15px;height:15px">${jalur}</svg></button>`;
+
+  /**
+   * Tombol baris tabel: IKON + TEKS. Keputusan pemilik 22 Sep 2026 (§226):
+   * ikon-saja (tombolIkon) hanya untuk layar Pengguna, yang tiga-empat
+   * tombolnya berjejer di satu sel; di layar lain nama aksinya harus terbaca
+   * tanpa menebak — "Terima bayar", "Koreksi balik", "Lepas". Satu pembuat
+   * untuk semuanya supaya tingginya lurus (§214: kelurusan datang dari
+   * pembuat yang sama). `judul` opsional untuk tooltip yang lebih panjang
+   * daripada labelnya.
+   */
+  const tombolBaris = (gaya, label, jalur, atribut, judul) =>
+    `<button class="tombol kecil ${gaya}" title="${esc(judul || label)}" ${atribut}>` +
+    `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${jalur}</svg><span>${esc(label)}</span></button>`;
 
   /**
    * Umur dalam KATA, bukan tanggal.
@@ -6460,16 +6473,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ? 'Kas awal diwarisi dari shift sebelumnya di cabang ini — tidak bisa diketik.'
           : 'Belum ada shift sebelumnya di cabang ini, jadi kas awalnya diisi sekali di sini.'}</p>
       </div>
+      ${/* Kolom saldo awal TERBUKA hanya kalau server bilang begitu (shift pertama
+           cabang + izin pulsa·ubah, bagian 228). Layar tidak menebak sendiri. */ ''}
       <div class="kartu">
-        <h3>Saldo awal yang diwarisi</h3>
-        <p class="petunjuk">Angka ini saldo akhir shift sebelumnya. Lihat dulu sebelum menekan
-           Buka — sesudah shift berjalan, saldo awalnya tidak bisa diubah.</p>
+        <h3>${st.bisa_ketik_saldo_awal ? 'Saldo awal aplikasi' : 'Saldo awal yang diwarisi'}</h3>
+        <p class="petunjuk">${st.bisa_ketik_saldo_awal
+          ? 'Belum ada shift di cabang ini. Isi saldo yang SEKARANG ada di tiap aplikasi — diisi sekali saja, dan dicatat ke buku besar sebagai saldo pembukaan (Modal Pemilik). Mulai shift berikutnya, saldo awal diwarisi dari shift sebelumnya.'
+          : 'Angka ini saldo akhir shift sebelumnya. Lihat dulu sebelum menekan Buka — sesudah shift berjalan, saldo awalnya tidak bisa diubah.'}</p>
         <div class="gulir-x">
           <table class="tabel">
             <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th></tr></thead>
             <tbody>${sumber.map(s => `<tr>
               <td data-l="Sumber">${esc(s.nama)} <span class="petunjuk">${esc(s.kode_sumber)}</span></td>
-              <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}</td></tr>`).join('')}
+              <td class="kanan" data-l="Saldo awal">${st.bisa_ketik_saldo_awal
+                ? `<input type="text" inputmode="numeric" class="uang kendali-tetap" data-saldo-awal="${esc(s.kode_sumber)}" value="0" aria-label="Saldo awal ${esc(s.nama)}">`
+                : rp(s.saldo_awal)}</td></tr>`).join('')}
             </tbody>
           </table>
         </div>
@@ -7212,7 +7230,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <td class="kanan" data-l="Kali">${esc(String(r.jumlah))}</td>
         <td data-l="Cabang">${esc(r.cabang || '')}</td>
         <td>${bolehTandai && !boolOf(r.dibaca)
-          ? tombolIkon('', 'Tandai sudah diperiksa', IKON.setujui, `data-galat-baca="${esc(r.sidik)}"`) : ''}</td>
+          ? tombolBaris('', 'Tandai sudah diperiksa', IKON.setujui, `data-galat-baca="${esc(r.sidik)}"`) : ''}</td>
       </tr>`;
 
       $('#hasilAudit').innerHTML = `
@@ -8759,13 +8777,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <!-- nowrap: dua tombol di sel tanpa lebar akan membungkus ke bawah,
            dan baris tabelnya jadi setinggi dua tombol. -->
       <td style="white-space:nowrap">${bolehIzin('laporan_keuangan', 'ubah') ? (
-        tombolIkon('', 'Ubah aset', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`) +
+        tombolBaris('', 'Ubah', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`, 'Ubah aset') +
         /* Yang sudah DILEPAS tidak menawarkan tombolnya lagi: melepas dua
            kali mengkreditkan asetnya dua kali dan mendebit akumulasinya dua
            kali, dan neraca timpang persis sebesar satu aset. */
         (a.status === 'AKTIF'
-          ? tombolIkon('', 'Lepas aset — dijual, dihibahkan, atau dibuang', IKON.lepas,
-                       `data-lepas-aset="${esc(a.kode)}"`) : '')
+          ? tombolBaris('', 'Lepas', IKON.lepas, `data-lepas-aset="${esc(a.kode)}"`,
+                        'Lepas aset — dijual, dihibahkan, atau dibuang') : '')
       ) : ''}</td>
     </tr>`;
 
@@ -9218,7 +9236,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
           <!-- Cabangnya dari BARISNYA, bukan dari pemilih di bar. Menyetorkan
                uang SK02 ke buku SK01 memindahkan uang yang tidak ada di sana. -->
-          <td>${tombolIkon('utama', 'Terima setoran', IKON.terima,
+          <td>${tombolBaris('utama', 'Terima', IKON.terima,
               `data-terima-setor="${esc(sh.id_shift)}" data-cabang="${esc(sh.kode_cabang || '')}" data-jumlah="${sh.kas_fisik}"`)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
@@ -9290,7 +9308,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              salah dibetulkan dengan pemindahan biasa ke arah sebaliknya, dan
              itu memang terlihat sebagai dua baris, karena memang dua kejadian. -->
         <td>${bolehIzin('kas', 'buat') && !(k.pindah_kas && k.bukti)
-          ? tombolIkon('', 'Koreksi balik', IKON.balik, `data-balik-kas="${esc(k.uuid)}"`)
+          ? tombolBaris('', 'Koreksi balik', IKON.balik, `data-balik-kas="${esc(k.uuid)}"`)
           : ''}</td>
       </tr>`).join('')}</tbody>
     </table></div>
@@ -10101,12 +10119,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnBukaShiftPulsa') {
         t.disabled = true;
         try {
-          await API.bukaShiftPulsa({
+          /* Kolom saldo awal hanya ada di shift pertama cabang (bagian 228);
+             kalau tidak ada, kuncinya tidak dikirim sama sekali. */
+          const ketik = Array.from(document.querySelectorAll('[data-saldo-awal]'));
+          const saldoAwal = ketik.length
+            ? Object.fromEntries(ketik.map(i => [i.dataset.saldoAwal, angkaDari(i.value)])) : null;
+          const h = await API.bukaShiftPulsa({
             jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
-            kas_awal: $('#spsKasAwal') ? angkaDari($('#spsKasAwal').value) : 0
+            kas_awal: $('#spsKasAwal') ? angkaDari($('#spsKasAwal').value) : 0,
+            ...(saldoAwal ? { saldo_awal: saldoAwal } : {})
           });
           await muat('pulsa');
-          toast('Shift pulsa dibuka.');
+          toast(h && h.jurnal ? 'Shift pulsa dibuka. Saldo awal aplikasi dicatat ke buku besar (' + h.jurnal + ').' : 'Shift pulsa dibuka.');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }

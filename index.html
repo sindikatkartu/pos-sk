@@ -449,13 +449,18 @@
              bisa dibatalkan. Menaruh tindakan yang tidak bisa dibatalkan di
              deretan tab membuatnya satu ketukan meleset dari sekadar melihat. -->
         <div class="tab-modal tanpa-cetak" id="tabKeu" style="margin-top:4px;margin-bottom:0">
-          <button data-tab-keu="labarugi" class="aktif">Laba Rugi</button>
-          <!-- Tab ketiga (bagian 220). Muncul untuk siapa pun berizin
-               laporan_keuangan·lihat; borangnya sendiri hanya digambar untuk
-               yang punya ·ubah — yang lain melihat daftarnya saja. -->
-          <button data-tab-keu="neraca">Neraca</button>
+          <!-- Urutannya SIKLUS AKUNTANSI (pemilik, 22 Sep 2026, bagian 227):
+               dicatat dulu (jurnal), direkap per akun (buku besar), baru
+               dilaporkan — laba rugi, lalu neraca, sebab laba bersih masuk ke
+               modal di neraca. Yang TERBUKA saat menu dibuka tetap Laba Rugi
+               (class aktif + bukaLayar di app.js): paling sering dibaca, dan
+               tab jurnal berisi borang input. Jurnal (bagian 220) muncul untuk
+               siapa pun berizin laporan_keuangan·lihat; borangnya hanya
+               digambar untuk yang punya ·ubah. -->
           <button data-tab-keu="jurnal">Jurnal penyesuaian</button>
           <button data-tab-keu="bukubesar">Buku besar</button>
+          <button data-tab-keu="labarugi" class="aktif">Laba Rugi</button>
+          <button data-tab-keu="neraca">Neraca</button>
         </div>
       </div>
       <div id="hasilKeuangan"></div>
