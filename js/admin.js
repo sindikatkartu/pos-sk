@@ -1106,7 +1106,10 @@ const Admin = (() => {
 
     if ($('#kartuReturVoid')) ganti('kartuReturVoid', kartuDaftarDash('Retur jual & void', 'periode ini ' + cap,
       rv === null || rv === undefined ? '<div class="dr-kosong">Tidak tersedia</div>' : `
-        <div class="ringkas-dash">${lencanaDash(rv.retur.n + ' retur · ' + rp(rv.retur.nilai), 'abu')}${lencanaDash(rv.void.n + ' void · ' + rp(rv.void.nilai), rv.void.n ? 'merah' : 'abu')}</div>
+        ${/* rpTeks, bukan rp: lencanaDash meng-escape teksnya, dan rp() memulangkan HTML
+           (<span class="rp">) — versi rp() tampil sebagai teks mentah di Dasbor sampai
+           22 Sep 2026. Ada penjaga di uji.js untuk polanya. */ ''}
+        <div class="ringkas-dash">${lencanaDash(rv.retur.n + ' retur · ' + rpTeks(rv.retur.nilai), 'abu')}${lencanaDash(rv.void.n + ' void · ' + rpTeks(rv.void.nilai), rv.void.n ? 'merah' : 'abu')}</div>
         ${barisDash(rv.daftar.slice(0, 4).map(x => [
           esc(x.no) + ' · ' + x.jenis, esc(x.id_user), esc(x.alasan || '')]), 'Tidak ada retur maupun void')}`,
       { id: 'kartuReturVoid', tabel: 'retur_void', kaki: '50 terbaru' }));
