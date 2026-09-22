@@ -2787,6 +2787,10 @@ input.sudah-hitung {
   .bar-alat.bar-dash { grid-template-columns: 1fr 1fr; }
   .bar-alat.bar-dash > .keterangan-dash { grid-column: 1 / -1; }
   .bar-alat > .petunjuk-bar { grid-column: 1 / -1; }
+  /* "dalam Rupiah" di HP berdiri di baris sendiri di bawah judul; margin kiri 8 px
+     (yang di PC memisahkannya dari judul) di sini cuma mendorongnya 8 px keluar
+     kotak — uji-rupa menangkapnya di Piutang, 22 Sep 2026 (§225). */
+  .bar-alat > .satuan-uang { margin-left: 0; }
   .bar-alat-menu > .aksi { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .bar-alat-menu > .aksi > .tombol { width: 100%; }
   /* `max-width` juga dinolkan, bukan hanya `width`. Lebar tiap kendali diberikan

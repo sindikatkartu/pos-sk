@@ -4899,8 +4899,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="kartu statistik"><div class="label">Telat &gt; 90 hari</div>
             <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
-        <div class="kartu">
-          <div class="bar-alat"><h3>Daftar piutang — total ${rp(d.total)}</h3>
+        <div class="kartu laporan-uang">
+          <div class="bar-alat"><h3>Daftar piutang — total ${rp(d.total)}</h3><span class="satuan-uang">dalam Rupiah</span>
             <div style="flex:1"></div>${menuEkspor('piutang')}</div>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
@@ -4912,7 +4912,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
             { judul: '', render: r => bolehIzin('piutang', 'buat')
-                ? `<button class="tombol kecil utama" data-bayar-piutang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">${ikonAlat('terima')}<span>Terima bayar</span></button>` : '' }
+                ? tombolIkon('utama', 'Terima bayar', IKON.terima, `data-bayar-piutang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
           ], d.piutang, { kosong: 'Tidak ada piutang beredar' })}
         </div>`;
       $('#isiPiutang')._rows = d.piutang;
@@ -4938,7 +4938,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="pesanBayarPiutang"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarPiutang"
-         data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">Simpan pembayaran</button>`);
+         data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   /* ==================== UTANG SUPPLIER ====================
@@ -4963,8 +4963,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="kartu statistik"><div class="label">Telat &gt; 90 hari</div>
             <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
-        <div class="kartu">
-          <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3>
+        <div class="kartu laporan-uang">
+          <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3><span class="satuan-uang">dalam Rupiah</span>
             <div style="flex:1"></div>${menuEkspor('utang')}</div>
           <p class="petunjuk">Hanya pembelian bertipe <strong>Kredit (utang)</strong> yang muncul di sini.
              Pembelian yang dibayar Tunai atau Transfer sudah lunas saat dicatat.</p>
@@ -4978,7 +4978,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : '<span class="lencana hijau">lancar</span>' },
             { judul: 'Sisa', angka: true, render: r => rp(r.sisa) },
             { judul: '', render: r => bolehIzin('utang', 'buat')
-                ? `<button class="tombol kecil utama" data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}">${ikonAlat('kirim')}<span>Bayar</span></button>` : '' }
+                ? tombolIkon('utama', 'Bayar', IKON.kirim, `data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '' }
           ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
         </div>`;
       $('#isiUtang')._rows = d.utang;
@@ -5004,7 +5004,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="pesanBayarUtang"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarUtang"
-         data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">Simpan pembayaran</button>`);
+         data-uuid="${esc(uuid)}" data-cabang="${esc(cabang)}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
   /* ==================== USER & HAK AKSES ==================== */
@@ -9086,8 +9086,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${kartuSetoran(belum)}
       ${kartuCatatKas()}
 
-      <div class="kartu">
-        <h3>Mutasi kas</h3>
+      <div class="kartu laporan-uang">
+        <div class="bar-alat"><h3>Mutasi kas</h3><span class="satuan-uang">dalam Rupiah</span>
+          <div style="flex:1"></div>
+          ${menuEkspor('kas', { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') })}</div>
         ${daftarMutasiKas(kas)}
       </div>`;
     isiPilihanKas();
@@ -9113,8 +9115,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        yang dibandingkan mata di sini besarnya pergerakan antar bulan. */
     const puncak = Math.max(1, ...arus.bulan.map((b) => Math.max(b.masuk, b.keluar)));
     const lebar = (v) => Math.round((Math.abs(v) / puncak) * 100);
-    return `<div class="kartu">
-      <h3>Arus kas — 6 bulan terakhir</h3>
+    return `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Arus kas — 6 bulan terakhir</h3><span class="satuan-uang">dalam Rupiah</span></div>
       <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Bulan</th><th class="kanan">Masuk</th><th class="kanan">Keluar</th>
           <th class="kanan">Bersih</th><th class="kanan">Saldo akhir</th>
@@ -9201,8 +9203,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       return `<div class="kartu"><h3>Setoran toko</h3>
         <p class="petunjuk">Tidak ada shift tertutup yang uangnya belum diserahkan.</p></div>`;
     }
-    return `<div class="kartu">
-      <h3>Setoran toko ${lencanaDash(belum.length + ' belum diterima', 'kuning')}</h3>
+    return `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Setoran toko ${lencanaDash(belum.length + ' belum diterima', 'kuning')}</h3>
+        <span class="satuan-uang">dalam Rupiah</span></div>
       <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Cabang</th><th>Shift</th><th>Tutup</th>
           <th class="kanan">Uang dihitung</th>
@@ -9215,9 +9218,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
           <!-- Cabangnya dari BARISNYA, bukan dari pemilih di bar. Menyetorkan
                uang SK02 ke buku SK01 memindahkan uang yang tidak ada di sana. -->
-          <td><button class="tombol kecil utama" data-terima-setor="${esc(sh.id_shift)}"
-              data-cabang="${esc(sh.kode_cabang || '')}"
-              data-jumlah="${sh.kas_fisik}">Terima</button></td>
+          <td>${tombolIkon('utama', 'Terima setoran', IKON.terima,
+              `data-terima-setor="${esc(sh.id_shift)}" data-cabang="${esc(sh.kode_cabang || '')}" data-jumlah="${sh.kas_fisik}"`)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
       <p class="petunjuk">Menerima setoran memindahkan uangnya dari
@@ -9241,14 +9243,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${daftarKodeCabang().map((c) =>
               `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
           </select></div>` : ''}
-        <div class="kendali-tetap"><label>Jenis</label>
-          <select id="kasJenis" class="kendali-tetap">
+        
+        <div class="kendali-penuh"><label>Jenis</label>
+          <select id="kasJenis">
             ${JENIS_KAS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}
           </select></div>
-        <div class="kendali-tetap"><label>Sumber kas</label>
-          <select id="kasSumber" class="kendali-tetap"></select></div>
-        <div class="kendali-tetap"><label id="labelKasLawan">Akun lawan</label>
-          <select id="kasAkun" class="kendali-tetap"></select></div>
+        <div class="kendali-penuh"><label>Sumber kas</label>
+          <select id="kasSumber"></select></div>
+        <div class="kendali-penuh"><label id="labelKasLawan">Akun lawan</label>
+          <select id="kasAkun"></select></div>
         <div class="kendali-tetap"><label>Jumlah</label>
           <input type="text" inputmode="numeric" class="uang kendali-tetap" id="kasJumlah" placeholder="0"></div>
       </div>
@@ -9287,7 +9290,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              salah dibetulkan dengan pemindahan biasa ke arah sebaliknya, dan
              itu memang terlihat sebagai dua baris, karena memang dua kejadian. -->
         <td>${bolehIzin('kas', 'buat') && !(k.pindah_kas && k.bukti)
-          ? `<button class="tombol kecil" data-balik-kas="${esc(k.uuid)}">Koreksi balik</button>`
+          ? tombolIkon('', 'Koreksi balik', IKON.balik, `data-balik-kas="${esc(k.uuid)}"`)
           : ''}</td>
       </tr>`).join('')}</tbody>
     </table></div>
@@ -9747,7 +9750,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (e) {
           t.disabled = false;
           return pesan('#pesanBayarUtang',
-            e.message + ' — tekan Simpan pembayaran sekali lagi, jumlahnya tidak akan tercatat dua kali.',
+            e.message + ' — tekan Simpan sekali lagi, jumlahnya tidak akan tercatat dua kali.',
             'galat');
         }
       }
