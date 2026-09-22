@@ -169,7 +169,12 @@ const Admin = (() => {
       let markup = false;
       const unik = new Set();
       for (const r of semua) {
-        const html = k.render ? String(k.render(r)) : k.tgl ? String(tglTampil(r[k.kunci])) : String(r[k.kunci] ?? '');
+        let html = k.render ? String(k.render(r)) : k.tgl ? String(tglTampil(r[k.kunci])) : String(r[k.kunci] ?? '');
+        /* <span class="rp"> dari rp() bukan lencana: jatah 18 px (padding + tepi
+           lencana) tidak berlaku untuknya. Sebelum ini tiap kolom rupiah 18 px
+           lebih lebar dari perlunya — tiga kolom = 54 px yang hilang dari Nama
+           di tablet (bagian 233). */
+        html = html.replace(/<span class="rp">Rp<\/span>/g, 'Rp');
         if (html.indexOf('<') !== -1) markup = true;
         unik.add(html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());
       }
@@ -7241,7 +7246,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <span class="petunjuk" style="display:block">pertama ${esc(waktuTampil(r.waktu_pertama))}</span></td>
         <td data-l="Galat">${boolOf(r.dibaca) ? '' : lencanaDash('baru', 'merah') + ' '}<strong>${esc(r.pesan)}</strong>
           <span class="petunjuk" style="display:block">${esc(r.sumber || '—')}${
-            r.layar ? ' · layar ' + esc(r.layar) : ''}${r.versi ? ' · v' + esc(r.versi) : ''}</span></td>
+            r.layar ? ' · layar ' + esc(r.layar) : ''}${r.versi ? ' · v' + esc(r.versi) : ''}${
+            /* Perangkatnya disebut (bagian 231): nama kalau ada, id kalau perangkatnya sudah dihapus. */
+            r.id_perangkat || r.nama_perangkat ? ' · perangkat ' + esc(r.nama_perangkat || r.id_perangkat) : ''}</span></td>
         <td class="kanan" data-l="Kali">${esc(String(r.jumlah))}</td>
         <td data-l="Cabang">${esc(r.cabang || '')}</td>
         <td>${bolehTandai && !boolOf(r.dibaca)

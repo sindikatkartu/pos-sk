@@ -742,7 +742,10 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    diselipkan diam-diam ke dalam rilis performa.
 
    Paginasi 100 baris sudah memperkecil kerugiannya: satu halaman ~6 layar,
-   bukan 35 layar penuh seperti sebelumnya. */
+   bukan 35 layar penuh seperti sebelumnya.
+
+   23 Sep 2026: pemilik MEMUTUSKANNYA untuk Produk dan Stok — lihat blok
+   GULIR-TABEL di bawah .gulir-x (bagian 232). */
 
 /* ---------- Menu "⋯" (tindakan yang jarang dipakai) ---------- */
 /* Memakai kembali rupa `.popover-akun` — satu bahasa untuk semua menu yang
@@ -2922,6 +2925,46 @@ input.sudah-hitung {
 
 /* Pembungkus tabel: yang menggulir adalah tabelnya, bukan halamannya. */
 .gulir-x { overflow-x: auto; max-width: 100%; }
+
+/* PRODUK & STOK: HANYA ISI TABEL YANG BERGULIR (bagian 232, pemilik 23 Sep 2026).
+   Inilah keputusan yang ditunggu catatan v1.149.0 di atas: tabel diberi kotak
+   gulirnya sendiri, dan karena kotak itu kini penggulir VERTIKAL, `sticky`
+   pada kepala kolom akhirnya bekerja. Rantainya: layar aktif jadi kolom flex →
+   #isi* kolom flex → kartu tabel kolom flex → wadah .daftar-utama mengambil
+   sisa tinggi dan bergulir sendiri. Tiap mata rantai wajib `min-height: 0`,
+   kalau tidak flex menolak menyusut dan halamannya yang bergulir lagi.
+   HANYA .aktif: .layar bawaannya display:none; flex tanpa .aktif membuat semua
+   layar tampil bertumpuk dan Stok terdorong 900 px ke bawah (kena di mockup).
+   HANYA > 760 px: di HP tabelnya bertumpuk per baris dan kartu saringannya
+   tinggi — kotak gulir di dalam halaman menyisakan sedikit ruang; HP tetap
+   menggulir halaman. Layar lain sengaja tidak ikut (keputusan pemilik: Produk
+   dan Stok saja). Dijaga uji-gulir-tabel.mjs. */
+@media (min-width: 761px) { /* GULIR-TABEL */
+  #layarProduk.aktif, #layarStok.aktif { display: flex; flex-direction: column; }
+  #isiProduk, #isiStok { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #isiProduk > .kartu:has(.daftar-utama), #isiStok > .kartu:has(.daftar-utama), #tabelStok {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #isiProduk .daftar-utama, #isiStok .daftar-utama { flex: 1 1 auto; min-height: 120px; overflow: auto; }
+  #isiProduk .daftar-utama thead th, #isiStok .daftar-utama thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--panel-2); box-shadow: 0 1px 0 var(--garis); }
+}
+
+/* TABLET: SEL ANGKA DIRAPATKAN (bagian 233, pemilik 23 Sep 2026).
+   Diukur di 800 px: tabel Produk 770 px dibagi delapan kolom — SKU 105, Modal
+   97, Eceran 105, Grosir 105, Stok 85, Poin 67, tombol 112 — dan Nama kebagian
+   sisanya, 94 px, patah tiga-empat baris. Kolom angka tidak pernah dilebarkan
+   untuk miliaran (uji-nominal mengecualikan tabel); yang dimakan padding
+   14 px kiri-kanan × lima kolom. Pemilik memilih merapatkan padding saja,
+   semua kolom tetap. Pengukur lebar kolom (lebarKolomDaftar) membaca padding
+   dari sel sungguhan — sel probe yang ditempel ke #isi*, DI LUAR wadah
+   .daftar-utama — jadi pemilihnya tidak boleh menuntut wadah itu: dengan
+   ".daftar-utama td.angka" probe tetap 14 px, lebar kolom tetap dihitung
+   lebar, dan Nama tetap 94 px walau selnya sudah rapat (kena 23 Sep 2026).
+   Di PC tidak berubah. */
+@media (min-width: 761px) and (max-width: 1024px) { /* ANGKA-RAPAT */
+  .layar th.angka, .layar td.angka { padding-left: 8px; padding-right: 8px; }
+}
 
 /* Tabel back office di layar sedang (tablet, jendela sempit) */
 @media (max-width: 760px) and (min-width: 621px) {
