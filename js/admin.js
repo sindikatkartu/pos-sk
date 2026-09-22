@@ -3655,6 +3655,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * dan menumpuk di mana" — dan ribuan baris nol di puncak tabel tidak menjawab
    * pertanyaan siapa pun. Kepala kolomnya tetap bisa diklik untuk mengurut ulang.
    */
+  /**
+   * "Cocok untuk" satu baris (bagian 235): tipe HP produk itu sendiri, lalu
+   * daftar kompatibelnya ("merek tipe"), digabung " · ". Lebih dari `maks`
+   * dipotong jadi "+N lagi" — tempered glass universal cocok untuk puluhan
+   * tipe, dan ditulis semua satu baris tabel Stok jadi setinggi layar HP
+   * (keputusan pemilik 23 Sep 2026). Daftar lengkapnya tetap di layar Produk.
+   * Satu rumus untuk jalur satu cabang (baris dari server) dan lintas cabang
+   * (baris dari katalog perangkat) — keduanya membawa `tipe_hp` + `kompatibel`.
+   */
+  const teksCocok = (r, maks = 3) => {
+    const semua = [];
+    const tambah = (t) => { t = String(t || '').trim(); if (t && !semua.includes(t)) semua.push(t); };
+    tambah(r.tipe_hp);
+    (r.kompatibel || []).forEach(k => tambah((k.merek ? k.merek + ' ' : '') + (k.tipe || '')));
+    const sisa = semua.length - maks;
+    return semua.slice(0, maks).join(' · ') + (sisa > 0 ? ` +${sisa} lagi` : '');
+  };
+  /* Baris kedua sel Nama di tabel Stok: kode varian lalu cocok untuk. Kosong
+     bila keduanya kosong — produk universal tanpa daftar tidak dapat baris. */
+  const metaStok = (r) => {
+    const m = [r.kode_varian, teksCocok(r)].filter(Boolean);
+    return m.length ? `<div class="meta-kecil">${esc(m.join(' · '))}</div>` : '';
+  };
+
   function barisStokLintas(stokMentah, produk, cabang) {
     const peta = {};
     (stokMentah || []).forEach(r => {
@@ -3663,7 +3687,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
     return (produk || []).map(p => {
       const baris = { sku: String(p.sku), nama: String(p.nama || p.sku),
-                      kategori: String(p.kategori || ''), total: 0 };
+                      kategori: String(p.kategori || ''), total: 0,
+                      tipe_hp: p.tipe_hp || '', kompatibel: p.kompatibel || [] };
       cabang.forEach(c => {
         const q = Number(peta[baris.sku + '|' + c] || 0);
         baris['c_' + c] = q;
@@ -3682,7 +3707,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   const susunKolomStokLintas = (cabang) => [
     { judul: 'SKU', kunci: 'sku' },
-    { judul: 'Nama', kunci: 'nama', lentur: true },
+    { judul: 'Nama', kunci: 'nama', lentur: true, nilai: r => r.nama || '',
+      render: r => esc(r.nama || '') + metaStok(r) },
     ...cabang.map(c => ({
       judul: c, angka: true, kunci: 'c_' + c,
       /* Angka MINUS digambar apa adanya dan diberi warna, tidak dijadikan "0".
@@ -3730,12 +3756,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const kategoriAda = [...new Set(produk.map(p => (p.kategori || '').trim()).filter(Boolean))].sort();
 
       $('#isiStok').innerHTML = `
-        <p class="petunjuk">Persediaan tiap cabang: jumlah, nilai modal, dan yang perlu dipesan ulang. Stok minus berarti barangnya terjual sebelum pembeliannya sempat dicatat.</p>
-        <div class="petak petak-4">
-          ${cabang.map(c => `<div class="kartu statistik"><div class="label">Stok ${esc(c)}</div>
-            <div class="nilai">${rows.reduce((a, r) => a + r['c_' + c], 0)}</div></div>`).join('')}
-          <div class="kartu statistik"><div class="label">Seluruh cabang</div>
-            <div class="nilai">${rows.reduce((a, r) => a + r.total, 0)}</div></div>
+        ${/* Kotak mini Dasbor, bukan kartu statistik (bagian 234, pemilik 23 Sep
+              2026: "pertipis ukuran kartu statistik dan berikan aksen ikon").
+              Tanpa baris ekor — .petak-stok menyembunyikannya — jadi ±66 px. */''}
+        <div class="petak-mini petak-stok">
+          ${cabang.map(c => kotakMini('Stok ' + c, rows.reduce((a, r) => a + r['c_' + c], 0), '', { ikon: 'cabang', warna: 'biru' })).join('')}
+          ${kotakMini('Seluruh cabang', rows.reduce((a, r) => a + r.total, 0), '', { ikon: 'stok', warna: 'hijau' })}
         </div>
         <div class="kartu">
           <div class="bar-alat bar-alat-menu">
@@ -3745,15 +3771,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <select id="stokLingkup" style="max-width:170px">${opsiLingkupStok('semua')}</select>
             </div>
             <div class="aksi">
-              <button class="tombol" id="btnSegarkanStokLintas">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
+              <button class="tombol" id="btnSegarkanStokLintas"
+                title="Angka ringkasan tersimpan di perangkat ini, diperbarui ${waktu ? esc(waktuTampil(waktu)) : 'belum pernah'}; sebelum menjanjikan barang ke pelanggan, tekan Hitung ulang.">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
             </div>
           </div>
-          <p class="petunjuk" style="margin:0 0 10px">
-            Angka ini <strong>ringkasan tersimpan di perangkat ini</strong>, diperbarui
-            ${waktu ? esc(waktuTampil(waktu)) : 'belum pernah'}. Cukup untuk membandingkan
-            dan memutuskan kirim-mengirim; sebelum menjanjikan barang ke pelanggan,
-            tekan Hitung ulang.
-          </p>
           <div id="tabelStok"></div>
         </div>`;
       $('#isiStok')._rows = rows;
@@ -3825,10 +3846,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        dengan layar Produk (lihat `buatHalaman`). */
     const kolom = stokLintas ? susunKolomStokLintas(wadah._cabang || []) : susunKolomStok(wadah._punyaNilai);
     const urut = halStok.urutkan(rows, kolom);
+    /* Penghitung di KAKI tabel, sebaris dengan pager (bagian 234): di kepala ia
+       memakan satu baris sendiri di atas daftar; di kaki ia menumpang baris
+       yang memang sudah ada untuk pager. */
     tabelEl.innerHTML =
-      `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
       (stokLintas ? tabelStokLintas(halStok.potong(urut), kolom) : tabelStok(halStok.potong(urut), kolom)) +
-      halStok.pager(urut.length);
+      /* Lencana HPP ikut ke kaki (pemilik: "HPP FIFO dipindah supaya tidak boros
+         tempat") — di bar saringan ia membungkus ke baris kedua sendirian. */
+      `<div class="kaki-tabel"><span class="jumlah-baris">${hitung}</span>${stokLintas ? '' : '<span class="lencana hijau">HPP: FIFO</span>'}${halStok.pager(urut.length)}</div>`;
   }
 
   async function muatStok(katStok = '', paksa = false) {
@@ -3925,23 +3950,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          seluruh kategori lebih buruk daripada saringan yang tereset. */
 
       $('#isiStok').innerHTML = `
-        <p class="petunjuk">Persediaan tiap cabang: jumlah, nilai modal, dan yang perlu dipesan ulang. Stok minus berarti barangnya terjual sebelum pembeliannya sempat dicatat.</p>
-        ${/* `petak-4` — ambang kolomnya 160px, bukan 180px. Sejak kartu "Belum
-              pernah bergerak" ikut digambar, jumlahnya jadi EMPAT, dan di lebar
-              tablet petak biasa hanya memuat tiga: yang keempat turun sendirian
-              dan melar setengah baris. Kotak tunggal selebar itu terbaca sebagai
-              kotak yang gagal berpasangan. */''}
-        <div class="petak petak-4">
+        ${/* Kotak mini Dasbor (.petak-mini, auto-fit 132px) — bukan kartu
+              statistik (bagian 234). Pemilik: "pertipis ukuran kartu statistik
+              dan berikan aksen ikon". Ikonnya menyebut isinya: stok, opname
+              (belum bergerak), kas (nilai), peringatan (di bawah minimum). */''}
+        <div class="petak-mini petak-stok">
           ${/* Tetap `bergerak.length`, BUKAN `rows.length`. Sejak produk yang
                 belum pernah bergerak ikut ditampilkan, `rows` berisi seluruh
                 katalog — dan angka di bawah judul "SKU bergerak" akan berhenti
                 berarti apa pun. Yang belum bergerak dihitung terpisah. */''}
-          <div class="kartu statistik"><div class="label">SKU bergerak</div><div class="nilai">${bergerak.length}</div></div>
-          ${diam.length ? `<div class="kartu statistik"><div class="label">Belum pernah bergerak</div>
-            <div class="nilai">${diam.length}</div></div>` : ''}
-          ${punyaNilai ? `<div class="kartu statistik"><div class="label">Nilai persediaan</div><div class="nilai">${rp(totalNilai)}</div></div>` : ''}
-          <div class="kartu statistik"><div class="label">Di bawah minimum</div>
-            <div class="nilai">${rows.filter(r => r.qty <= r.stok_min).length}</div></div>
+          ${kotakMini('SKU bergerak', bergerak.length, '', { ikon: 'stok', warna: 'biru' })}
+          ${/* SELALU digambar, walau nol (pemilik 23 Sep 2026: "kartu statistik belum
+                pernah bergerak jangan dihilangkan"). Kotak yang kadang ada kadang
+                tidak membuat orang mengira fiturnya hilang. */''}
+          ${kotakMini('Belum pernah bergerak', diam.length, '', { ikon: 'opname', warna: 'kuning' })}
+          ${punyaNilai ? kotakMini('Nilai persediaan', rp(totalNilai), '', { ikon: 'kas', warna: 'hijau' }) : ''}
+          ${kotakMini('Di bawah minimum', rows.filter(r => r.qty <= r.stok_min).length, '', { ikon: 'peringatan', warna: 'merah' })}
         </div>
         <div class="kartu">
           <div class="bar-alat bar-alat-menu">
@@ -3952,22 +3976,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ${bolehStokLintas()
                 ? `<select id="stokLingkup" style="max-width:170px">${opsiLingkupStok(stokCabang ? 'cabang:' + stokCabang : 'sini')}</select>`
                 : `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`}
-              <span class="lencana hijau">HPP: FIFO</span>
             </div>
             <div class="aksi">
-              <button class="tombol" id="btnSegarkanStok">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
+              <button class="tombol" id="btnSegarkanStok"
+                title="Angka ringkasan tersimpan di perangkat ini, diperbarui ${esc(waktuTampil(new Date(waktuStok).toISOString()))}; sebelum menjanjikan barang ke pelanggan, tekan Hitung ulang.">${ikonAlat('segarkan')}<span>Hitung ulang</span></button>
               ${menuEkspor('stok', { cabang: cabangStokKini() })}
             </div>
           </div>
-          ${/* Kalimatnya SAMA PERSIS dengan layar Stok lintas cabang. Dua layar
-                yang aturannya sama tapi kalimatnya berbeda memaksa orang
-                menebak apakah aturannya juga berbeda. */''}
-          <p class="petunjuk" style="margin:0 0 10px">
-            Angka ini <strong>ringkasan tersimpan di perangkat ini</strong>, diperbarui
-            ${esc(waktuTampil(new Date(waktuStok).toISOString()))}. Cukup untuk membandingkan
-            dan memutuskan kirim-mengirim; sebelum menjanjikan barang ke pelanggan,
-            tekan Hitung ulang.
-          </p>
+          ${/* Kalimat "ringkasan tersimpan … diperbarui …" DIBUANG dari layar
+                (bagian 234, pemilik) — jamnya hidup sebagai tooltip tombol
+                Hitung ulang, sama persis di kedua jalur Stok. */''}
           <div id="tabelStok"></div>
         </div>`;
       $('#isiStok')._rows = rows;
@@ -4042,8 +4060,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        saat bisa dipakai, jadi kodenya tetap tampil begitu ada isinya: yang
        dibuang kolomnya, bukan informasinya. */
     { judul: 'Nama', kunci: 'nama', lentur: true, nilai: r => r.nama || '',
-      render: r => esc(r.nama || '') + (r.kode_varian
-        ? `<div class="meta-kecil">${esc(r.kode_varian)}</div>` : '') },
+      render: r => esc(r.nama || '') + metaStok(r) },
     { judul: 'Status', nilai: r => { const st = statusStok(r); return st ? st.label : ''; },
       render: r => { const st = statusStok(r);
         return st ? `<span class="st ${st.kelas}">${esc(st.label)}</span>`

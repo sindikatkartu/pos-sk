@@ -802,6 +802,19 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    dipakai layar Laporan. */
 .kepala-tabel { display: flex; align-items: center; margin: -2px 0 10px; }
 .kepala-tabel .jumlah-baris { margin-left: 0; }
+/* Kaki tabel Stok (bagian 234): penghitung baris di kiri, pager di kanan, satu
+   baris — bukan dua (kepala + pager) seperti sebelumnya. */
+.kaki-tabel { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 10px; }
+.kaki-tabel .jumlah-baris { margin: 0; }
+.kaki-tabel .pager { padding: 0; margin-left: auto; }
+/* Kotak mini di layar Stok tanpa baris ekor — tidak ada pembanding periode di
+   sini, dan barisnya yang membuat kotak Dasbor 85 px. Tanpanya ±66 px.
+   Komentar di antara selektor dan kurung DISENGAJA: blokCA() di uji.js
+   mencari teks selektor-ekor-lalu-kurung dan mengambil kemunculan PERTAMA —
+   aturan ini berdiri jauh di atas aslinya dan akan tertangkap lebih dulu
+   (jebakan §205). Literalnya pun tidak boleh ditulis di komentar ini: komentar
+   yang memuatnya ikut tertangkap (kena 23 Sep 2026). */
+.petak-stok .mini-ekor /* Stok: ekor tak dipakai */ { display: none; }
 
 /* ---------- Bilah halaman ---------- */
 .pager {
