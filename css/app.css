@@ -2352,6 +2352,9 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
 .uji-tak { color: var(--peringatan); font-weight: 700; }
 
 .bar-alat { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+/* Kalimat pembuka yang hidup DI DALAM bar alat (dashboard): satu baris penuh di
+   bawah kendalinya, tanpa margin — jarak ke elemen berikut tetap milik barnya. */
+.bar-alat > .petunjuk-bar { display: block; flex: 1 1 100%; margin: 0; }
 /* Judul di dalam bar alat: tanpa margin, dari kelas — bukan `style="margin:0"`
    yang dulu diulang di tiga belas tempat. */
 /* Turunan, bukan anak langsung: judul Laporan ada di dalam .saringan dan
@@ -2365,6 +2368,15 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
    di semua ukuran layar". Di bawah 620 px kendalinya mengisi sel grid dua
    kolom (lihat blok HP). */
 .kendali-tetap { width: 160px; max-width: 160px; flex: 0 0 160px; min-width: 0; }
+/* Kendali yang isinya TIDAK MUAT di 160 px — dropdown akun dengan nama
+   "1-1100 — Kas di Tangan", kotak cari — mengambil lebar PENUH, bukan lebar
+   tanggung di antaranya (standar pemilik 19 Sep 2026: setengah layar HP, atau
+   penuh). Di PC ia melebar sampai 420 px di dalam baris saringan yang flex;
+   di HP ia merentang dua kolom grid (lihat blok HP di bawah). Lahir 22 Sep
+   2026 untuk dropdown akun buku besar, yang di 160 px terpotong jadi
+   "1-1100 — Kas di Ta". */
+.kendali-penuh { flex: 1 1 260px; max-width: 420px; min-width: 0; }
+.kendali-penuh > select, .kendali-penuh > input { min-height: 40px; width: 100%; }
 .kendali-tetap > select, .kendali-tetap > input, .kendali-tetap > .tgl-rupa { min-height: 40px; width: 100%; }
 /* Seluruh kendali di bar setinggi tombolnya: select 39, kotak cari 37, dan
    tanggal 37 px dulu bertangga di samping tombol 40. */
@@ -2774,6 +2786,7 @@ input.sudah-hitung {
      satu kotak KPI di HP. */
   .bar-alat.bar-dash { grid-template-columns: 1fr 1fr; }
   .bar-alat.bar-dash > .keterangan-dash { grid-column: 1 / -1; }
+  .bar-alat > .petunjuk-bar { grid-column: 1 / -1; }
   .bar-alat-menu > .aksi { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .bar-alat-menu > .aksi > .tombol { width: 100%; }
   /* `max-width` juga dinolkan, bukan hanya `width`. Lebar tiap kendali diberikan
@@ -2795,6 +2808,7 @@ input.sudah-hitung {
   /* Kolom kustom (dua tanggal) melintang penuh di bar mana pun — di dalam sel
      160 px dua tanggal tidak muat. */
   .bar-alat .rentang-kustom, .saring-baris .rentang-kustom { grid-column: 1 / -1; display: flex; }
+  .saring-baris > .kendali-penuh { grid-column: 1 / -1; max-width: none; }
   /* Shift & Diskon: dua tanggal berdampingan; judul dan tombol melintang. */
   .bar-alat.dua-kendali { grid-template-columns: 1fr 1fr; }
   .bar-alat.dua-kendali > h3, .bar-alat.dua-kendali > button { grid-column: 1 / -1; }
@@ -2967,6 +2981,15 @@ input.sudah-hitung {
     min-height: 20px;
   }
   .gulir-x > table > tbody > tr > td:last-child { border-bottom: none; }
+  /* SEL PERTAMA ikut 38%, dan ini harus ditulis eksplisit.
+     `.kartu > .gulir-x > table td:first-child { padding-left: var(--tepi-x) }`
+     (aturan layar lebar yang meratakan kolom pertama ke tepi kartu) lebih
+     spesifik daripada aturan bertumpuk di atas, jadi di HP sel pertama tetap
+     berpadding 16px — dan label ::before yang lebarnya 35% menimpa isinya.
+     Tidak pernah kelihatan selama isi sel pertama teks pendek rata kanan;
+     kelihatan 22 Sep 2026 begitu sel pertamanya <select> selebar penuh
+     (borang jurnal penyesuaian). */
+  .kartu > .gulir-x > table > tbody > tr > td:first-child { padding-left: 38%; }
   /* Sel yang memang kosong dibuang saja dari kartunya. Baris "Telepon" tanpa
      nomor apa pun bukan keterangan, hanya baris kosong yang memanjangkan kartu.
      Di tabel layar lebar kolomnya tetap ada, jadi tidak ada data yang hilang. */

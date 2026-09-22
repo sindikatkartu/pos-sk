@@ -1315,6 +1315,11 @@ const Admin = (() => {
           ${Periode.html({ ...PERIODE_DASH, nilai: periodeDash, nilaiDari: dashKustom.dari, nilaiSampai: dashKustom.sampai })}
           ${pilihCabangDash()}
           <span class="petunjuk keterangan-dash" style="margin:0" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</span>
+          ${/* Kalimat pembuka DI DALAM bar, baris penuh: ditaruh di antara bar dan strip ia
+             merusak irama 16 px bar → strip → petak yang dijaga uji-dashboard. SPAN, bukan
+             <p>: uji-ruang menghitung p.petunjuk sebagai kotak, dan keterangan sebaris di
+             dalam bar memang bukan blok (sama dengan keterangan-dash). */ ''}
+          <span class="petunjuk petunjuk-bar">Ringkasan penjualan, laba, dan stok untuk periode yang dipilih. Tiap kotak bisa dibuka jadi tabel lewat tautan di kakinya.</span>
         </div>
 
         <div id="stripDash">${stripDash(d, null)}</div>
@@ -3713,6 +3718,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const kategoriAda = [...new Set(produk.map(p => (p.kategori || '').trim()).filter(Boolean))].sort();
 
       $('#isiStok').innerHTML = `
+        <p class="petunjuk">Persediaan tiap cabang: jumlah, nilai modal, dan yang perlu dipesan ulang. Stok minus berarti barangnya terjual sebelum pembeliannya sempat dicatat.</p>
         <div class="petak petak-4">
           ${cabang.map(c => `<div class="kartu statistik"><div class="label">Stok ${esc(c)}</div>
             <div class="nilai">${rows.reduce((a, r) => a + r['c_' + c], 0)}</div></div>`).join('')}
@@ -3907,6 +3913,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          seluruh kategori lebih buruk daripada saringan yang tereset. */
 
       $('#isiStok').innerHTML = `
+        <p class="petunjuk">Persediaan tiap cabang: jumlah, nilai modal, dan yang perlu dipesan ulang. Stok minus berarti barangnya terjual sebelum pembeliannya sempat dicatat.</p>
         ${/* `petak-4` — ambang kolomnya 160px, bukan 180px. Sejak kartu "Belum
               pernah bergerak" ikut digambar, jumlahnya jadi EMPAT, dan di lebar
               tablet petak biasa hanya memuat tiga: yang keempat turun sendirian
@@ -4101,6 +4108,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>
             ${bolehIzin('pembelian', 'buat') ? tombolTambah('btnPembelianBaru', 'Pembelian baru') : ''}
           </div>
+          <p class="petunjuk">Barang yang dibeli dari supplier. Mencatatnya menaikkan stok dan mencatat utang; pembayarannya lewat menu Utang.</p>
         </div>
         <div class="kartu">
           <!-- "rata-rata bergerak" — keterangan yang salah sejak awal dan diperbaiki
@@ -4434,6 +4442,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${bolehIzin('pelanggan', 'buat') ? tombolTambah('btnPelangganBaru', 'Pelanggan') : ''}
           ${menuTindakan({ id: 'menuPelanggan', kunci: 'pelanggan', idTombol: 'btnMenuPelanggan',
               isi: butirNonaktif('pelanggan', hitungMati(pel)) })}</div>
+        <p class="petunjuk">Pelanggan dipilih kasir saat menutup nota — untuk poin, piutang, dan harga khusus. Supplier ada di kartu bawah, dipakai saat mencatat pembelian.</p>
         ${tabel([
           { judul: 'Kode', kunci: 'kode' },
           { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
@@ -4878,6 +4887,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const d = await API.daftarPiutang({});
       const a = d.aging;
       $('#isiPiutang').innerHTML = `
+        <p class="petunjuk">Uang pelanggan yang belum dibayar, dikelompokkan menurut lamanya terlambat. Pembayaran dicatat lewat tombol di tiap baris.</p>
         <div class="petak petak-tangga">
           <div class="kartu statistik"><div class="label">Belum jatuh tempo</div><div class="nilai">${rp(a.lancar)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 1–30 hari</div><div class="nilai">${rp(a.h30)}</div></div>
@@ -4941,6 +4951,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const d = await API.daftarUtang({});
       const a = d.aging;
       $('#isiUtang').innerHTML = `
+        <p class="petunjuk">Tagihan supplier yang belum dibayar, dikelompokkan menurut lamanya terlambat. Pembayaran dicatat lewat tombol di tiap baris.</p>
         <div class="petak petak-tangga">
           <div class="kartu statistik"><div class="label">Belum jatuh tempo</div><div class="nilai">${rp(a.lancar)}</div></div>
           <div class="kartu statistik"><div class="label">Telat 1–30 hari</div><div class="nilai">${rp(a.h30)}</div></div>
@@ -5112,6 +5123,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${bolehIzin('user', 'buat') ? tombolTambah('btnUserBaru', 'Pengguna') : ''}
             ${menuTindakan({ id: 'menuUser', kunci: 'user', idTombol: 'btnMenuUser',
                 isi: butirNonaktif('user', hitungMati(user)) })}</div>
+          <p class="petunjuk">Akun untuk masuk ke aplikasi dan peran yang menentukan menu apa yang bisa dibuka. Perangkat yang dipakai masuk disetujui di kartu bawah.</p>
           ${tabel([
             { judul: 'ID', kunci: 'id_user' },
             { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
@@ -6287,6 +6299,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${TAB_PULSA.map(([id, label]) =>
               `<button type="button" data-tabpulsa="${id}" class="${id === aktif ? 'aktif' : ''}">${label}</button>`).join('')}
           </div>
+          <p class="petunjuk">Buku pulsa: buka dan tutup shift, saldo tiap aplikasi, dan laporan shift yang sudah ditutup.</p>
         </div>`;
     }
     const peta = { shift: '#isiShiftpulsa', sumber: '#isiSumberpulsa', laporan: '#isiLaporanpulsa' };
@@ -6524,10 +6537,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           </table>
         </div>
         <div class="aksi"><button class="tombol" id="btnKeluarBaru">Tambah pengeluaran</button></div>
-        <p class="petunjuk">Uang yang keluar dari laci pulsa selain deposit. Tiap baris WAJIB
-           berketerangan — server menolak yang kosong. "Pengeluaran lain" adalah tempat paling
-           mudah menyembunyikan selisih kas, dan itu sebabnya rinciannya disimpan, bukan cuma
-           totalnya.</p>
+        <p class="petunjuk">Uang yang keluar dari laci pulsa selain deposit. Tiap baris wajib ada keterangannya — tanpa keterangan tidak bisa disimpan, supaya selisih kas bisa ditelusuri.</p>
       </div>
       <div class="kartu">
         <h3>Foto buku catatan</h3>
@@ -7078,7 +7088,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
         .filter(r => !SETTING_DIBUANG.includes(r.kunci));
       $('#isiSistem').innerHTML = `
-        <p class="petunjuk">Perubahan berlaku untuk seluruh cabang dan langsung ditarik perangkat kasir pada sinkronisasi berikutnya.</p>
+        <div class="kartu"><p class="petunjuk">Setelan toko: nama usaha, pajak, struk, dan sambungan. Perubahan berlaku untuk seluruh cabang dan sampai ke perangkat kasir dalam beberapa menit.</p></div>
         ${/* SATU KARTU PER KELOMPOK, bukan satu kartu besar yang dibagi garis.
               Garis pemisah di dalam satu petak terbaca sebagai tabel yang bocor;
               kotak terbaca sebagai kelompok.
@@ -7139,6 +7149,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${TAB_AUDIT.map(([id, label]) =>
             `<button type="button" data-tabaudit="${id}" class="${id === aktif ? 'aktif' : ''}">${esc(label)}</button>`).join('')}
         </div>
+        <p class="petunjuk">Jejak siapa mengubah apa, dan kerusakan aplikasi yang tidak terlihat. Tidak bisa dihapus dari dalam aplikasi.</p>
       </div>
       <div id="hasilAudit"></div>`;
     /* Dua baris `if` + `return`, bukan ternary. Penjaga "rantai menu → API →
@@ -7684,7 +7695,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${bolehIzin('permintaan', 'buat')
               ? tombolTambah('btnPermintaanBaru', 'Minta barang') : ''}
           </div>
-          <p class="petunjuk">Permintaan barang adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi:
+          <p class="petunjuk">Daftar barang yang diminta cabang ke gudang. Gudang yang menyiapkan; stok baru berpindah saat kirimannya dicatat. Ini <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi:
             membuatnya tidak menggerakkan stok dan tidak membuat jurnal. Saat gudang menekan <strong>Siapkan</strong>,
             jumlah yang benar-benar disiapkan langsung menjadi dokumen <strong>Transfer</strong> — lengkap dengan FIFO
             dan jurnalnya — dan cabang tujuan tetap harus mengonfirmasi penerimaan di menu Transfer.
@@ -10117,7 +10128,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await muat('pulsa');
           /* Jurnal yang gagal DISEBUT, tidak ditelan: shift yang tertutup tanpa
              jurnal terlihat persis sama dengan yang berjurnal. */
-          if (h.jurnal_gagal) toast('Shift ditutup, TAPI jurnalnya gagal: ' + h.jurnal_gagal, 'galat');
+          if (h.jurnal_gagal) toast('Shift sudah ditutup, tapi pencatatan ke buku besar gagal. Beri tahu admin: ' + h.jurnal_gagal, 'galat');
           else toast('Shift ditutup. Margin ' + rpTeks(h.margin) + ', selisih kas ' + rpTeks(h.selisih) + '.');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
@@ -10250,7 +10261,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         try {
           await muatStok($('#stokKategori')?.value || '', true);
-          toast('Stok dihitung ulang dari server.');
+          toast('Stok dihitung ulang dari catatan pusat.');
         } catch (x) {
           toast('Gagal menghitung ulang: ' + (x.message || x), 'galat');
           t.disabled = false;

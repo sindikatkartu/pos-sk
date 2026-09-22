@@ -4949,11 +4949,227 @@ let keuTerakhir = null;
  * tidak mengaku sedang menampilkan sesuatu yang tidak sedang ditampilkan.
  */
 function pilihTabKeu(tab) {
-  const peta = { labarugi: tampilkanLabaRugi, neraca: tampilkanNeraca };
+  const peta = { labarugi: tampilkanLabaRugi, neraca: tampilkanNeraca,
+                 jurnal: tampilkanJurnalManual, bukubesar: tampilkanBukuBesar };
   $$('#tabKeu button').forEach(b => b.classList.toggle('aktif', b.dataset.tabKeu === tab));
   if (!tab) return;
   keuTerakhir = peta[tab] || tampilkanLabaRugi;
   return keuTerakhir();
+}
+
+/* ==================== JURNAL PENYESUAIAN (bagian 220) ====================
+ *
+ * Tab ketiga di layar Keuangan. Borangnya SATU jurnal: tanggal, keterangan,
+ * dan baris-baris akun dengan debit ATAU kredit. Tombol Simpan mati selama
+ * debit dan kredit belum seimbang — penunjuk selisihnya hidup, supaya orang
+ * tahu berapa yang kurang sebelum menekan apa pun.
+ *
+ * Daftar akunnya DARI SERVER (apiDaftarJurnalManual), bukan disaring di sini
+ * dari salinan AKUN_KAS: dua daftar yang dipatok tangan menyimpang diam-diam.
+ * Akun kas memang tidak ditawarkan — uang tunai lewat Kas & Bank.
+ */
+let _jurnalAkun = [];
+let _jurnalUuid = '';
+
+function barisJurnalHtml(i) {
+  const opsi = _jurnalAkun.map(a =>
+    `<option value="${esc(a.kode)}">${esc(a.kode)} — ${esc(a.nama)}</option>`).join('');
+  /* `data-l` di tiap sel: di HP tabelnya bertumpuk jadi kartu, dan nama
+     kolomnya digambar dari atribut ini. Tanpa itu label "Akun" menimpa kotak
+     pilihannya (terlihat di potret 22 Sep 2026). Sel tombol diberi "" supaya
+     ia memakai seluruh lebar tanpa label. */
+  return `<tr class="baris-jurnal" data-baris="${i}">
+    <td data-l="Akun"><select class="jmAkun" aria-label="Akun baris ${i + 1}"><option value="">— pilih akun —</option>${opsi}</select></td>
+    <td data-l="Debit"><input type="text" inputmode="numeric" class="uang jmDebit" placeholder="0" aria-label="Debit baris ${i + 1}"></td>
+    <td data-l="Kredit"><input type="text" inputmode="numeric" class="uang jmKredit" placeholder="0" aria-label="Kredit baris ${i + 1}"></td>
+    <td data-l=""><button type="button" class="tombol kecil ikon-saja jmHapus" title="Buang baris" aria-label="Buang baris ${i + 1}">${ikonAksi('batal')}</button></td>
+  </tr>`;
+}
+
+function bacaBarisJurnal() {
+  return $$('#tabelJurnal tbody tr.baris-jurnal').map(tr => ({
+    kode_akun: tr.querySelector('.jmAkun').value,
+    debit: angkaDari(tr.querySelector('.jmDebit').value),
+    kredit: angkaDari(tr.querySelector('.jmKredit').value)
+  }));
+}
+
+function hitungSelisihJurnal() {
+  const b = bacaBarisJurnal().filter(x => x.kode_akun || x.debit || x.kredit);
+  const td = b.reduce((a, x) => a + x.debit, 0);
+  const tk = b.reduce((a, x) => a + x.kredit, 0);
+  const selisih = Math.round((td - tk) * 100) / 100;
+  const el = $('#jmSelisih');
+  const btn = $('#btnSimpanJurnal');
+  if (!el || !btn) return;
+  const lengkap = b.length >= 2 && b.every(x => x.kode_akun && (x.debit || x.kredit) && !(x.debit && x.kredit));
+  el.innerHTML = `Debit ${rp(td)} · Kredit ${rp(tk)} · ` + (selisih === 0
+    ? '<span class="lencana hijau">seimbang</span>'
+    : `<span class="lencana merah">selisih ${rp(Math.abs(selisih))}</span>`);
+  btn.disabled = !(selisih === 0 && lengkap && ($('#jmKet').value || '').trim());
+}
+
+async function tampilkanJurnalManual() {
+  const w = $('#hasilKeuangan');
+  /* Kerangka, bukan kata "Memuat…" — ia menempati ruang yang persis akan
+     diisi, jadi layarnya tidak melompat saat datanya tiba (ada penjaganya). */
+  w.innerHTML = rangkaLaporan();
+  try {
+    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+    const d = await API.daftarJurnalManual(par);
+    _jurnalAkun = d.akun || [];
+    _jurnalUuid = crypto.randomUUID ? crypto.randomUUID()
+                : Date.now() + '-' + Math.random().toString(36).slice(2);
+    const bolehUbah = bolehIzin('laporan_keuangan', 'ubah');
+    const cabangBorang = $('#keuCabang').value && $('#keuCabang').value !== '*'
+      ? $('#keuCabang').value : APP_STATE.cabang;
+
+    const borang = bolehUbah ? `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Jurnal baru</h3><span class="satuan-uang">dalam Rupiah</span></div>
+        <p class="petunjuk">Untuk membetulkan catatan yang bukan uang tunai: salah akun beban, biaya
+           dibayar di muka, gaji yang terutang. Uang tunai dicatat lewat menu Kas &amp; Bank.
+           Yang tersimpan tidak bisa dihapus — kalau keliru, balikkan.</p>
+        <div class="baris2">
+          <div class="grup"><label>Tanggal</label><input type="date" id="jmTanggal" value="${tanggalLokal()}"></div>
+          <div class="grup"><label>Cabang</label><input type="text" id="jmCabang" value="${esc(cabangBorang)}" disabled></div>
+        </div>
+        <div class="grup"><label>Keterangan</label>
+          <input type="text" id="jmKet" placeholder="mis. Koreksi beban listrik Agustus yang tercatat ke beban gaji"></div>
+        <div class="gulir-x" id="tabelJurnal"><table>
+          <thead><tr><th>Akun</th><th class="kanan">Debit</th><th class="kanan">Kredit</th><th></th></tr></thead>
+          <tbody>${barisJurnalHtml(0)}${barisJurnalHtml(1)}</tbody>
+        </table></div>
+        <div class="bar-alat" style="margin-top:10px">
+          <button type="button" class="tombol" id="btnBarisJurnal">${ikonAksi('tambah')}<span>Baris</span></button>
+          <div style="flex:1"></div>
+          <span id="jmSelisih" class="petunjuk" style="margin:0"></span>
+          <button type="button" class="tombol utama" id="btnSimpanJurnal" disabled>${ikonAksi('simpan')}<span>Simpan jurnal</span></button>
+        </div>
+      </div>` : '';
+
+    const daftar = (d.jurnal || []);
+    const baris = (j) => `<tr>
+      <td data-l="Tanggal">${esc(tglTampil(j.tanggal))}<span class="petunjuk" style="display:block">${esc(j.no_jurnal)} · ${esc(j.cabang)}</span></td>
+      <td data-l="Keterangan">${j.pembalik ? '<span class="lencana">pembalik</span>' + ' ' : ''}${j.dibalik_oleh ? '<span class="lencana">sudah dibalik</span>' + ' ' : ''}${esc(j.keterangan)}
+        <span class="petunjuk" style="display:block">${j.baris.map(b =>
+          `${esc(b.kode_akun)} ${esc(b.nama_akun)}: ${b.debit ? 'D ' + rpTeks(b.debit) : 'K ' + rpTeks(b.kredit)}`).join(' · ')}</span></td>
+      <td class="kanan" data-l="Jumlah">${rp(j.total)}</td>
+      <td>${bolehUbah && !j.pembalik && !j.dibalik_oleh
+        ? `<button type="button" class="tombol kecil ikon-saja" title="Balikkan jurnal ini" aria-label="Balikkan jurnal ini" data-balik-jurnal="${esc(j.uuid)}" data-no="${esc(j.no_jurnal)}">${ikonAksi('retur')}</button>` : ''}</td>
+    </tr>`;
+
+    w.innerHTML = borang + tombolUnduh('jurnal', par) + `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Jurnal penyesuaian ${esc(par.periode)}</h3><span class="satuan-uang">dalam Rupiah</span></div>
+      ${daftar.length ? `<div class="gulir-x"><table>
+        <thead><tr><th>Tanggal</th><th>Keterangan</th><th class="kanan">Jumlah</th><th></th></tr></thead>
+        <tbody>${daftar.map(baris).join('')}</tbody></table></div>`
+        : '<p class="petunjuk">Belum ada jurnal penyesuaian di periode ini.</p>'}
+    </div>`;
+    hitungSelisihJurnal();
+  } catch (e) {
+    w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+  }
+}
+
+async function simpanJurnalManual() {
+  const h = await API.jurnalManual({
+    uuid: _jurnalUuid,
+    tanggal: $('#jmTanggal').value,
+    cabang: $('#jmCabang').value,
+    keterangan: $('#jmKet').value.trim(),
+    baris: bacaBarisJurnal()
+  });
+  Admin.toast(h.duplikat ? 'Jurnal ini sudah tersimpan sebelumnya.' : 'Jurnal ' + h.no_jurnal + ' tersimpan.');
+  return tampilkanJurnalManual();
+}
+
+async function balikJurnalManual(uuid, no) {
+  const ya = await Admin.tanya('Balikkan ' + no + '?',
+    '<p class="petunjuk">Jurnal baru dibuat dengan angka yang persis kebalikannya, bertanggal hari ini. ' +
+    'Keduanya tetap tercatat. Tidak bisa diurungkan.</p>', { ya: 'Balikkan', jenis: 'bahaya' });
+  if (!ya) return;
+  const h = await API.balikJurnalManual({ uuid });
+  Admin.toast(h.membalik + ' dibalik oleh ' + h.no_jurnal + '.');
+  return tampilkanJurnalManual();
+}
+
+/* ==================== BUKU BESAR PER AKUN (bagian 221) ====================
+ *
+ * Tab keempat Keuangan. Satu akun, satu periode: saldo awal, tiap mutasi
+ * dengan SALDO BERJALAN yang dihitung server, saldo akhir. Alat telusur, bukan
+ * alat catat — tidak ada satu pun tombol simpan di sini.
+ *
+ * Daftar akunnya HANYA yang bergerak atau bersaldo di periode itu, dari
+ * server: dropdown berisi 40 akun yang 30 di antaranya kosong membuat orang
+ * mengira laporannya rusak.
+ */
+let _bbAkun = '';
+
+async function tampilkanBukuBesar() {
+  const w = $('#hasilKeuangan');
+  w.innerHTML = rangkaLaporan();
+  try {
+    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+    const daftar = await API.daftarAkunBergerak(par);
+    const akun = daftar.akun || [];
+    if (!akun.some(a => a.kode === _bbAkun)) _bbAkun = akun.length ? akun[0].kode : '';
+
+    const pilih = `<div class="kartu">
+      <div class="saring-baris">
+        <div class="kendali-penuh"><label>Akun</label>
+          <select id="bbAkun" title="Akun">
+            ${akun.map(a => `<option value="${esc(a.kode)}" ${a.kode === _bbAkun ? 'selected' : ''}>${esc(a.kode)} — ${esc(a.nama)}</option>`).join('')}
+          </select></div>
+      </div>
+      <p class="petunjuk">Riwayat satu akun: saldo awal bulan, setiap catatan yang menambah atau
+         mengurangi, dan saldo sesudahnya. Hanya akun yang bergerak di periode ini yang
+         ditawarkan. Nomor jurnal menunjukkan asal catatannya.</p>
+    </div>`;
+
+    if (!_bbAkun) {
+      w.innerHTML = pilih.replace('</select></div>', '</select></div>') +
+        '<div class="kartu"><p class="petunjuk">Tidak ada akun yang bergerak di periode ini.</p></div>';
+      return;
+    }
+
+    const d = await API.bukuBesar({ ...par, kode_akun: _bbAkun });
+    const SUMBER = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
+                     RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer',
+                     PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
+                     LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa' };
+    const baris = (b) => `<tr>
+      <td data-l="Tanggal">${esc(tglTampil(b.tanggal))}<span class="petunjuk" style="display:block">${esc(b.no_jurnal)}</span></td>
+      <td data-l="Sumber">${esc(SUMBER[b.sumber] || b.sumber)}</td>
+      <td data-l="Keterangan">${esc(b.keterangan)}</td>
+      <td class="kanan" data-l="Debit">${b.debit ? rp(b.debit) : ''}</td>
+      <td class="kanan" data-l="Kredit">${b.kredit ? rp(b.kredit) : ''}</td>
+      <td class="kanan" data-l="Saldo"><strong>${rp(b.saldo)}</strong></td>
+    </tr>`;
+
+    w.innerHTML = pilih + tombolUnduh('buku_besar', { ...par, kode_akun: _bbAkun }) + `
+      <div class="kartu laporan-uang">
+        <div class="bar-alat"><h3>${esc(d.akun.kode)} ${esc(d.akun.nama)} — ${esc(d.periode)} · ${esc(d.cabang)}</h3>
+          <span class="satuan-uang">dalam Rupiah</span></div>
+        <div class="gulir-x"><table>
+          <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>
+            <th class="kanan">Debit</th><th class="kanan">Kredit</th><th class="kanan">Saldo</th></tr></thead>
+          <tbody>
+            <tr class="tebal"><td data-l="Tanggal">${esc(tglTampil(d.dari))}</td><td data-l=""></td>
+              <td data-l="Keterangan">Saldo awal</td><td data-l=""></td><td data-l=""></td>
+              <td class="kanan" data-l="Saldo"><strong>${rp(d.saldo_awal)}</strong></td></tr>
+            ${d.baris.map(baris).join('')}
+            <tr class="tebal pisah"><td data-l="Tanggal">${esc(tglTampil(d.sampai))}</td><td data-l=""></td>
+              <td data-l="Keterangan">Saldo akhir · ${d.baris.length} catatan</td>
+              <td class="kanan" data-l="Debit">${rp(d.total_debit)}</td>
+              <td class="kanan" data-l="Kredit">${rp(d.total_kredit)}</td>
+              <td class="kanan" data-l="Saldo"><strong>${rp(d.saldo_akhir)}</strong></td></tr>
+          </tbody></table></div>
+        ${d.baris.length ? '' : '<p class="petunjuk">Tidak ada catatan di periode ini — saldonya tidak berubah.</p>'}
+      </div>`;
+  } catch (e) {
+    w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+  }
 }
 
 async function tampilkanLabaRugi() {
@@ -6174,7 +6390,7 @@ function pasangEvent() {
         APP_STATE.hasilTutupShift = null;
         $('#tiraiTutupShift').classList.remove('tampil');
         gambarKeadaanShift();
-        Admin.toast('Shift itu sudah tidak ada di server, jadi dilepas dari perangkat ini. '
+        Admin.toast('Shift itu sudah ditutup dari perangkat lain, jadi dilepas dari perangkat ini. '
                     + 'Silakan buka shift baru.', 'galat');
         return;
       }
@@ -6328,6 +6544,38 @@ function pasangEvent() {
   $('#tabKeu').addEventListener('click', e => {
     const t = e.target.closest('[data-tab-keu]');
     if (t) pilihTabKeu(t.dataset.tabKeu);
+  });
+  /* Borang jurnal penyesuaian (bagian 220): satu pendengar untuk seluruh
+     kartunya, karena barisnya lahir dan hilang selama diisi. */
+  $('#hasilKeuangan').addEventListener('click', async e => {
+    const t = e.target.closest('button');
+    if (!t || document.body.classList.contains('tunggu')) return;
+    if (t.id === 'btnBarisJurnal') {
+      const tb = $('#tabelJurnal tbody');
+      tb.insertAdjacentHTML('beforeend', barisJurnalHtml(tb.children.length));
+      hitungSelisihJurnal(); return;
+    }
+    if (t.classList.contains('jmHapus')) {
+      const tb = $('#tabelJurnal tbody');
+      if (tb.children.length > 2) t.closest('tr').remove();
+      hitungSelisihJurnal(); return;
+    }
+    if (t.id === 'btnSimpanJurnal') {
+      t.disabled = true;
+      try { await simpanJurnalManual(); } catch (x) { Admin.toast(x.message, 'galat'); t.disabled = false; }
+      return;
+    }
+    if (t.dataset.balikJurnal) {
+      t.disabled = true;
+      try { await balikJurnalManual(t.dataset.balikJurnal, t.dataset.no); }
+      catch (x) { Admin.toast(x.message, 'galat'); t.disabled = false; }
+    }
+  });
+  $('#hasilKeuangan').addEventListener('input', e => {
+    if (e.target.closest('#tabelJurnal') || e.target.id === 'jmKet') hitungSelisihJurnal();
+  });
+  $('#hasilKeuangan').addEventListener('change', e => {
+    if (e.target.id === 'bbAkun') { _bbAkun = e.target.value; tampilkanBukuBesar(); }
   });
   /* Uji kebenaran melepas sorotan tab: hasilnya menggantikan isi layar, dan
      tab yang masih tersorot akan menunjuk laporan yang sudah tidak terlihat. */

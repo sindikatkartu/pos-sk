@@ -153,7 +153,8 @@ const API = (() => {
     'foto_pulsa',
     'rincian_shift_pulsa', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
-    'simpan_kas', 'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
+    'simpan_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
+    'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
     'bayar_piutang', 'bayar_utang',
     /* Pengajuan void dijaga uuid-nya sendiri di MASTER; keputusan yang sudah
@@ -197,7 +198,7 @@ const API = (() => {
        log_audit: tiap ulangan menulis satu BACA_GALAT lagi, dan jejak audit
        yang penuh duplikat dari ulangan otomatis jadi lebih sulit dibaca
        persis saat orang sedang menelusuri sesuatu. */
-    'tandai_galat_dibaca',
+    'tandai_galat_dibaca', 'balik_jurnal_manual',
     'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
     'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
@@ -610,6 +611,11 @@ let _pernahJawab = false;
     bayarUtang:        (d) => panggil('bayar_utang', d),
     logAudit:          (d) => panggil('log_audit', d, { timeout: 60000 }),
     logGalat:          (d) => panggil('log_galat', d, { timeout: 60000 }),
+    jurnalManual:      (d) => panggil('jurnal_manual', d, { timeout: 60000 }),
+    balikJurnalManual: (d) => panggil('balik_jurnal_manual', d, { timeout: 60000 }),
+    daftarJurnalManual:(d) => panggil('daftar_jurnal_manual', d, { timeout: 60000 }),
+    bukuBesar:         (d) => panggil('buku_besar', d, { timeout: 60000 }),
+    daftarAkunBergerak:(d) => panggil('daftar_akun_bergerak', d, { timeout: 60000 }),
     tandaiGalatDibaca: (d) => panggil('tandai_galat_dibaca', d),
     daftarPembelian:   (d) => panggil('daftar_pembelian', d),
     rincianPembelian:  (d) => panggil('rincian_pembelian', d),

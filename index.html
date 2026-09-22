@@ -337,6 +337,7 @@
     <section class="layar" id="layarRiwayat">
       <div class="kartu">
         <h3>Nota shift ini</h3>
+        <p class="petunjuk">Nota yang dibuat sejak laci dibuka. Untuk nota hari lain, cari lewat nomor notanya di bawah.</p>
         <div id="isiRiwayat"></div>
       </div>
       <div class="kartu">
@@ -434,6 +435,7 @@
           <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
           </div>
         </div>
+        <p class="petunjuk">Laba rugi, neraca, jurnal, dan buku besar. Angkanya berasal dari nota, pembelian, dan kas yang sudah dicatat — bukan diketik di sini. Pilih bulan dan cabang, lalu tab-nya.</p>
         <!-- TAB, bukan tombol. Diminta pemilik 21 Sep 2026: "tidak bisa
              meniru cara seperti menu laporan penjualan menggunakan tab?"
 
@@ -448,7 +450,12 @@
              deretan tab membuatnya satu ketukan meleset dari sekadar melihat. -->
         <div class="tab-modal tanpa-cetak" id="tabKeu" style="margin-top:4px;margin-bottom:0">
           <button data-tab-keu="labarugi" class="aktif">Laba Rugi</button>
+          <!-- Tab ketiga (bagian 220). Muncul untuk siapa pun berizin
+               laporan_keuangan·lihat; borangnya sendiri hanya digambar untuk
+               yang punya ·ubah — yang lain melihat daftarnya saja. -->
           <button data-tab-keu="neraca">Neraca</button>
+          <button data-tab-keu="jurnal">Jurnal penyesuaian</button>
+          <button data-tab-keu="bukubesar">Buku besar</button>
         </div>
       </div>
       <div id="hasilKeuangan"></div>
@@ -483,6 +490,7 @@
       <div class="petak-tunggal">
         <div class="kartu" id="kartuShift">
           <h3>Shift kasir</h3>
+          <p class="petunjuk">Catatan buka–tutup laci tiap kasir: uang awal, penjualan selama shift, dan setoran yang diserahkan ke kantor.</p>
           <div id="infoShift"></div>
           <div class="grup" style="margin-top:12px" id="grupKasAwal">
             <label>Kas awal laci</label>
@@ -555,6 +563,7 @@
       <div class="petak-tunggal">
         <div class="kartu" id="kartuAkun">
           <h3>Ganti PIN</h3>
+          <p class="petunjuk">PIN dipakai untuk masuk ke aplikasi ini. Ganti kalau merasa ada yang tahu; PIN lama tidak berlaku lagi begitu yang baru tersimpan.</p>
           <div class="grup"><label>PIN lama</label><input type="password" id="pinLama" inputmode="numeric"></div>
           <div class="grup"><label>PIN baru (6 digit)</label><input type="password" id="pinBaru" inputmode="numeric"></div>
           <button class="tombol utama" id="btnGantiPin">Ganti PIN</button>
@@ -940,6 +949,7 @@
       <div class="petak">
         <div class="kartu">
           <h3>Printer</h3>
+          <p class="petunjuk">Printer struk yang dipakai perangkat ini dan cara mencetaknya. Pengaturan di sini hanya berlaku untuk perangkat ini.</p>
           <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPrinter">Belum terhubung</p>
           <button class="tombol" id="btnHubungkanPrinter">Hubungkan printer Bluetooth</button>
           <button class="tombol" id="btnUjiCetak" style="margin-top:8px">Uji cetak</button>
