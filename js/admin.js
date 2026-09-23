@@ -4244,7 +4244,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="total-baris"><span>Subtotal</span><span>${rp(d.subtotal)}</span></div>
       ${d.diskon ? `<div class="total-baris"><span>Diskon dokumen</span><span>-${rp(d.diskon)}</span></div>` : ''}
       ${d.ppn ? `<div class="total-baris"><span>PPN</span><span>${rp(d.ppn)}</span></div>` : ''}
-      <div class="total-baris besar"><span>TOTAL</span><span>${rp(d.total)}</span></div>`,
+      <div class="total-baris besar"><span>TOTAL</span><span>${rp(d.total)}</span></div>
+      ${/* Bagian 244: invoice yang sudah dibayar ke supplier SEBELUM barang datang
+           dilunasi saat diperiksa, bertanggal pembayaran sebenarnya. Hanya bagi
+           yang juga boleh membayar utang. */ ''}
+      ${bolehPeriksa && bolehIzin('utang', 'buat') ? `<div class="kartu rapat" id="pbDimukaKartu" style="margin-top:12px">
+        <label class="cek"><input type="checkbox" id="pbDimuka"> Sudah dibayar ke supplier sebelum barang datang</label>
+        <div id="pbDimukaIsi" hidden>
+          <div class="saring-baris">
+            <div class="kendali-tetap"><label>Tanggal dibayar</label><input type="date" id="pbDimukaTgl" value="${esc(String(d.tanggal || '').substring(0, 10))}"></div>
+            <div class="kendali-tetap"><label>Dari</label><select id="pbDimukaSumber">
+              <option value="transfer">Transfer bank</option><option value="kas_admin">Kas Admin</option></select></div>
+            <div class="kendali-tetap"><label>Jumlah</label><input type="text" id="pbDimukaJumlah" class="uang" value="${rp0(d.total)}"></div>
+          </div>
+          <p class="petunjuk">Tanggal saat uangnya diserahkan ke supplier. Utangnya langsung lunas pada tanggal itu;
+             kalau jumlahnya kurang dari total, sisanya tetap utang dan dibayar di menu Utang.</p>
+        </div>
+      </div>` : ''}`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
        ${bolehPeriksa
          ? `<button class="tombol bahaya" data-periksa-tolak="${esc(d.uuid)}">${ikonAlat('blokir')}<span>Tolak…</span></button>
@@ -10662,13 +10678,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       if (d.periksaBeli) return rincianPembelian(d.periksaBeli);
       if (d.periksaOk) {
+        /* Dibaca SEBELUM tanya(): isinya milik modal rincian yang masih terbuka. */
+        const dimuka = $('#pbDimuka') && $('#pbDimuka').checked ? {
+          tanggal: nilai('pbDimukaTgl'), metode: nilai('pbDimukaSumber') || 'transfer',
+          jumlah: angkaDari($('#pbDimukaJumlah') ? $('#pbDimukaJumlah').value : '')
+        } : null;
+        if (dimuka && !dimuka.tanggal) return toast('Isi tanggal pembayaran ke supplier.', 'galat');
+        const sumberTeks = dimuka && dimuka.metode === 'kas_admin' ? 'Kas Admin' : 'Transfer bank';
         if (!(await tanya('Tandai pembelian ini sudah diperiksa?',
-              '<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Sesudah ini utangnya bisa dibayar di menu Utang.</p>',
+              dimuka
+                ? `<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Pembayaran ${esc(rpTeks(dimuka.jumlah))}
+                     tanggal ${esc(tglTampil(dimuka.tanggal))} dari ${sumberTeks} dicatat, dan utangnya dilunasi.</p>`
+                : '<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Sesudah ini utangnya bisa dibayar di menu Utang.</p>',
               { ya: 'Sudah diperiksa' }))) return;
         try {
-          await API.periksaPembelian({ uuid: d.periksaOk, cabang: APP_STATE.cabang, keputusan: 'DIPERIKSA' });
+          const h = await API.periksaPembelian(Object.assign(
+            { uuid: d.periksaOk, cabang: APP_STATE.cabang, keputusan: 'DIPERIKSA' },
+            dimuka ? { dibayar_dimuka: dimuka } : {}));
           document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
-          await sukses('Pembelian ditandai sudah diperiksa — utangnya kini bisa dibayar di menu Utang.', 'pembelian');
+          const b = h && h.dibayar;
+          await sukses(b
+            ? (b.lunas ? 'Pembelian diperiksa dan utangnya lunas per ' + tglTampil(dimuka.tanggal) + '.'
+                       : 'Pembelian diperiksa. Dibayar di muka ' + rpTeks(dimuka.jumlah) + '; sisa utang ' + rpTeks(b.sisa) + ' dibayar di menu Utang.')
+            : 'Pembelian ditandai sudah diperiksa — utangnya kini bisa dibayar di menu Utang.', 'pembelian');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
@@ -11400,6 +11432,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
 
     document.addEventListener('change', async (e) => {
+      if (e.target.id === 'pbDimuka') { const x = $('#pbDimukaIsi'); if (x) x.hidden = !e.target.checked; return; }
       if (e.target.id === 'grafikHari') { muatGrafik(Number(e.target.value)); return; }
       if (e.target.id === 'pCabangSemua') { terapkanCabangSemua(); return; }
       /* Periode dashboard menembak ulang API — beda dengan penyaring layar Produk
