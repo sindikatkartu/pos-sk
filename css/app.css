@@ -796,17 +796,17 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   border-radius: 50%; background: var(--peringatan);
 }
 
-/* Baris penghitung di atas tabel. `.jumlah-baris` membawa `margin-left: auto`
-   untuk hidupnya di dalam `.bar-alat`; di sini ia berdiri sendiri dan harus
-   rata kiri — dorongan itu dinolkan tanpa menyentuh kelasnya, yang masih
-   dipakai layar Laporan. */
-.kepala-tabel { display: flex; align-items: center; margin: -2px 0 10px; }
-.kepala-tabel .jumlah-baris { margin-left: 0; }
-/* Kaki tabel Stok (bagian 234): penghitung baris di kiri, pager di kanan, satu
-   baris — bukan dua (kepala + pager) seperti sebelumnya. */
-.kaki-tabel { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 10px; }
+/* Kaki tabel (Stok bagian 234, Produk bagian 236): penghitung baris di kiri,
+   pager di kanan, satu baris — bukan dua (kepala + pager) seperti sebelumnya.
+   `.jumlah-baris` membawa `margin-left: auto` untuk hidupnya di dalam
+   `.bar-alat` (layar Laporan); di sini dinolkan tanpa menyentuh kelasnya.
+   DITIPISKAN (pemilik 23 Sep 2026: "kaki tabel jangan terlalu tebal"): sela
+   atas 6 px, dan tombol pager 22 px, bukan 27 — di PC/tablet kakinya 28 px,
+   dulu 37. Di HP tombolnya tetap 40 px: itu sasaran jari, bukan hiasan. */
+.kaki-tabel { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 6px; }
 .kaki-tabel .jumlah-baris { margin: 0; }
-.kaki-tabel .pager { padding: 0; margin-left: auto; }
+.kaki-tabel .pager { padding: 0; margin-left: auto; gap: 8px; }
+.kaki-tabel .tombol.kecil { padding: 2px 8px; }
 /* Kotak mini di layar Stok tanpa baris ekor — tidak ada pembanding periode di
    sini, dan barisnya yang membuat kotak Dasbor 85 px. Tanpanya ±66 px.
    Komentar di antara selektor dan kurung DISENGAJA: blokCA() di uji.js
@@ -2371,9 +2371,6 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
 .uji-tak { color: var(--peringatan); font-weight: 700; }
 
 .bar-alat { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
-/* Kalimat pembuka yang hidup DI DALAM bar alat (dashboard): satu baris penuh di
-   bawah kendalinya, tanpa margin — jarak ke elemen berikut tetap milik barnya. */
-.bar-alat > .petunjuk-bar { display: block; flex: 1 1 100%; margin: 0; }
 /* Judul di dalam bar alat: tanpa margin, dari kelas — bukan `style="margin:0"`
    yang dulu diulang di tiga belas tempat. */
 /* Turunan, bukan anak langsung: judul Laporan ada di dalam .saringan dan
@@ -2805,7 +2802,6 @@ input.sudah-hitung {
      satu kotak KPI di HP. */
   .bar-alat.bar-dash { grid-template-columns: 1fr 1fr; }
   .bar-alat.bar-dash > .keterangan-dash { grid-column: 1 / -1; }
-  .bar-alat > .petunjuk-bar { grid-column: 1 / -1; }
   /* "dalam Rupiah" di HP berdiri di baris sendiri di bawah judul; margin kiri 8 px
      (yang di PC memisahkannya dari judul) di sini cuma mendorongnya 8 px keluar
      kotak — uji-rupa menangkapnya di Piutang, 22 Sep 2026 (§225). */

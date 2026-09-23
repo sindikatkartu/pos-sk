@@ -1327,11 +1327,8 @@ const Admin = (() => {
           ${Periode.html({ ...PERIODE_DASH, nilai: periodeDash, nilaiDari: dashKustom.dari, nilaiSampai: dashKustom.sampai })}
           ${pilihCabangDash()}
           <span class="petunjuk keterangan-dash" style="margin:0" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</span>
-          ${/* Kalimat pembuka DI DALAM bar, baris penuh: ditaruh di antara bar dan strip ia
-             merusak irama 16 px bar → strip → petak yang dijaga uji-dashboard. SPAN, bukan
-             <p>: uji-ruang menghitung p.petunjuk sebagai kotak, dan keterangan sebaris di
-             dalam bar memang bukan blok (sama dengan keterangan-dash). */ ''}
-          <span class="petunjuk petunjuk-bar">Ringkasan penjualan, laba, dan stok untuk periode yang dipilih. Tiap kotak bisa dibuka jadi tabel lewat tautan di kakinya.</span>
+          ${/* Kalimat pembuka Dashboard DIBUANG atas perintah pemilik 23 Sep 2026
+             (bagian 236); keterangan-dash di atas tetap kalimat pembuka layarnya. */ ''}
         </div>
 
         <div id="stripDash">${stripDash(d, null)}</div>
@@ -2196,9 +2193,11 @@ const Admin = (() => {
   }
 
   /**
-   * Isi kartu tabel: penghitung, tabel, bilah halaman.
+   * Isi kartu tabel: tabel, lalu kaki (penghitung + bilah halaman).
    *
-   * Penghitung PINDAH dari bar alat ke sini v1.149.0. Di bar alat ia jadi
+   * Penghitung PINDAH dari bar alat ke sini v1.149.0, dan sejak bagian 236 ke
+   * KAKI tabel bersama bilah halaman — pola yang sama dengan Stok (pemilik
+   * 23 Sep 2026: "3823 produk pindah ke bawah seperti di layar Stok"). Di bar alat ia jadi
    * kendali kelima yang bukan kendali — tidak bisa ditekan, tidak bisa diubah,
    * dan ikut mendorong bar alatnya membungkus jadi dua baris. Tempatnya yang
    * benar menempel pada apa yang dihitungnya.
@@ -2233,9 +2232,8 @@ const Admin = (() => {
       ? baris
       : halProduk.urutkan(baris, kolom);
     return (modeNonaktif.has('produk') ? spandukNonaktif('produk') : '') +
-      `<div class="kepala-tabel"><span class="jumlah-baris">${hitung}</span></div>` +
       tabelProduk(halProduk.potong(urut), kolom) +
-      halProduk.pager(urut.length);
+      `<div class="kaki-tabel"><span class="jumlah-baris">${hitung}</span>${halProduk.pager(urut.length)}</div>`;
   }
 
 
