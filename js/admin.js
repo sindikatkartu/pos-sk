@@ -6501,12 +6501,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                  jadi dropdown dan penjaga server tidak bisa menyimpang diam-diam. */
               ['PAGI', 'MALAM'].map(j => `<option value="${j}">${j}</option>`).join('')}
           </select></div>
+          ${/* Terkunci begitu cabang punya shift sebelumnya — juga saat warisannya
+               0 karena sudah diserahkan (bagian 238). Kolom yang terbuka di
+               keadaan itu mengundang ketikan yang diabaikan diam-diam oleh
+               pembuka shift. */ ''}
           <div class="kendali-tetap"><label>Kas awal</label>
-            <input type="text" id="spsKasAwal" value="${rp0(st.kas_awal)}" ${st.kas_awal ? 'disabled' : ''}></div>
+            <input type="text" id="spsKasAwal" value="${rp0(st.kas_awal)}" ${(st.kas_awal || st.warisan_dari) ? 'disabled' : ''}></div>
         </div>
         <p class="petunjuk">${st.kas_awal
-          ? 'Kas awal diwarisi dari shift sebelumnya di cabang ini — tidak bisa diketik.'
-          : 'Belum ada shift sebelumnya di cabang ini, jadi kas awalnya diisi sekali di sini.'}</p>
+          ? `Kas awal ${rp0(st.kas_awal)} diwarisi dari shift ${esc(st.warisan_dari || 'sebelumnya')} yang uangnya belum diserahkan ke Head Admin. Sesudah Head Admin menerimanya di Kas & Bank → Setoran toko, kas awal shift berikutnya kembali 0.`
+          : st.warisan_dari
+            ? `Kas shift ${esc(st.warisan_dari)} sudah diserahkan ke Head Admin, jadi kas awal shift ini 0.`
+            : 'Belum ada shift sebelumnya di cabang ini, jadi kas awalnya diisi sekali di sini.'}</p>
       </div>
       ${/* Kolom saldo awal TERBUKA hanya kalau server bilang begitu (shift pertama
            cabang + izin pulsa·ubah, bagian 228). Layar tidak menebak sendiri. */ ''}
@@ -9427,7 +9433,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <th class="kanan">Selisih</th><th></th></tr></thead>
         <tbody>${belum.map((sh) => `<tr>
           <td data-l="Cabang">${esc(sh.kode_cabang || '')}</td>
-          <td data-l="Shift">${esc(sh.id_shift)}</td>
+          <td data-l="Shift">${esc(sh.id_shift)}${sh.jenis === 'PULSA' ? ' <span class="lencana">pulsa</span>' : ''}</td>
           <td data-l="Tutup">${esc(waktuTampil(sh.tutup))}</td>
           <td class="kanan" data-l="Uang dihitung">${rp(sh.kas_fisik)}</td>
           <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
@@ -9440,7 +9446,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">Menerima setoran memindahkan uangnya dari
          <strong>Kas di Tangan</strong> ke <strong>Kas Admin</strong>. Shift yang
          belum ditutup tidak muncul di sini — uang di laci yang masih dipakai
-         tidak boleh dipindahkan.</p>
+         tidak boleh dipindahkan. Shift pulsa ikut di sini; sesudah diterima,
+         kas awal shift pulsa berikutnya kembali 0.</p>
     </div>`;
   }
 
@@ -10356,7 +10363,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           /* Jurnal yang gagal DISEBUT, tidak ditelan: shift yang tertutup tanpa
              jurnal terlihat persis sama dengan yang berjurnal. */
           if (h.jurnal_gagal) toast('Shift sudah ditutup, tapi pencatatan ke buku besar gagal. Beri tahu admin: ' + h.jurnal_gagal, 'galat');
-          else toast('Shift ditutup. Margin ' + rpTeks(h.margin) + ', selisih kas ' + rpTeks(h.selisih) + '.');
+          else toast('Shift ditutup. Margin ' + rpTeks(h.margin) + ', selisih kas ' + rpTeks(h.selisih) +
+                     '. Serahkan uang ' + rpTeks(h.kas_fisik) + ' ke Head Admin — ia menerimanya di Kas & Bank.');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
