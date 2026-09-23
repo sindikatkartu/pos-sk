@@ -7936,6 +7936,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   const LENCANA_OPNAME = { DRAFT: 'kuning', REVIEW: 'kuning', POSTED: 'hijau', DIBATALKAN: '' };
   let opnameAktif = null;   // dokumen yang sedang dihitung
+  /* Pemindai opname (bagian 237). `pindaiPeta` dibangun sekali per jendela dari
+     katalog perangkat: barcode produk → barcode varian → SKU, urutan yang sama
+     dengan Kasir. `hitunganBerubah` = SKU yang angkanya berubah sejak simpan
+     terakhir — HANYA itu yang dikirim. Mengirim seluruh daftar tiap simpan
+     berarti pada pindaian ke-2.000 tiap simpan mengirim 2.000 baris lagi, dan
+     server membaca ulang seluruh peta stok cabang untuk tiap panggilan.
+     Nilainya nomor urut perubahan: pindaian yang datang SELAMA simpan berjalan
+     tidak kehilangan tandanya oleh simpan yang sudah lewat.
+     `PINDAI_ATUR` boleh ditimpa lewat window.PINDAI_ATUR — untuk uji, supaya
+     "30 detik sunyi" tidak harus benar-benar ditunggu 30 detik. */
+  const PINDAI_ATUR = Object.assign({ sunyi: 30000, batas: 200 }, window.PINDAI_ATUR || {});
+  let pindaiPeta = null;
+  const hitunganBerubah = new Map();
+  let urutUbah = 0, pindaiSejakSimpan = 0, pindaiTimer = null, sedangSimpan = false, simpanTertunda = false;
 
   async function muatOpname() {
     memuat('#isiOpname');
@@ -8075,8 +8089,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${d.buta ? '<span class="lencana kuning">mode buta</span>' : ''}
         <span class="lencana" id="opProgres">${d.item.length} / ${semua.length} dihitung</span>
         <div style="flex:1"></div>
+        <input type="text" class="input-cari" id="opPindai" placeholder="Pindai barcode / SKU…" autocomplete="off" style="max-width:260px">
+        <label class="op-kelipatan" style="margin:0" title="Jumlah yang ditambahkan pada pindaian berikutnya, lalu kembali ke 1">×
+          <input type="number" id="opKelipatan" value="1" min="1" style="width:64px"></label>
         <input type="text" class="input-cari" id="opCari" placeholder="Saring daftar…" style="max-width:200px">
       </div>
+      <p class="petunjuk" id="opPindaiInfo">Pindai label barang: hitungan barisnya naik 1 tiap pindaian, dan tersimpan sendiri saat pemindaian berhenti.</p>
       ${d.buta ? '<p class="petunjuk">Stok sistem sengaja tidak ditampilkan. Hitung apa adanya — selisih baru terlihat setelah Anda menekan "Selesai menghitung".</p>' : ''}
       <div style="max-height:52vh;overflow:auto" id="wadahHitung">
         <table>
@@ -8112,6 +8130,148 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>
        <button class="tombol" id="btnSimpanHitungan" data-uuid="${esc(d.uuid)}">Simpan sementara</button>
        <button class="tombol utama" id="btnSelesaiHitung" data-uuid="${esc(d.uuid)}">${ikonAlat('setujui')}<span>Selesai menghitung</span></button>`);
+    siapkanPindai();
+  }
+
+  /** Peta pencocokan pemindai dari katalog perangkat, dibangun sekali per jendela. */
+  async function siapkanPindai() {
+    hitunganBerubah.clear(); pindaiSejakSimpan = 0;
+    clearTimeout(pindaiTimer); pindaiTimer = null;
+    sedangSimpan = false; simpanTertunda = false;
+    pindaiPeta = null;
+    $('#opPindai')?.focus();
+    const barcode = new Map(), sku = new Map(), nama = new Map();
+    try {
+      (await DB.all('produk')).forEach(p => {
+        const kodeSku = String(p.sku || '');
+        if (!kodeSku) return;
+        sku.set(kodeSku.toLowerCase(), { sku: kodeSku, kode: '' });
+        nama.set(kodeSku, String(p.nama || kodeSku));
+        /* Satu barcode bisa dipakai lebih dari satu produk (barcode pabrik yang
+           sama untuk dua SKU): semuanya disimpan, dan yang ganda DITANYA di
+           pindaiOpname, bukan ditebak — salah pilih di sini berarti selisih
+           opname pada barang yang tidak pernah disentuh. */
+        const b = String(p.barcode || '').trim().toLowerCase();
+        if (b) barcode.set(b, (barcode.get(b) || []).concat([{ sku: kodeSku, kode: '' }]));
+        (p.varian || []).forEach(v => {
+          const bv = String(v.barcode || '').trim().toLowerCase();
+          if (bv) barcode.set(bv, (barcode.get(bv) || []).concat([{ sku: kodeSku, kode: String(v.kode || '') }]));
+        });
+      });
+    } catch (e) {
+      const info = $('#opPindaiInfo');
+      if (info) info.textContent = 'Katalog di perangkat ini tidak terbaca, pemindai tidak bisa mencocokkan kode: ' + e.message;
+    }
+    pindaiPeta = { barcode, sku, nama };
+  }
+
+  function perbaruiProgresHitung() {
+    const semua = $$('[data-hitung]');
+    const terisi = semua.filter(i => String(i.value).trim() !== '').length;
+    const el = $('#opProgres');
+    if (el) el.textContent = `${terisi} / ${semua.length} dihitung`;
+  }
+
+  /**
+   * Satu pindaian = satu label barang. Barcode dulu (produk, lalu varian), baru
+   * SKU — label toko dicetak dari SKU untuk barang tanpa barcode pabrik. Yang
+   * ketemu di daftar: angkanya naik `× jumlah` (bawaan 1), barisnya menyala dan
+   * digulir ke tampilan, lalu fokus kembali ke kotak pindai supaya mesin bisa
+   * menembak terus tanpa tangan menyentuh layar. Ada di katalog tapi di luar
+   * daftar dokumen: barisnya ditambahkan di atas — server menerima SKU apa pun,
+   * dan barang yang nyata di rak harus terhitung, bukan ditolak.
+   */
+  function pindaiOpname(kodeMentah) {
+    const kode = String(kodeMentah || '').trim();
+    const q = kode.toLowerCase();
+    const info = $('#opPindaiInfo');
+    if (!q) return;
+    if (!pindaiPeta) { toast('Katalog masih disiapkan, pindai sekali lagi.', 'galat'); return; }
+    const calon = pindaiPeta.barcode.get(q) || (pindaiPeta.sku.has(q) ? [pindaiPeta.sku.get(q)] : null);
+    if (!calon) {
+      toast(`Kode ${kode} tidak dikenal di katalog.`, 'galat');
+      if (info) info.textContent = `Kode ${kode} tidak dikenal — angka tidak diubah.`;
+      return;
+    }
+    if (calon.length > 1) {
+      const daftar = calon.map(c => pindaiPeta.nama.get(c.sku) || c.sku).join(', ');
+      toast(`Barcode ${kode} dipakai ${calon.length} produk (${daftar}). Isi lewat kolom Fisik.`, 'galat');
+      if (info) info.textContent = `Barcode ${kode} ganda: ${daftar} — angka tidak diubah.`;
+      return;
+    }
+    const t = calon[0];
+    let inp = $$('[data-hitung]').find(i => i.dataset.hitung === t.sku);
+    if (!inp) {
+      const nm = pindaiPeta.nama.get(t.sku) || t.sku;
+      const tbody = $('#wadahHitung tbody');
+      if (!tbody) return;
+      tbody.insertAdjacentHTML('afterbegin', `
+            <tr data-baris-hitung data-sku="${esc(t.sku)}" data-nama="${esc(nm.toLowerCase())}">
+              <td>${esc(nm)}<div class="meta-kecil">${esc(t.sku)} · di luar cakupan, ditambahkan dari pindaian</div></td>
+              ${opnameAktif && opnameAktif.buta ? '' : '<td class="angka">—</td>'}
+              <td><input type="number" data-hitung="${esc(t.sku)}" value="" min="0" placeholder="—"></td>
+            </tr>`);
+      inp = $$('[data-hitung]').find(i => i.dataset.hitung === t.sku);
+      if (!inp) return;
+    }
+    const kelInp = $('#opKelipatan');
+    const kel = Math.max(1, Math.floor(Number(kelInp && kelInp.value) || 1));
+    inp.value = (Number(inp.value) || 0) + kel;
+    inp.classList.add('sudah-hitung');
+    hitunganBerubah.set(t.sku, ++urutUbah);
+    if (kelInp) kelInp.value = 1;
+    const tr = inp.closest('tr');
+    if (tr) {
+      tr.classList.remove('baris-pindai'); void tr.offsetWidth; tr.classList.add('baris-pindai');
+      tr.style.display = '';
+      tr.scrollIntoView({ block: 'nearest' });
+    }
+    if (info) info.textContent = `${pindaiPeta.nama.get(t.sku) || t.sku}${t.kode ? ' (' + t.kode + ')' : ''} · ${inp.value} pcs${kel > 1 ? ' (+' + kel + ')' : ''}`;
+    perbaruiProgresHitung();
+    pindaiSejakSimpan++;
+    jadwalkanSimpanOtomatis();
+    $('#opPindai')?.focus();
+  }
+
+  /* Simpan sendiri saat pemindaian BERHENTI (sunyi), atau paling lambat tiap
+     `batas` pindaian — bukan tiap N pindaian kecil: dengan ribuan barang, tiap
+     panggilan simpan itu berat di server (peta stok cabang dibaca ulang). */
+  function jadwalkanSimpanOtomatis() {
+    clearTimeout(pindaiTimer); pindaiTimer = null;
+    if (pindaiSejakSimpan >= PINDAI_ATUR.batas) { simpanHitunganBerubah(null); return; }
+    pindaiTimer = setTimeout(() => { pindaiTimer = null; simpanHitunganBerubah(null); }, PINDAI_ATUR.sunyi);
+  }
+
+  /**
+   * Kirim HANYA baris yang berubah sejak simpan terakhir — dipakai tombol
+   * Simpan sementara maupun simpan otomatis. Berjalan di latar: pindaian yang
+   * datang selama simpan berjalan menunggu giliran berikutnya, tidak tertelan
+   * dan tidak membuat petugas menunggu.
+   */
+  async function simpanHitunganBerubah(tombol) {
+    const d = opnameAktif;
+    if (!d) return;
+    const terisi = hitunganTerisi();
+    if (tombol && !terisi.length) return toast('Belum ada satu pun yang diisi.', 'galat');
+    const kirim = terisi.filter(i => hitunganBerubah.has(i.sku));
+    if (!kirim.length) { if (tombol) toast('Tidak ada perubahan sejak simpan terakhir.'); return; }
+    if (sedangSimpan) { simpanTertunda = true; return; }
+    const versi = new Map(kirim.map(i => [i.sku, hitunganBerubah.get(i.sku)]));
+    sedangSimpan = true;
+    if (tombol) tombol.disabled = true;
+    try {
+      const r = await API.simpanHitungan({ uuid: d.uuid, cabang: APP_STATE.cabang, item: kirim });
+      versi.forEach((v, kodeSku) => { if (hitunganBerubah.get(kodeSku) === v) hitunganBerubah.delete(kodeSku); });
+      pindaiSejakSimpan = 0;
+      toast(tombol
+        ? `${r.tersimpan} hitungan tersimpan. Stok sistem dikunci pada ${jamTampil(r.waktu_kunci)}.`
+        : `Tersimpan sendiri: ${r.tersimpan} baris.`);
+    } catch (x) { toast(x.message, 'galat'); }
+    finally {
+      sedangSimpan = false;
+      if (tombol) tombol.disabled = false;
+      if (simpanTertunda) { simpanTertunda = false; simpanHitunganBerubah(null); }
+    }
   }
 
   function gambarReviewOpname(d) {
@@ -10692,31 +10852,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Menutup TIDAK boleh membuang hitungan diam-diam. Jendela ini digambar
          ulang dari data server setiap kali dibuka, jadi angka yang sudah
          diketik tapi belum disimpan memang hilang saat ditutup — dan itu harus
-         dikatakan, bukan dibiarkan. Yang sudah tersimpan bertanda
-         `.sudah-hitung`; sisanya yang terisi berarti belum. */
+         dikatakan, bukan dibiarkan. Yang belum tersimpan = isi `hitunganBerubah`.
+         Sampai bagian 237 penandanya kelas `.sudah-hitung`, padahal kelas itu
+         dipasang penangan input BEGITU angka diketik — jadi tidak pernah ada
+         yang "belum", dan Tutup membuang hitungan tanpa bertanya. */
       if (t.id === 'btnTutupHitung') {
-        const belum = $$('[data-hitung]').filter(i =>
-          String(i.value).trim() !== '' && !i.classList.contains('sudah-hitung'));
-        if (belum.length && !(await tanya('Tutup tanpa menyimpan?',
-              `<div class="pesan peringatan">${belum.length} hitungan belum disimpan dan akan hilang.</div>`,
+        const belum = hitunganBerubah.size;
+        if (belum && !(await tanya('Tutup tanpa menyimpan?',
+              `<div class="pesan peringatan">${belum} hitungan belum disimpan dan akan hilang.</div>`,
               { ya: 'Tutup saja', jenis: 'bahaya' }))) return;
+        clearTimeout(pindaiTimer); pindaiTimer = null;
+        hitunganBerubah.clear();
         tutupModal();
         return;
       }
-      if (t.id === 'btnSimpanHitungan') {
-        const item = hitunganTerisi();
-        if (!item.length) return toast('Belum ada satu pun yang diisi.', 'galat');
-        t.disabled = true;
-        try {
-          const r = await API.simpanHitungan({ uuid: d.uuid, cabang: APP_STATE.cabang, item });
-          $('#opProgres').textContent = `${r.total_dihitung} dihitung`;
-          $$('[data-hitung]').forEach(i => { if (String(i.value).trim() !== '') i.classList.add('sudah-hitung'); });
-          toast(`${r.tersimpan} hitungan tersimpan. Stok sistem dikunci pada ${
-            jamTampil(r.waktu_kunci)}.`);
-        } catch (x) { toast(x.message, 'galat'); }
-        t.disabled = false;
-        return;
-      }
+      /* Hanya baris yang BERUBAH yang dikirim (bagian 237) — tiga koreksi
+         tangan tidak lagi mengirim ulang 3.000 baris. */
+      if (t.id === 'btnSimpanHitungan') { await simpanHitunganBerubah(t); return; }
       if (t.id === 'btnSelesaiHitung') {
         const item = hitunganTerisi();
         if (!item.length) return toast('Belum ada satu pun yang diisi.', 'galat');
@@ -10724,8 +10876,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               `<p class="petunjuk">${item.length} barang akan dikunci dan tidak bisa diubah lagi.</p>`,
               { ya: 'Selesaikan', jenis: 'bahaya' }))) return;
         t.disabled = true;
+        clearTimeout(pindaiTimer); pindaiTimer = null;
         try {
           await API.simpanHitungan({ uuid: d.uuid, cabang: APP_STATE.cabang, item });
+          hitunganBerubah.clear();
           await API.selesaiHitung({ uuid: d.uuid, cabang: APP_STATE.cabang });
           await bukaLayarHitung(d.uuid);   // muat ulang, kini status REVIEW
         } catch (x) {
@@ -10998,6 +11152,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        awal bisa dikemudikan tanpa menyentuh tetikus — dan pekerjaan pembelian
        memang dikerjakan dua tangan di papan ketik. */
     document.addEventListener('keydown', (e) => {
+      /* Mesin scan mengetik kodenya lalu menekan Enter (bagian 237). */
+      if (e.target.id === 'opPindai') {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const kode = e.target.value;
+        e.target.value = '';
+        pindaiOpname(kode);
+        return;
+      }
       if (!e.target.classList.contains('cari-prd')) return;
       const wadah = e.target.parentElement.querySelector('.hasil-prd');
       if (!wadah || wadah.classList.contains('sembunyi')) {
@@ -11161,6 +11324,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       // Tandai baris yang sudah diisi agar petugas tahu sampai mana ia menghitung
       if (e.target.dataset && e.target.dataset.hitung !== undefined) {
         e.target.classList.toggle('sudah-hitung', String(e.target.value).trim() !== '');
+        /* Ketikan tangan ikut dicatat sebagai perubahan — simpan hanya
+           mengirim yang berubah (bagian 237). */
+        hitunganBerubah.set(e.target.dataset.hitung, ++urutUbah);
+        perbaruiProgresHitung();
       }
     });
 
