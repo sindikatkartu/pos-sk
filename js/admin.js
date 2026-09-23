@@ -6322,7 +6322,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const TAB_PULSA = [
     ['shift', 'Shift'],
     ['sumber', 'Sumber Saldo'],
-    ['laporan', 'Laporan']
+    ['laporan', 'Laporan'],
+    /* Paling ujung — keputusan pemilik 23 Sep 2026 (bagian 243). */
+    ['saldo', 'Saldo']
   ];
 
   async function muatPulsa(tab) {
@@ -6353,14 +6355,77 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">Buku pulsa: buka dan tutup shift, saldo tiap aplikasi, dan laporan shift yang sudah ditutup.</p>
         </div>`;
     }
-    const peta = { shift: '#isiShiftpulsa', sumber: '#isiSumberpulsa', laporan: '#isiLaporanpulsa' };
+    const peta = { shift: '#isiShiftpulsa', sumber: '#isiSumberpulsa', laporan: '#isiLaporanpulsa',
+                   saldo: '#isiSaldopulsa' };
     Object.entries(peta).forEach(([id, sel]) => {
       const el = $(sel);
       if (el) el.hidden = (id !== aktif);
     });
     if (aktif === 'shift') return muatShiftpulsa();
     if (aktif === 'sumber') return muatSumberpulsa();
+    if (aktif === 'saldo') return muatSaldopulsa();
     return muatLaporanpulsa();
+  }
+
+  /* ---------- Tab saldo (bagian 243) ----------
+     Saldo tiap aplikasi di tiap cabang, satu tabel. Sebelum tab ini saldo
+     hanya terlihat di tab Shift, untuk cabang tempat orang sedang login —
+     memantau tiga cabang berarti pindah cabang tiga kali. Angkanya dari
+     server (apiSaldoPulsaCabang), fungsi yang sama dengan Uji kebenaran. */
+  async function muatSaldopulsa() {
+    memuat('#isiSaldopulsa');
+    try {
+      $('#isiSaldopulsa')._d = await API.saldoPulsaCabang();
+      gambarSaldopulsa();
+    } catch (e) { galat('#isiSaldopulsa', e); }
+  }
+
+  function gambarSaldopulsa() {
+    const w = $('#isiSaldopulsa');
+    if (!w) return;
+    const d = w._d || { cabang: [], total: 0 };
+    const cabang = d.cabang || [];
+    /* Kolom = gabungan sumber seluruh cabang, urutan kemunculan. Sumber yang
+       tidak dipakai sebuah cabang ditulis "—", bukan 0: 0 berarti saldonya
+       habis, "—" berarti aplikasinya tidak ada di sana. */
+    const kolom = [];
+    cabang.forEach(c => (c.sumber || []).forEach(x => {
+      if (!kolom.some(k => k.kode_sumber === x.kode_sumber)) kolom.push({ kode_sumber: x.kode_sumber, nama: x.nama });
+    }));
+    /* Label kartu di HP diletakkan absolut selebar 35% — nama panjang seperti
+       "DIGIPOS by TELKOMSEL" terlipat dua baris dan menabrak baris berikutnya.
+       Di kartu cukup nama depannya; judul kolom di layar lebar tetap lengkap. */
+    const labelSumber = (n) => String(n || '').split(/\s+by\s+/i)[0].slice(0, 16);
+    const sel = (c, k) => {
+      const x = (c.sumber || []).find(y => y.kode_sumber === k.kode_sumber);
+      return x ? rp(x.saldo) : '<span class="teks-redup">—</span>';
+    };
+    const totalKolom = (k) => cabang.reduce((a, c) => {
+      const x = (c.sumber || []).find(y => y.kode_sumber === k.kode_sumber);
+      return a + (x ? +x.saldo || 0 : 0);
+    }, 0);
+    w.innerHTML = `
+      <div class="kartu laporan-uang">
+        <div class="bar-alat"><h3>Saldo aplikasi per cabang</h3><span class="satuan-uang">dalam Rupiah</span></div>
+        <p class="petunjuk">Saldo akhir tiap aplikasi dari shift terakhir yang sudah ditutup di cabang itu.
+           Shift yang masih berjalan belum dihitung — angkanya bergeser begitu shift itu ditutup.</p>
+        ${cabang.length ? `<div class="gulir-x">
+          <table class="tabel" id="tabelSaldoPulsa">
+            <thead><tr><th>Cabang</th>
+              ${kolom.map(k => `<th class="angka">${esc(k.nama)}</th>`).join('')}
+              <th class="angka">Jumlah</th><th>Shift terakhir ditutup</th><th>Keadaan</th></tr></thead>
+            <tbody>${cabang.map(c => `<tr data-cabang="${esc(c.kode_cabang)}">
+              <td data-l="Cabang">${esc(c.kode_cabang)}</td>
+              ${kolom.map(k => `<td class="angka" data-l="${esc(labelSumber(k.nama))}">${sel(c, k)}</td>`).join('')}
+              <td class="angka" data-l="Jumlah"><strong>${rp(c.total)}</strong></td>
+              <td data-l="Shift terakhir">${c.shift_terakhir ? esc(c.shift_terakhir.id_shift) : '<span class="teks-redup">belum ada shift</span>'}</td>
+              <td data-l="Keadaan">${c.shift_buka ? lencanaDash('shift ' + String(c.shift_buka.jenis_shift || '').toLowerCase() + ' berjalan', 'kuning') : '—'}</td>
+            </tr>`).join('')}</tbody>
+            ${cabang.length > 1 ? `<tfoot><tr><th>Semua cabang</th>
+              ${kolom.map(k => `<th class="angka">${rp(totalKolom(k))}</th>`).join('')}
+              <th class="angka">${rp(d.total)}</th><th></th><th></th></tr></tfoot>` : ''}
+          </table></div>` : '<p class="petunjuk">Belum ada cabang yang bisa ditampilkan.</p>'}
+      </div>`;
   }
 
   /* ---------- Tab laporan ---------- */

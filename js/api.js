@@ -151,7 +151,7 @@ const API = (() => {
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
     'foto_pulsa',
-    'rincian_shift_pulsa', 'ringkasan_konsolidasi', 'accurate_periode',
+    'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
     'simpan_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
     'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
@@ -582,6 +582,7 @@ let _pernahJawab = false;
     tutupShiftPulsa:   (d) => panggil('tutup_shift_pulsa', d, { timeout: 90000 }),
     daftarShiftPulsa:  (d) => panggil('daftar_shift_pulsa', d || {}, { timeout: 60000 }),
     rincianShiftPulsa: (d) => panggil('rincian_shift_pulsa', d, { timeout: 60000 }),
+    saldoPulsaCabang:  ()  => panggil('saldo_pulsa_cabang', {}, { timeout: 60000 }),
     /* Menghapus shift menyentuh tiga sheet berturut-turut di dalam satu kunci;
        batas waktunya mengikuti yang menulis, bukan yang membaca. */
     hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
