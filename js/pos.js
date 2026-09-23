@@ -99,6 +99,13 @@ const Harga = (() => {
  */
 const Keranjang = (() => {
   let baris = [];
+  /* Penghitung id baris (bagian 239). Sampai v1.238 id = jam milidetik + dadu
+     0–999: dua baris yang masuk pada milidetik yang sama (pemindai barcode,
+     tombol cepat beruntun) punya peluang 1/1000 berbagi id, dan ubahQty/hapus
+     lalu mengenai baris yang salah. Ketahuan sebagai uji-audit yang merah
+     sesekali di deploy, 23 Sep 2026. Penghitung tidak pernah kembar; jamnya
+     tetap ikut supaya id tetap unik lintas muat ulang halaman (nota tahanan). */
+  let urutBaris = 0;
   let level = 'eceran';
   let pelanggan = null;
   let diskonNota = 0;
@@ -274,7 +281,7 @@ const Keranjang = (() => {
       const h = Harga.hitung(produk, { level, qty, satuan: st, varian,
                                         daftarSatuan, daftarTier });
       const b = {
-        id: 'B' + Date.now() + Math.floor(Math.random() * 1000),
+        id: 'B' + Date.now() + '-' + (++urutBaris),
         sku: produk.sku, kode_varian: kodeVarian,
         nama: produk.nama + (varian ? ' — ' + varian.nama : ''),
         qty, satuan: st, faktor: h.faktor,
