@@ -6564,6 +6564,10 @@ function pasangEvent() {
       hitungSelisihJurnal(); return;
     }
     if (t.id === 'btnSimpanJurnal') {
+      /* Konfirmasi (bagian 245): jurnal langsung masuk buku besar. */
+      if (!(await Admin.tanya('Simpan jurnal penyesuaian?',
+            '<p class="petunjuk">Jurnal ini langsung masuk buku besar. Salah catat hanya bisa dibetulkan dengan membaliknya.</p>',
+            { ya: 'Simpan jurnal' }))) return;
       t.disabled = true;
       try { await simpanJurnalManual(); } catch (x) { Admin.toast(x.message, 'galat'); t.disabled = false; }
       return;

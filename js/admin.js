@@ -4403,6 +4403,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function simpanPembelian() {
     const item = kumpulkanAnak('beli').filter(i => i.sku && Number(i.qty) > 0);
     if (!item.length) return toast('Minimal satu item.', 'galat');
+    /* Konfirmasi (bagian 245): stok masuk dan utang supplier tercatat sekarang. */
+    if (!(await tanya('Simpan pembelian?',
+          `<p class="petunjuk">${item.length} jenis barang, ${item.reduce((a, i) => a + (Number(i.qty) || 0), 0)} pcs masuk stok sekarang dan
+             tercatat sebagai utang ke supplier, menunggu diperiksa Head Admin.</p>`,
+          { ya: 'Simpan pembelian' }))) return;
     const btn = $('#btnSimpanPembelian');
     btn.disabled = true;
     try {
@@ -8639,6 +8644,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       : [];
     if (jenis === 'TUKAR' && !itemPengganti.length) return toast('Retur tukar wajib punya barang pengganti.', 'galat');
 
+    /* Konfirmasi (bagian 245): stok, uang, dan jurnal bergerak sekaligus. */
+    if (!(await tanya('Proses retur ini?',
+          `<p class="petunjuk">${itemRetur.reduce((a, i) => a + i.qty, 0)} pcs diterima kembali${jenis === 'TUKAR' ? ' dan barang pengganti keluar' : ''}.
+             Stok, uang, dan jurnalnya dicatat sekarang; retur tidak bisa dibatalkan dari layar.</p>`,
+          { ya: 'Proses retur' }))) return;
     btn.disabled = true;
     try {
       const d = await API.buatRetur({
@@ -9660,6 +9670,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     /* PRIVE dan PINDAH sama-sama KELUAR dari sumber kasnya; yang membedakan
        akun lawannya, dan itu sudah dipilih dropdown di atas. */
     const tipe = jenis === 'MASUK' ? 'MASUK' : 'KELUAR';
+    /* Konfirmasi (bagian 245): uang back office bergerak dan dijurnal. */
+    if (!(await tanya(tipe === 'MASUK' ? 'Catat kas masuk?' : 'Catat kas keluar?',
+          `<p class="petunjuk">${esc(rpTeks(jumlah))} — ${esc(ket)}. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan tombol Balik.</p>`,
+          { ya: 'Simpan catatan kas' }))) return;
     const b = $('#btnSimpanKas');
     b.classList.add('sibuk');
     b.disabled = true;
@@ -10035,6 +10049,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- utang supplier --- */
       if (d.bayarUtang) return dialogBayarUtang(d.bayarUtang, d.cabang);
       if (t.id === 'btnKonfirmasiBayarUtang') {
+        /* Konfirmasi (bagian 245): uang keluar ke supplier. */
+        if (!(await tanya('Bayar utang ini?',
+              `<p class="petunjuk">${esc(rpTeks(angka('buJumlah')))} dibayar tanggal ${esc(tglTampil(nilai('buTanggal')))} lewat ${esc(nilai('buMetode') || 'transfer')}, dan jurnalnya dicatat.</p>`,
+              { ya: 'Simpan' }))) return;
         t.disabled = true;
         try {
           const r = await API.bayarUtang({
@@ -10057,6 +10075,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- piutang --- */
       if (d.bayarPiutang) return dialogBayarPiutang(d.bayarPiutang, d.cabang);
       if (t.id === 'btnKonfirmasiBayarPiutang') {
+        /* Konfirmasi (bagian 245): uang masuk dari pelanggan. */
+        if (!(await tanya('Terima pembayaran piutang ini?',
+              `<p class="petunjuk">${esc(rpTeks(angka('bpJumlah')))} diterima tanggal ${esc(tglTampil(nilai('bpTanggal')))} lewat ${esc(nilai('bpMetode') || 'tunai')}, dan jurnalnya dicatat.</p>`,
+              { ya: 'Simpan' }))) return;
         t.disabled = true;
         try {
           const r = await API.bayarPiutang({
@@ -10077,6 +10099,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.editAset)              return bukaBorangAset(d.editAset);
       if (d.lepasAset)             return bukaBorangLepas(d.lepasAset);
       if (d.lepasSimpan) {
+        /* Konfirmasi (bagian 245): pelepasan menjurnal laba/rugi dan tidak bisa diurungkan. */
+        if (!(await tanya('Lepaskan aset ini?',
+              '<p class="petunjuk">Aset dikeluarkan dari daftar, penyusutannya berhenti, dan laba atau rugi pelepasannya dijurnal. Tidak bisa diurungkan.</p>',
+              { ya: 'Lepaskan', jenis: 'bahaya' }))) return;
         t.disabled = true;
         try { await lepaskanAset(d.lepasSimpan); }
         finally { t.disabled = false; }
@@ -10405,6 +10431,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           const ketik = Array.from(document.querySelectorAll('[data-saldo-awal]'));
           const saldoAwal = ketik.length
             ? Object.fromEntries(ketik.map(i => [i.dataset.saldoAwal, angkaDari(i.value)])) : null;
+          /* Konfirmasi (bagian 245): saldo awal yang diketik dijurnal ke Modal
+             Pemilik dan tidak bisa diketik lagi sesudah shift pertama ditutup. */
+          const totalAwal = saldoAwal ? Object.values(saldoAwal).reduce((a, v) => a + (+v || 0), 0) : 0;
+          if (totalAwal > 0 && !(await tanya('Mulai shift dengan saldo awal ini?',
+                `<p class="petunjuk">Saldo awal aplikasi ${esc(rpTeks(totalAwal))} dicatat ke buku besar sebagai
+                   Modal Pemilik. Sesudah shift ini ditutup, angkanya tidak bisa diketik lagi.</p>`,
+                { ya: 'Mulai hitungan' }))) { t.disabled = false; return; }
           const h = await API.bukaShiftPulsa({
             jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
             ...(saldoAwal ? { saldo_awal: saldoAwal } : {})
@@ -10415,9 +10448,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (t.id === 'btnTutupShiftPulsa') {
-        t.disabled = true;
         const w = $('#isiShiftpulsa');
         const st = (w && w._st) || {};
+        /* Konfirmasi (bagian 245): menutup shift menjurnal penjualan, modal, dan
+           selisih kasnya, lalu mengunci angkanya. */
+        if (!(await tanya('Kunci hitungan shift ini?',
+              `<p class="petunjuk">Kas fisik ${esc(rpTeks(+(w && w._kasFisik) || 0))} dan saldo akhir tiap aplikasi dicatat,
+                 lalu shift dikunci — angkanya tidak bisa diubah lagi. Sesudahnya uang shift ini diserahkan ke Head Admin.</p>`,
+              { ya: 'Kunci hitungan' }))) return;
+        t.disabled = true;
         try {
           const h = await API.tutupShiftPulsa({
             id_shift: st.id_shift,
@@ -10513,6 +10552,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const item = kumpulkanAnak('tf').filter(i => i.sku && Number(i.qty) > 0)
           .map(i => ({ sku: i.sku, kode_varian: i.kode_varian || '', qty: Number(i.qty) }));
         if (!item.length) return toast('Minimal satu barang.', 'galat');
+        /* Konfirmasi (bagian 245): stoknya keluar dari cabang ini saat itu juga. */
+        if (!(await tanya('Kirim barang ke ' + (nilai('tfTujuan') || 'cabang tujuan') + '?',
+              `<p class="petunjuk">${item.length} jenis barang, ${item.reduce((a, i) => a + i.qty, 0)} pcs keluar dari stok cabang ini sekarang.
+                 Masih bisa dibatalkan selama cabang tujuan belum menerimanya.</p>`,
+              { ya: 'Kirim' }))) return;
         t.disabled = true;
         try {
           const r = await API.kirimTransfer({
@@ -10531,10 +10575,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (t.id === 'btnKonfirmasiTerima') {
-        t.disabled = true;
         const item = $$('[data-terima-baris]').map(i => ({
           baris: Number(i.dataset.terimaBaris), qty_terima: Number(i.value)
         }));
+        /* Konfirmasi (bagian 245): penerimaan tidak bisa dibatalkan, dan jumlah
+           yang kurang langsung dibukukan hilang di cabang pengirim. */
+        if (!(await tanya('Terima barang ini?',
+              `<p class="petunjuk">${item.reduce((a, i) => a + (i.qty_terima || 0), 0)} pcs masuk stok cabang ini. Jumlah yang kurang dari kiriman
+                 dibukukan sebagai barang hilang di cabang pengirim. Penerimaan tidak bisa dibatalkan.</p>`,
+              { ya: 'Terima barang' }))) return;
+        t.disabled = true;
         try {
           const r = await API.terimaTransfer({ uuid: d.uuid, item, catatan: nilai('tfCatatanTerima') });
           await Sync.tarikStok();
@@ -10771,10 +10821,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            tombol ini lagi; dengan uuid yang sama, kiriman kedua dikenali sebagai
            duplikat dan stok tidak keluar dua kali. */
         const uuidTf = uuidDokumen('proses_permintaan');
-        t.disabled = true;
         const item = $$('[data-siap-baris]').map(i => ({
           baris: Number(i.dataset.siapBaris), qty_siap: Number(i.value || 0)
         }));
+        /* Konfirmasi (bagian 245): menyiapkan = transfer terbit, stok gudang keluar. */
+        if (!(await tanya('Siapkan dan kirim barang ini?',
+              `<p class="petunjuk">${item.reduce((a, i) => a + i.qty_siap, 0)} pcs keluar dari stok gudang sekarang sebagai transfer ke cabang peminta.</p>`,
+              { ya: 'Siapkan & kirim' }))) return;
+        t.disabled = true;
         try {
           const r = await API.prosesPermintaan({
             uuid: d.uuid, uuid_transfer: uuidTf, item, catatan: nilai('pmCatatanProses')
@@ -10857,6 +10911,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                        harga_beli: Number(i.harga_beli) || 0 }));
         if (!item.length) return toast('Isi minimal satu barang (qty > 0).', 'galat');
         if (!nilai('rbAlasan')) return toast('Alasan retur wajib diisi.', 'galat');
+        /* Konfirmasi (bagian 245): stok keluar dan utang/kas supplier bergerak. */
+        if (!(await tanya('Proses retur pembelian?',
+              `<p class="petunjuk">${item.reduce((a, i) => a + i.qty, 0)} pcs keluar dari stok dan dikembalikan ke supplier, dan jurnalnya dicatat.
+                 Retur pembelian tidak bisa dibatalkan dari layar.</p>`,
+              { ya: 'Proses retur' }))) return;
         t.disabled = true;
         try {
           const r = await API.buatReturBeli({
