@@ -6501,18 +6501,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                  jadi dropdown dan penjaga server tidak bisa menyimpang diam-diam. */
               ['PAGI', 'MALAM'].map(j => `<option value="${j}">${j}</option>`).join('')}
           </select></div>
-          ${/* Terkunci begitu cabang punya shift sebelumnya — juga saat warisannya
-               0 karena sudah diserahkan (bagian 238). Kolom yang terbuka di
-               keadaan itu mengundang ketikan yang diabaikan diam-diam oleh
-               pembuka shift. */ ''}
-          <div class="kendali-tetap"><label>Kas awal</label>
-            <input type="text" id="spsKasAwal" value="${rp0(st.kas_awal)}" ${(st.kas_awal || st.warisan_dari) ? 'disabled' : ''}></div>
         </div>
-        <p class="petunjuk">${st.kas_awal
-          ? `Kas awal ${rp0(st.kas_awal)} diwarisi dari shift ${esc(st.warisan_dari || 'sebelumnya')} yang uangnya belum diserahkan ke Head Admin. Sesudah Head Admin menerimanya di Kas & Bank → Setoran toko, kas awal shift berikutnya kembali 0.`
-          : st.warisan_dari
-            ? `Kas shift ${esc(st.warisan_dari)} sudah diserahkan ke Head Admin, jadi kas awal shift ini 0.`
-            : 'Belum ada shift sebelumnya di cabang ini, jadi kas awalnya diisi sekali di sini.'}</p>
+        ${/* Kas awal shift pulsa SELALU 0 (bagian 242) — tidak ada kolomnya.
+             Setoran shift yang belum diterima jadi PENGINGAT, tidak menghalangi:
+             petugas pagi tetap bisa bekerja walau Head Admin belum datang. */ ''}
+        <p class="petunjuk">Kas shift ini mulai dari 0. Sesudah ditutup, seluruh uangnya diserahkan ke Head Admin.</p>
+        ${(st.setoran_tertunda || []).length ? `<div class="pesan peringatan" id="spsSetoranTertunda">
+          ${st.setoran_tertunda.map(x => `Kas shift ${esc(x.jenis_shift)} ${esc(x.id_shift)}, ${rpTeks(x.kas_fisik)}, belum diterima Head Admin.`).join('<br>')}
+          <br>Uang itu bukan bagian shift ini — serahkan terpisah. Head Admin menerimanya di Kas &amp; Bank → Setoran toko.</div>` : ''}
       </div>
       ${/* Kolom saldo awal TERBUKA hanya kalau server bilang begitu (shift pertama
            cabang + izin pulsa·ubah, bagian 228). Layar tidak menebak sendiri. */ ''}
@@ -9446,8 +9442,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">Menerima setoran memindahkan uangnya dari
          <strong>Kas di Tangan</strong> ke <strong>Kas Admin</strong>. Shift yang
          belum ditutup tidak muncul di sini — uang di laci yang masih dipakai
-         tidak boleh dipindahkan. Shift pulsa ikut di sini; sesudah diterima,
-         kas awal shift pulsa berikutnya kembali 0.</p>
+         tidak boleh dipindahkan. Shift pulsa ikut di sini, dan tiap shift
+         disetor sendiri-sendiri — kas awal shift pulsa selalu 0.</p>
     </div>`;
   }
 
@@ -10330,7 +10326,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ? Object.fromEntries(ketik.map(i => [i.dataset.saldoAwal, angkaDari(i.value)])) : null;
           const h = await API.bukaShiftPulsa({
             jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
-            kas_awal: $('#spsKasAwal') ? angkaDari($('#spsKasAwal').value) : 0,
             ...(saldoAwal ? { saldo_awal: saldoAwal } : {})
           });
           await muat('pulsa');
