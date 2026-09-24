@@ -6350,7 +6350,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function muatPulsa(tab) {
     const w = $('#isiPulsa');
-    const aktif = tab || w?._tab || 'shift';
+    /* Tab Laporan hanya untuk yang memegang laporan_pulsa·lihat — Owner dan
+       Head Admin (bagian 251). Akun petugas tidak melihat tabnya sama sekali,
+       dan servernya menolak kalau dipanggil juga. */
+    const bolehLaporan = bolehIzin('laporan_pulsa', 'lihat');
+    const tabBoleh = TAB_PULSA.filter(([id]) => id !== 'laporan' || bolehLaporan);
+    let aktif = tab || w?._tab || 'shift';
+    if (!tabBoleh.some(([id]) => id === aktif)) aktif = 'shift';
     if (w) {
       w._tab = aktif;
       w.innerHTML = `
@@ -6370,10 +6376,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                .tab-modal membawa jarak 18 px yang menggantung di dasar kartu. -->
           <div class="tab-modal" id="tabPulsa" role="group" aria-label="Bagian pulsa"
                style="margin-bottom:0">
-            ${TAB_PULSA.map(([id, label]) =>
+            ${tabBoleh.map(([id, label]) =>
               `<button type="button" data-tabpulsa="${id}" class="${id === aktif ? 'aktif' : ''}">${label}</button>`).join('')}
           </div>
-          <p class="petunjuk">Buku pulsa: buka dan tutup shift, saldo tiap aplikasi, dan laporan shift yang sudah ditutup.</p>
+          <p class="petunjuk">Buku pulsa: buka dan tutup shift, saldo tiap aplikasi${bolehLaporan
+            ? ', dan laporan shift yang sudah ditutup' : ''}.</p>
         </div>`;
     }
     const peta = { shift: '#isiShiftpulsa', sumber: '#isiSumberpulsa', laporan: '#isiLaporanpulsa',
@@ -6469,11 +6476,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <h3>Shift pulsa yang sudah ditutup</h3>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeLapulsa"></span>
+            ${bolehCabangDash() ? `<div class="kendali-tetap"><label>Cabang</label>
+              <select id="lapulsaCabang" class="kendali-tetap" title="Cabang">
+                <option value="*">Semua cabang</option>
+                ${daftarKodeCabang().map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+              </select></div>` : ''}
           </div>
         </div>
         <div id="hasilLapulsa"></div>`;
       $('#wadahPeriodeLapulsa').innerHTML = Periode.html(PERIODE_LAPULSA);
       Periode.pasang(PERIODE_LAPULSA, muatHasilLapulsa);
+      $('#lapulsaCabang')?.addEventListener('change', () => API.tugas(muatHasilLapulsa));
     }
     return muatHasilLapulsa();
   }
@@ -6481,8 +6494,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatHasilLapulsa() {
     memuat('#hasilLapulsa');
     try {
+      /* Cabang dikirim hanya oleh peran lintas cabang; peran lain tetap dikunci
+         server ke cabangnya sendiri, apa pun yang dikirim (bagian 251). */
       const d = await API.daftarShiftPulsa({
-        dari: $('#lapulsaDari').value, sampai: $('#lapulsaSampai').value });
+        dari: $('#lapulsaDari').value, sampai: $('#lapulsaSampai').value,
+        cabang: $('#lapulsaCabang')?.value || '' });
       $('#hasilLapulsa')._rows = d.shift || [];
       gambarLaporanpulsa();
     } catch (e) { galat('#hasilLapulsa', e); }
@@ -9896,10 +9912,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function bayarSlipLayar(id) {
     const s = slipDari(id);
+    const sel = $('#gjSumber');
+    const dari = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : nilai('gjSumber');
+    /* Keputusan pemilik 24 Sep 2026 (bagian 251): pembayaran TIDAK bisa
+       dibatalkan, jadi kalimat pertamanya menyebut itu, angkanya dirinci,
+       dan tombolnya merah. Slip Draf-lah tempat memeriksa. */
     if (!(await tanya('Bayar gaji ' + s.nama + '?',
-          `<p class="petunjuk">${esc(rpTeks(s.diterima))} keluar dari ${esc(nilai('gjSumber'))} dan dijurnal.
-           Slipnya terkunci sesudah ini — tidak bisa diurungkan dari layar ini.</p>`,
-          { ya: 'Bayar' }))) return;
+          `<p><strong>Pembayaran ini tidak bisa dibatalkan.</strong> Sesudah dibayar,
+             slipnya terkunci dan angkanya tidak bisa diubah lagi.</p>
+           <table class="tabel" style="margin:8px 0"><tbody>
+             <tr><td>Gaji</td><td class="kanan">${rp(s.bruto)}</td></tr>
+             <tr><td>Potongan kasbon</td><td class="kanan">${rp(s.potongan_kasbon)}</td></tr>
+             <tr><td><strong>Diserahkan</strong></td><td class="kanan"><strong>${rp(s.diterima)}</strong></td></tr>
+             <tr><td>Dari</td><td class="kanan">${esc(dari)}</td></tr></tbody></table>
+           <p class="petunjuk">Belum yakin? Tekan Batal dan periksa lewat Ubah — slip Draf aman diubah kapan saja.</p>`,
+          { ya: 'Ya, bayar', jenis: 'bahaya' }))) return;
     await API.bayarGaji({ id_slip: id, akun_kas: nilai('gjSumber'), tanggal: nilai('gjTanggal') });
     tutupModal();
     toast('Gaji ' + s.nama + ' dibayar.');
@@ -10012,9 +10039,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const jml = angka('kbJumlah');
     const sel = $('#kbPetugas');
     const nm = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+    const sk = $('#kbSumber');
+    const dariKb = sk && sk.selectedOptions[0] ? sk.selectedOptions[0].textContent : nilai('kbSumber');
     if (!(await tanya('Beri kasbon ' + rpTeks(jml) + '?',
-          `<p class="petunjuk">Untuk ${esc(nm)}. Uangnya keluar dari ${esc(nilai('kbSumber'))} dan dijurnal
-           Dr 1-1310 Piutang Karyawan.</p>`, { ya: 'Beri kasbon' }))) return;
+          `<p><strong>Kasbon ini tidak bisa dibatalkan.</strong> Uangnya dicatat keluar dan menjadi
+             pinjaman yang dipotong dari gajinya nanti.</p>
+           <table class="tabel" style="margin:8px 0"><tbody>
+             <tr><td>Petugas</td><td class="kanan">${esc(nm)}</td></tr>
+             <tr><td><strong>Jumlah</strong></td><td class="kanan"><strong>${rp(jml)}</strong></td></tr>
+             <tr><td>Dari</td><td class="kanan">${esc(dariKb)}</td></tr></tbody></table>`,
+          { ya: 'Ya, beri kasbon', jenis: 'bahaya' }))) return;
     await API.beriKasbon({ uuid: uuidKb, kode_petugas: nilai('kbPetugas'), jumlah: jml, cabang: nilai('kbCabang'),
                            akun_kas: nilai('kbSumber'), tanggal: nilai('kbTanggal'), keterangan: nilai('kbKet') });
     tutupModal();

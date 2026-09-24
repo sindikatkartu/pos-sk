@@ -966,7 +966,7 @@
             <li><strong>Saldo awal aplikasi</strong> diketik sekali saja, pada shift pertama sebuah cabang, oleh Owner. Petugas tidak bisa mengetiknya.</li>
             <li><strong>Tutup shift</strong> — isi saldo akhir tiap aplikasi, pengeluaran (tiap baris wajib ada keterangannya), dan uang yang dihitung, lalu tekan <strong>Kunci hitungan</strong>. Seluruh uang shift itu diserahkan ke Head Admin, yang menerimanya di Kas &amp; Bank → Setoran toko (B13). Setoran yang belum diterima muncul sebagai pengingat saat shift berikutnya dibuka, tanpa menghalanginya.</li>
             <li><strong>Sumber Saldo</strong> — daftar aplikasi (BOS PULSA, DIGIPOS, …) dan cabang yang memakainya. Di bawahnya kartu <strong>Database pulsa</strong> dan sambungan <strong>Laporan Pulsa</strong>, hanya untuk yang boleh melihat pengaturan sistem.</li>
-            <li><strong>Laporan</strong> — shift yang sudah ditutup. <strong>Saldo</strong> — saldo tiap aplikasi di tiap cabang dalam satu tabel, dari shift terakhir yang ditutup; shift yang masih berjalan disebut, tapi belum dihitung.</li>
+            <li><strong>Laporan</strong> — shift yang sudah ditutup, bisa dipilih per cabang. Hanya Owner dan Head Admin yang melihat tab ini; akun petugas pulsa tidak. <strong>Saldo</strong> — saldo tiap aplikasi di tiap cabang dalam satu tabel, dari shift terakhir yang ditutup; shift yang masih berjalan disebut, tapi belum dihitung.</li>
           </ul>
         </div>
 
@@ -983,6 +983,18 @@
           <h3>B14. Accurate &amp; Ringkasan Gabungan</h3>
           <p>Menu <strong>Accurate</strong> menerima Laba Rugi dan Neraca yang diekspor dari Accurate. Unggah <strong>sesudah bulannya habis</strong> — tanggal 1–5 bulan berikutnya — supaya angkanya sudah final; bulan yang belum selesai masih akan berubah di Accurate.</p>
           <p><strong>Ringkasan Gabungan</strong> hanya rapor: POS, pulsa, dan Accurate dijumlahkan menjadi satu Laba Rugi dan satu Neraca. Tidak ada tombol di sana — kalau angkanya perlu dibetulkan, betulkan di sumbernya.</p>
+        </div>
+
+        <div class="kartu">
+          <h3>B15. Gaji &amp; Kasbon</h3>
+          <p>Menu <strong>Gaji</strong> (grup Keuangan) punya dua tab: <strong>Gaji</strong> dan <strong>Kasbon</strong>.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Siapkan gaji bulan ini</strong> — membuat slip <strong>Draf</strong> untuk setiap petugas aktif. Gaji pokok, tunjangan kesehatan, dan tunjangan makan disalin dari slip bulan lalu; bonus dan komisi mulai dari 0. Menekannya dua kali tidak menimpa slip yang sudah ada.</li>
+            <li><strong>Ubah</strong> — isi bonus, komisi, dan potongan kasbon. Potongan tidak boleh melebihi sisa kasbon orangnya. Petugas keliling harus dipilihkan cabang yang menanggung gajinya.</li>
+            <li><strong>Bayar</strong> — pilih dari mana uangnya keluar (Kas Admin, Bank, …). <strong>Pembayaran tidak bisa dibatalkan</strong>: slip yang sudah dibayar terkunci. Kalau ternyata salah, koreksinya lewat Jurnal penyesuaian di Laporan Keuangan.</li>
+            <li><strong>Cetak</strong> — hanya slip yang sudah dibayar. Dua slip per lembar A4, lengkap dengan terbilang dan kolom tanda tangan; <strong>Cetak semua slip</strong> mencetak seluruh slip yang sudah dibayar bulan itu.</li>
+            <li><strong>Kasbon</strong> — <strong>Beri kasbon</strong> mencatat uang yang dipinjam petugas (juga tidak bisa dibatalkan). Sisanya berkurang otomatis saat dipotong dari gaji. <strong>Riwayat</strong> menampilkan setiap pemberian dan potongan.</li>
+          </ul>
         </div>
 
       </div>
