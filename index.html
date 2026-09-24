@@ -820,6 +820,7 @@
             <li><strong>Klik judul kolom</strong> (SKU, Nama, Eceran, Stok, Poin, …) untuk mengurutkan; klik lagi untuk membalik arahnya. Di daftar Produk dan Stok urutannya berlaku atas <strong>seluruh katalog</strong>, bukan hanya 100 baris yang sedang tampil — "Poin terbesar" benar-benar yang terbesar di katalog — dan tetap berlaku saat pindah halaman, mengetik di kolom cari, atau mengganti penyaring.</li>
             <li>Kolom pencarian <strong>menyaring di perangkat</strong>, bukan menembak server tiap huruf. Karena itu hasilnya muncul seketika dan kursor tidak pernah lepas di tengah orang mengetik.</li>
             <li><strong>Layar Stok</strong>: dropdown lingkup memilih <strong>cabang ini</strong>, <strong>tiap cabang lain</strong> satu per satu (angkanya dihitung server untuk cabang itu), atau <strong>Semua cabang</strong> berjajar dari ringkasan yang tersimpan di perangkat. Tombol Ekspor mengikuti cabang yang sedang ditampilkan. Pilihan cabang lain hanya untuk akun berakses lintas cabang.</li>
+            <li><strong>Tabel Stok</strong> menulis <strong>tipe HP</strong> dan "cocok untuk" di bawah nama produk — tiga yang pertama, sisanya "+N lagi". Angka ringkasan di atas tabel <strong>tersimpan di perangkat</strong>; sebelum menjanjikan barang ke pelanggan, tekan <strong>Hitung ulang</strong>.</li>
             <li><strong>Impor massal</strong> bisa mengisi Produk, Pelanggan, Supplier, dan Stok awal — termasuk kolom <strong>poin_satuan</strong>, jadi poin ratusan produk bisa disetel dari berkas. Unduh templatenya dulu, lalu tekan <strong>Pratinjau</strong> sebelum menjalankan.</li>
           </ul>
           <p class="petunjuk">Impor bersifat <strong>semua-atau-tidak sama sekali</strong>: satu baris bermasalah membatalkan seluruh berkas. Impor hanya <strong>menambah produk baru</strong> — SKU yang sudah ada ditolak, jadi mengubah poin produk lama tetap lewat layar.</p>
@@ -827,7 +828,9 @@
 
         <div class="kartu">
           <h3>B2. Pembelian &amp; Retur Beli</h3>
-          <p>Menu <strong>Pembelian</strong> mencatat barang masuk dari supplier: tanggal, no faktur, supplier, cara bayar (tunai/transfer/<strong>kredit</strong> dengan jatuh tempo), lalu baris barang: produk, qty, harga beli. Diskon dokumen dan PPN diisi di bawah.</p>
+          <p>Menu <strong>Pembelian</strong> mencatat barang masuk dari supplier: tanggal, no faktur, supplier, jatuh tempo pembayaran, lalu baris barang: produk, qty, harga beli. Diskon dokumen dan PPN diisi di bawah. <strong>Gudang tidak memilih cara bayar</strong>: stok langsung naik, dan seluruh nilainya dicatat sebagai <strong>utang ke supplier</strong> yang menunggu diperiksa.</p>
+          <p><strong>Diperiksa dulu, baru dibayar.</strong> Pembelian baru berlencana <strong>Menunggu periksa</strong>. Head Admin menekan <strong>Periksa</strong>, mencocokkan rinciannya dengan faktur, lalu memilih <strong>Sudah diperiksa</strong> — atau <strong>Tolak…</strong> dengan alasan, yang membalik stok, jurnal, dan utangnya sekaligus; gudang lalu mencatat ulang yang benar. Status yang bisa muncul: Menunggu periksa · Diperiksa · Ditolak · Dibatalkan.</p>
+          <p><strong>Sudah dibayar sebelum barang datang?</strong> Saat memeriksa, centang <strong>Sudah dibayar ke supplier sebelum barang datang</strong>, lalu isi <strong>tanggal dibayar</strong> (hari uangnya benar-benar diserahkan ke supplier), sumbernya (<strong>Transfer bank</strong> atau <strong>Kas Admin</strong>), dan jumlahnya. Utangnya lunas pada tanggal itu; kalau jumlahnya kurang dari total, sisanya tetap utang dan dibayar di menu Utang. Centang ini hanya tampil bagi yang juga boleh membayar utang.</p>
           <p><strong>Satuannya selalu pcs, isinya selalu 1.</strong> Kolom &quot;satuan&quot; dan &quot;isi per satuan&quot; dihapus 6 Sep 2026 atas permintaan pemilik. Sebelumnya satu angka salah di kolom sempit itu menggandakan stok sekaligus mengecilkan modal berkali lipat tanpa satu pun galat &mdash; qty 8 dengan isi 8 masuk sebagai 64 pcs dan modalnya jadi seperdelapan. Kolom yang tidak ada tidak bisa salah diisi.</p>
           <p><strong>Klik satu baris di daftar pembelian untuk melihat rincian barangnya.</strong> Kolom <strong>Modal masuk</strong> di sana adalah subtotal dibagi jumlah yang benar-benar masuk stok &mdash; angka yang sama dengan kolom Modal di layar Produk. Baris yang isinya janggal ditandai merah beserta sebabnya, dan tombol Batal ada di kaki rinciannya.</p>
           <p>Setiap pembelian membentuk <strong>lapisan stok baru</strong> pada harga belinya. Modal dihitung <strong>FIFO berlapis</strong> — barang yang masuk lebih dulu dijual lebih dulu. Diskon dokumen ikut memotong nilai lapisannya, jadi modal yang tercatat adalah harga bersih.</p>
@@ -864,6 +867,7 @@
             <li>Saat posting sistem <strong>hanya menambahkan selisihnya</strong>, tidak menimpa stok dengan angka fisik.</li>
             <li>Baris yang dibiarkan kosong berarti <strong>belum dihitung</strong>, bukan nol.</li>
             <li>Memposting butuh izin terpisah dari mengisi — pemisahan itu yang mencegah selisih dihapus diam-diam.</li>
+            <li><strong>Mesin scan barcode.</strong> Di jendela Menghitung, kotak <strong>Pindai barcode / SKU</strong> sudah siap begitu dibuka. Satu tembakan = <strong>1 pcs</strong>; untuk barang per karton isi <strong>× jumlah</strong> dulu (kembali ke 1 sesudah dipakai). Barang yang ada di katalog tapi di luar daftar ikut ditambahkan; barcode yang dipakai lebih dari satu produk <strong>ditanyakan</strong>, tidak ditebak. Hitungan tersimpan sendiri setelah <strong>30 detik</strong> tanpa pindaian, atau tiap 200 pindaian.</li>
           </ul>
           <p class="petunjuk">Opname yang sudah diposting tidak bisa dikoreksi. Untuk memperbaiki, buat opname baru.</p>
         </div>
@@ -877,12 +881,12 @@
 
         <div class="kartu">
           <h3>B6b. Utang ke supplier</h3>
-          <p>Kebalikan dari Piutang: di sini <strong>toko yang membayar</strong>. Yang masuk daftar ini hanya pembelian yang cara bayarnya <strong>Kredit (utang)</strong>. Pembelian yang dibayar <strong>Tunai</strong> atau <strong>Transfer</strong> sudah lunas pada detik dicatat dan tidak pernah muncul di sini.</p>
+          <p>Kebalikan dari Piutang: di sini <strong>toko yang membayar</strong>. <strong>Setiap pembelian masuk daftar ini</strong>, kecuali yang sudah lunas saat diperiksa karena dibayar di muka (B2). Utang dari pembelian yang <strong>belum diperiksa</strong> berlencana kuning dan <strong>belum punya tombol Bayar</strong> — periksa dulu di menu Pembelian.</p>
           <p>Menu <strong>Utang</strong> mengelompokkan tagihan menurut umurnya, sama seperti Piutang. Tombol <strong>Bayar</strong> menerima pelunasan maupun cicilan; pilih metodenya — <strong>Transfer bank</strong>, Tunai, atau QRIS — dan isi nomor bukti transfernya di kolom Referensi.</p>
           <p>Jurnalnya <strong>Utang Usaha (D) / Bank atau Kas (K)</strong>. Pembayaran <strong>tunai</strong> ikut mengurangi isi laci dan terlihat saat tutup shift; transfer tidak, karena uangnya memang tidak lewat laci.</p>
-          <p class="petunjuk">Retur pembelian dengan penyelesaian <strong>Potong utang</strong> otomatis mengurangi sisa utang faktur itu. Karena itu penyelesaian tersebut <strong>ditolak</strong> untuk pembelian yang dibayar tunai atau yang utangnya sudah lunas — pakai <strong>Uang kembali</strong>.</p>
-          <p class="petunjuk">Pembelian kredit yang <strong>utangnya sudah dibayar sebagian tidak bisa dibatalkan</strong>: uangnya sudah benar-benar keluar. Batalkan pembayarannya dulu, atau pakai retur pembelian.</p>
-          <p class="petunjuk">Keuangan → <strong>Uji kebenaran</strong> membandingkan saldo akun 2-1100 Utang Usaha dengan daftar ini. Kalau baris itu merah, ada utang yang bergerak tanpa jurnal — atau sebaliknya.</p>
+          <p class="petunjuk">Retur pembelian dengan penyelesaian <strong>Potong utang</strong> otomatis mengurangi sisa utang faktur itu. Karena itu penyelesaian tersebut <strong>ditolak</strong> untuk pembelian yang utangnya sudah lunas — pakai <strong>Uang kembali</strong>.</p>
+          <p class="petunjuk">Pembelian yang <strong>utangnya sudah dibayar sebagian tidak bisa dibatalkan</strong>: uangnya sudah benar-benar keluar. Batalkan pembayarannya dulu, atau pakai retur pembelian.</p>
+          <p class="petunjuk">Laporan Keuangan → <strong>Uji kebenaran</strong> membandingkan saldo akun 2-1100 Utang Usaha dengan daftar ini. Kalau baris itu merah, ada utang yang bergerak tanpa jurnal — atau sebaliknya.</p>
         </div>
 
         <div class="kartu">
@@ -893,13 +897,14 @@
         </div>
 
         <div class="kartu">
-          <h3>B8. Laporan, Performa, Keuangan, Diskon</h3>
+          <h3>B8. Laporan Penjualan, Poin &amp; Performa, Laporan Keuangan, Aset Tetap, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Dashboard</strong> — nota &amp; omzet, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis. Dropdown <strong>periode</strong> (Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> — paling panjang 92 hari) dan, untuk akun lintas cabang, dropdown <strong>cabang</strong> (Semua cabang atau satu cabang — stok menipis pun ikut cabang itu). Keterangan di sebelahnya, mis. <code>10/09 · vs 09/09 (2026)</code>, adalah rentang yang ditampilkan dan periode pembanding yang sama panjang tepat sebelumnya (tahun disebut sekali di ujung; bila lintas tahun, tiap rentang menulis tahunnya).</li>
-            <li><strong>Laporan</strong> — satu rentang tanggal, <strong>enam tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Tab keenam <strong>Kerugian persediaan</strong> hanya muncul bagi akun yang berhak melihat harga modal — lihat B8b. Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
+            <li><strong>Laporan Penjualan</strong> — satu rentang tanggal, <strong>enam tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Tab keenam <strong>Kerugian persediaan</strong> hanya muncul bagi akun yang berhak melihat harga modal — lihat B8b. Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
             <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti periode, tanggal, atau cabang <strong>langsung memuat ulang</strong> — tidak ada tombol Tampilkan.</li>
-            <li><strong>Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
-            <li><strong>Keuangan</strong> — Laba Rugi, Neraca, <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis), dan Tutup buku.</li>
+            <li><strong>Poin &amp; Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
+            <li><strong>Laporan Keuangan</strong> — empat tab menurut urutan pembukuan: <strong>Jurnal penyesuaian</strong> · <strong>Buku besar</strong> · <strong>Laba Rugi</strong> · <strong>Neraca</strong>; yang terbuka pertama Laba Rugi. Di atasnya dua tombol: <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis) dan Tutup buku.</li>
+            <li><strong>Aset Tetap</strong> — etalase, rak, komputer, dan kendaraan yang dipakai bertahun-tahun. Penyusutannya dihitung garis lurus tiap bulan, lewat tombol <strong>Hitung penyusutan</strong> atau sendiri saat tutup buku. Tanpa daftar ini laba tercatat lebih besar daripada yang sebenarnya.</li>
             <li><strong>Diskon</strong> — berapa banyak diskon diberikan, oleh kasir siapa, dan mana yang lewat batas sehingga butuh persetujuan.</li>
           </ul>
           <p><strong>Mencetak laporan.</strong> Tombol <strong>Cetak</strong> menyusun <strong>dokumen A4</strong> di jendela sendiri — bukan memotret layar. Sebelum mencetak, centang bagian mana yang ikut: Ringkasan, Riwayat transaksi, Per shift, Per petugas, Void, dan Kerugian persediaan — yang terakhir <strong>tidak tercentang otomatis</strong> karena ia sendiri menembak lima panggilan ke server untuk satu cabang, dan sebelas untuk tiga cabang; bagian yang belum pernah dibuka ditarik dulu dari server. Dokumennya berkop nama usaha, periode, cabang, dan siapa yang mencetak, lalu seluruh tabel tiap bagian dalam tabel bergaris hitam-putih — termasuk tabel lebar yang di layar harus digulir. Kalau jendelanya tidak muncul, izinkan pop-up untuk situs ini. Tombol <strong>Ekspor</strong> di sebelahnya mengunduh Ringkasan sebagai Excel/PDF/CSV.</p>
@@ -922,7 +927,7 @@
 
         <div class="kartu">
           <h3>B9. Tutup buku &amp; periode terkunci</h3>
-          <p>Di menu <strong>Keuangan</strong>, pilih periode lalu tekan <strong>Tutup buku</strong>. Sesudah dikunci, <strong>tidak ada dokumen bertanggal periode itu yang bisa masuk</strong> — nota, kas, retur, pembelian, opname, maupun void. Koreksi harus lewat periode berjalan.</p>
+          <p>Di menu <strong>Laporan Keuangan</strong>, pilih periode lalu tekan <strong>Tutup buku</strong>. Sesudah dikunci, <strong>tidak ada dokumen bertanggal periode itu yang bisa masuk</strong> — nota, kas, retur, pembelian, opname, maupun void. Koreksi harus lewat periode berjalan.</p>
           <p>Uji kebenaran <strong>dijalankan server sendiri</strong> setiap kali tutup buku ditekan: kalau ada pemeriksaan yang belum lulus, penguncian <strong>ditolak</strong> beserta daftar apa saja yang belum cocok. Tidak ada tombol di aplikasi ini yang bisa menerobosnya. Menjalankannya lebih dulu lewat tombol <strong>Uji kebenaran</strong> tetap berguna — supaya daftar itu sudah Anda lihat sebelum menutup, bukan sesudah ditolak.</p>
           <p class="petunjuk">Efeknya di kasir: notanya tetap tersimpan dan tercetak di perangkat, tapi ditolak server dan muncul sebagai lencana merah. Jangan menutup buku bulan berjalan sebelum semua perangkat kasir tersinkron.</p>
         </div>
@@ -933,7 +938,7 @@
             <li><strong>Pengguna</strong> — akun login, peran &amp; hak aksesnya, dan pendaftaran perangkat kasir. Perubahan izin baru terbaca setelah orangnya keluar lalu masuk lagi.</li>
             <li><strong>Cabang</strong> — setiap cabang punya berkas database sendiri; itulah sebabnya kasir cabang A tidak pernah menunggu cabang B.</li>
             <li><strong>Setting</strong> — nama usaha, kop &amp; footer struk, lebar kertas, PPN, dan lainnya. Berlaku untuk <strong>seluruh cabang</strong>.</li>
-            <li><strong>Audit</strong> — jejak kejadian terakhir beserta pelakunya. Tidak bisa dihapus dari dalam aplikasi.</li>
+            <li><strong>Audit</strong> — jejak kejadian terakhir beserta pelakunya. Tidak bisa dihapus dari dalam aplikasi. Kartu <strong>Galat aplikasi</strong> menyebut perangkat asal tiap galat, supaya perangkat yang belum dimuat ulang cepat ketahuan.</li>
             <li><strong>Arsip</strong> — kapasitas berkas dan rotasi tahunan. Data lama <strong>dipindah, bukan dihapus</strong>, dan uji coba wajib dijalankan lebih dulu.</li>
           </ul>
           <p class="petunjuk">Bobot peran sengaja tidak ada di Setting — tempatnya di menu Petugas. Satu hal yang bisa diubah dari dua tempat berarti yang terakhir menyimpan menang tanpa ada yang tahu.</p>
@@ -946,6 +951,33 @@
             <li><strong>Perangkat</strong> — printer, umur data master, jumlah antrean kirim, dan tombol tarik/kirim manual.</li>
             <li><strong>Tentang</strong> — versi aplikasi, cabang aktif, siapa yang login, dan versi data lokal. <strong>Sebutkan versinya setiap kali melaporkan masalah</strong>; itu pertanyaan pertama yang akan diajukan.</li>
           </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>B12. Pulsa</h3>
+          <p>Menu <strong>Pulsa</strong> punya empat tab: <strong>Shift</strong>, <strong>Sumber Saldo</strong>, <strong>Laporan</strong>, dan <strong>Saldo</strong>.</p>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Buka shift</strong> — pilih PAGI atau MALAM lalu tekan <strong>Mulai hitungan</strong>. <strong>Kas awal selalu 0</strong>: uang shift sebelumnya diserahkan, bukan diwariskan. Saldo tiap aplikasi <strong>diwarisi</strong> dari saldo akhir shift sebelumnya.</li>
+            <li><strong>Saldo awal aplikasi</strong> diketik sekali saja, pada shift pertama sebuah cabang, oleh Owner. Petugas tidak bisa mengetiknya.</li>
+            <li><strong>Tutup shift</strong> — isi saldo akhir tiap aplikasi, pengeluaran (tiap baris wajib ada keterangannya), dan uang yang dihitung, lalu tekan <strong>Kunci hitungan</strong>. Seluruh uang shift itu diserahkan ke Head Admin, yang menerimanya di Kas &amp; Bank → Setoran toko (B13). Setoran yang belum diterima muncul sebagai pengingat saat shift berikutnya dibuka, tanpa menghalanginya.</li>
+            <li><strong>Sumber Saldo</strong> — daftar aplikasi (BOS PULSA, DIGIPOS, …) dan cabang yang memakainya. Di bawahnya kartu <strong>Database pulsa</strong> dan sambungan <strong>Laporan Pulsa</strong>, hanya untuk yang boleh melihat pengaturan sistem.</li>
+            <li><strong>Laporan</strong> — shift yang sudah ditutup. <strong>Saldo</strong> — saldo tiap aplikasi di tiap cabang dalam satu tabel, dari shift terakhir yang ditutup; shift yang masih berjalan disebut, tapi belum dihitung.</li>
+          </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>B13. Kas &amp; Bank</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li><strong>Setoran toko</strong> — shift kasir dan shift pulsa yang sudah ditutup, tapi uangnya belum diterima. Head Admin menghitung uangnya lalu menekan <strong>Terima</strong>; uangnya pindah dari Kas di Tangan ke Kas Admin. Tiap shift disetor sendiri-sendiri. Shift yang belum ditutup tidak muncul.</li>
+            <li><strong>Catat</strong> — kas masuk atau keluar back office yang tidak lewat laci kasir, misalnya membayar listrik dari Kas Admin. Aplikasi menanyakan sekali lagi sebelum menyimpan.</li>
+            <li><strong>Mutasi kas</strong> — tiap gerakan uang satu per satu. <strong>Arus kas — 6 bulan terakhir</strong> — berapa yang masuk dan keluar tiap bulan, bukan cuma sisanya.</li>
+          </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>B14. Accurate &amp; Ringkasan Gabungan</h3>
+          <p>Menu <strong>Accurate</strong> menerima Laba Rugi dan Neraca yang diekspor dari Accurate. Unggah <strong>sesudah bulannya habis</strong> — tanggal 1–5 bulan berikutnya — supaya angkanya sudah final; bulan yang belum selesai masih akan berubah di Accurate.</p>
+          <p><strong>Ringkasan Gabungan</strong> hanya rapor: POS, pulsa, dan Accurate dijumlahkan menjadi satu Laba Rugi dan satu Neraca. Tidak ada tombol di sana — kalau angkanya perlu dibetulkan, betulkan di sumbernya.</p>
         </div>
 
       </div>

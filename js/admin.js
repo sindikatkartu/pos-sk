@@ -6848,7 +6848,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Urutan', kunci: 'urutan' },
           { judul: '', render: r => tombolUbahSumber(r.kode_sumber) }
         ], rows, { kosong: 'Belum ada sumber saldo' })}
-      </div>`;
+      </div>
+      ${kartuPulsaPos()}
+      ${kartuPulsa()}`;
+    /* Kartu database dan sambungan pulsa tinggal di tab ini sejak bagian 247 —
+       dulu di layar Sistem, terjepit di antara kelompok setelan toko dan tombol
+       Simpan-nya. Izinnya tetap setting·lihat / setting·ubah, jadi petugas
+       pulsa tidak melihat keduanya. */
+    muatKeadaanPulsaPos();
+    muatKeadaanPulsa();
   }
 
   function editorSumberpulsa(kode) {
@@ -6877,7 +6885,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   /**
-   * Database pulsa milik POS — kartunya sendiri di layar Sistem.
+   * Database pulsa milik POS — kartunya sendiri di menu Pulsa, tab Sumber Saldo.
    *
    * Berkasnya dibuat dari sini, SEKALI, bukan oleh `susulanRilis()`. Panggilan
    * pertama sesudah versi berganti sudah membayar 32,7 detik untuk memigrasikan
@@ -6919,7 +6927,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       el.className = 'pesan sukses';
       el.textContent = 'Siap. ' + (k.jumlah_sumber
         ? (k.jumlah_sumber + ' sumber saldo terdaftar.')
-        : 'Belum ada sumber saldo — isi lewat menu Pulsa, tab Sumber Saldo.');
+        : 'Belum ada sumber saldo — isi di tabel di atas.');
     } catch (e) {
       el.className = 'pesan galat';
       el.textContent = e.message;
@@ -7232,7 +7240,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
         .filter(r => !SETTING_DIBUANG.includes(r.kunci));
       $('#isiSistem').innerHTML = `
-        <div class="kartu"><p class="petunjuk">Setelan toko: nama usaha, pajak, struk, dan sambungan. Perubahan berlaku untuk seluruh cabang dan sampai ke perangkat kasir dalam beberapa menit.</p></div>
+        <div class="kartu"><p class="petunjuk">Setelan toko: nama usaha, pajak, struk, dan tampilan. Perubahan berlaku untuk seluruh cabang dan sampai ke perangkat kasir dalam beberapa menit.</p></div>
         ${/* SATU KARTU PER KELOMPOK, bukan satu kartu besar yang dibagi garis.
               Garis pemisah di dalam satu petak terbaca sebagai tabel yang bocor;
               kotak terbaca sebagai kelompok.
@@ -7251,11 +7259,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${bolehIzin('setting', 'ubah') ? `<div class="set-kaki">
           <span class="set-jejak" id="jejakSetting">Belum ada perubahan.</span>
           <button class="tombol utama besar" id="btnSimpanSetting" disabled>Simpan pengaturan</button>
-        </div>` : ''}
-        ${kartuPulsaPos()}
-        ${kartuPulsa()}`;
-      muatKeadaanPulsaPos();
-      muatKeadaanPulsa();
+        </div>` : ''}`;
       /* Dipasang sebagai PROPERTI, bukan addEventListener: layar ini digambar
          ulang setiap kali menunya dibuka, dan pendengar yang ditambahkan akan
          menumpuk — hitungan perubahannya tetap benar, tapi jumlah pemanggilan
