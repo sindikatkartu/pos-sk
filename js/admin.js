@@ -9700,6 +9700,340 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     finally { b.classList.remove('sibuk'); b.disabled = false; }
   }
 
+  /* ==================== GAJI & KASBON (bagian 250) ====================
+     Server: apps-script/28_Gaji.gs. Dua tab: Gaji (slip per bulan) dan
+     Kasbon (buku pembantu 1-1310). Slip DRAF bisa diubah dan dibayar; slip
+     DIBAYAR terkunci dan hanya bisa dicetak — slip yang belum dibayar tidak
+     dicetak, supaya kertas yang diserahkan selalu sama dengan uang yang keluar. */
+
+  const PERIODE_GAJI = { id: 'gajiPeriodePilih', dari: 'gajiPeriode', bulanan: true,
+                         nilai: 'bulan', label: 'Periode' };
+  const KOMPONEN_GAJI = [['gaji_pokok', 'Gaji pokok'], ['tunj_kesehatan', 'Tunjangan kesehatan'],
+                         ['tunj_makan', 'Tunjangan makan'], ['bonus', 'Bonus'], ['komisi', 'Komisi']];
+  let gajiData = null, kasbonData = null, petugasGaji = [], cabangGaji = '*';
+
+  const namaBulan = (per) => {
+    const [y, m] = String(per || '').split('-');
+    const b = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus',
+               'September', 'Oktober', 'November', 'Desember'][Number(m) - 1];
+    return b ? b + ' ' + y : String(per || '');
+  };
+
+  /** Terbilang rupiah untuk slip — bilangan bulat sampai triliunan. */
+  function terbilang(n) {
+    const s = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+    const t = (x) => x < 12 ? s[x]
+      : x < 20 ? t(x - 10) + ' belas'
+      : x < 100 ? t(Math.floor(x / 10)) + ' puluh ' + t(x % 10)
+      : x < 200 ? 'seratus ' + t(x - 100)
+      : x < 1000 ? t(Math.floor(x / 100)) + ' ratus ' + t(x % 100)
+      : x < 2000 ? 'seribu ' + t(x - 1000)
+      : x < 1e6 ? t(Math.floor(x / 1000)) + ' ribu ' + t(x % 1000)
+      : x < 1e9 ? t(Math.floor(x / 1e6)) + ' juta ' + t(x % 1e6)
+      : x < 1e12 ? t(Math.floor(x / 1e9)) + ' miliar ' + t(x % 1e9)
+      : t(Math.floor(x / 1e12)) + ' triliun ' + t(x % 1e12);
+    const v = Math.round(Math.abs(Number(n) || 0));
+    return v === 0 ? 'nol rupiah' : (t(v).replace(/\s+/g, ' ').trim() + ' rupiah');
+  }
+
+  const namaAkunKas = async () => {
+    const coa = await DB.kvGet('coa', []);
+    const peta = {};
+    (coa || []).forEach((c) => { peta[String(c.kode)] = c.nama; });
+    return AKUN_KAS.map((k) => [k, k + ' — ' + (peta[k] || k)]);
+  };
+
+  async function muatGaji() {
+    const w = $('#isiGaji');
+    if (!w) return;
+    if (!$('#panelGaji')) {
+      w.innerHTML = `
+        <div class="kartu" style="padding-bottom:0"><div class="tab-modal" id="tabGaji" style="margin:0">
+          <button data-tab-gaji="gaji" class="aktif">Gaji</button>
+          <button data-tab-gaji="kasbon">Kasbon</button></div>
+          <p class="petunjuk" style="margin-top:10px">Gaji petugas per bulan: tekan <strong>Siapkan gaji bulan ini</strong>,
+             periksa angkanya lewat <strong>Ubah</strong>, lalu <strong>Bayar</strong> dan cetak slipnya.
+             Gaji pokok dan tunjangan disalin dari bulan lalu.</p></div>
+        <div id="panelGaji">
+          <div class="kartu"><div class="saring-baris">
+            <span class="wadah-periode" id="wadahPeriodeGaji"></span>
+            <div class="kendali-tetap"><label>Cabang</label>
+              <select id="gajiCabang" class="kendali-tetap" title="Cabang">
+                <option value="*">Semua cabang</option>
+                ${daftarKodeCabang().map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+              </select></div>
+          </div><div id="ringkasGaji"></div></div>
+          <div id="hasilGaji"></div>
+        </div>
+        <div id="panelKasbon" hidden><div id="hasilKasbon"></div></div>`;
+      $('#wadahPeriodeGaji').innerHTML = Periode.html(PERIODE_GAJI);
+      Periode.pasang(PERIODE_GAJI, muatHasilGaji);
+      $('#gajiCabang').addEventListener('change', (e) => { cabangGaji = e.target.value; gambarGaji(); });
+    }
+    if (!$('#panelKasbon').hidden) return muatKasbon();
+    return muatHasilGaji();
+  }
+
+  function pilihTabGaji(tab) {
+    $$('#tabGaji [data-tab-gaji]').forEach((b) => b.classList.toggle('aktif', b.dataset.tabGaji === tab));
+    $('#panelGaji').hidden = tab !== 'gaji';
+    $('#panelKasbon').hidden = tab !== 'kasbon';
+    return API.tugas(() => (tab === 'gaji' ? muatHasilGaji() : muatKasbon()));
+  }
+
+  async function muatHasilGaji() {
+    memuat('#hasilGaji');
+    try {
+      gajiData = await API.daftarGaji({ periode: nilai('gajiPeriode') });
+      gambarGaji();
+    } catch (e) { galat('#hasilGaji', e); }
+  }
+
+  function gambarGaji() {
+    const d = gajiData;
+    if (!d || !$('#hasilGaji')) return;
+    const slip = d.slip.filter((s) => cabangGaji === '*' || s.cabang === cabangGaji);
+    const jum = (k) => slip.reduce((a, s) => a + (Number(s[k]) || 0), 0);
+    const dibayar = slip.filter((s) => s.status === 'DIBAYAR');
+    const nPotong = slip.filter((s) => s.potongan_kasbon > 0).length;
+    const kotak = (label, isi, ekor) =>
+      `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div><div class="mini-nilai">${isi}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
+    $('#ringkasGaji').innerHTML = `<div class="petak-mini petak-uang petak-stok-mini" style="margin-top:12px">
+        ${kotak('Total gaji', rp(jum('bruto')), 'sebelum potongan')}
+        ${kotak('Potongan kasbon', rp(jum('potongan_kasbon')), nPotong + ' orang')}
+        ${kotak('Total diterima', rp(jum('diterima')), 'uang yang keluar')}
+        ${kotak('Sudah dibayar', esc(dibayar.length + ' / ' + slip.length), 'orang')}
+      </div>
+      ${d.belum_disiapkan ? `<p class="petunjuk">${esc(d.belum_disiapkan)} petugas aktif belum punya slip
+        ${esc(namaBulan(d.periode))}. Tekan <strong>Siapkan gaji bulan ini</strong> — gaji pokok dan
+        tunjangan disalin dari slip terakhir masing-masing.</p>` : ''}`;
+
+    const bolehUbah = bolehIzin('gaji', 'ubah');
+    const sisaKb = (k) => ((d.kasbon || {})[k] || { sisa: 0 }).sisa;
+    const kolom = [
+      { judul: 'Petugas', render: (s) => `<strong>${esc(s.nama)}</strong><span class="petunjuk" style="display:block;margin:0">${
+          s.cabang ? esc(s.cabang) : '<span style="color:var(--bahaya)">keliling — pilih cabang</span>'}</span>` },
+      { judul: 'Gaji pokok', angka: true, render: (s) => rp(s.gaji_pokok) },
+      { judul: 'Tunjangan', angka: true, render: (s) => rp(s.tunj_kesehatan + s.tunj_makan) },
+      { judul: 'Bonus + komisi', angka: true, render: (s) => rp(s.bonus + s.komisi) },
+      { judul: 'Potongan kasbon', angka: true, render: (s) => rp(s.potongan_kasbon) +
+          (s.status === 'DRAF' && sisaKb(s.kode_petugas) > 0
+            ? `<span class="petunjuk" style="display:block;margin:0">sisa ${esc(rpTeks(sisaKb(s.kode_petugas)))}</span>` : '') },
+      { judul: 'Diterima', angka: true, render: (s) => `<strong>${rp(s.diterima)}</strong>` },
+      { judul: 'Status', render: (s) => s.status === 'DIBAYAR'
+          ? lencanaDash('Dibayar', 'hijau') : lencanaDash('Draf', '') },
+      { judul: 'Aksi', render: (s) => `<div style="display:flex;gap:6px;white-space:nowrap">${
+          s.status === 'DIBAYAR'
+            ? tombolBaris('', 'Cetak', IKON.cetak, `data-cetak-slip="${esc(s.id_slip)}"`, 'Cetak slip gaji')
+            : bolehUbah ? tombolBaris('', 'Ubah', IKON.ubah, `data-ubah-slip="${esc(s.id_slip)}"`, 'Ubah slip') +
+                          tombolBaris('utama', 'Bayar', IKON.bayar, `data-bayar-slip="${esc(s.id_slip)}"`, 'Bayar gaji ini')
+            : ''}</div>` }
+    ];
+    const aksi = [
+      bolehIzin('gaji', 'buat') ? `<button class="tombol" id="btnSiapkanGaji">${ikonAlat('tambah')}<span>Siapkan gaji bulan ini</span></button>` : '',
+      dibayar.length ? `<button class="tombol" id="btnCetakSemuaSlip">${ikonAlat('cetak')}<span>Cetak semua slip</span></button>` : ''
+    ].join('');
+    $('#hasilGaji').innerHTML = `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Slip gaji ${esc(namaBulan(d.periode))}</h3>
+        <span class="satuan-uang">dalam Rupiah</span>
+        ${aksi ? `<div class="aksi">${aksi}</div>` : ''}</div>
+      ${tabel(kolom, slip, { kosong: 'Belum ada slip untuk bulan ini. Tekan "Siapkan gaji bulan ini".' })}
+    </div>`;
+  }
+
+  const slipDari = (id) => ((gajiData && gajiData.slip) || []).find((s) => s.id_slip === id);
+
+  function bukaUbahSlip(id) {
+    const s = slipDari(id);
+    if (!s) return;
+    const sisa = ((gajiData.kasbon || {})[s.kode_petugas] || { sisa: 0 }).sisa;
+    const kolom = KOMPONEN_GAJI.map(([k, l]) =>
+      `<label>${esc(l)}</label><input type="text" inputmode="numeric" class="uang" id="gj_${k}" value="${ribuan(s[k] || 0)}">`).join('');
+    bukaModal('Ubah slip — ' + s.nama + ', ' + namaBulan(s.periode), `<div class="baris-form">
+      ${kolom}
+      <label>Potongan kasbon</label>
+      <input type="text" inputmode="numeric" class="uang" id="gj_potongan_kasbon" value="${ribuan(s.potongan_kasbon || 0)}" ${sisa > 0 || s.potongan_kasbon ? '' : 'disabled'}>
+      <p class="petunjuk">Sisa kasbon ${esc(s.nama)}: <strong>${esc(rpTeks(sisa))}</strong>. Potongan tidak boleh melebihi sisanya.</p>
+      <label>Cabang yang menanggung gaji</label>
+      <select id="gj_cabang"><option value="">— pilih —</option>${daftarKodeCabang().map((c) =>
+        `<option value="${esc(c)}" ${s.cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <label>Catatan</label>
+      <input type="text" id="gj_catatan" value="${esc(s.catatan || '')}" maxlength="200">
+    </div>`,
+    `<button class="tombol" data-tutup="1">Batal</button>
+     <button class="tombol utama" data-simpan-slip="${esc(s.id_slip)}">Simpan</button>`);
+  }
+
+  async function simpanSlipLayar(id) {
+    const p = { id_slip: id, cabang: nilai('gj_cabang'), catatan: nilai('gj_catatan') };
+    KOMPONEN_GAJI.forEach(([k]) => { p[k] = angka('gj_' + k); });
+    if (!$('#gj_potongan_kasbon').disabled) p.potongan_kasbon = angka('gj_potongan_kasbon');
+    await API.simpanGaji(p);
+    tutupModal();
+    toast('Slip disimpan.');
+    return muatHasilGaji();
+  }
+
+  async function bukaBayarSlip(id) {
+    const s = slipDari(id);
+    if (!s) return;
+    if (!s.cabang) return toast(s.nama + ' petugas keliling — pilih dulu cabangnya lewat Ubah.');
+    const akun = await namaAkunKas();
+    bukaModal('Bayar gaji — ' + s.nama, `<div class="baris-form">
+      <p>Gaji ${esc(namaBulan(s.periode))}: <strong>${rp(s.bruto)}</strong>
+         ${s.potongan_kasbon ? `dikurangi kasbon <strong>${rp(s.potongan_kasbon)}</strong>` : ''}.
+         Uang yang diserahkan <strong>${rp(s.diterima)}</strong>, dibebankan ke ${esc(s.cabang)}.</p>
+      <label>Dibayar dari</label>
+      <select id="gjSumber">${akun.map(([k, l]) => `<option value="${esc(k)}" ${k === '1-1150' ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+      <label>Tanggal bayar</label>
+      <input type="date" id="gjTanggal" value="${esc(tanggalLokal(new Date()))}">
+      <p class="petunjuk">Dicatat Dr 6-1100 Beban Gaji / Cr akun di atas${s.potongan_kasbon
+        ? ', dan potongan kasbonnya Dr 6-1100 / Cr 1-1310' : ''}. Slip yang sudah dibayar tidak bisa diubah lagi.</p>
+    </div>`,
+    `<button class="tombol" data-tutup="1">Batal</button>
+     <button class="tombol utama" data-bayar-simpan="${esc(s.id_slip)}">${ikonAlat('bayar')}<span>Bayar</span></button>`);
+  }
+
+  async function bayarSlipLayar(id) {
+    const s = slipDari(id);
+    if (!(await tanya('Bayar gaji ' + s.nama + '?',
+          `<p class="petunjuk">${esc(rpTeks(s.diterima))} keluar dari ${esc(nilai('gjSumber'))} dan dijurnal.
+           Slipnya terkunci sesudah ini — tidak bisa diurungkan dari layar ini.</p>`,
+          { ya: 'Bayar' }))) return;
+    await API.bayarGaji({ id_slip: id, akun_kas: nilai('gjSumber'), tanggal: nilai('gjTanggal') });
+    tutupModal();
+    toast('Gaji ' + s.nama + ' dibayar.');
+    return muatHasilGaji();
+  }
+
+  /** Satu slip = setengah A4; dua per lembar, dipisah garis gunting. */
+  function htmlSlip(s, sisaSesudah, set) {
+    const baris = (l, v) => `<tr><td>${esc(l)}</td><td class="n">${esc(ribuan(v))}</td></tr>`;
+    return `<div class="slip">
+      <div class="kop"><div><h1>${esc(String(set.nama_usaha || 'SINDIKAT KARTU').toUpperCase())}</h1>
+          <p class="sub">${esc(set.alamat_usaha || ('Cabang ' + s.cabang))}</p></div>
+        <div class="kanan"><h2 class="judul-dok">SLIP GAJI</h2><p class="sub">Periode <b>${esc(namaBulan(s.periode))}</b></p></div></div>
+      <table class="info"><tr><td class="k">Nama</td><td><b>${esc(s.nama)}</b></td><td class="k">Dibayar</td><td>${esc(tglTampil(s.tanggal_bayar))}</td></tr>
+        <tr><td class="k">Kode</td><td>${esc(s.kode_petugas)}</td><td class="k">Dari</td><td>${esc(s.akun_kas)}</td></tr>
+        <tr><td class="k">Cabang</td><td>${esc(s.cabang)}</td><td class="k">No. slip</td><td>${esc(s.id_slip)}</td></tr></table>
+      <div class="dua">
+        <table class="isi"><thead><tr><th>Penerimaan</th><th class="n">Rp</th></tr></thead><tbody>
+          ${KOMPONEN_GAJI.map(([k, l]) => baris(l, s[k])).join('')}</tbody>
+          <tfoot><tr><td>Jumlah penerimaan</td><td class="n">${esc(ribuan(s.bruto))}</td></tr></tfoot></table>
+        <table class="isi"><thead><tr><th>Potongan</th><th class="n">Rp</th></tr></thead><tbody>
+          ${baris('Kasbon', s.potongan_kasbon)}
+          <tr><td class="kosong">Sisa kasbon sesudah ini</td><td class="n kosong">${esc(ribuan(sisaSesudah))}</td></tr></tbody>
+          <tfoot><tr><td>Jumlah potongan</td><td class="n">${esc(ribuan(s.potongan_kasbon))}</td></tr></tfoot></table>
+      </div>
+      <div class="terima">Diterima <b>Rp ${esc(ribuan(s.diterima))}</b><span>${esc(terbilang(s.diterima))}</span></div>
+      ${s.catatan ? `<p class="sub">Catatan: ${esc(s.catatan)}</p>` : ''}
+      <div class="ttd"><div>Penerima<br><br><br>( ${esc(s.nama)} )</div><div>Diserahkan oleh<br><br><br>( ................................ )</div></div>
+    </div>`;
+  }
+
+  const GAYA_SLIP = `<style>
+    @page { size: A4 portrait; margin: 10mm; }
+    .slip { height: 136mm; padding: 3mm 1mm; display: flex; flex-direction: column; break-inside: avoid; }
+    .slip:nth-child(even) { border-top: 1px dashed #000; break-after: page; }
+    .kop { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 4px; }
+    .kop .kanan { text-align: right; } .kop .judul-dok { margin: 0; }
+    table.info { margin-top: 6px; font-size: 9.5pt; }
+    .dua { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+    .terima { margin-top: 8px; border: 2px solid #000; padding: 5px 8px; font-size: 11pt; }
+    .terima span { display: block; font-size: 8.5pt; font-style: italic; }
+    .ttd { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; text-align: center; font-size: 9pt; }
+  </style>`;
+
+  function cetakSlip(daftar) {
+    if (!daftar.length) return;
+    /* Sisa kasbon SESUDAH slip ini = sisa hari ini ditambah potongan slip-slip
+       yang dibayar SESUDAHNYA. Untuk slip bulan berjalan keduanya sama. */
+    const sisa = (s) => ((gajiData.kasbon || {})[s.kode_petugas] || { sisa: 0 }).sisa;
+    const isi = GAYA_SLIP + daftar.map((s) => htmlSlip(s, sisa(s), APP_STATE.setting || {})).join('');
+    try { Struk.cetakDokumen('Slip gaji ' + namaBulan(daftar[0].periode), isi); }
+    catch (e) { toast(e.message); }
+  }
+
+  async function muatKasbon() {
+    memuat('#hasilKasbon');
+    try {
+      const [k, pt] = await Promise.all([API.daftarKasbon({}), API.daftarPetugas()]);
+      kasbonData = k;
+      petugasGaji = pt || [];
+      gambarKasbon();
+    } catch (e) { galat('#hasilKasbon', e); }
+  }
+
+  function gambarKasbon() {
+    const peta = (kasbonData && kasbonData.kasbon) || {};
+    const nama = {};
+    petugasGaji.forEach((p) => { nama[p.kode] = p; });
+    const baris = Object.keys(peta).map((k) => Object.assign({ kode: k, nama: (nama[k] || {}).nama || k,
+      cabang: (nama[k] || {}).cabang || '' }, peta[k])).sort((a, b) => urutNama(a.nama, b.nama));
+    const kolom = [
+      { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong><span class="petunjuk" style="display:block;margin:0">${esc(r.cabang || '')}</span>` },
+      { judul: 'Diberikan', angka: true, render: (r) => rp(r.beri) },
+      { judul: 'Sudah dipotong', angka: true, render: (r) => rp(r.potong) },
+      { judul: 'Sisa', angka: true, render: (r) => `<strong>${rp(r.sisa)}</strong>` },
+      { judul: 'Aksi', render: (r) => tombolBaris('', 'Riwayat', IKON.riwayat, `data-riwayat-kasbon="${esc(r.kode)}"`, 'Riwayat kasbon') }
+    ];
+    $('#hasilKasbon').innerHTML = `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Sisa kasbon per petugas</h3><span class="satuan-uang">dalam Rupiah</span>
+        ${bolehIzin('gaji', 'buat') ? `<div class="aksi">${tombolTambah('btnBeriKasbon', 'Beri kasbon')}</div>` : ''}</div>
+      ${tabel(kolom, baris, { kosong: 'Belum ada kasbon.' })}
+      <p class="petunjuk">Kasbon dicatat Dr 1-1310 Piutang Karyawan / Cr kas. Sisanya berkurang saat
+         dipotong dari slip gaji yang dibayar.</p>
+    </div>`;
+  }
+
+  async function formBeriKasbon() {
+    const akun = await namaAkunKas();
+    const aktif = petugasGaji.filter((p) => p.aktif).sort((a, b) => urutNama(a.nama, b.nama));
+    bukaModal('Beri kasbon', `<div class="baris-form">
+      <label>Petugas</label>
+      <select id="kbPetugas">${aktif.map((p) => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.cabang || '*')})</option>`).join('')}</select>
+      <label>Jumlah</label>
+      <input type="text" inputmode="numeric" class="uang" id="kbJumlah" value="0">
+      <label>Cabang yang mengeluarkan (untuk petugas keliling)</label>
+      <select id="kbCabang"><option value="">— cabang petugasnya —</option>${daftarKodeCabang().map((c) =>
+        `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+      <label>Dibayar dari</label>
+      <select id="kbSumber">${akun.map(([k, l]) => `<option value="${esc(k)}" ${k === '1-1150' ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+      <label>Tanggal</label>
+      <input type="date" id="kbTanggal" value="${esc(tanggalLokal(new Date()))}">
+      <label>Keterangan</label>
+      <input type="text" id="kbKet" maxlength="120" placeholder="mis. keperluan keluarga">
+    </div>`,
+    `<button class="tombol" data-tutup="1">Batal</button>
+     <button class="tombol utama" id="btnSimpanKasbon" data-uuid="${esc(crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2))}">Simpan</button>`);
+  }
+
+  async function simpanKasbonLayar(uuidKb) {
+    const jml = angka('kbJumlah');
+    const sel = $('#kbPetugas');
+    const nm = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+    if (!(await tanya('Beri kasbon ' + rpTeks(jml) + '?',
+          `<p class="petunjuk">Untuk ${esc(nm)}. Uangnya keluar dari ${esc(nilai('kbSumber'))} dan dijurnal
+           Dr 1-1310 Piutang Karyawan.</p>`, { ya: 'Beri kasbon' }))) return;
+    await API.beriKasbon({ uuid: uuidKb, kode_petugas: nilai('kbPetugas'), jumlah: jml, cabang: nilai('kbCabang'),
+                           akun_kas: nilai('kbSumber'), tanggal: nilai('kbTanggal'), keterangan: nilai('kbKet') });
+    tutupModal();
+    toast('Kasbon dicatat.');
+    return muatKasbon();
+  }
+
+  async function bukaRiwayatKasbon(kode) {
+    const r = await API.daftarKasbon({ kode_petugas: kode });
+    const p = petugasGaji.find((x) => x.kode === kode) || { nama: kode };
+    const kolom = [
+      { judul: 'Tanggal', render: (x) => esc(tglTampil(x.tanggal)) },
+      { judul: 'Jenis', render: (x) => x.jenis === 'POTONG' ? 'Dipotong gaji' : 'Diberikan' },
+      { judul: 'Jumlah', angka: true, render: (x) => rp(x.jumlah) },
+      { judul: 'Keterangan', render: (x) => esc(x.keterangan) }
+    ];
+    bukaModal('Riwayat kasbon — ' + p.nama, tabelPolos(kolom, r.riwayat || [], { kosong: 'Belum ada riwayat.' }));
+  }
+
   /* ==================== ROUTER LAYAR ==================== */
 
   /**
@@ -9728,6 +10062,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       pulsa: '#isiPulsa',
                       accurate: '#isiAccurate',
                       aset: '#isiAset',
+                      gaji: '#isiGaji',
                       kas: '#isiKas',
                       konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
@@ -9761,6 +10096,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'pulsa': return muatPulsa();
       case 'accurate': return muatAccurate();
       case 'aset': return muatAset();
+      case 'gaji': return muatGaji();
       case 'kas': return muatKas();
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
@@ -10095,6 +10431,45 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           $('#pesanBayarPiutang').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
           t.disabled = false;
         }
+        return;
+      }
+
+      /* --- gaji & kasbon (bagian 250) --- */
+      if (d.tabGaji)               return pilihTabGaji(d.tabGaji);
+      if (d.ubahSlip)              return bukaUbahSlip(d.ubahSlip);
+      if (d.bayarSlip)             return bukaBayarSlip(d.bayarSlip);
+      if (d.riwayatKasbon)         return bukaRiwayatKasbon(d.riwayatKasbon);
+      if (t.id === 'btnBeriKasbon') return formBeriKasbon();
+      if (d.cetakSlip)             return cetakSlip([slipDari(d.cetakSlip)].filter(Boolean));
+      if (t.id === 'btnCetakSemuaSlip') {
+        return cetakSlip(gajiData.slip.filter((s) => s.status === 'DIBAYAR' &&
+          (cabangGaji === '*' || s.cabang === cabangGaji)));
+      }
+      if (t.id === 'btnSiapkanGaji') {
+        t.disabled = true;
+        try {
+          const r = await API.siapkanGaji({ periode: nilai('gajiPeriode') });
+          toast(r.dibuat ? r.dibuat + ' slip dibuat.' : 'Semua petugas aktif sudah punya slip bulan ini.');
+          await muatHasilGaji();
+        } finally { t.disabled = false; }
+        return;
+      }
+      /* Tombol yang menulis dimatikan selama menunggu: dua ketukan cepat pada
+         Bayar atau Beri kasbon = dua kali uang keluar (servernya juga menolak,
+         tapi orang tidak perlu ditolak untuk tahu). */
+      if (d.simpanSlip) {
+        t.disabled = true;
+        try { await simpanSlipLayar(d.simpanSlip); } finally { t.disabled = false; }
+        return;
+      }
+      if (d.bayarSimpan) {
+        t.disabled = true;
+        try { await bayarSlipLayar(d.bayarSimpan); } finally { t.disabled = false; }
+        return;
+      }
+      if (t.id === 'btnSimpanKasbon') {
+        t.disabled = true;
+        try { await simpanKasbonLayar(d.uuid); } finally { t.disabled = false; }
         return;
       }
 

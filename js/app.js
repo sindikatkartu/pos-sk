@@ -218,6 +218,11 @@ const MENU = [
      tidak ikut berubah dan tiap peran harus dicentang tangan. Yang mengurus
      aset tetap memang orang yang sama dengan yang menutup buku. */
   { id: 'aset',       label: 'Aset Tetap', grup: 'Keuangan',   izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  /* Gaji & kasbon (bagian 250). Modul izin SENDIRI, bukan menumpang
+     laporan_keuangan seperti Aset: gaji orang per orang lebih sempit
+     daripada laporan keuangan, dan Akunting yang memegang laporan belum
+     tentu boleh melihat gaji rekan kerjanya. */
+  { id: 'gaji',       label: 'Gaji',       grup: 'Keuangan',   izin: ['gaji', 'lihat'],              admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Laporan Keuangan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'] },
   { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
