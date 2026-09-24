@@ -4175,7 +4175,7 @@ function angkaRingkasLaporan(d) {
   const daftar = [
     { label: 'Jumlah nota', nilai: r.jumlah_nota, ekor: selisihLaporan(r.jumlah_nota, l.jumlah_nota) },
     { label: 'Omzet kotor', nilai: rp(r.total), ekor: selisihLaporan(r.total, l.total) },
-    { label: 'Retur', nilai: '−' + rp(r.retur_nilai),
+    { label: 'Retur', nilai: rp(-(+r.retur_nilai || 0)),   // minus merah penuh (bagian 256)
       ekor: r.jumlah_retur ? r.jumlah_retur + ' dokumen' : 'tidak ada' },
     { label: 'Penjualan bersih', nilai: rp(r.penjualan_bersih), ekor: '' }
   ];

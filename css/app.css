@@ -2297,9 +2297,11 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 }
 
 .matriks-kons .uang-minus, .kepala-kons .uang-minus { font-weight: 700; }
-.uang-minus .rp { color: inherit; opacity: .7; }
+/* "Rp" pada angka minus merah PENUH (bagian 256, pemilik: "angka minus yang
+   warnanya campur campur tidak merah penuh"). Sampai v1.250 dipudarkan .7. */
+.uang-minus .rp { color: inherit; opacity: 1; }
 .kepala-kons .uang-minus { color: var(--kons-minus); }
-.kepala-kons .uang-minus .rp { color: inherit; opacity: .6; }
+.kepala-kons .uang-minus .rp { color: inherit; opacity: 1; }
 
 /* KOLOM AKUN MELEKAT. Nama akunnya diam di kiri sementara angkanya digeser
    — yang dilakukan setiap aplikasi spreadsheet, dan satu-satunya cara
@@ -2562,8 +2564,25 @@ input.sudah-hitung {
 tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
 /* Pemindai pembelian (bagian 254): barisnya div, bukan tr. */
 .baris-anak.baris-pindai { animation: sorot-pindai 1.2s ease-out; }
-/* Matriks pulsa terlipat (bagian 253): yang tersisa baris Total saja. */
-.matriks-pulsa.terlipat tbody { display: none; }
+/* Strip pulsa per cabang (bagian 256, menggantikan matriks bertabel 253):
+   kotak ringkas per cabang + Total; rincian cabang terbuka saat diklik. */
+.strip-pulsa { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.strip-pulsa .kotak-cab { text-align: left; border: 1px solid var(--garis); background: var(--panel);
+  border-radius: 10px; padding: 8px 10px; cursor: pointer; font: inherit; color: inherit; min-width: 0; }
+.strip-pulsa .kotak-cab[aria-expanded="true"] { border-color: var(--utama); box-shadow: 0 0 0 1px var(--utama) inset; }
+.strip-pulsa .k { font-size: var(--fs-11); color: var(--teks-redup); display: flex; justify-content: space-between; align-items: center; }
+.strip-pulsa .v { font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
+.strip-pulsa .m { font-size: var(--fs-12); color: var(--teks-redup); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.strip-pulsa .titik-setor { width: 8px; height: 8px; border-radius: 50%; background: var(--bahaya); display: inline-block; }
+.rinci-pulsa { margin-top: 10px; border-top: 1px solid var(--garis); padding-top: 10px; display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; font-size: var(--fs-13); }
+.rinci-pulsa .lbl { display: block; color: var(--teks-redup); font-size: var(--fs-11); }
+@media (max-width: 620px) {
+  .strip-pulsa { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .strip-pulsa .kotak-cab:last-child { grid-column: 1 / -1; }
+  .strip-pulsa .kotak-cab { padding: 6px 10px; }
+  .rinci-pulsa { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .op-kelipatan { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-13); color: var(--teks-redup); white-space: nowrap; }
 
 .stok-kritis { color: var(--bahaya); font-weight: 700; }
