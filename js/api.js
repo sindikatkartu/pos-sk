@@ -202,7 +202,7 @@ const API = (() => {
     'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
     'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
-    'tandai_butuh_pasang', 'template_impor', 'terima_transfer', 'tutup_buku',
+    'tandai_butuh_pasang', 'tetapkan_cabang_produk', 'template_impor', 'terima_transfer', 'tutup_buku',
     'tutup_shift', 'tutup_shift_pulsa', 'unggah_accurate', 'unggah_foto_pulsa',
     'void_penjualan'
   ]);
@@ -557,6 +557,7 @@ let _pernahJawab = false;
     simpanProdukLengkap:(d)=> panggil('simpan_produk_lengkap', d),
     nonaktifkanProduk: (d) => panggil('nonaktifkan_produk', d),
     tandaiButuhPasang: (d) => panggil('tandai_butuh_pasang', d, { timeout: 90000 }),
+    tetapkanCabangProduk: (d) => panggil('tetapkan_cabang_produk', d, { timeout: 90000 }),
     daftarPelanggan:   ()  => panggil('daftar_pelanggan', {}, { timeout: 60000 }),
     daftarSupplier:    ()  => panggil('daftar_supplier'),
     simpanSupplier:    (d) => panggil('simpan_supplier', d),
