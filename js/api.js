@@ -140,7 +140,7 @@ const API = (() => {
     'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
-    'daftar_gaji', 'daftar_kasbon',
+    'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
     'daftar_aset',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian',
@@ -596,6 +596,7 @@ let _pernahJawab = false;
        batas waktunya mengikuti yang menulis, bukan yang membaca. */
     hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
     batalShiftPulsa:   (d) => panggil('batal_shift_pulsa', d, { timeout: 60000 }),
+    matriksPulsa:      (d) => panggil('matriks_pulsa', d, { timeout: 90000 }),
     /* Pembacaan, jadi aman diulang — dan memang perlu, sebab meja kerja kas
        memanggilnya tiap kali periodenya berganti. */
     shiftBelumSetor:   (d) => panggil('shift_belum_setor', d || {}, { timeout: 60000 }),

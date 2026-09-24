@@ -438,6 +438,12 @@ const Admin = (() => {
 
   function bukaModal(judul, isi, aksi) {
     stokDuaCabang = null;
+    /* Tanda keranjang stiker milik modal YANG SEDANG terbuka (bagian 255). Tanpa
+       ini tanda itu menempel selamanya di #modalUmum, dan tiap stiker yang
+       ditambah dari daftar Produk mencoba menggambar #labIsi yang sudah tidak
+       ada — 89 galat di satu PC dalam sehari. bukaKeranjangLabel memasangnya
+       lagi SESUDAH memanggil bukaModal. */
+    $('#modalUmum')._label = null;
     $('#modalUmum').innerHTML = `<h3>${esc(judul)}</h3>${isi}
       <div class="aksi-modal">${aksi || ('<button class="tombol" data-tutup="1">' +
           ikonAlat('batal') + '<span>Tutup</span></button>')}</div>`;
@@ -452,6 +458,7 @@ const Admin = (() => {
      pun — Batal, klik latar, tangan lain — melepasnya sekaligus. */
   const tutupModal = () => {
     accTertunda = null;
+    $('#modalUmum')._label = null;     // lihat bukaModal (bagian 255)
     $('#tiraiUmum').classList.remove('tampil');
   };
 
@@ -1204,7 +1211,7 @@ const Admin = (() => {
         break;
       case 'piutang':
         judul = 'Kas masuk & umur piutang';
-        kolom = [{ judul: 'Keterangan', kunci: 'k' }, { judul: 'Jumlah', angka: true, render: r => rp(r.v) }];
+        kolom = [{ judul: 'Keterangan', kunci: 'k' }, { judul: 'Nominal', angka: true, render: r => rp(r.v) }];
         { const pi = (inti.kas && inti.kas.piutang) || {};
           baris = ((inti.kas && inti.kas.per_metode) || []).map(r => ({ k: 'Kas masuk · ' + String(r.metode).toUpperCase(), v: r.jumlah }))
             .concat([{ k: 'Piutang belum jatuh tempo', v: pi.belum || 0 }, { k: 'Piutang lewat 1–30 hari', v: pi.d1_30 || 0 }, { k: 'Piutang lewat 30+ hari', v: pi.d30plus || 0 }]); }
@@ -2587,13 +2594,16 @@ const Admin = (() => {
     const d = $('#modalUmum') && $('#modalUmum')._label;
     if (!d) return;
     const k = await muatKeranjangLabel();
+    /* Dialognya bisa sudah ditutup selama menunggu keranjang dimuat. */
+    const wadahLabel = $('#labIsi');
+    if (!wadahLabel || $('#modalUmum')._label !== d) return;
     const u = d.ukuran;
 
     /* Setiap baris diperiksa SENDIRI-SENDIRI: satu SKU panjang di tengah
        keranjang tidak boleh diam-diam tercetak terpotong, dan barcode terpotong
        terbaca sebagai barang lain. */
     const tidakMuat = [];
-    $('#labIsi').innerHTML = k.length ? k.map(x => {
+    wadahLabel.innerHTML = k.length ? k.map(x => {
       const c = Label.muat(x.kode, u);
       if (!c.muat) tidakMuat.push(x);
       return `<div class="baris-anak labBaris" data-sku="${esc(x.sku)}">
@@ -4255,7 +4265,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="kendali-tetap"><label>Tanggal dibayar</label><input type="date" id="pbDimukaTgl" value="${esc(String(d.tanggal || '').substring(0, 10))}"></div>
             <div class="kendali-tetap"><label>Dari</label><select id="pbDimukaSumber">
               <option value="transfer">Transfer bank</option><option value="kas_admin">Kas Admin</option></select></div>
-            <div class="kendali-tetap"><label>Jumlah</label><input type="text" id="pbDimukaJumlah" class="uang" value="${rp0(d.total)}"></div>
+            <div class="kendali-tetap"><label>Nominal</label><input type="text" id="pbDimukaJumlah" class="uang" value="${rp0(d.total)}"></div>
           </div>
           <p class="petunjuk">Tanggal saat uangnya diserahkan ke supplier. Utangnya langsung lunas pada tanggal itu;
              kalau jumlahnya kurang dari total, sisanya tetap utang dan dibayar di menu Utang.</p>
@@ -4367,6 +4377,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>&nbsp;</label><p class="petunjuk" style="margin:0">Dicatat sebagai utang supplier. Dibayar lewat menu Utang sesudah Head Admin memeriksa.</p></div>
       </div>
 
+      <!-- Scanner pembelian (bagian 254): mesin scan mengetik kodenya lalu
+           Enter, sama seperti Opname. -->
+      <div class="grup" style="margin-top:6px"><label>Pindai barcode / SKU</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" class="input-cari" id="beliPindai" placeholder="Pindai barcode / SKU…" autocomplete="off" style="flex:1;max-width:320px">
+          <span class="op-kelipatan">× <input type="number" id="beliKelipatan" value="1" min="1" style="width:64px" title="Jumlah per pindaian"></span>
+        </div>
+        <p class="petunjuk" id="beliPindaiInfo" style="margin:4px 0 0">Pindai label barang: barang yang sama menambah jumlahnya, barang baru jadi baris baru dengan harga beli terakhir.</p></div>
       <label>Item</label>
       <div id="barisBeli"></div>
       <button class="tombol" id="btnTambahBaris">+ Tambah baris</button>
@@ -4381,6 +4399,69 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol utama" id="btnSimpanPembelian">${ikonAlat('simpan')}<span>Simpan pembelian</span></button>`);
     daftarPilihProduk = prod.produk;
     tambahBarisBeli();
+    siapkanPindaiBeli(prod.produk);
+    $('#beliPindai')?.focus();
+  }
+
+  /* Peta scanner pembelian (bagian 254) dibangun dari daftar produk SERVER yang
+     sudah dimuat form ini — BUKAN katalog perangkat. Sejak bagian 249 katalog
+     perangkat hanya memuat produk cabang sesi, sedangkan pembelian dan stok
+     tidak disaring cabang: pembelian untuk SKG01 akan menolak semua barcode.
+     Barcode yang dipakai lebih dari satu SKU DITANYA, bukan ditebak. */
+  let pindaiBeli = null;
+  function siapkanPindaiBeli(daftar) {
+    const barcode = new Map(), sku = new Map(), nama = new Map();
+    (daftar || []).forEach((p) => {
+      const k = String(p.sku || '');
+      if (!k) return;
+      sku.set(k.toLowerCase(), k);
+      nama.set(k, String(p.nama || k));
+      const b = String(p.barcode || '').trim().toLowerCase();
+      if (b) barcode.set(b, (barcode.get(b) || []).concat([k]));
+    });
+    pindaiBeli = { barcode, sku, nama };
+  }
+
+  function pindaiPembelian(kodeMentah) {
+    const kode = String(kodeMentah || '').trim();
+    const q = kode.toLowerCase();
+    const info = $('#beliPindaiInfo');
+    if (!q || !pindaiBeli) return;
+    const calon = pindaiBeli.barcode.get(q) || (pindaiBeli.sku.has(q) ? [pindaiBeli.sku.get(q)] : null);
+    if (!calon) {
+      toast(`Kode ${kode} tidak dikenal di katalog.`, 'galat');
+      if (info) info.textContent = `Kode ${kode} tidak dikenal — tidak ada yang ditambahkan.`;
+      return;
+    }
+    if (calon.length > 1) {
+      const daftar = calon.map((s) => pindaiBeli.nama.get(s) || s).join(', ');
+      toast(`Barcode ${kode} dipakai ${calon.length} produk (${daftar}). Pilih lewat kolom cari.`, 'galat');
+      if (info) info.textContent = `Barcode ${kode} ganda: ${daftar} — tidak ada yang ditambahkan.`;
+      return;
+    }
+    const sku = calon[0];
+    const kelInp = $('#beliKelipatan');
+    const kel = Math.max(1, Math.floor(Number(kelInp && kelInp.value) || 1));
+    const semua = $$('#barisBeli [data-anak="beli"]');
+    let baris = semua.find((b) => b.querySelector('input[data-f="sku"]')?.value === sku);
+    let qty;
+    if (baris) {
+      const inp = baris.querySelector('[data-f="qty"]');
+      qty = (Number(inp.value) || 0) + kel;
+      inp.value = qty;
+    } else {
+      baris = semua.find((b) => !b.querySelector('input[data-f="sku"]')?.value);
+      if (!baris) { tambahBarisBeli(); const s2 = $$('#barisBeli [data-anak="beli"]'); baris = s2[s2.length - 1]; }
+      pilihProduk(baris, sku);
+      qty = kel;
+      baris.querySelector('[data-f="qty"]').value = qty;
+    }
+    if (kelInp) kelInp.value = 1;
+    hitungTotalBeli();
+    baris.classList.remove('baris-pindai'); void baris.offsetWidth; baris.classList.add('baris-pindai');
+    baris.scrollIntoView({ block: 'nearest' });
+    if (info) info.textContent = `${pindaiBeli.nama.get(sku) || sku} · ${qty} pcs${kel > 1 ? ' (+' + kel + ')' : ' (+1)'}`;
+    $('#beliPindai')?.focus();
   }
 
   function tambahBarisBeli() {
@@ -4980,7 +5061,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(p.nama_pelanggan)} · nota ${esc(tglTampil(p.tanggal))} · sisa <strong>${rp(p.sisa)}</strong></p>
       <div class="baris2">
         <div class="grup"><label>Tanggal</label><input type="date" id="bpTanggal" value="${tanggalLokal()}"></div>
-        <div class="grup"><label>Jumlah bayar</label><input type="text" inputmode="numeric" class="uang" id="bpJumlah" value="${ribuan(p.sisa)}"></div>
+        <div class="grup"><label>Nominal bayar</label><input type="text" inputmode="numeric" class="uang" id="bpJumlah" value="${ribuan(p.sisa)}"></div>
       </div>
       <div class="baris2">
         <div class="grup"><label>Metode</label><select id="bpMetode">
@@ -5049,7 +5130,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(u.nama_supplier)} · faktur ${esc(tglTampil(u.tanggal))} · sisa <strong>${rp(u.sisa)}</strong></p>
       <div class="baris2">
         <div class="grup"><label>Tanggal</label><input type="date" id="buTanggal" value="${tanggalLokal()}"></div>
-        <div class="grup"><label>Jumlah bayar</label><input type="text" inputmode="numeric" class="uang" id="buJumlah" value="${ribuan(u.sisa)}"></div>
+        <div class="grup"><label>Nominal bayar</label><input type="text" inputmode="numeric" class="uang" id="buJumlah" value="${ribuan(u.sisa)}"></div>
       </div>
       <div class="baris2">
         <div class="grup"><label>Metode</label><select id="buMetode">
@@ -5853,7 +5934,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="bar-alat"><h3>Komposisi beban</h3>
           <span class="satuan-uang">dalam Rupiah</span></div>
         <div class="gulir-x"><table class="matriks-kons"><thead><tr>
-          <th class="akun">Akun</th><th class="angka">Jumlah</th>
+          <th class="akun">Akun</th><th class="angka">Nominal</th>
           <th class="angka gabung">Porsi</th></tr></thead><tbody>
           ${kb.length ? kb.map(x => `<tr><td class="akun">
             <span class="kode">${esc(x.kode)}</span> ${esc(x.nama)}</td>
@@ -6348,8 +6429,93 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ['saldo', 'Saldo']
   ];
 
+  /* ==================== MATRIKS PULSA (bagian 253) ====================
+     Kartu paling atas menu Pulsa, hanya pemegang laporan_pulsa (Owner & Head
+     Admin). Dimuat saat layar Pulsa DIBUKA, bukan tiap pindah tab. Bisa dilipat; di
+     HP bawaannya terlipat (hanya baris Total), pilihan terakhir diingat per
+     perangkat — penyimpanannya dibungkus try: jendela pribadi boleh gagal
+     menyimpan, lipatannya tetap jalan. */
+  const PERIODE_MATPULSA = { id: 'matpulsaPeriodePilih', dari: 'matpulsaBulan', bulanan: true,
+                             nilai: 'bulan', label: 'Periode' };
+  const KUNCI_LIPAT_MATPULSA = 'possk_lipat_matriks_pulsa';
+  const lipatMatpulsa = () => {
+    try { const v = localStorage.getItem(KUNCI_LIPAT_MATPULSA); if (v === '1' || v === '0') return v === '1'; } catch (e) { /* abaikan */ }
+    return window.matchMedia ? window.matchMedia('(max-width: 620px)').matches : false;
+  };
+
+  async function muatMatrikspulsa() {
+    const w = $('#isiMatrikspulsa');
+    if (!w) return;
+    if (!bolehIzin('laporan_pulsa', 'lihat')) { w.innerHTML = ''; return; }
+    if (!$('#matpulsaBulan')) {
+      const lipat = lipatMatpulsa();
+      w.innerHTML = `<div class="kartu laporan-uang matriks-pulsa${lipat ? ' terlipat' : ''}" id="kartuMatpulsa">
+        <div class="bar-alat"><h3>Matriks pulsa per cabang</h3><span class="satuan-uang">dalam Rupiah</span>
+          <button class="tombol kecil" id="btnLipatMatpulsa" aria-expanded="${lipat ? 'false' : 'true'}"
+                  style="margin-left:auto">${lipat ? 'Buka' : 'Lipat'}</button></div>
+        <div class="saring-baris"><span class="wadah-periode" id="wadahPeriodeMatpulsa"></span></div>
+        <div id="hasilMatpulsa"></div>
+        <p class="petunjuk">Hanya terlihat oleh Owner dan Head Admin. Penjualan, modal, margin, dan selisih dari
+           shift yang ditutup dalam periode; saldo deposit dan shift sekarang adalah keadaan saat ini.</p>
+      </div>`;
+      $('#wadahPeriodeMatpulsa').innerHTML = Periode.html(PERIODE_MATPULSA);
+      Periode.pasang(PERIODE_MATPULSA, () => API.tugas(muatHasilMatpulsa));
+    }
+    return muatHasilMatpulsa();
+  }
+
+  async function muatHasilMatpulsa() {
+    memuat('#hasilMatpulsa');
+    const bln = nilai('matpulsaBulan');
+    try {
+      $('#hasilMatpulsa')._d = await API.matriksPulsa({ dari: bln ? bln + '-01' : '', sampai: bln ? bln + '-31' : '' });
+      gambarMatpulsa();
+    } catch (e) { galat('#hasilMatpulsa', e); }
+  }
+
+  function gambarMatpulsa() {
+    const w = $('#hasilMatpulsa');
+    const d = w && w._d;
+    if (!d) return;
+    const merah = (v) => (+v || 0) < 0 ? `<span class="delta turun">${rp(v)}</span>` : rp(v);
+    const gagal = '<span class="petunjuk" style="margin:0">tidak terbaca</span>';
+    const ket = (t) => `<span class="petunjuk" style="display:block;margin:0">${esc(t)}</span>`;
+    const setor = (o, gg) => gg ? gagal : (o.shift ? `<span class="delta turun">${rp(o.kas)}</span>${ket(o.shift + ' shift')}` : '—');
+    w.innerHTML = `<div class="gulir-x"><table class="tabel" style="margin-top:10px"><thead><tr>
+      <th>Cabang</th><th class="angka">Penjualan</th><th class="angka">Modal</th><th class="angka">Margin</th>
+      <th class="angka">Selisih kas</th><th class="angka">Saldo deposit</th><th>Shift sekarang</th><th class="angka">Belum disetor</th>
+      </tr></thead><tbody>${(d.cabang || []).map((b) => `<tr>
+        <td data-l="Cabang"><strong>${esc(b.kode_cabang)}</strong>${ket(b.shift_tutup + ' shift ditutup')}</td>
+        <td class="angka" data-l="Penjualan">${rp(b.penjualan)}</td>
+        <td class="angka" data-l="Modal">${rp(b.modal)}</td>
+        <td class="angka" data-l="Margin">${merah(b.margin)}</td>
+        <td class="angka" data-l="Selisih kas">${b.selisih ? merah(b.selisih) : '—'}</td>
+        <td class="angka" data-l="Saldo deposit">${b.saldo_gagal ? gagal : rp(b.saldo)}</td>
+        <td data-l="Shift sekarang">${b.shift_buka ? lencanaDash(b.shift_buka.jenis_shift || 'buka', 'hijau') : lencanaDash('tutup', '')}</td>
+        <td class="angka" data-l="Belum disetor">${setor(b.belum_setor, b.setor_gagal)}</td>
+      </tr>`).join('')}</tbody>
+      <tfoot><tr><th>Total</th><th class="angka">${rp(d.total.penjualan)}</th><th class="angka">${rp(d.total.modal)}</th>
+        <th class="angka">${merah(d.total.margin)}</th><th class="angka">${merah(d.total.selisih)}</th>
+        <th class="angka">${rp(d.total.saldo)}</th><th></th>
+        <th class="angka">${d.total.belum_setor.shift ? `<span class="delta turun">${rp(d.total.belum_setor.kas)}</span>` : '—'}</th></tr></tfoot>
+    </table></div>`;
+  }
+
+  function lipatMatriksPulsa() {
+    const k = $('#kartuMatpulsa'), b = $('#btnLipatMatpulsa');
+    if (!k || !b) return;
+    const lipat = !k.classList.contains('terlipat');
+    k.classList.toggle('terlipat', lipat);
+    b.textContent = lipat ? 'Buka' : 'Lipat';
+    b.setAttribute('aria-expanded', lipat ? 'false' : 'true');
+    try { localStorage.setItem(KUNCI_LIPAT_MATPULSA, lipat ? '1' : '0'); } catch (e) { /* abaikan */ }
+  }
+
   async function muatPulsa(tab) {
     const w = $('#isiPulsa');
+    /* Matriks dimuat saat layar Pulsa dibuka (tanpa tab), tidak tiap pindah tab —
+       dan tidak ditunggu: tab Shift tidak boleh menunggu hitungan semua cabang. */
+    if (!tab) muatMatrikspulsa().catch(() => {});
     /* Tab Laporan hanya untuk yang memegang laporan_pulsa·lihat — Owner dan
        Head Admin (bagian 251). Akun petugas tidak melihat tabnya sama sekali,
        dan servernya menolak kalau dipanggil juga. */
@@ -6441,11 +6607,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <table class="tabel" id="tabelSaldoPulsa">
             <thead><tr><th>Cabang</th>
               ${kolom.map(k => `<th class="angka">${esc(k.nama)}</th>`).join('')}
-              <th class="angka">Jumlah</th><th>Shift terakhir ditutup</th><th>Keadaan</th></tr></thead>
+              <th class="angka">Total</th><th>Shift terakhir ditutup</th><th>Keadaan</th></tr></thead>
             <tbody>${cabang.map(c => `<tr data-cabang="${esc(c.kode_cabang)}">
               <td data-l="Cabang">${esc(c.kode_cabang)}</td>
               ${kolom.map(k => `<td class="angka" data-l="${esc(labelSumber(k.nama))}">${sel(c, k)}</td>`).join('')}
-              <td class="angka" data-l="Jumlah"><strong>${rp(c.total)}</strong></td>
+              <td class="angka" data-l="Total"><strong>${rp(c.total)}</strong></td>
               <td data-l="Shift terakhir">${c.shift_terakhir ? esc(c.shift_terakhir.id_shift) : '<span class="teks-redup">belum ada shift</span>'}</td>
               <td data-l="Keadaan">${c.shift_buka ? lencanaDash('shift ' + String(c.shift_buka.jenis_shift || '').toLowerCase() + ' berjalan', 'kuning') : '—'}</td>
             </tr>`).join('')}</tbody>
@@ -6715,10 +6881,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <h3>Pengeluaran lain</h3>
         <div class="gulir-x">
           <table class="tabel">
-            <thead><tr><th>Keterangan</th><th class="kanan">Jumlah</th><th></th></tr></thead>
+            <thead><tr><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
             <tbody>${keluarBaris.length ? keluarBaris.map((x, i) => `<tr>
               <td data-l="Keterangan"><input type="text" class="spsKel" data-kel="keterangan" data-i="${i}" value="${esc(x.keterangan || '')}" placeholder="mis. beli plastik"></td>
-              <td data-l="Jumlah"><input type="text" class="kanan uang spsKel" data-kel="jumlah" data-i="${i}" value="${rp0(x.jumlah)}"></td>
+              <td data-l="Nominal"><input type="text" class="kanan uang spsKel" data-kel="jumlah" data-i="${i}" value="${rp0(x.jumlah)}"></td>
               <td><button class="tombol kecil" data-hapuskel="${i}" title="Hapus">Hapus</button></td>
             </tr>`).join('') : `<tr><td colspan="3">Belum ada pengeluaran.</td></tr>`}</tbody>
           </table>
@@ -9489,7 +9655,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td colspan="5" class="petunjuk">Agregat bulan ini belum pernah dihitung —
              bukan berarti tidak ada transaksinya.</td>
         </tr>`).join('')}</tbody>
-        <tfoot><tr><th>Jumlah ${arus.bulan_terhitung} bulan</th>
+        <tfoot><tr><th>Total ${arus.bulan_terhitung} bulan</th>
           <th class="kanan">${rp(arus.total_masuk)}</th>
           <th class="kanan">${rp(-Math.abs(arus.total_keluar))}</th>
           <th class="kanan">${rp(arus.total_masuk - arus.total_keluar)}</th>
@@ -9527,14 +9693,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return `<div class="gulir-x" style="margin-top:14px"><table class="tabel">
       <thead><tr><th>Akun</th>
         ${bln.map((b) => `<th class="kanan">${esc(bulanTeks(b.periode))}</th>`).join('')}
-        <th class="kanan">Jumlah</th></tr></thead>
+        <th class="kanan">Total</th></tr></thead>
       <tbody>${arus.akun.map((k) => {
         const sel = bln.map((b) => (b.per_akun && b.per_akun[k]) || { bersih: 0 });
         const jml = sel.reduce((a, x) => a + (x.bersih || 0), 0);
         return `<tr>
           <td data-l="Akun">${esc(namaAkun[k] || k)}</td>
           ${sel.map((x, i) => `<td class="kanan" data-l="${esc(bulanTeks(bln[i].periode))}">${rp(x.bersih || 0)}</td>`).join('')}
-          <td class="kanan" data-l="Jumlah">${rp(jml)}</td>
+          <td class="kanan" data-l="Total">${rp(jml)}</td>
         </tr>`; }).join('')}</tbody>
     </table></div>
     <p class="petunjuk">Angka di sini <strong>pergerakan bersih</strong> tiap bulan,
@@ -9609,7 +9775,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <select id="kasSumber"></select></div>
         <div class="kendali-penuh"><label id="labelKasLawan">Akun lawan</label>
           <select id="kasAkun"></select></div>
-        <div class="kendali-tetap"><label>Jumlah</label>
+        <div class="kendali-tetap"><label>Nominal</label>
           <input type="text" inputmode="numeric" class="uang kendali-tetap" id="kasJumlah" placeholder="0"></div>
       </div>
       <div class="grup"><label>Keterangan</label>
@@ -9630,14 +9796,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <thead><tr><th>Tanggal</th>
         ${banyakCabang ? '<th>Cabang</th>' : ''}
         <th>Dari akun</th><th>Akun lawan</th>
-        <th class="kanan">Jumlah</th><th>Keterangan</th><th></th></tr></thead>
+        <th class="kanan">Nominal</th><th>Keterangan</th><th></th></tr></thead>
       <tbody>${rows.map((k) => `<tr>
         <td data-l="Tanggal">${esc(tglTampil(k.tanggal))}</td>
         ${banyakCabang ? `<td data-l="Cabang">${esc(k.kode_cabang || '')}</td>` : ''}
         <td data-l="Dari akun">${esc(k.nama_akun_kas || k.akun_kas)}</td>
         <td data-l="Akun lawan">${esc(k.nama_akun)}${k.pindah_kas
           ? ' ' + lencanaDash('pindah', 'abu') : ''}</td>
-        <td class="kanan" data-l="Jumlah">${k.tipe === 'KELUAR'
+        <td class="kanan" data-l="Nominal">${k.tipe === 'KELUAR'
           ? rp(-Math.abs(k.jumlah)) : rp(k.jumlah)}</td>
         <td data-l="Keterangan">${esc(k.keterangan)}${k.bukti
           ? ' <span class="petunjuk">' + esc(k.bukti) + '</span>' : ''}</td>
@@ -9712,7 +9878,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const ket = nilai('kasKeterangan').trim();
     if (!akun) return toast('Pilih akun lawannya dulu.', 'galat');
     if (!sumber) return toast('Pilih sumber kasnya dulu.', 'galat');
-    if (!(jumlah > 0)) return toast('Jumlah harus lebih dari nol.', 'galat');
+    if (!(jumlah > 0)) return toast('Nominal harus lebih dari nol.', 'galat');
     if (!ket) return toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang bergerak.', 'galat');
 
     /* PRIVE dan PINDAH sama-sama KELUAR dari sumber kasnya; yang membedakan
@@ -9974,11 +10140,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="dua">
         <table class="isi"><thead><tr><th>Penerimaan</th><th class="n">Rp</th></tr></thead><tbody>
           ${KOMPONEN_GAJI.map(([k, l]) => baris(l, s[k])).join('')}</tbody>
-          <tfoot><tr><td>Jumlah penerimaan</td><td class="n">${esc(ribuan(s.bruto))}</td></tr></tfoot></table>
+          <tfoot><tr><td>Total penerimaan</td><td class="n">${esc(ribuan(s.bruto))}</td></tr></tfoot></table>
         <table class="isi"><thead><tr><th>Potongan</th><th class="n">Rp</th></tr></thead><tbody>
           ${baris('Kasbon', s.potongan_kasbon)}
           <tr><td class="kosong">Sisa kasbon sesudah ini</td><td class="n kosong">${esc(ribuan(sisaSesudah))}</td></tr></tbody>
-          <tfoot><tr><td>Jumlah potongan</td><td class="n">${esc(ribuan(s.potongan_kasbon))}</td></tr></tfoot></table>
+          <tfoot><tr><td>Total potongan</td><td class="n">${esc(ribuan(s.potongan_kasbon))}</td></tr></tfoot></table>
       </div>
       <div class="terima">Diterima <b>Rp ${esc(ribuan(s.diterima))}</b><span>${esc(terbilang(s.diterima))}</span></div>
       ${s.catatan ? `<p class="sub">Catatan: ${esc(s.catatan)}</p>` : ''}
@@ -10047,7 +10213,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal('Beri kasbon', `<div class="baris-form">
       <label>Petugas</label>
       <select id="kbPetugas">${aktif.map((p) => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.cabang || '*')})</option>`).join('')}</select>
-      <label>Jumlah</label>
+      <label>Nominal</label>
       <input type="text" inputmode="numeric" class="uang" id="kbJumlah" value="0">
       <label>Cabang yang mengeluarkan (untuk petugas keliling)</label>
       <select id="kbCabang"><option value="">— cabang petugasnya —</option>${daftarKodeCabang().map((c) =>
@@ -10074,7 +10240,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              pinjaman yang dipotong dari gajinya nanti.</p>
            <table class="tabel" style="margin:8px 0"><tbody>
              <tr><td>Petugas</td><td class="kanan">${esc(nm)}</td></tr>
-             <tr><td><strong>Jumlah</strong></td><td class="kanan"><strong>${rp(jml)}</strong></td></tr>
+             <tr><td><strong>Nominal</strong></td><td class="kanan"><strong>${rp(jml)}</strong></td></tr>
              <tr><td>Dari</td><td class="kanan">${esc(dariKb)}</td></tr></tbody></table>`,
           { ya: 'Ya, beri kasbon', jenis: 'bahaya' }))) return;
     await API.beriKasbon({ uuid: uuidKb, kode_petugas: nilai('kbPetugas'), jumlah: jml, cabang: nilai('kbCabang'),
@@ -10090,7 +10256,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kolom = [
       { judul: 'Tanggal', render: (x) => esc(tglTampil(x.tanggal)) },
       { judul: 'Jenis', render: (x) => x.jenis === 'POTONG' ? 'Dipotong gaji' : 'Diberikan' },
-      { judul: 'Jumlah', angka: true, render: (x) => rp(x.jumlah) },
+      { judul: 'Nominal', angka: true, render: (x) => rp(x.jumlah) },
       { judul: 'Keterangan', render: (x) => esc(x.keterangan) }
     ];
     bukaModal('Riwayat kasbon — ' + p.nama, tabelPolos(kolom, r.riwayat || [], { kosong: 'Belum ada riwayat.' }));
@@ -10888,6 +11054,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
+      if (t.id === 'btnLipatMatpulsa') return lipatMatriksPulsa();
       if (t.id === 'btnBatalShiftPulsa') {
         const st = ($('#isiShiftpulsa') || {})._st || {};
         if (!(await tanya('Batalkan shift ' + st.kode_cabang + ' · ' + st.jenis_shift + '?',
@@ -11787,6 +11954,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        awal bisa dikemudikan tanpa menyentuh tetikus — dan pekerjaan pembelian
        memang dikerjakan dua tangan di papan ketik. */
     document.addEventListener('keydown', (e) => {
+      /* Scanner pembelian (bagian 254): Enter DIHENTIKAN di sini — tanpa itu
+         Enter dari mesin scan bisa ikut menekan tombol lain di modal. */
+      if (e.target.id === 'beliPindai') {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        e.stopPropagation();
+        const kode = e.target.value;
+        e.target.value = '';
+        pindaiPembelian(kode);
+        return;
+      }
       /* Mesin scan mengetik kodenya lalu menekan Enter (bagian 237). */
       if (e.target.id === 'opPindai') {
         if (e.key !== 'Enter') return;

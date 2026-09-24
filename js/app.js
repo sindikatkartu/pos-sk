@@ -3015,7 +3015,7 @@ function gambarMetode() {
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:end">
-        <div style="flex:1"><label>Jumlah${m.metode === 'piutang' ? ' <span style="color:var(--teks-redup);font-weight:400">(sisa, dihitung)</span>' : ''}</label>
+        <div style="flex:1"><label>Nominal${m.metode === 'piutang' ? ' <span style="color:var(--teks-redup);font-weight:400">(sisa, dihitung)</span>' : ''}</label>
           <input type="text" inputmode="numeric" class="uang" data-i="${i}" data-f="jumlah"
                  value="${ribuan(m.jumlah)}"${m.metode === 'piutang' ? ' readonly' : ''}></div>
         ${i > 0 ? `<button class="tombol bahaya" data-i="${i}" data-f="hapus" style="padding:12px 12px">×</button>` : ''}
@@ -3992,7 +3992,7 @@ const KOLOM_LAP = {
   ],
   perMetode: () => [
     { judul: 'Metode', render: x => esc(String(x.metode).toUpperCase()) },
-    { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
+    { judul: 'Nominal', angka: true, render: x => rp(x.jumlah) },
     { judul: 'Biaya MDR', angka: true, render: x => rp(x.mdr) },
     { judul: 'Netto', angka: true, render: x => rp(x.jumlah - x.mdr) }
   ],
@@ -4075,7 +4075,7 @@ const KOLOM_LAP = {
     { judul: 'Pelanggan', render: x => esc(x.kode_pelanggan) },
     { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
     { judul: 'Jatuh tempo', render: x => esc(x.jatuh_tempo ? tglTampil(x.jatuh_tempo) : '—') },
-    { judul: 'Jumlah', angka: true, render: x => rp(x.jumlah) },
+    { judul: 'Nominal', angka: true, render: x => rp(x.jumlah) },
     { judul: 'Sisa', angka: true, render: x => rp(x.sisa) },
     { judul: 'Status', render: x => esc(x.status) }
   ],
@@ -5059,7 +5059,7 @@ async function tampilkanJurnalManual() {
       <td data-l="Keterangan">${j.pembalik ? '<span class="lencana">pembalik</span>' + ' ' : ''}${j.dibalik_oleh ? '<span class="lencana">sudah dibalik</span>' + ' ' : ''}${esc(j.keterangan)}
         <span class="petunjuk" style="display:block">${j.baris.map(b =>
           `${esc(b.kode_akun)} ${esc(b.nama_akun)}: ${b.debit ? 'D ' + rpTeks(b.debit) : 'K ' + rpTeks(b.kredit)}`).join(' · ')}</span></td>
-      <td class="kanan" data-l="Jumlah">${rp(j.total)}</td>
+      <td class="kanan" data-l="Nominal">${rp(j.total)}</td>
       <td>${bolehUbah && !j.pembalik && !j.dibalik_oleh
         ? `<button type="button" class="tombol kecil ikon-saja" title="Balikkan jurnal ini" aria-label="Balikkan jurnal ini" data-balik-jurnal="${esc(j.uuid)}" data-no="${esc(j.no_jurnal)}">${ikonAksi('retur')}</button>` : ''}</td>
     </tr>`;
@@ -5067,7 +5067,7 @@ async function tampilkanJurnalManual() {
     w.innerHTML = borang + tombolUnduh('jurnal', par) + `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Jurnal penyesuaian ${esc(par.periode)}</h3><span class="satuan-uang">dalam Rupiah</span></div>
       ${daftar.length ? `<div class="gulir-x"><table>
-        <thead><tr><th>Tanggal</th><th>Keterangan</th><th class="kanan">Jumlah</th><th></th></tr></thead>
+        <thead><tr><th>Tanggal</th><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
         <tbody>${daftar.map(baris).join('')}</tbody></table></div>`
         : '<p class="petunjuk">Belum ada jurnal penyesuaian di periode ini.</p>'}
     </div>`;

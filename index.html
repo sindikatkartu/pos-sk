@@ -480,6 +480,9 @@
     </section>
 
     <section class="layar" id="layarPulsa">
+      <!-- Matriks per cabang (bagian 253), hanya Owner & Head Admin. Di LUAR
+           #isiPulsa: wadah itu digambar ulang tiap pindah tab, matriksnya tidak. -->
+      <div id="isiMatrikspulsa"></div>
       <div id="isiPulsa"></div>
       <div id="isiShiftpulsa"></div>
       <div id="isiSumberpulsa" hidden></div>
@@ -698,7 +701,7 @@
         <div class="kartu">
           <h3>A7. Pembayaran &amp; bayar campur</h3>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li>Kolom <strong>Jumlah</strong> mulai dari nol, bukan dari total. Untuk tunai ada chip pecahan dan tombol <strong>Uang pas</strong>.</li>
+            <li>Kolom <strong>Nominal</strong> mulai dari nol, bukan dari total. Untuk tunai ada chip pecahan dan tombol <strong>Uang pas</strong>.</li>
             <li><strong>+ Metode bayar lain (split)</strong> menambah baris bila pembeli bayar sebagian tunai, sebagian transfer/QRIS/kartu.</li>
             <li>Metode <strong>PIUTANG</strong> memunculkan kolom Jatuh tempo — nota jadi utang pelanggan, ditagih lewat menu Piutang.</li>
             <li>Label sisa berganti sendiri antara <strong>Kembali</strong> dan <strong>Kurang</strong>. Tombol Selesaikan mati bila kurang bayar tanpa metode piutang.</li>
@@ -719,7 +722,7 @@
 
         <div class="kartu">
           <h3>A8. Kas masuk / keluar laci</h3>
-          <p>Menu <strong>Kas</strong> untuk uang yang bergerak di laci <strong>di luar penjualan</strong>: bayar ongkos kirim, beli galon, setor ke bank. Isi <strong>Jenis</strong> (kas keluar / kas masuk), <strong>Akun lawan</strong>, <strong>Jumlah</strong>, dan <strong>Keterangan</strong>.</p>
+          <p>Menu <strong>Kas</strong> untuk uang yang bergerak di laci <strong>di luar penjualan</strong>: bayar ongkos kirim, beli galon, setor ke bank. Isi <strong>Jenis</strong> (kas keluar / kas masuk), <strong>Akun lawan</strong>, <strong>Nominal</strong>, dan <strong>Keterangan</strong>.</p>
           <p><strong>Kenapa ini wajib:</strong> tanpa dicatat di sini, setiap pengeluaran nyata akan muncul sebagai "selisih kas" saat tutup shift dan dibukukan sebagai beban yang tidak pernah terjadi. Angka serah terima laci jadi tidak bisa dipercaya.</p>
           <p><strong>Keterangan wajib diisi</strong> dan layar menolak menyimpan tanpanya — itu satu-satunya penjelasan uang yang keluar, dan tiga bulan lagi tidak ada yang mengingatnya lagi.</p>
           <p class="petunjuk">Catatan kas hanya bisa disimpan saat <strong>shift terbuka</strong>, dan tidak lewat antrean offline seperti nota. Kalau internet mati, catat di kertas dulu lalu masukkan begitu tersambung — <strong>selagi masih di shift yang sama</strong>.</p>

@@ -2560,6 +2560,10 @@ input.sudah-hitung {
    supaya mata yang tidak menatap layar tetap bisa mengecek sekilas. */
 @keyframes sorot-pindai { from { background: var(--peringatan-lembut); } to { background: transparent; } }
 tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
+/* Pemindai pembelian (bagian 254): barisnya div, bukan tr. */
+.baris-anak.baris-pindai { animation: sorot-pindai 1.2s ease-out; }
+/* Matriks pulsa terlipat (bagian 253): yang tersisa baris Total saja. */
+.matriks-pulsa.terlipat tbody { display: none; }
 .op-kelipatan { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-13); color: var(--teks-redup); white-space: nowrap; }
 
 .stok-kritis { color: var(--bahaya); font-weight: 700; }
