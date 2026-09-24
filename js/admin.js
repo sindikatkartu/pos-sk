@@ -6540,10 +6540,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? `<span class="delta turun">${rp(r.selisih)}</span>` : '—'}</td>
               <td data-l="Status">${esc(String(r.status))}${r.catatan
                 ? ` <span class="petunjuk">${esc(String(r.catatan).slice(0, 40))}</span>` : ''}</td>
-              ${bolehHapusShift() ? `<td data-l=""><button class="tombol kecil bahaya"
+              ${bolehHapusShift() ? `<td data-l="">${r.bisa_hapus ? `<button class="tombol kecil bahaya"
                 data-hapus-shift="${esc(String(r.id_shift))}"
-                title="Hapus shift ini beserta rincian saldo dan pengeluarannya"
-                >Hapus</button></td>` : ''}
+                title="Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis"
+                >Hapus</button>` : ''}</td>` : ''}
             </tr>`).join('')}</tbody>
             ${rows.length ? `<tfoot><tr><th colspan="3">Total ${rows.length} shift</th>
               <th class="kanan">${rp(t.jual)}</th><th class="kanan">${rp(t.modal)}</th>
@@ -6636,6 +6636,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div></div>`;
   }
 
+  /* Batalkan shift salah buka (bagian 252): pembukanya sendiri, atau pengawas
+     pulsa — Owner/Head Admin. Yang menentukan tetap server; ini supaya
+     tombolnya tidak ditawarkan kepada orang yang pasti ditolak. */
+  function bolehBatalShift(st) {
+    const saya = String((APP_STATE.user && APP_STATE.user.id_user) || '');
+    return (!!st.id_user && String(st.id_user) === saya && bolehIzin('pulsa', 'buat')) ||
+           bolehIzin('laporan_pulsa', 'lihat') || bolehIzin('pulsa', 'hapus');
+  }
+
+  /* Cermin penolakan server di apiTutupShiftPulsa (bagian 252): modal ada,
+     tapi semua saldo akhir dan penjualan nol — seluruh saldo hilang tanpa
+     terjual. Diperiksa SAAT Kunci hitungan ditekan, bukan dipajang terus:
+     shift yang baru dibuka memang masih nol semua. */
+  function shiftMustahil(st) {
+    let modal = 0, akhir = 0, jual = 0;
+    (st.sumber || []).forEach((s) => {
+      modal += (+s.saldo_awal || 0) + (+s.deposit || 0);
+      akhir += Math.abs(+s.saldo_akhir || 0);
+      jual += Math.abs(+s.penjualan || 0);
+    });
+    return modal > 0 && akhir === 0 && jual === 0 ? modal : 0;
+  }
+
   function gambarTutupShiftpulsa(w, st) {
     if (!w._keluar) w._keluar = (st.keluar || []).map(x => ({ keterangan: x.keterangan, jumlah: +x.jumlah || 0 }));
     const keluarBaris = w._keluar;
@@ -6649,9 +6672,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     w.innerHTML = `
       <div class="kartu">
-        <div class="bar-alat"><h3>Tutup shift pulsa</h3></div>
+        <div class="bar-alat"><h3>Tutup shift pulsa</h3>${bolehBatalShift(st)
+          ? '<button class="tombol kecil bahaya" id="btnBatalShiftPulsa" style="margin-left:auto">Batalkan shift</button>' : ''}</div>
         <p class="petunjuk">${esc(st.kode_cabang)} · ${esc(st.jenis_shift)} · dibuka
            ${esc(waktuTampil(st.buka))} · id <code>${esc(st.id_shift)}</code></p>
+        ${bolehBatalShift(st) ? `<p class="petunjuk">Salah buka shift? Tekan <strong>Batalkan shift</strong>
+           selagi belum mengisi apa pun — shiftnya dihapus dan tidak ada yang tercatat. Jangan
+           ditutup dengan saldo 0.</p>` : ''}
       </div>
       <div class="kartu">
         <h3>Saldo per sumber</h3>
@@ -6734,6 +6761,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <input type="text" id="spsCatatan" value="${esc(w._catatan || '')}"
                  placeholder="${ganjil.length ? 'wajib diisi' : 'boleh dikosongkan'}"></div>
       </div>
+      <div id="spsMustahil"></div>
       <div class="kartu"><div class="aksi">
         <button class="tombol utama" id="btnTutupShiftPulsa">Kunci hitungan</button>
       </div></div>`;
@@ -10860,7 +10888,36 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
+      if (t.id === 'btnBatalShiftPulsa') {
+        const st = ($('#isiShiftpulsa') || {})._st || {};
+        if (!(await tanya('Batalkan shift ' + st.kode_cabang + ' · ' + st.jenis_shift + '?',
+              `<p><strong>Shift ini dihapus dan tidak bisa dikembalikan.</strong> Tidak ada saldo,
+                 penjualan, atau uang yang tercatat dari shift ini — saldo awal aplikasi tetap seperti
+                 sebelum shift dibuka.</p>
+               <p class="petunjuk">Pakai ini hanya kalau shiftnya salah dibuka. Kalau shiftnya sungguhan,
+                 isi saldo akhirnya lalu tekan Kunci hitungan.</p>`,
+              { ya: 'Ya, batalkan shift', jenis: 'bahaya' }))) return;
+        t.disabled = true;
+        try {
+          await API.batalShiftPulsa({ id_shift: st.id_shift });
+          toast('Shift ' + st.id_shift + ' dibatalkan.');
+          const w = $('#isiShiftpulsa');
+          if (w) { w._keluar = null; w._kasFisik = 0; w._catatan = ''; }
+          await muatShiftpulsa();
+        } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
+        return;
+      }
       if (t.id === 'btnTutupShiftPulsa') {
+        const stM = ($('#isiShiftpulsa') || {})._st || {};
+        const modalM = shiftMustahil(stM);
+        if (modalM) {
+          $('#spsMustahil').innerHTML = `<div class="pesan galat">Shift ini tidak bisa ditutup: semua saldo
+            akhir 0 dan penjualan 0, padahal saldo awalnya ${rp(modalM)}. Itu berarti seluruh saldo hilang
+            tanpa terjual. <strong>Kalau shift ini salah dibuka, tekan Batalkan shift di atas.</strong>
+            Kalau belum mengisi saldo akhir, isi dulu angka dari aplikasinya.</div>`;
+          $('#spsMustahil').scrollIntoView({ block: 'center' });
+          return;
+        }
         const w = $('#isiShiftpulsa');
         const st = (w && w._st) || {};
         /* Konfirmasi (bagian 245): menutup shift menjurnal penjualan, modal, dan
@@ -11125,7 +11182,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const r0 = (($('#hasilLapulsa') || {})._rows || [])
           .filter((x) => String(x.id_shift) === d.hapusShift)[0] || {};
         if (!(await tanya('Hapus shift pulsa ini?',
-              `<p class="petunjuk">${esc(String(r0.tanggal || ''))} · ${esc(String(r0.jenis_shift || ''))} · penjualan ${rp(r0.total_penjualan)}</p><p class="petunjuk">Baris saldo dan pengeluarannya ikut terhapus. Shift yang sudah menerbitkan jurnal akan <strong>ditolak</strong> server — jurnalnya harus dibatalkan lebih dulu.</p>`,
+              `<p><strong>Tidak bisa dibatalkan.</strong> Shift ini dihapus, dan jurnalnya di buku besar
+                 <strong>dibalik otomatis</strong> (jurnal pembalik bertanggal hari ini), jadi angkanya tidak
+                 tertinggal sendirian.</p>
+               <p class="petunjuk">${esc(String(r0.kode_cabang || ''))} · ${esc(String(r0.tanggal || ''))} · ${esc(String(r0.jenis_shift || ''))} · penjualan ${rp(r0.total_penjualan)}</p>
+               <p class="petunjuk">Hanya shift tutup terakhir di tiap cabang yang bisa dihapus — menghapus shift
+                 di tengah akan menggeser saldo awal semua shift sesudahnya.</p>`,
               { ya: 'Hapus shift', jenis: 'bahaya' }))) return;
         try {
           const r = await API.hapusShiftPulsa({ id_shift: d.hapusShift });
@@ -11133,7 +11195,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              Pulsa punya tiga tab, dan memuat ulang layarnya akan melempar
              orang kembali ke tab pertama. */
           toast(`Shift ${d.hapusShift} dihapus — ${r.saldo} baris saldo, ` +
-                `${r.keluar} baris pengeluaran.`);
+                `${r.keluar} baris pengeluaran` +
+                ((r.jurnal_pembalik || []).length ? `, jurnal dibalik ${r.jurnal_pembalik.join(', ')}.` : '.'));
           await muatLaporanpulsa();
         } catch (x) { toast(x.message, 'galat'); }
         return;
