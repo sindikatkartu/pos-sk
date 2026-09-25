@@ -1017,6 +1017,16 @@ main { flex: 1; overflow: hidden; position: relative; }
   height: 100%;
 }
 
+/* Pita mode lihat (bagian 257): Owner & Head Admin melihat layar penjual,
+   tombol yang menyimpan dikunci. Satu baris, bukan kotak pesan. */
+.pita-lihat {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 8px; font-size: var(--fs-13); font-weight: 600;
+  background: var(--panel-2); color: var(--teks-redup); border: 1px dashed var(--garis);
+}
+.pita-lihat[hidden] { display: none; }
+.kartu .pita-lihat { margin: 0 0 12px; }
+
 /* ==================== LAYAR KASIR ==================== */
 .panel-produk {
   display: flex; flex-direction: column; overflow: hidden;

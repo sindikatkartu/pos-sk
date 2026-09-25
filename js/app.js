@@ -105,6 +105,8 @@ function pesan(wadah, teks, jenis = 'info') {
   $(wadah).innerHTML = teks ? `<div class="pesan ${jenis}">${esc(teks)}</div>` : '';
 }
 
+const TEKS_MODE_LIHAT = 'Mode lihat: akun ini tidak berjualan, jadi tidak ada yang disimpan.';
+
 function bolehIzin(modul, aksi) {
   const i = APP_STATE.izin;
   if (i['*'] === '*') return true;
@@ -138,7 +140,8 @@ function bolehIzin(modul, aksi) {
  */
 const MENU = [
   { id: 'dashboard',  label: 'Dashboard',  grup: 'Ringkasan',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
-  { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'] },
+  /* `lihatSaja`: peran mode lihat cukup punya kasir·lihat (Head Admin, bagian 257). */
+  { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'], lihatSaja: ['kasir', 'lihat'] },
   { id: 'riwayat',    label: 'Riwayat',    grup: 'Penjualan',  izin: ['penjualan', 'lihat'] },
   { id: 'shift',      label: 'Shift',      grup: 'Penjualan',  izin: ['shift', 'lihat'] },
   /* Kas PINDAH ke back office di v1.217 (bagian 208).
@@ -887,7 +890,8 @@ const svgIkon = (id) =>
 /* `izinAtau` untuk menu yang isinya lebih dari satu master: cukup punya salah
    satu izinnya untuk melihat menunya. Isi layarnya sendiri yang menyaring lagi. */
 const menuTampil = () => MENU.filter(m =>
-  !m.izin || (m.izinAtau || [m.izin]).some(i => bolehIzin(i[0], i[1])));
+  !m.izin || (m.izinAtau || [m.izin]).some(i => bolehIzin(i[0], i[1])) ||
+  (m.lihatSaja && modeLihat() && bolehIzin(m.lihatSaja[0], m.lihatSaja[1])));
 
 /** Kelompokkan menu yang sudah disaring hak akses, menurut URUT_GRUP. */
 function kelompokMenu(daftar) {
@@ -2927,6 +2931,7 @@ function segarkanLipatanOpsional() {
 
 function bukaBayar() {
   if (Keranjang.kosong) return;
+  if (modeLihat()) { Admin.toast(TEKS_MODE_LIHAT, 'info'); return; }
   if (!APP_STATE.idShift) {
     /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
        berganti nama jadi "Perangkat", jadi pesannya mengarahkan ke tempat yang
@@ -3543,12 +3548,19 @@ async function periksaShift() {
  */
 function gambarKeadaanShift() {
   const perluBuka = !APP_STATE.idShift;
+  /* Mode lihat (bagian 257): kartunya tetap tergambar apa adanya, isiannya
+     dan kedua tombolnya dikunci; peringatan "shift belum dibuka" di keranjang
+     diganti pita — pengawas memang tidak pernah membuka shift. */
+  const lihat = modeLihat();
+  ['#pitaLihatKasir', '#pitaLihatShift'].forEach((q) => { const e = $(q); if (e) e.hidden = !lihat; });
+  /* Tutup shift TIDAK dikunci: shift lama milik akun ini tetap harus bisa ditutup. */
+  ['#inpKasAwal', '#btnBukaShift'].forEach((q) => { const e = $(q); if (e) e.disabled = lihat; });
   /* Lencana "Shift belum dibuka" di bilah atas DICABUT 10 Sep 2026 (pemilik):
      pagarnya sudah ada di layar bayar dan di logout, dan pergantian shift
      selalu lewat logout. Yang tersisa adalah pagar di panel keranjang — di
      ujung layar yang dibaca kasir saat pembeli sudah menyodorkan uang — dan
      kartu Shift itu sendiri. */
-  $('#pesanShiftKasir')?.classList.toggle('sembunyi', !perluBuka);
+  $('#pesanShiftKasir')?.classList.toggle('sembunyi', !perluBuka || lihat);
   /* Tombol yang tidak relevan pada state saat ini disembunyikan, bukan cuma
      diblokir saat diklik — supaya kasir tidak perlu menebak tombol mana yang
      "beneran aktif" saat keduanya sama-sama terlihat bisa dipencet. */
@@ -5928,6 +5940,8 @@ function pasangEvent() {
       // syarat. Yang menentukan orang benar-benar keluar adalah token yang
       // dibuang di baris berikutnya, dan itu tidak boleh digagalkan jaringan.
       try { await API.logout(); } catch (e) {}
+      /* Angka dashboard yang tersimpan di perangkat ikut dibuang (bagian 258). */
+      try { localStorage.removeItem('possk_dash_v1'); } catch (e) { /* diblokir */ }
       await DB.kvSet('token', null);
       location.reload();
     } finally {
@@ -6137,7 +6151,7 @@ function pasangEvent() {
     $('#panelKeranjang').classList.remove('buka');
     Admin.toast(`Nota ditahan (${t.jumlah_item} item, ${rpTeks(t.total)}).`, 'sukses');
   };
-  $('#btnTahan').addEventListener('click', tahanSekarang);
+  $('#btnTahan').addEventListener('click', () => (modeLihat() ? Admin.toast(TEKS_MODE_LIHAT, 'info') : tahanSekarang()));
   $('#lncTahanan').addEventListener('click', () => Tahanan.bukaDaftar());
   $('#lncTahanan').addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); Tahanan.bukaDaftar(); }

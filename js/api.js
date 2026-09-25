@@ -536,7 +536,9 @@ let _pernahJawab = false;
     otorisasiDiskon: (d) => panggil('otorisasi_diskon', d),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
-    ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 90000 }),
+    /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
+       melewati 90 dtk pada hari yang banyak jurnalnya; batas Apps Script 6 menit. */
+    ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 180000 }),
 
     daftarPerangkat: ()  => panggil('daftar_perangkat'),
     setujuiPerangkat:(d) => panggil('setujui_perangkat', d),
@@ -671,13 +673,13 @@ let _pernahJawab = false;
     cariPembelian:   (d) => panggil('cari_pembelian', d, { timeout: 60000 }),
 
     /* --- grafik, ekspor/impor, arsip --- */
-    dataGrafik:      (d) => panggil('data_grafik', d, { timeout: 120000 }),
+    dataGrafik:      (d, o) => panggil('data_grafik', d, Object.assign({ timeout: 120000 }, o || {})),
     ekspor:          (d) => panggil('ekspor', d, { timeout: 180000 }),
     bacaBerkasImpor: (d) => panggil('baca_berkas_impor', d, { timeout: 120000 }),
     imporMaster:     (d) => panggil('impor_master', d, { timeout: 180000 }),
     templateImpor:   (d) => panggil('template_impor', d, { timeout: 90000 }),
     rotasiArsip:     (d) => panggil('rotasi_arsip', d, { timeout: 300000 }),
-    ukuranBerkas:    ()  => panggil('ukuran_berkas', {}, { timeout: 120000 }),
+    ukuranBerkas:    (d) => panggil('ukuran_berkas', d || {}, { timeout: 120000 }),
 
     /* --- stok opname --- */
     buatOpname:      (d) => panggil('buat_opname', d, { timeout: 120000 }),

@@ -544,6 +544,12 @@ const _KOLATOR = (typeof Intl !== 'undefined' && Intl.Collator)
   : null;
 
 /** Bandingkan dua teks seperti manusia membacanya. Dipakai dropdown & tabel. */
+/** Mode lihat (bagian 257): peran yang mengawasi tanpa berjualan (Owner &
+ *  Head Admin). Layar penjual terbuka, yang menyimpan dikunci — dan servernya
+ *  menolak juga (wajibBerjualan), jadi ini bukan satu-satunya pagar. Di pos.js
+ *  karena app.js (Kasir, Shift) dan admin.js (Shift pulsa) sama-sama memakainya. */
+function modeLihat() { return !!(typeof APP_STATE !== 'undefined' && APP_STATE.flag && APP_STATE.flag.mode_lihat); }
+
 function urutNama(a, b) {
   const x = String(a == null ? '' : a), y = String(b == null ? '' : b);
   return _KOLATOR ? _KOLATOR.compare(x, y) : (x < y ? -1 : x > y ? 1 : 0);

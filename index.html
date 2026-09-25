@@ -213,6 +213,10 @@
     <!-- ---------- KASIR ---------- -->
     <section class="layar kasir" id="layarKasir">
       <div class="panel-produk">
+        <!-- Mode lihat (bagian 257): hanya tampil untuk peran ber-flag mode_lihat.
+             Di dalam panel-produk, BUKAN anak langsung #layarKasir — layar itu
+             grid dua kolom, dan anak tambahan akan menggeser seluruh tata letaknya. -->
+        <div class="pita-lihat" id="pitaLihatKasir" role="status" hidden>Mode lihat — akun ini tidak berjualan. Tombol yang menyimpan dikunci.</div>
         <div class="kotak-cari">
           <span class="ikon"><svg class="ikon-svg" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
           <input type="text" id="inpCari" placeholder="Scan barcode / ketik nama, SKU, tipe HP…  (F2)" autocomplete="off">
@@ -500,6 +504,7 @@
         <div class="kartu" id="kartuShift">
           <h3>Shift kasir</h3>
           <p class="petunjuk">Catatan buka–tutup laci tiap kasir: uang awal, penjualan selama shift, dan setoran yang diserahkan ke kantor.</p>
+          <div class="pita-lihat" id="pitaLihatShift" role="status" hidden>Mode lihat — akun ini tidak berjualan. Tombol yang menyimpan dikunci.</div>
           <div id="infoShift"></div>
           <div class="grup" style="margin-top:12px" id="grupKasAwal">
             <label>Kas awal laci</label>

@@ -865,6 +865,63 @@ const Admin = (() => {
     ? { periode: 'kustom', cabang: cabangDash, dari: dashKustom.dari, sampai: dashKustom.sampai }
     : { periode: periodeDash, cabang: cabangDash };
 
+  /* ==================== DATA TERAKHIR DULU (bagian 258) ====================
+     Diukur 25 Sep 2026: bagian monitor 32 dtk & berat 24 dtk saat cache server
+     kosong. Pemilik memilih: tampilkan angka terakhir yang tersimpan di
+     PERANGKAT seketika, bertanda jamnya, lalu segarkan di belakang dan gambar
+     ulang. Simpanan per akun + periode + cabang; dibuang saat keluar akun.
+     Umur < 60 dtk dipakai tanpa server (hasil penyegaran barusan); lebih tua
+     dipakai DULU lalu disegarkan. Penyimpanan yang gagal/diblokir = perilaku
+     lama (langsung ke server), bukan galat. */
+  const SIMPAN_DASH = 'possk_dash_v1', BASI_DASH_MS = 60000;
+  const kunciSimpanDash = (bagian) => JSON.stringify([(APP_STATE.user || {}).id_user || '', bagian,
+    /^grafik/.test(bagian) ? null : paramDash()]);
+  function bacaSimpanDash(bagian) {
+    try { return JSON.parse(localStorage.getItem(SIMPAN_DASH) || '{}')[kunciSimpanDash(bagian)] || null; }
+    catch (e) { return null; }
+  }
+  function tulisSimpanDash(bagian, data) {
+    try {
+      const s = JSON.parse(localStorage.getItem(SIMPAN_DASH) || '{}');
+      s[kunciSimpanDash(bagian)] = { data, waktu: Date.now() };
+      const k = Object.keys(s);
+      if (k.length > 16) k.sort((a, b) => s[a].waktu - s[b].waktu).slice(0, k.length - 16).forEach((x) => delete s[x]);
+      localStorage.setItem(SIMPAN_DASH, JSON.stringify(s));
+    } catch (e) { /* penuh/diblokir: tanpa simpanan, lain kali langsung ke server */ }
+  }
+  /** Simpanan kalau ada (seketika), selain itu server — lalu disimpan. */
+  async function ambilDash(bagian, ambil) {
+    const s = bacaSimpanDash(bagian);
+    if (s) return s.data;
+    const d = await ambil();
+    tulisSimpanDash(bagian, d);
+    return d;
+  }
+  const basiDash = (bagian) => { const s = bacaSimpanDash(bagian); return s && Date.now() - s.waktu > BASI_DASH_MS ? s.waktu : 0; };
+  /** Segarkan seluruh bagian di latar, lalu gambar ulang dari simpanan yang baru. */
+  async function segarkanDashLatar(tiket) {
+    try {
+      for (const b of ['inti', 'monitor', 'berat']) {
+        if (b === 'monitor' && !kartuMonitorBoleh().length) continue;
+        const d = await API.dashboard({ ...paramDash(), bagian: b }, { latar: true });
+        if (tiket !== tiketDash) return;
+        tulisSimpanDash(b, d);
+      }
+      if (basiDash('grafik30')) {
+        const g = await API.dataGrafik({ hari: 30 }, { latar: true });
+        if (tiket !== tiketDash) return;
+        tulisSimpanDash('grafik30', g);
+        delete grafikMuatan['30'];
+      }
+      if (tiket !== tiketDash) return;
+      muatDashboard();
+    } catch (e) {
+      if (tiket !== tiketDash) return;
+      const l = $('#dashBasi');
+      if (l) l.textContent = 'Gagal memperbarui (' + e.message + ') — angka di bawah masih yang tersimpan.';
+    }
+  }
+
   /**
    * Dropdown cabang dashboard (v1.159, diminta pemilik 10 Sep 2026). Hanya
    * untuk akun lintas cabang dengan lebih dari satu cabang — aturan yang sama
@@ -1080,7 +1137,7 @@ const Admin = (() => {
   async function muatDashboardMonitor(tiket) {
     if (!kartuMonitorBoleh().length) return;
     try {
-      const m = await API.dashboard({ ...paramDash(), bagian: 'monitor' }, { latar: true });
+      const m = await ambilDash('monitor', () => API.dashboard({ ...paramDash(), bagian: 'monitor' }, { latar: true }));
       if (tiket !== tiketDash) return;
       if (dataDash) dataDash.monitor = m;
       isiKartuMonitor(m);
@@ -1300,7 +1357,8 @@ const Admin = (() => {
       /* `bagian: 'inti'` — server lama yang belum mengenalnya membalas bentuk
          penuh, dan itu ditangani: kalau peringkat dan stoknya sudah ikut,
          bagian berat tidak ditarik lagi. */
-      const d = await API.dashboard({ ...paramDash(), bagian: 'inti' });
+      const basi = Math.max(basiDash('inti'), basiDash('monitor'), basiDash('berat'), basiDash('grafik30'));
+      const d = await ambilDash('inti', () => API.dashboard({ ...paramDash(), bagian: 'inti' }));
       if (tiket !== tiketDash) return;
       /**
        * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
@@ -1426,12 +1484,20 @@ const Admin = (() => {
          selesai. */
       if (pk.produk && d.stok && d.stok.kritis) isiBagianBerat(d, adaMargin);
       else muatDashboardBerat(tiket, adaMargin);
+
+      /* Ada bagian yang digambar dari simpanan lama: sebut jamnya, segarkan. */
+      if (basi) {
+        const jam = new Date(basi).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        $('#isiDashboard').insertAdjacentHTML('afterbegin',
+          `<p class="petunjuk" id="dashBasi" role="status">Angka tersimpan pukul ${esc(jam)} — sedang diperbarui…</p>`);
+        segarkanDashLatar(tiket);
+      }
     } catch (e) { galat('#isiDashboard', e); }
   }
 
   async function muatDashboardBerat(tiket, adaMargin) {
     try {
-      const b = await API.dashboard({ ...paramDash(), bagian: 'berat' }, { latar: true });
+      const b = await ambilDash('berat', () => API.dashboard({ ...paramDash(), bagian: 'berat' }, { latar: true }));
       if (tiket !== tiketDash) return;
       isiBagianBerat(b, adaMargin);
     } catch (e) {
@@ -1551,7 +1617,7 @@ const Admin = (() => {
     try {
       /* "Laba 6 bln" memakai muatan 30 hari (tren_bulanan ikut di dalamnya). */
       const kunci = mode === 'bulanan' ? '30' : mode;
-      const g = grafikMuatan[kunci] || (grafikMuatan[kunci] = await API.dataGrafik({ hari: Number(kunci) }));
+      const g = grafikMuatan[kunci] || (grafikMuatan[kunci] = await ambilDash('grafik' + kunci, () => API.dataGrafik({ hari: Number(kunci) })));
       if (grafikModeKini !== mode) return;              /* orang sudah ganti mode */
       const r = g.ringkas;
       /* Satu baris angka ringkas, bukan empat petak: petak KPI di atas sudah
@@ -6750,8 +6816,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const w = $('#isiShiftpulsa');
     if (!w) return;
     const st = w._st || {};
-    if (!st.aktif) return gambarBukaShiftpulsa(w, st);
-    gambarTutupShiftpulsa(w, st);
+    if (!st.aktif) gambarBukaShiftpulsa(w, st);
+    else gambarTutupShiftpulsa(w, st);
+    kunciModeLihatPulsa(w);
+  }
+
+  /** Mode lihat (bagian 257): layar penjual tampil apa adanya — saldo awal yang
+   *  diwarisi, form tutup — tetapi semua isian & tombol dikunci. SATU pengecualian:
+   *  Batalkan shift salah buka (bagian 252), yang memang tugas pengawas. */
+  function kunciModeLihatPulsa(w) {
+    if (!modeLihat() || !w) return;
+    w.insertAdjacentHTML('afterbegin', '<div class="pita-lihat" id="pitaLihatPulsa" role="status" style="margin-bottom:12px">' +
+      'Mode lihat — akun ini tidak berjualan. Tombol yang menyimpan dikunci.</div>');
+    w.querySelectorAll('input, select, textarea, button').forEach((e) => {
+      if (e.id !== 'btnBatalShiftPulsa') e.disabled = true;
+    });
   }
 
   function gambarBukaShiftpulsa(w, st) {
@@ -9019,30 +9098,37 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== ARSIP ==================== */
 
-  async function muatArsip() {
+  /* segarkan = hitung ulang di server; tanpanya server memakai hasil yang
+     disimpan 6 jam (bagian 258 — 54 dtk kalau dihitung dari awal). */
+  async function muatArsip(segarkan) {
     memuat('#isiArsip');
     try {
-      const u = await API.ukuranBerkas();
+      const u = await API.ukuranBerkas(segarkan ? { segarkan: true } : {});
       const warna = { AMAN: 'hijau', PERHATIAN: 'kuning', KRITIS: 'merah' };
       const tahunIni = new Date().getFullYear();
 
       $('#isiArsip').innerHTML = `
         <div class="kartu">
-          <h3>Kapasitas berkas</h3>
-          <p class="petunjuk">Google Sheets membatasi <strong>10 juta sel per berkas</strong>. Satu cabang ramai
+          <div class="bar-alat"><h3>Kapasitas berkas</h3>
+            <div class="kanan"><button class="tombol" id="btnHitungUlangArsip">Hitung ulang</button></div></div>
+          <p class="petunjuk">Google Sheets membatasi <strong>10 juta sel per berkas</strong> — dihitung dari seluruh
+            petak lembar, termasuk yang masih kosong. Satu cabang ramai
             bisa menghasilkan sekitar 6,5 juta sel setahun — jadi tanpa rotasi, di tahun kedua berkas cabang akan
             menolak transaksi baru, dan itu terjadi tepat di jam sibuk. Halaman ini agar Anda tahu jauh sebelum itu.</p>
+          ${u.dihitung ? `<p class="petunjuk" id="arsipDihitung">Dihitung ${esc(waktuTampil(u.dihitung))}${u.dari_simpanan
+            ? ' — hasil tersimpan, dihitung ulang tiap 6 jam atau lewat tombol Hitung ulang' : ''}.</p>` : ''}
           <div class="pesan ${u.saran.indexOf('Belum perlu') === 0 ? 'sukses' : 'galat'}">${esc(u.saran)}</div>
           ${tabel([
             { judul: 'Berkas', kunci: 'berkas' },
-            { judul: 'Sel terpakai', angka: true, render: b => b.galat ? '—'
+            { judul: 'Jumlah sel', angka: true, render: b => b.galat ? '—'
                 : new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(b.sel)) },
             { judul: 'Kapasitas', angka: true, render: b => b.galat ? '—' : b.persen + '%' },
             { judul: 'Status', render: b => b.galat
                 ? `<span class="lencana merah">galat</span>`
                 : `<span class="lencana ${warna[b.status]}">${esc(b.status)}</span>` },
             { judul: 'Sheet terbesar', render: b => (b.terbesar || []).slice(0, 3)
-                .map(x => `${esc(x.sheet)} (${new Intl.NumberFormat(CONFIG.LOCALE).format(x.baris)} baris)`)
+                .map(x => `${esc(x.sheet)}${x.baris === null || x.baris === undefined ? ''
+                  : ` (${new Intl.NumberFormat(CONFIG.LOCALE).format(x.baris)} baris)`}`)
                 .join('<br>') || '—' }
           ], u.berkas)}
         </div>
@@ -11588,6 +11674,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnSelesaiReturBeli') { tutupModal(); return muat('returbeli'); }
 
       /* --- arsip --- */
+      if (t.id === 'btnHitungUlangArsip') return API.tugas(() => muatArsip(true));   // bagian 258
       if (t.id === 'btnUjiArsip' || t.id === 'btnJalankanArsip') {
         const sungguhan = t.id === 'btnJalankanArsip';
         if (sungguhan && !(await tanya('Jalankan rotasi SUNGGUHAN?',
