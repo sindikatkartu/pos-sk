@@ -151,6 +151,7 @@ const API = (() => {
     'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
+    'riwayat_koreksi_shift_pulsa',
     'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
@@ -179,7 +180,7 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'impor_master', 'impor_produk',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
@@ -597,6 +598,9 @@ let _pernahJawab = false;
     /* Menghapus shift menyentuh tiga sheet berturut-turut di dalam satu kunci;
        batas waktunya mengikuti yang menulis, bukan yang membaca. */
     hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
+    /* Koreksi shift pulsa yang sudah ditutup + riwayatnya (bagian 260). */
+    koreksiShiftPulsa: (d) => panggil('koreksi_shift_pulsa', d, { timeout: 90000 }),
+    riwayatKoreksiShiftPulsa: (d) => panggil('riwayat_koreksi_shift_pulsa', d, { timeout: 60000 }),
     batalShiftPulsa:   (d) => panggil('batal_shift_pulsa', d, { timeout: 60000 }),
     matriksPulsa:      (d) => panggil('matriks_pulsa', d, { timeout: 90000 }),
     /* Pembacaan, jadi aman diulang — dan memang perlu, sebab meja kerja kas

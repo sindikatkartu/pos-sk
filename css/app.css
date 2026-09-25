@@ -1027,6 +1027,20 @@ main { flex: 1; overflow: hidden; position: relative; }
 .pita-lihat[hidden] { display: none; }
 .kartu .pita-lihat { margin: 0 0 12px; }
 
+/* Tanda "diedit" (bagian 260) — seperti label pesan yang diedit di WhatsApp:
+   kecil, redup, bisa diklik untuk riwayatnya. Kata, bukan bentuk (lihat
+   penanda "modul"): lencana berwarna terbaca sebagai status. */
+.tanda-diedit {
+  background: none; border: 0; padding: 0 2px; margin-left: 4px; cursor: pointer;
+  font: inherit; font-size: var(--fs-11); font-style: italic; color: var(--teks-redup);
+  text-decoration: underline dotted; text-underline-offset: 2px; min-height: 0;
+}
+.tanda-diedit:hover, .tanda-diedit:focus-visible { color: var(--utama); }
+.aksi-baris { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.pratinjau-koreksi { margin-top: 10px; }
+.riwayat-koreksi { padding: 10px 0; border-bottom: 1px solid var(--garis); }
+.riwayat-koreksi:last-child { border-bottom: 0; }
+
 /* ==================== LAYAR KASIR ==================== */
 .panel-produk {
   display: flex; flex-direction: column; overflow: hidden;

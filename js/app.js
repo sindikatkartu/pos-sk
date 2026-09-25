@@ -3484,7 +3484,7 @@ async function bukaLaporanShift(idShift) {
       <div class="kartu" style="background:var(--bg)">
         ${baris('Kas awal laci', rp(k.awal))}
         ${baris('Penerimaan tunai', rp(k.tunai_masuk))}
-        ${baris('Kas keluar (di luar penjualan)', '−' + rp(k.kas_keluar))}
+        ${baris('Kas keluar (di luar penjualan)', rp(-(+k.kas_keluar || 0)))}   /* minus merah penuh (bagian 260) */
         ${baris('Kas sistem', rp(k.sistem), true)}
         ${baris('Kas fisik dihitung', rpAtau(k.fisik))}
         ${baris('Selisih', rpAtau(k.selisih), true)}

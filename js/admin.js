@@ -6737,6 +6737,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      sama. Yang pertama supaya layarnya tidak menawarkan yang tidak bisa
      dilakukan; yang kedua karena menyembunyikan tombol bukan penjagaan. */
   const bolehHapusShift = () => bolehIzin('pulsa', 'hapus');
+  /* Koreksi shift yang sudah ditutup (bagian 260): Owner & Head Admin. */
+  const bolehKoreksiShift = () => bolehIzin('laporan_pulsa', 'ubah');
+  const adaAksiShift = () => bolehHapusShift() || bolehKoreksiShift();
 
   function gambarLaporanpulsa() {
     const w = $('#hasilLapulsa');
@@ -6757,7 +6760,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <thead><tr><th>Tanggal</th><th>Cabang</th><th>Shift</th><th class="kanan">Modal awal</th>
               <th class="kanan">Modal</th><th class="kanan">Penjualan</th><th class="kanan">Margin</th>
               <th class="kanan">Saldo akhir</th><th class="kanan">Selisih kas</th>
-              <th>Status</th>${bolehHapusShift() ? '<th></th>' : ''}</tr></thead>
+              <th>Status</th>${adaAksiShift() ? '<th></th>' : ''}</tr></thead>
             <tbody>${rows.map(r => `<tr>
               <td data-l="Tanggal">${esc(String(r.tanggal))}</td>
               <td data-l="Cabang">${esc(String(r.kode_cabang))}</td>
@@ -6768,21 +6771,115 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <td class="kanan" data-l="Margin">${rp(r.margin)}</td>
               <td class="kanan" data-l="Saldo akhir">${rp(r.saldo_akhir_total)}</td>
               <td class="kanan" data-l="Selisih kas">${(+r.selisih || 0) !== 0 ? rp(r.selisih) : '—'}</td>
-              <td data-l="Status">${esc(String(r.status))}${r.catatan
+              <td data-l="Status">${esc(String(r.status))}${(+r.koreksi || 0) > 0
+                /* Tanda "diedit" ala WhatsApp (bagian 260); diklik = riwayatnya. */
+                ? ` <button type="button" class="tanda-diedit" data-riwayat-koreksi="${esc(String(r.id_shift))}"
+                    title="Angka shift ini sudah dikoreksi ${+r.koreksi} kali — klik untuk melihat riwayatnya">diedit</button>` : ''}${r.catatan
                 ? ` <span class="petunjuk">${esc(String(r.catatan).slice(0, 40))}</span>` : ''}</td>
-              ${bolehHapusShift() ? `<td data-l="">${r.bisa_hapus ? `<button class="tombol kecil bahaya"
-                data-hapus-shift="${esc(String(r.id_shift))}"
-                title="Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis"
-                >Hapus</button>` : ''}</td>` : ''}
+              ${adaAksiShift() ? `<td data-l=""><div class="aksi-baris">${bolehKoreksiShift() && String(r.status) === 'TUTUP'
+                ? tombolBaris('', 'Koreksi', IKON.ubah, `data-koreksi-shift="${esc(String(r.id_shift))}"`,
+                    'Koreksi penjualan, reward, atau kas fisik shift ini') : ''}${bolehHapusShift() && r.bisa_hapus
+                ? tombolBaris('bahaya', 'Hapus', IKON.hapus, `data-hapus-shift="${esc(String(r.id_shift))}"`,
+                    'Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis') : ''}</div></td>` : ''}
             </tr>`).join('')}</tbody>
             ${rows.length ? `<tfoot><tr><th colspan="3">Total ${rows.length} shift</th>
               <th></th><th class="kanan">${rp(t.modal)}</th><th class="kanan">${rp(t.jual)}</th>
               <th class="kanan">${rp(t.margin)}</th><th></th><th class="kanan">${rp(t.selisih)}</th>
-              <th></th>${bolehHapusShift() ? '<th></th>' : ''}</tr></tfoot>` : ''}
+              <th></th>${adaAksiShift() ? '<th></th>' : ''}</tr></tfoot>` : ''}
           </table>
         </div>
         ${rows.length ? '' : '<p class="pesan">Belum ada shift pulsa yang ditutup.</p>'}
       </div>`;
+  }
+
+  /* ==================== KOREKSI SHIFT PULSA (bagian 260) ====================
+     Form: penjualan & reward per sumber, kas fisik, alasan wajib. Hitungan di
+     layar memakai rumus yang SAMA dengan server (hitungShiftpulsa) — yang
+     menentukan tetap server. Saldo awal/akhir sengaja tidak bisa diubah:
+     saldo akhir diwariskan ke shift berikutnya. */
+  async function bukaKoreksiShift(id) {
+    let r;
+    try { r = await API.rincianShiftPulsa({ id_shift: id }); }
+    catch (e) { return toast(e.message, 'galat'); }
+    const s = r.shift || {}, saldo = r.saldo || [];
+    const nama = {};
+    ((($('#isiShiftpulsa') || {})._st || {}).sumber || []).forEach((x) => { nama[x.kode_sumber] = x.nama; });
+    const isian = (k, v, ket) => `<input type="text" inputmode="numeric" class="uang" data-koreksi="${k}"
+      value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(+v || 0))}" aria-label="${esc(ket)}">`;
+    bukaModal('Koreksi shift ' + (s.jenis_shift || '') + ' ' + (s.kode_cabang || '') + ' · ' + String(s.tanggal || '').slice(0, 10), `
+      <p class="petunjuk">Saldo awal & saldo akhir tidak bisa diubah — saldo akhir menjadi saldo awal shift berikutnya.
+        Koreksi menerbitkan <strong>jurnal koreksi</strong> sebesar selisihnya, dan tercatat di riwayat shift ini.</p>
+      <div class="gulir-x"><table class="tabel" id="tabelKoreksi">
+        <thead><tr><th>Sumber</th><th class="kanan">Modal</th><th class="kanan">Penjualan</th><th class="kanan">Reward</th></tr></thead>
+        <tbody>${saldo.map((b) => `<tr data-sumber="${esc(String(b.kode_sumber))}" data-konsumsi="${+b.konsumsi || 0}" data-deposit="${+b.deposit || 0}">
+          <td data-l="Sumber">${esc(nama[b.kode_sumber] || String(b.kode_sumber))} <span class="petunjuk">${esc(String(b.kode_sumber))}</span></td>
+          <td class="kanan" data-l="Modal">${rp(b.konsumsi)}</td>
+          <td class="kanan" data-l="Penjualan">${isian('penjualan', b.penjualan, 'Penjualan ' + b.kode_sumber)}</td>
+          <td class="kanan" data-l="Reward">${isian('reward', b.reward, 'Reward ' + b.kode_sumber)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="grup" style="max-width:320px"><label>Kas fisik (uang di laci)</label>${isian('kas_fisik', s.kas_fisik, 'Kas fisik')}</div>
+      <div class="grup"><label>Alasan koreksi *</label>
+        <input type="text" id="alasanKoreksi" maxlength="200" placeholder="mis. salah ketik penjualan BOS PULSA, seharusnya 1.056.000"></div>
+      <div id="pratinjauKoreksi" class="pratinjau-koreksi"></div>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanKoreksi">${ikonAlat('simpan')}<span>Simpan koreksi</span></button>`);
+    const m = $('#modalUmum');
+    m._koreksi = { id, s };
+    const hitung = () => {
+      let jual = 0, modal = 0, dep = 0;
+      m.querySelectorAll('#tabelKoreksi tbody tr').forEach((tr) => {
+        jual += angkaDari(tr.querySelector('[data-koreksi="penjualan"]').value);
+        modal += +tr.dataset.konsumsi || 0; dep += +tr.dataset.deposit || 0;
+      });
+      const keluar = +s.total_keluar || 0;
+      const kasSistem = (+s.kas_awal || 0) + jual - dep - keluar;
+      const kas = angkaDari(m.querySelector('[data-koreksi="kas_fisik"]').value);
+      const baris = (l, lama, baru) => `<tr><td>${l}</td><td class="kanan">${rp(lama)}</td><td class="kanan">${rp(baru)}</td></tr>`;
+      $('#pratinjauKoreksi').innerHTML = `<table class="tabel"><thead><tr><th>Hasil</th><th class="kanan">Sekarang</th>
+        <th class="kanan">Sesudah koreksi</th></tr></thead><tbody>
+        ${baris('Total penjualan', s.total_penjualan, jual)}${baris('Kas sistem', s.kas_sistem, kasSistem)}
+        ${baris('Kas fisik', s.kas_fisik, kas)}${baris('Selisih kas', s.selisih, kas - kasSistem)}
+        ${baris('Margin', s.margin, jual - modal - keluar)}</tbody></table>`;
+    };
+    m.addEventListener('input', (e) => { if (e.target.closest('[data-koreksi]')) hitung(); });
+    hitung();
+  }
+
+  async function simpanKoreksiShift() {
+    const m = $('#modalUmum'), k = m._koreksi;
+    if (!k) return;
+    const alasan = ($('#alasanKoreksi').value || '').trim();
+    if (alasan.length < 5) { toast('Tulis alasan koreksinya — minimal 5 huruf.', 'galat'); $('#alasanKoreksi').focus(); return; }
+    const sumber = [...m.querySelectorAll('#tabelKoreksi tbody tr')].map((tr) => ({
+      kode_sumber: tr.dataset.sumber,
+      penjualan: angkaDari(tr.querySelector('[data-koreksi="penjualan"]').value),
+      reward: angkaDari(tr.querySelector('[data-koreksi="reward"]').value) }));
+    const kas_fisik = angkaDari(m.querySelector('[data-koreksi="kas_fisik"]').value);
+    if (!(await tanya('Simpan koreksi shift ini?',
+      `<p>Jurnal koreksi sebesar selisihnya akan terbit di buku besar, dan shift ini ditandai <strong>diedit</strong>
+         beserta riwayatnya. Angka lama tetap tercatat di riwayat.</p>`, { ya: 'Simpan koreksi' }))) return;
+    try {
+      const r = await API.koreksiShiftPulsa({ id_shift: k.id, sumber, kas_fisik, alasan });
+      tutupModal();
+      toast(`Shift ${k.id} dikoreksi${r.no_jurnal ? ' — jurnal ' + r.no_jurnal : ''}.`, 'sukses');
+      await muatLaporanpulsa();
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  async function bukaRiwayatKoreksi(id) {
+    let d;
+    try { d = await API.riwayatKoreksiShiftPulsa({ id_shift: id }); }
+    catch (e) { return toast(e.message, 'galat'); }
+    const rw = d.riwayat || [];
+    bukaModal('Riwayat koreksi ' + id, rw.length ? rw.map((x) => `
+      <div class="riwayat-koreksi">
+        <p style="margin:0 0 4px"><strong>${esc(waktuTampil(x.waktu))}</strong> · ${esc(x.nama)}${x.no_jurnal
+          ? ` · jurnal <code>${esc(x.no_jurnal)}</code>` : ''}</p>
+        <p class="petunjuk" style="margin:0 0 6px">Alasan: ${esc(x.alasan || '—')}</p>
+        <div class="gulir-x"><table class="tabel"><thead><tr><th>Angka</th><th class="kanan">Sebelum</th><th class="kanan">Sesudah</th></tr></thead>
+          <tbody>${x.ubah.map((u) => `<tr><td data-l="Angka">${esc(u.label)}</td><td class="kanan" data-l="Sebelum">${rp(u.lama)}</td>
+            <td class="kanan" data-l="Sesudah">${rp(u.baru)}</td></tr>`).join('')}</tbody></table></div>
+      </div>`).join('') : '<p class="pesan">Belum ada riwayat koreksi.</p>');
   }
 
   /* ==================== SHIFT PULSA ====================
@@ -11427,6 +11524,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      if (d.koreksiShift) return bukaKoreksiShift(d.koreksiShift);          // bagian 260
+      if (d.riwayatKoreksi) return bukaRiwayatKoreksi(d.riwayatKoreksi);
+      if (t.id === 'btnSimpanKoreksi') return simpanKoreksiShift();
       if (d.hapusShift) {
         /* Angka shiftnya ikut ditulis di pertanyaannya. Menghapus "shift" itu
            abstrak; menghapus shift yang penjualannya Rp0 adalah keputusan yang
