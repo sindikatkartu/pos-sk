@@ -2299,6 +2299,11 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    WAJIB menyebut "dalam Rupiah" di judulnya. Angka tanpa satuan dan tanpa
    keterangan adalah angka yang tidak bisa dibaca siapa pun. Dijaga uji. */
 .laporan-uang table .rp { display: none; }
+/* Tabel uang di luar kartu laporan (bagian 262, dipasang rapikanTabelUang di
+   app.js): hanya Rp & kelurusan angka — kepala tabelnya dibiarkan. */
+.tabel-uang .rp { display: none; }
+.tabel-uang td, .tabel-uang th { font-variant-numeric: tabular-nums; }
+.satuan-uang.satuan-tabel { display: block; margin: 0 0 6px; }
 /* Satu lebar per digit — tanpa ini kolom angka tidak pernah benar-benar
    lurus, dan itu yang membuat tabel terbaca "berantakan". */
 .laporan-uang table td, .laporan-uang table th { font-variant-numeric: tabular-nums; }
@@ -3281,15 +3286,24 @@ body.tunggu input[type="checkbox"],
 body.tunggu input[type="radio"],
 body.tunggu input[type="file"] {
   pointer-events: none;
-  opacity: .45;
   transition: opacity .15s ease;
 }
+/* Redupnya MENYUSUL 350 ms (bagian 262): klik sudah ditahan sejak detik
+   pertama oleh aturan di atas; yang ditunda hanya tampilannya. */
+body.tunggu-redup button:not(.sibuk),
+body.tunggu-redup a[href],
+body.tunggu-redup select,
+body.tunggu-redup summary,
+body.tunggu-redup [role="menuitem"],
+body.tunggu-redup input[type="checkbox"],
+body.tunggu-redup input[type="radio"],
+body.tunggu-redup input[type="file"] { opacity: .45; }
 /* Menu samping diredupkan LEBIH RINGAN. Ia menempati sepertiga layar; pada .45
    seluruh sisi kiri berubah jadi bayangan dan aplikasinya terbaca rusak, bukan
    sibuk. Yang penting kliknya memang ditahan — dan itu sudah dilakukan
    `pointer-events` di atas, bukan oleh angka buramnya. */
-body.tunggu .sisi a[href],
-body.tunggu .sisi button:not(.sibuk) { opacity: .62; }
+body.tunggu-redup .sisi a[href],
+body.tunggu-redup .sisi button:not(.sibuk) { opacity: .62; }
 @media (prefers-reduced-motion: reduce) {
   button.sibuk::after { animation-duration: 2.4s; }
 }

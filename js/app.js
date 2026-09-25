@@ -464,12 +464,64 @@ function rapikanTabel(akar) {
 function pasangPengawasTabel() {
   rapikanTabel(document.body);
   rapikanTanggal(document.body);
+  rapikanTabelUang(document.body);
   new MutationObserver((daftarUbah) => {
     for (const u of daftarUbah) for (const n of u.addedNodes) {
       rapikanTabel(n);
       rapikanTanggal(n);
+      rapikanTabelUang(n);
     }
   }).observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * TABEL UANG: "Rp" keluar dari sel, satuannya naik ke judul (bagian 262).
+ *
+ * Aturan pemilik 21 Sep 2026 (bagian 214) dipasang kartu per kartu, dan 24
+ * tabel di 17 layar terlewat — termasuk Laporan pulsa yang diubah sesudahnya.
+ * Diukur 25 Sep 2026 dengan penyapu. Seperti rapikanTabel: satu pengawas,
+ * bukan puluhan tempat innerHTML yang pasti ada yang terlupa.
+ *
+ * Tabel ber-Rp di SEL (td) → kelas `tabel-uang` (Rp disembunyikan, angka
+ * lurus — kepala tabel TIDAK diubah, beda dengan kartu laporan-uang), dan
+ * kartunya menyebut "dalam Rupiah": di sebelah judulnya kalau ada, atau satu
+ * baris kecil di atas tabel. Layar Kasir tidak disentuh (aturan tetap), dan
+ * kartu laporan-uang yang sudah ada tidak diubah.
+ */
+function rapikanTabelUang(akar) {
+  if (!akar || !akar.querySelectorAll) return;
+  const daftar = akar.tagName === 'TABLE' ? [akar] : [...akar.querySelectorAll('table')];
+  for (const t of daftar) {
+    if (t.classList.contains('tabel-uang') || t.closest('#layarKasir, .laporan-uang')) continue;
+    if (!t.querySelector('td .rp')) continue;
+    t.classList.add('tabel-uang');
+    const wadah = t.closest('.kartu') || t.closest('#modalUmum') || t.parentElement;
+    if (!wadah || wadah.querySelector('.satuan-uang')) continue;
+    const cap = document.createElement('span');
+    cap.className = 'satuan-uang';
+    cap.textContent = 'dalam Rupiah';
+    const bar = wadah.querySelector(':scope > .bar-alat');
+    const judulBar = bar && bar.querySelector('h3, h4');
+    const judul = wadah.querySelector(':scope > h3, :scope > h4');
+    if (judulBar) judulBar.after(cap);
+    else if (judul && bar) {
+      /* Kartu yang SUDAH punya bar kendali terpisah (mis. Laporan shift): judulnya
+         tidak dibungkus — itu membuat bar kedua dan menggeser tata letaknya. */
+      cap.classList.add('satuan-tabel');
+      judul.after(cap);
+    }
+    else if (judul) {
+      /* SIBLING, bukan di dalam <h3>: textContent judulnya tetap utuh (aturan bagian 214). */
+      const b = document.createElement('div');
+      b.className = 'bar-alat';
+      judul.before(b);
+      b.append(judul, cap);
+    }
+    else {
+      cap.classList.add('satuan-tabel');
+      (t.closest('.gulir-x') || t).before(cap);
+    }
+  }
 }
 
 /* ==================== KOLOM TANGGAL: DD/MM/YYYY ====================
@@ -757,24 +809,34 @@ function pasangPenandaSibuk() {
   function lepasTunggu() {
     clearTimeout(tundaTunggu); tundaTunggu = null;
     clearTimeout(batasTunggu); batasTunggu = null;
-    document.body.classList.remove('tunggu');
+    document.body.classList.remove('tunggu', 'tunggu-redup');
   }
 
+  /* KUNCI SEKETIKA, REDUP MENYUSUL (bagian 262). Sampai v1.255 `tunggu` baru
+     menyala 350 ms sesudah permintaan dimulai — dan di jendela itu klik kedua
+     masih diterima: satu uuid setoran terpakai di SK01 dan SK03 (bagian 261).
+     Pemilik: "selama satu tindakan berjalan ... tidak menerima klik lain, dan
+     perpindahan menu ditahan". Sekarang `tunggu` (penahan klik, dibaca semua
+     pemeriksa keyboard & menu) dipasang SAAT ITU JUGA; yang ditunda 350 ms
+     hanya `tunggu-redup` (tampilan), supaya tindakan sekejap tidak membuat
+     layar berkedip. */
   function pasangTunggu() {
-    if (tundaTunggu || document.body.classList.contains('tunggu')) return;
+    if (tundaTunggu || batasTunggu) return;
+    if (orangSibuk() <= 0) return;
+    document.body.classList.add('tunggu');
+    batasTunggu = setTimeout(() => {
+      batasTunggu = null;
+      /* Layarnya dibuka kembali, TOMBOLNYA TIDAK. Permintaannya masih
+         berjalan di suatu tempat, dan menekan tombol yang sama persis di
+         detik itu adalah cara paling mudah melahirkan dokumen kembar —
+         persis kejadian pembelian dobel 5 Sep 2026. Tombolnya dilepas
+         `lepas()` di atas, saat permintaannya benar-benar selesai. */
+      document.body.classList.remove('tunggu', 'tunggu-redup');
+    }, BATAS_TUNGGU);
     tundaTunggu = setTimeout(() => {
       tundaTunggu = null;
-      if (orangSibuk() <= 0) return;     // sudah selesai sebelum 350 ms — tidak perlu dikunci
-      document.body.classList.add('tunggu');
-      batasTunggu = setTimeout(() => {
-        batasTunggu = null;
-        /* Layarnya dibuka kembali, TOMBOLNYA TIDAK. Permintaannya masih
-           berjalan di suatu tempat, dan menekan tombol yang sama persis di
-           detik itu adalah cara paling mudah melahirkan dokumen kembar —
-           persis kejadian pembelian dobel 5 Sep 2026. Tombolnya dilepas
-           `lepas()` di atas, saat permintaannya benar-benar selesai. */
-        document.body.classList.remove('tunggu');
-      }, BATAS_TUNGGU);
+      if (orangSibuk() <= 0) return;     // sudah selesai sebelum 350 ms — tidak perlu diredupkan
+      if (batasTunggu) document.body.classList.add('tunggu-redup');
     }, TUNDA_TUNGGU);
   }
 
@@ -784,7 +846,9 @@ function pasangPenandaSibuk() {
   document.addEventListener('api:sibuk', (e) => {
     const orang = e.detail.orang === undefined ? e.detail.jumlah : e.detail.orang;
     clearTimeout(padamTunggu); padamTunggu = null;
-    if (Number(orang) > 0) return;
+    /* Permintaan ORANG apa pun — klik tombol, pilihan dropdown, Enter —
+       langsung mengunci; bukan hanya yang lahir dari klik tombol. */
+    if (Number(orang) > 0) { pasangTunggu(); return; }
     padamTunggu = setTimeout(lepasTunggu, JEDA_PADAM);
   });
 }
@@ -3434,7 +3498,7 @@ async function muatDaftarShift() {
   const wadah = $('#isiRiwayatShift');
   if (!wadah) return;
   siapkanRentangShift();
-  wadah.innerHTML = rangkaDaftar(6, ['88%', '70%', '82%', '64%']);
+  Rangka.pasang(wadah, rangkaDaftar(6, ['88%', '70%', '82%', '64%']));   // bentuk asli diingat (bagian 262)
   try {
     const d = await API.daftarShift({ dari: $('#shiftDari').value, sampai: $('#shiftSampai').value });
     const rows = d.shift || [];
@@ -3463,7 +3527,7 @@ async function muatDaftarShift() {
 
 async function bukaLaporanShift(idShift) {
   $('#lapShiftJudul').textContent = 'Laporan shift ' + idShift;
-  $('#lapShiftIsi').innerHTML = rangkaDaftar(7, ['76%', '58%', '68%', '50%']);
+  Rangka.pasang($('#lapShiftIsi'), rangkaDaftar(7, ['76%', '58%', '68%', '50%']));   // bagian 262
   $('#tiraiLapShift').classList.add('tampil');
   try {
     const d = await API.laporanShift({ id_shift: idShift });
@@ -3949,7 +4013,7 @@ async function gambarTabLaporan(tab) {
   const w = $('#hasilLaporan');
   if (!LAP.dari || !LAP.sampai) return gambarPetunjukLaporan('Pilih periode di atas untuk menampilkan laporan.');
   if (!LAP.data[tab]) {
-    w.innerHTML = rangkaLaporan();
+    Rangka.pasang(w, rangkaLaporan());   // bentuk asli diingat (bagian 262)
     /* Balapan tab: yang tiba belakangan untuk tab yang sudah ditinggalkan
        tidak boleh menimpa tab yang sedang dibuka. */
     const tiket = { tab, dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
@@ -5030,7 +5094,7 @@ async function tampilkanJurnalManual() {
   const w = $('#hasilKeuangan');
   /* Kerangka, bukan kata "Memuat…" — ia menempati ruang yang persis akan
      diisi, jadi layarnya tidak melompat saat datanya tiba (ada penjaganya). */
-  w.innerHTML = rangkaLaporan();
+  Rangka.pasang(w, rangkaLaporan());   // bagian 262
   try {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const d = await API.daftarJurnalManual(par);
@@ -5125,7 +5189,7 @@ let _bbAkun = '';
 
 async function tampilkanBukuBesar() {
   const w = $('#hasilKeuangan');
-  w.innerHTML = rangkaLaporan();
+  Rangka.pasang(w, rangkaLaporan());   // bagian 262
   try {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const daftar = await API.daftarAkunBergerak(par);
@@ -5804,6 +5868,14 @@ function pasangEvent() {
   window.addEventListener('hashchange', () => {
     const id = idDariHash();
     if (!id || id === layarKini) return;
+    /* Tombol Kembali peramban & alamat yang diketik juga pindah layar (bagian
+       262) — dulu lolos dari kunci karena CSS hanya menahan klik. Pindah layar
+       dari KODE tidak tertahan: bukaLayar() menyamakan layarKini lebih dulu. */
+    if (document.body.classList.contains('tunggu')) {
+      if (layarKini) location.hash = '#/' + layarKini;
+      Admin.toast('Tunggu, proses sebelumnya belum selesai.', 'info');
+      return;
+    }
     if (!bolehLayar(id)) {
       /* Dikembalikan ke layar terakhir yang sah, BUKAN dibiarkan menggambar
          layar kosong. Penulisan balik ini memicu `hashchange` sekali lagi,

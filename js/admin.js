@@ -357,14 +357,16 @@ const Admin = (() => {
    * lagi?" dengan "apa yang akan muncul", dan layarnya tidak melompat saat
    * datanya tiba. `rangkaBaris` didefinisikan di bawah; dipanggil saat
    * runtime, jadi urutannya aman. */
-  const memuat = (el) => { $(el).innerHTML = `
+  /* Sejak bagian 262 lewat Rangka.pasang (pos.js): bentuk ASLI layar ini yang
+     diingat; rangka umum di bawah hanya untuk pembukaan pertama. */
+  const memuat = (el) => Rangka.pasang($(el), `
     <div class="kartu"><div class="rangka-alat">
       ${['260px', '160px', '140px'].map(w =>
         `<span class="rangka tinggi" style="width:${w}"></span>`).join('')}
     </div></div>
     <div class="kartu" aria-busy="true" aria-label="Memuat">
       ${rangkaBaris(8, ['90%', '72%', '84%', '66%'])}
-    </div>`; };
+    </div>`, el);
 
   /**
    * RANGKA (skeleton) — bentuk layar yang sedang datang, bukan kata "Memuat…".
@@ -385,14 +387,14 @@ const Admin = (() => {
   const rangkaBaris = (n, lebar) => Array.from({ length: n }, (_, i) =>
     `<div class="rangka-baris"><span class="rangka" style="width:${lebar[i % lebar.length]}"></span></div>`).join('');
 
-  const rangkaProduk = () => { $('#isiProduk').innerHTML = `
+  const rangkaProduk = () => Rangka.pasang($('#isiProduk'), `
     <div class="kartu"><div class="rangka-alat">
       ${['300px', '180px', '170px', '160px'].map(w =>
         `<span class="rangka tinggi" style="width:${w}"></span>`).join('')}
     </div></div>
     <div class="kartu" aria-busy="true" aria-label="Memuat daftar produk">
       ${rangkaBaris(12, ['92%', '78%', '86%', '70%'])}
-    </div>`; };
+    </div>`, '#isiProduk');   // bentuk asli diingat (bagian 262)
 
   const rangkaDashboard = () => { $('#isiDashboard').innerHTML = `
     <div class="bar-alat rapat bar-dash"><span class="rangka tinggi" style="width:150px"></span>${bolehCabangDash() ? '<span class="rangka tinggi" style="width:130px"></span>' : ''}</div>
@@ -3204,6 +3206,26 @@ const Admin = (() => {
   function pilihProduk(baris, sku) {
     const p = _produkSku(sku);
     if (!p) return;
+    /* Permintaan (bagian 262): barang yang SUDAH ada di baris lain tidak
+       dibuatkan baris kedua — qty baris itu yang ditambah. Server juga
+       menolak baris kembar, tapi baru ketahuan sesudah Kirim. */
+    if (baris.dataset.anak === 'pm') {
+      const varian = (baris.querySelector('[data-f="kode_varian"]')?.value || '').trim();
+      const kembar = $$('[data-anak="pm"]').find((b) => b !== baris &&
+        b.querySelector('input[data-f="sku"]')?.value === p.sku &&
+        (b.querySelector('[data-f="kode_varian"]')?.value || '').trim() === varian);
+      if (kembar) {
+        const q = kembar.querySelector('[data-f="qty"]');
+        const tambahQ = Math.max(1, Number(baris.querySelector('[data-f="qty"]')?.value) || 1);
+        q.value = (Number(q.value) || 0) + tambahQ;
+        const kotakIni = baris.querySelector('.cari-prd');
+        kotakIni.value = ''; baris.querySelector('.hasil-prd')?.classList.add('sembunyi');
+        const no = $$('[data-anak="pm"]').indexOf(kembar) + 1;
+        toast(`${teksProduk(p)} sudah ada di baris ${no} — qty-nya ditambah ${tambahQ}.`, 'info');
+        q.focus();
+        return;
+      }
+    }
     baris.querySelector('input[data-f="sku"]').value = p.sku;
     const kotak = baris.querySelector('.cari-prd');
     kotak.value = teksProduk(p);
@@ -7805,14 +7827,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function gambarHasilDiskon() {
     const w = $('#hasilDiskon');
     if (!w) return;
-    w.innerHTML = `<div class="petak petak-4" aria-busy="true" aria-label="Memuat diskon">
+    /* Bentuk asli diingat (bagian 262); rangka di bawah untuk pembukaan pertama. */
+    Rangka.pasang(w, `<div class="petak petak-4" aria-busy="true" aria-label="Memuat diskon">
         ${Array.from({ length: 4 }, () => `<div class="kartu statistik">
           <div class="label"><span class="rangka" style="width:70px"></span></div>
           <div class="nilai"><span class="rangka tinggi" style="width:100px"></span></div></div>`).join('')}
       </div>
       <div class="kartu" aria-busy="true">
         ${rangkaBaris(6, ['86%', '68%', '78%', '62%'])}
-      </div>`;
+      </div>`, '#hasilDiskon');
     try {
       const d = await API.laporanDiskon({ dari: $('#dskDari').value, sampai: $('#dskSampai').value });
       const r = d.ringkas;
@@ -7911,9 +7934,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Item', render: r => String(r.item.length) },
             { judul: 'Status', render: r => `<span class="lencana ${LENCANA_TRANSFER[r.status] || ''}">${esc(r.status)}</span>` },
             ...(rows[0]?.nilai_hpp !== undefined ? [{ judul: 'Nilai', angka: true, render: r => rp(r.nilai_hpp) }] : []),
-            { judul: '', render: r =>
+            /* Cetak LANGSUNG di baris (bagian 262) — dulu hanya di dalam jendela
+               rinciannya, dan pemilik tidak menemukannya. Pembuat tombol yang
+               sama dengan Batal, supaya setinggi. */
+            { judul: '', render: r => `<div class="aksi-baris">${tombolBaris('', 'Cetak', IKON.cetak,
+                `data-cetak-transfer="${esc(r.uuid)}"`, 'Cetak bukti transfer dengan kolom tanda tangan')}${
               r.status === 'DIKIRIM' && r.cabang_asal === APP_STATE.cabang && bolehIzin('transfer', 'hapus')
-                ? `<button class="tombol kecil bahaya" data-batal-transfer="${esc(r.uuid)}">Batal</button>` : '' }
+                ? tombolBaris('bahaya', 'Batal', IKON.batal, `data-batal-transfer="${esc(r.uuid)}"`) : ''}</div>` }
           ], rows, { kosong: 'Belum ada transfer',
                      /* Tombol "Detail" dibuang, digantikan klik pada barisnya —
                         diminta pemilik 7 Sep 2026, disamakan dengan Pembelian.
@@ -8077,6 +8104,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <tbody>${badan}</tbody>
         ${kaki}
       </table>
+      ${/* Tanda tangan (bagian 262, pilihan pemilik): Pengirim · Penerima ·
+           Disetujui. Nama terisi bila sudah tercatat; kotak Disetujui untuk
+           Owner / Head Admin, dikosongkan untuk ditandatangani tangan. */ ''}
+      <table class="ttd"><tr>
+        <td><div class="peran">Pengirim</div><div class="cab">${esc(t.cabang_asal)}</div><div class="garis"></div>
+          <div class="nama">${esc(t.user_kirim || '')}&nbsp;</div></td>
+        <td><div class="peran">Penerima</div><div class="cab">${esc(t.cabang_tujuan)}</div><div class="garis"></div>
+          <div class="nama">${esc(t.tanggal_terima ? (t.user_terima || '') : '')}&nbsp;</div></td>
+        <td><div class="peran">Disetujui</div><div class="cab">Owner / Head Admin</div><div class="garis"></div>
+          <div class="nama">&nbsp;</div></td>
+      </tr></table>
       <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
         ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
   }
@@ -8138,13 +8176,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Disaring dengan `bisa_diputus` dari SERVER, bukan dihitung di sini —
          aturan "penyetuju tidak boleh peminta" hanya boleh tinggal di satu
          tempat. Pola yang sama dipakai layar Permintaan. */
-      const antre = rows.filter(r => r.bisa_diputus);
-      const riwayat = rows.filter(r => !r.bisa_diputus);
+      /* Saringan cabang (bagian 262): '*' = semua. */
+      const cabP = bolehPilihCabang() ? (cabangLayar.pembatalan || '*') : '*';
+      const rowsC = cabP === '*' ? rows : rows.filter(r => String(r.cabang) === cabP);
+      const antre = rowsC.filter(r => r.bisa_diputus);
+      const riwayat = rowsC.filter(r => !r.bisa_diputus);
 
       $('#isiPembatalan').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
-            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${pilihCabangHtml('pembatalan', true)}
             ${antre.length ? `<span class="lencana kuning">${antre.length} menunggu keputusan</span>` : ''}
             <div style="flex:1"></div>
             ${bolehAjukan ? tombolTambah('btnAjukanVoid', 'Ajukan pembatalan') : ''}
@@ -8427,17 +8468,47 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const hitunganBerubah = new Map();
   let urutUbah = 0, pindaiSejakSimpan = 0, pindaiTimer = null, sedangSimpan = false, simpanTertunda = false;
 
+  /* ==================== PILIHAN CABANG PER LAYAR (bagian 262) ====================
+     Pemilik 25 Sep 2026: "menu opname ... perlu dropdown menu cabang. kenapa sih
+     saya sebagai owner seperti terkunci di sk01". Opname, Retur Jual, Retur Beli
+     dan Pembatalan memakai cabang SESI (pilihan di pojok kanan atas), padahal
+     servernya sudah menerima cabang lain untuk akun lintas cabang (wajibCabang).
+     Hanya untuk akun lintas cabang dengan >1 cabang; yang lain tetap melihat
+     lencana cabangnya seperti dulu. Pilihannya diingat per layar selama sesi.
+     Pembatalan memakai "Semua cabang" sebagai saringan (servernya memang sudah
+     mengirim semua cabang untuk akun lintas). */
+  const cabangLayar = {};
+  const bolehPilihCabang = () => !!(APP_STATE.flag && APP_STATE.flag.akses_lintas_cabang) && daftarKodeCabang().length > 1;
+  const cabangDari = (layar) => {
+    const v = bolehPilihCabang() ? cabangLayar[layar] : '';
+    return v && v !== '*' ? v : APP_STATE.cabang;
+  };
+  function pilihCabangHtml(layar, denganSemua) {
+    if (!bolehPilihCabang()) return `<span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>`;
+    const nilai = cabangLayar[layar] || (denganSemua ? '*' : APP_STATE.cabang);
+    return `<select class="kendali-tetap" data-cabang-layar="${layar}" title="Cabang" aria-label="Cabang">` +
+      (denganSemua ? `<option value="*"${nilai === '*' ? ' selected' : ''}>Semua cabang</option>` : '') +
+      daftarKodeCabang().map((k) => `<option value="${esc(k)}"${k === nilai ? ' selected' : ''}>${esc(k)}</option>`).join('') +
+      '</select>';
+  }
+  document.addEventListener('change', (e) => {
+    const sel = e.target.closest && e.target.closest('[data-cabang-layar]');
+    if (!sel) return;
+    cabangLayar[sel.dataset.cabangLayar] = sel.value;
+    API.tugas(() => muat(sel.dataset.cabangLayar));
+  });
+
   async function muatOpname() {
     memuat('#isiOpname');
     try {
-      const rows = await API.daftarOpname({ cabang: APP_STATE.cabang });
+      const rows = await API.daftarOpname({ cabang: cabangDari('opname') });
       const berjalan = rows.find(r => r.status === 'DRAFT' || r.status === 'REVIEW');
       const punyaNilai = rows.some(r => r.nilai_selisih !== undefined);
 
       $('#isiOpname').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
-            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${pilihCabangHtml('opname')}
             <div style="flex:1"></div>
             ${berjalan
               ? `<button class="tombol utama" data-lanjut-opname="${esc(berjalan.uuid)}">
@@ -8539,7 +8610,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function bukaLayarHitung(uuid) {
     bukaModal('Menyiapkan daftar barang', rangkaBaris(8, ['80%', '62%', '72%', '54%']));
     try {
-      const d = await API.detailOpname({ uuid, cabang: APP_STATE.cabang });
+      const d = await API.detailOpname({ uuid, cabang: cabangDari('opname') });
       opnameAktif = d;
       if (d.status === 'DRAFT') gambarLayarHitung(d);
       else gambarReviewOpname(d);
@@ -8736,7 +8807,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     sedangSimpan = true;
     if (tombol) tombol.disabled = true;
     try {
-      const r = await API.simpanHitungan({ uuid: d.uuid, cabang: APP_STATE.cabang, item: kirim });
+      const r = await API.simpanHitungan({ uuid: d.uuid, cabang: cabangDari('opname'), item: kirim });
       versi.forEach((v, kodeSku) => { if (hitunganBerubah.get(kodeSku) === v) hitunganBerubah.delete(kodeSku); });
       pindaiSejakSimpan = 0;
       toast(tombol
@@ -8816,11 +8887,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatRetur() {
     memuat('#isiRetur');
     try {
-      const rows = await API.daftarRetur({ cabang: APP_STATE.cabang });
+      const rows = await API.daftarRetur({ cabang: cabangDari('retur') });
       $('#isiRetur').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
-            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${pilihCabangHtml('retur')}
             <div style="flex:1"></div>
             ${bolehIzin('penjualan', 'ubah') && APP_STATE.flag.void_transaksi
               ? '<button class="tombol bahaya" id="btnVoidNota">Void nota</button>' : ''}
@@ -9041,7 +9112,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try {
       const d = await API.buatRetur({
         uuid: uuidDokumen('retur'),
-        cabang: APP_STATE.cabang,
+        cabang: cabangDari('retur'),
         uuid_penjualan: notaTerpilih ? notaTerpilih.uuid : '',
         jenis, item_retur: itemRetur, item_pengganti: itemPengganti,
         metode_selisih: nilai('returMetode'), alasan: nilai('returAlasan'),
@@ -9072,11 +9143,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatReturbeli() {
     memuat('#isiReturbeli');
     try {
-      const rows = await API.daftarReturBeli({ cabang: APP_STATE.cabang });
+      const rows = await API.daftarReturBeli({ cabang: cabangDari('returbeli') });
       $('#isiReturbeli').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
-            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
+            ${pilihCabangHtml('returbeli')}
             <div style="flex:1"></div>
             ${tombolTambah('btnReturBeliBaru', 'Retur ke supplier')}
           </div>
@@ -11633,6 +11704,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const item = kumpulkanAnak('pm').filter(i => i.sku && Number(i.qty) > 0)
           .map(i => ({ sku: i.sku, kode_varian: i.kode_varian || '', qty: Number(i.qty) }));
         if (!item.length) return toast('Minimal satu barang.', 'galat');
+        /* Ganda dicegah di layar juga (bagian 262); server tetap menjaga. */
+        const kunciPm = item.map((i) => i.sku + '|' + String(i.kode_varian || '').trim());
+        const ganda = kunciPm.findIndex((k, i) => kunciPm.indexOf(k) !== i);
+        if (ganda >= 0) {
+          return toast(`Barang ${item[ganda].sku} disebut lebih dari sekali — gabungkan qty-nya jadi satu baris.`, 'galat');
+        }
         t.disabled = true;
         try {
           const r = await API.buatPermintaan({
@@ -11641,6 +11718,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             tanggal: nilai('pmTanggal'), catatan: nilai('pmCatatan'), item
           });
           await sukses('Permintaan ' + r.no_dokumen + ' terkirim ke gudang.', 'permintaan');
+          /* Stok gudang minus (persediaan awal belum lengkap) tidak menolak,
+             tapi disebut (bagian 262). */
+          if ((r.peringatan || []).length) toast('Perhatian: ' + r.peringatan.join('; ') + '.', 'info');
         } catch (x) {
           $('#pesanPm').innerHTML = `<div class="pesan galat">${esc(x.message)}
             ${x.detail ? `<ul style="margin:8px 0 0 16px">${x.detail.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
@@ -11717,7 +11797,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnCariBeli') {
         $('#hasilCariBeli').innerHTML = '<div class="pesan info">Mencari…</div>';
         try {
-          const rows = await API.cariPembelian({ cari: nilai('rbCari'), cabang: APP_STATE.cabang });
+          const rows = await API.cariPembelian({ cari: nilai('rbCari'), cabang: cabangDari('returbeli') });
           if (!rows.length) {
             $('#hasilCariBeli').innerHTML = '<div class="pesan galat">Faktur tidak ditemukan.</div>';
             return;
@@ -11753,7 +11833,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         try {
           const r = await API.buatReturBeli({
             uuid: uuidDokumen('retur_beli'),
-            cabang: APP_STATE.cabang,
+            cabang: cabangDari('returbeli'),
             uuid_pembelian: beliTerpilih ? beliTerpilih.uuid : '',
             kode_supplier: beliTerpilih ? beliTerpilih.kode_supplier : '',
             item, penyelesaian: nilai('rbPenyelesaian'), metode: nilai('rbMetode'),
@@ -11829,7 +11909,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         try {
           const r = await API.buatOpname({
             uuid: uuidDokumen('opname'),
-            cabang: APP_STATE.cabang, cakupan, filter,
+            cabang: cabangDari('opname'), cakupan, filter,
             buta: centang('opButa'), catatan: nilai('opCatatan')
           });
           await bukaLayarHitung(r.uuid);
@@ -11871,9 +11951,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         t.disabled = true;
         clearTimeout(pindaiTimer); pindaiTimer = null;
         try {
-          await API.simpanHitungan({ uuid: d.uuid, cabang: APP_STATE.cabang, item });
+          await API.simpanHitungan({ uuid: d.uuid, cabang: cabangDari('opname'), item });
           hitunganBerubah.clear();
-          await API.selesaiHitung({ uuid: d.uuid, cabang: APP_STATE.cabang });
+          await API.selesaiHitung({ uuid: d.uuid, cabang: cabangDari('opname') });
           await bukaLayarHitung(d.uuid);   // muat ulang, kini status REVIEW
         } catch (x) {
           $('#pesanHitung').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
@@ -11887,7 +11967,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               { ya: 'Posting', jenis: 'bahaya' }))) return;
         t.disabled = true;
         try {
-          const r = await API.postingOpname({ uuid: d.uuid, cabang: APP_STATE.cabang,
+          const r = await API.postingOpname({ uuid: d.uuid, cabang: cabangDari('opname'),
                                               catatan: nilai('opCatatanPosting') });
           await Sync.tarikStok();
           await Sync.tarikStokSemuaCabang();
@@ -11907,7 +11987,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ya: 'Batalkan opname', jenis: 'bahaya' });
         if (!alasan) return;
         try {
-          await API.batalOpname({ uuid: d.batalOpname, cabang: APP_STATE.cabang, alasan });
+          await API.batalOpname({ uuid: d.batalOpname, cabang: cabangDari('opname'), alasan });
           await sukses('Opname dibatalkan.', 'opname');
         } catch (x) { toast(x.message, 'galat'); }
         return;
@@ -11924,7 +12004,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!q) return;
         $('#hasilCariNota').innerHTML = '<div class="pesan info">Mencari…</div>';
         try {
-          const rows = await API.cariNota({ cari: q, cabang: APP_STATE.cabang });
+          const rows = await API.cariNota({ cari: q, cabang: cabangDari('retur') });
           if (!rows.length) {
             $('#hasilCariNota').innerHTML = '<div class="pesan galat">Nota tidak ditemukan di cabang ini.</div>';
             return;
@@ -11954,7 +12034,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!q) return;
         $('#hasilCariNotaAjukan').innerHTML = '<div class="pesan info">Mencari…</div>';
         try {
-          const rows = await API.cariNota({ cari: q, cabang: APP_STATE.cabang });
+          const rows = await API.cariNota({ cari: q, cabang: cabangDari('pembatalan') });
           if (!rows.length) {
             $('#hasilCariNotaAjukan').innerHTML = '<div class="pesan galat">Nota tidak ditemukan di cabang ini.</div>';
             return;
@@ -11981,7 +12061,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!alasan) return;
         try {
           await API.ajukanVoid({ uuid: uuidDokumen('ajukanVoid'), uuid_penjualan: nota.uuid,
-                                 cabang: APP_STATE.cabang, alasan });
+                                 cabang: cabangDari('pembatalan'), alasan });
           lepasUuidDokumen('ajukanVoid');
           await sukses('Pengajuan terkirim. Admin akan memutuskannya.', 'pembatalan');
         } catch (x) { toast(x.message, 'galat'); }
@@ -12032,7 +12112,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!q) return;
         $('#hasilCariNotaVoid').innerHTML = '<div class="pesan info">Mencari…</div>';
         try {
-          const rows = await API.cariNota({ cari: q, cabang: APP_STATE.cabang });
+          const rows = await API.cariNota({ cari: q, cabang: cabangDari('retur') });
           if (!rows.length) {
             $('#hasilCariNotaVoid').innerHTML = '<div class="pesan galat">Nota tidak ditemukan di cabang ini.</div>';
             return;
@@ -12063,7 +12143,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ya: 'Void nota', jenis: 'bahaya' });
         if (!alasan) return;
         try {
-          await API.voidPenjualan({ uuid: nota.uuid, alasan, cabang: APP_STATE.cabang });
+          await API.voidPenjualan({ uuid: nota.uuid, alasan, cabang: cabangDari('retur') });
           await Sync.tarikStok();
           await sukses('Nota ' + nota.no_nota + ' dibatalkan (void).', 'retur');
         } catch (x) {

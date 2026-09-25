@@ -544,6 +544,109 @@ const _KOLATOR = (typeof Intl !== 'undefined' && Intl.Collator)
   : null;
 
 /** Bandingkan dua teks seperti manusia membacanya. Dipakai dropdown & tabel. */
+/* ==================== RANGKA MENIRU BENTUK ASLI (bagian 262) ====================
+   Pemilik 25 Sep 2026: "betulkan juga skeleton loadernya, ada yang tidak sesuai
+   dengan tampilan aslinya. sisir semua layar". Diukur di 28 layar: rangka umum
+   (satu bar + satu daftar) membuat isinya MELOMPAT 80–1.040 px saat data tiba;
+   kotak ringkasan & jumlah kartu tidak pernah ditiru. Pilihan pemilik: tiru
+   bentuk ASLI — tiap kali layar selesai tergambar, bentuk tingkat atasnya
+   (kartu, petak ringkasan, tinggi) diingat per perangkat & kelas lebar
+   (HP/tablet/PC); pemuatan berikutnya menggambar rangka dari bentuk itu.
+   Pembukaan pertama memakai rangka umum pemanggilnya. Penyimpanan yang gagal
+   = rangka umum, bukan galat. */
+const Rangka = (() => {
+  const KUNCI = 'possk_rangka_v3', MAKS = 80;
+  const kelasLebar = () => (window.innerWidth < 620 ? 'hp' : window.innerWidth < 1024 ? 'tab' : 'pc');
+  const kunci = (nama) => (document.querySelector('.layar.aktif')?.id || '') + '|' + nama + '|' + kelasLebar();
+  const baca = () => { try { return JSON.parse(localStorage.getItem(KUNCI) || '{}'); } catch (e) { return {}; } };
+  const tulis = (k, b) => {
+    try {
+      const s = baca(); s[k] = { b, t: Date.now() };
+      const ks = Object.keys(s);
+      if (ks.length > MAKS) ks.sort((x, y) => s[x].t - s[y].t).slice(0, ks.length - MAKS).forEach((x) => delete s[x]);
+      localStorage.setItem(KUNCI, JSON.stringify(s));
+    } catch (e) { /* penuh/diblokir: tetap rangka umum */ }
+  };
+  const garis = (n) => Array.from({ length: n }, (_, i) =>
+    `<div class="rangka-baris"><span class="rangka" style="width:${['90%', '72%', '84%', '66%'][i % 4]}"></span></div>`).join('');
+  const nGaris = (h) => Math.max(1, Math.min(14, Math.round((h - 36) / 30)));
+  /**
+   * Rangka dari bentuk yang diingat. Tiap blok dibingkai setinggi JARAK ke blok
+   * berikutnya (sudah memuat margin, termasuk margin yang saling tumpang), dan
+   * bloknya sendiri bermargin 0 — jadi posisi setiap blok persis seperti aslinya.
+   */
+  function gambar(bt) {
+    const b = bt.b || [];
+    const isi = b.map((x, i) => {
+      let dalam;
+      if (x.j === 'P') {
+        dalam = `<div class="${x.c}" aria-busy="true" style="height:${x.h}px;margin:0;overflow:hidden">${Array.from({ length: x.n }, () =>
+          `<div class="${x.cc}"><span class="rangka" style="width:60%"></span><div style="margin-top:8px"><span class="rangka tinggi" style="width:80%"></span></div></div>`).join('')}</div>`;
+      } else if (x.j === 'K') {
+        dalam = `<div class="kartu" aria-busy="true" aria-label="Memuat" style="height:${x.h}px;margin:0;overflow:hidden">${garis(nGaris(x.h))}</div>`;
+      } else {
+        dalam = `<div aria-busy="true" style="height:${x.h}px;overflow:hidden">${x.h >= 60 ? garis(nGaris(x.h + 24)) : ''}</div>`;
+      }
+      /* Margin TEPI blok pertama & terakhir dipasang lagi di bingkainya: di
+         tampilan asli margin itu bertumpuk dengan elemen di luar wadah, dan
+         tanpa itu seluruh layar di bawahnya bergeser selebar margin. */
+      const tepi = (i === 0 && x.mt ? `margin-top:${x.mt}px;` : '') + (i === b.length - 1 && x.mb ? `margin-bottom:${x.mb}px;` : '');
+      return `<div style="height:${i === b.length - 1 ? x.h : Math.max(0, x.langkah)}px;${tepi}">${dalam}</div>`;
+    }).join('');
+    return isi;
+  }
+  /** Bentuk tingkat atas sebuah wadah yang sudah berisi data: tinggi tiap blok
+   *  dan jarak dari puncaknya ke puncak blok berikutnya (atau ke dasar wadah). */
+  function ukur(w) {
+    const g = getComputedStyle(w), rw = w.getBoundingClientRect();
+    const dasar = rw.bottom - (parseFloat(g.paddingBottom) || 0) - (parseFloat(g.borderBottomWidth) || 0);
+    const el = [...w.children].filter((e) => e.offsetParent !== null).slice(0, 30);
+    const r = el.map((e) => e.getBoundingClientRect());
+    const b = el.map((e, i) => {
+      const h = Math.min(6000, Math.round(r[i].height));
+      const langkah = Math.round((i + 1 < el.length ? r[i + 1].top : dasar) - r[i].top);
+      const gs = getComputedStyle(e);
+      const mt = i === 0 ? Math.round(parseFloat(gs.marginTop) || 0) : 0;
+      const mb = i === el.length - 1 ? Math.round(parseFloat(gs.marginBottom) || 0) : 0;
+      if (e.matches('.petak-mini, .petak')) {
+        return { j: 'P', h, langkah, mt, mb, n: Math.min(12, e.children.length), c: e.className, cc: (e.children[0] && e.children[0].className) || '' };
+      }
+      return { j: e.classList.contains('kartu') ? 'K' : 'L', h, langkah, mt, mb };
+    });
+    return { b };
+  }
+  /**
+   * Pasang rangka di `w`: bentuk yang diingat untuk (layar, nama, lebar), atau
+   * `umum` (html rangka lama). Lalu rekam bentuk ASLI tiap kali isinya tenang —
+   * tanpa rangka tersisa, bukan kotak galat, layar & lebar yang sama — selama
+   * 15 dtk (sebagian layar menggambar bagiannya menyusul).
+   */
+  function pasang(w, umum, nama) {
+    if (!w) return;
+    const k = kunci(nama || w.id || '');
+    w.dataset.rangka = nama || w.id || '';   // penanda wadah berangka (dibaca uji-rangka)
+    const s = baca()[k];
+    w.innerHTML = s && s.b && s.b.b && s.b.b.length ? gambar(s.b) : umum;
+    if (w._rekamRangka) w._rekamRangka.disconnect();
+    let t = null;
+    const selesai = Date.now() + 15000;
+    const obs = new MutationObserver(() => {
+      clearTimeout(t);
+      if (Date.now() > selesai) { obs.disconnect(); w._rekamRangka = null; return; }
+      t = setTimeout(() => {
+        if (w.querySelector('.rangka, [aria-busy="true"]')) return;
+        if (!w.isConnected || w.offsetParent === null || kunci(nama || w.id || '') !== k) return;
+        if (w.querySelector(':scope > .pesan.galat')) return;
+        const b = ukur(w);
+        if (b.b.length) tulis(k, b);
+      }, 350);
+    });
+    obs.observe(w, { childList: true, subtree: true });
+    w._rekamRangka = obs;
+  }
+  return { pasang, gambar, ukur, KUNCI };
+})();
+
 /** Mode lihat (bagian 257): peran yang mengawasi tanpa berjualan (Owner &
  *  Head Admin). Layar penjual terbuka, yang menyimpan dikunci — dan servernya
  *  menolak juga (wajibBerjualan), jadi ini bukan satu-satunya pagar. Di pos.js

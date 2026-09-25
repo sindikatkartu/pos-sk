@@ -411,6 +411,12 @@ const Struk = (() => {
   table.isi.rapat th, table.isi.rapat td { font-size: 8pt; padding: 3px 4px; }
   table.isi td.kosong { color: #555; font-style: italic; }
   table.isi thead { display: table-header-group; }
+  /* Kolom tanda tangan dokumen (bagian 262). Tidak terbelah antar halaman. */
+  table.ttd { width: 100%; margin-top: 28px; border-collapse: collapse; page-break-inside: avoid; }
+  table.ttd td { width: 33%; text-align: center; vertical-align: top; font-size: 9.5pt; padding: 0 10px; border: 0; }
+  table.ttd .peran { font-weight: bold; }
+  table.ttd .cab { font-size: 8.5pt; color: #444; }
+  table.ttd .garis { height: 60px; border-bottom: 1px solid #000; margin: 0 8px 4px; }
   table.isi tr { break-inside: avoid; page-break-inside: avoid; }
   /* Kotak angka ringkas: deret kotak bergaris, empat sebaris. */
   .kpi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 4px; }
