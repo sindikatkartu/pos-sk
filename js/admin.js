@@ -900,12 +900,42 @@ const Admin = (() => {
     return d;
   }
   const basiDash = (bagian) => { const s = bacaSimpanDash(bagian); return s && Date.now() - s.waktu > BASI_DASH_MS ? s.waktu : 0; };
+  /* ==================== MONITOR PARALEL (bagian 263) ====================
+     Diukur 25 Sep 2026 di toko: bagian monitor 32 dtk — tujuh daftar dikerjakan
+     server BERURUTAN dalam satu permintaan (shift 4,5 · permintaan 3,9 · utang
+     3,2 · transfer 1,8 · retur & opname per cabang). Kini enam permintaan kecil
+     berjalan BERSAMAAN, dikelompokkan supaya seimbang, dan hasilnya digabung
+     di sini. Yang digabung hanya DAFTAR yang berdiri sendiri — tidak ada angka
+     yang dijumlah ulang di layar. Kelompok yang gagal hanya membuat kartunya
+     "Tidak tersedia"; kartu lain tetap tergambar. */
+  const GRUP_MONITOR = [['shift'], ['permintaan'], ['utang'], ['transfer', 'audit', 'perangkat'], ['retur_void'], ['opname']];
+  const kunciMonitor = (b) => (b === 'perangkat' ? 'perangkat_menunggu' : b);
+  async function ambilMonitorParalel(opsi) {
+    const hasil = await Promise.allSettled(GRUP_MONITOR.map((g) =>
+      API.dashboard({ ...paramDash(), bagian: 'monitor', blok: g.join(',') }, opsi)));
+    const m = { bagian: 'monitor' };
+    let berhasil = 0, galatPertama = null;
+    hasil.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value) {
+        berhasil++;
+        ['dari', 'sampai', 'dihitung'].forEach((k) => { if (m[k] === undefined && r.value[k] !== undefined) m[k] = r.value[k]; });
+        GRUP_MONITOR[i].forEach((b) => { if (r.value[kunciMonitor(b)] !== undefined) m[kunciMonitor(b)] = r.value[kunciMonitor(b)]; });
+      } else {
+        galatPertama = galatPertama || r.reason;
+        GRUP_MONITOR[i].forEach((b) => { m[kunciMonitor(b)] = null; });
+      }
+    });
+    if (!berhasil) throw galatPertama || new Error('Kartu pemantauan gagal dimuat.');
+    return m;
+  }
+
   /** Segarkan seluruh bagian di latar, lalu gambar ulang dari simpanan yang baru. */
   async function segarkanDashLatar(tiket) {
     try {
       for (const b of ['inti', 'monitor', 'berat']) {
         if (b === 'monitor' && !kartuMonitorBoleh().length) continue;
-        const d = await API.dashboard({ ...paramDash(), bagian: b }, { latar: true });
+        const d = b === 'monitor' ? await ambilMonitorParalel({ latar: true })
+          : await API.dashboard({ ...paramDash(), bagian: b }, { latar: true });
         if (tiket !== tiketDash) return;
         tulisSimpanDash(b, d);
       }
@@ -1139,7 +1169,7 @@ const Admin = (() => {
   async function muatDashboardMonitor(tiket) {
     if (!kartuMonitorBoleh().length) return;
     try {
-      const m = await ambilDash('monitor', () => API.dashboard({ ...paramDash(), bagian: 'monitor' }, { latar: true }));
+      const m = await ambilDash('monitor', () => ambilMonitorParalel({ latar: true }));
       if (tiket !== tiketDash) return;
       if (dataDash) dataDash.monitor = m;
       isiKartuMonitor(m);
