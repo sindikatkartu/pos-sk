@@ -10050,6 +10050,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   let _uuidKas = null;
   const uuidKas = () => (_uuidKas ||
     (_uuidKas = 'KAS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)));
+  /* SATU uuid bersama untuk tiga tombol (Catat, Terima setoran, Balik) membuat
+     satu nomor terpakai di dua cabang, dan setoran kedua di cabang yang sama
+     dijawab "duplikat, berhasil" tanpa ditulis (bagian 261). Setoran & Balik
+     kini ber-uuid dari DOKUMENNYA sendiri: menekan dua kali = satu catatan. */
+  const uuidSetoran = (cab, idShift) => 'SETOR-' + cab + '-' + idShift;
+  const uuidBalik = (uuidAsli) => 'BALIK-' + uuidAsli;
 
   async function simpanKasBaru() {
     const jenis = nilai('kasJenis');
@@ -11478,19 +11484,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                <p class="petunjuk">Uangnya berpindah dari <strong>Kas di Tangan</strong>
                ke <strong>Kas Admin</strong>. Satu shift hanya bisa disetor sekali.</p>`,
               { ya: 'Terima setoran' }))) return;
+        t.disabled = true;   // terkunci selama memproses (bagian 261)
         try {
           await API.simpanKas({
             /* Cabang BARISNYA. */
-            cabang: cab, uuid: uuidKas(),
+            cabang: cab, uuid: uuidSetoran(cab, d.terimaSetor),
             tipe: 'KELUAR', akun_kas: '1-1100', kode_akun: '1-1150',
             jumlah: jml, bukti: d.terimaSetor,
             keterangan: 'Setoran shift ' + d.terimaSetor,
             id_shift: '', luar_laci: true
           });
-          _uuidKas = null;
           toast('Setoran shift ' + d.terimaSetor + ' diterima.');
           await muatHasilKas();
-        } catch (x) { toast(x.message, 'galat'); }
+        } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
 
@@ -11510,14 +11516,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         try {
           await API.simpanKas({
             /* Cabang BARIS yang dikoreksi, bukan tempat adminnya login. */
-            cabang: asli.kode_cabang || APP_STATE.cabang, uuid: uuidKas(),
+            cabang: asli.kode_cabang || APP_STATE.cabang, uuid: uuidBalik(asli.uuid),
             tipe: asli.tipe === 'KELUAR' ? 'MASUK' : 'KELUAR',
             akun_kas: asli.akun_kas, kode_akun: asli.kode_akun,
             jumlah: asli.jumlah,
             keterangan: 'Koreksi balik ' + asli.uuid + ' — ' + alasan,
             id_shift: '', luar_laci: true
           });
-          _uuidKas = null;
           toast('Koreksi balik tercatat.');
           await muatHasilKas();
         } catch (x) { toast(x.message, 'galat'); }

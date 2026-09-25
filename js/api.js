@@ -180,7 +180,7 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'impor_master', 'impor_produk',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
@@ -606,6 +606,8 @@ let _pernahJawab = false;
     /* Pembacaan, jadi aman diulang — dan memang perlu, sebab meja kerja kas
        memanggilnya tiap kali periodenya berganti. */
     shiftBelumSetor:   (d) => panggil('shift_belum_setor', d || {}, { timeout: 60000 }),
+    /* Sekali pakai, dijalankan Owner (bagian 261). */
+    rapikanSetoranGanda: (d) => panggil('rapikan_setoran_ganda', d || {}, { timeout: 180000 }),
     arusKas:           (d) => panggil('arus_kas', d || {}, { timeout: 90000 }),
     ringkasanKonsolidasi: (d) => panggil('ringkasan_konsolidasi', d || {}, { timeout: 90000 }),
     /* Berkas xlsx dikirim base64; batas waktunya panjang karena penguraiannya
