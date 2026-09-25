@@ -1417,6 +1417,20 @@ label {
 }
 .grup { margin-bottom: 12px; }
 .baris2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Penentu SKU (bagian 264): status di bawah kolom SKU, isian "+ baru" berlatar. */
+.cek-sku { margin: 6px 0 0; font-size: 13px; color: var(--teks-redup); }
+.cek-sku.ok { color: var(--sukses); }
+.cek-sku.gagal { color: var(--bahaya); }
+.cek-sku.waspada { color: var(--peringatan); }
+.penentu-sku > .cek-sku { margin: -4px 0 12px; }
+.tambah-prefix { padding: 10px 10px 0; margin-bottom: 10px; border-left: 3px solid var(--utama);
+                 background: var(--panel-2); border-radius: 6px; }
+.baris3.baris-tipe-saja { grid-template-columns: 1fr; }   /* dua kelas: .baris3 ditulis sesudahnya */
+/* HP: Tipe selebar kartu, Kategori & Merek masing-masing setengah (aturan setengah-atau-penuh). */
+@media (max-width: 700px) {
+  .baris3.penentu-pilih { grid-template-columns: 1fr 1fr; }   /* dua kelas: menang atas .baris3 {1fr} di bawah */
+  .penentu-pilih > .grup:first-child { grid-column: 1 / -1; }
+}
 .baris3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 @media (max-width: 700px) { .baris3, .baris2 { grid-template-columns: 1fr; } }
 

@@ -2805,6 +2805,284 @@ const Admin = (() => {
     } catch (e) { toast('Gagal mencetak: ' + e.message, 'galat'); }
   }
 
+  /* ==================== PENENTU SKU (bagian 264) ====================
+     Membantu petugas memilih SKU produk baru dan memastikan SKU-nya belum
+     terpakai. Pola toko: TIPE(2 huruf) + KATEGORI(2) + MEREK(2) + NOMOR(4),
+     mis. CS 05 08 0347 = Case A, iPhone, nomor 347.
+
+     Daftarnya DITARIK DARI SERVER (peta_sku), bukan dari katalog perangkat:
+     katalog perangkat hanya memuat produk aktif yang dijual di cabang itu,
+     jadi nomor produk nonaktif atau khusus cabang lain tidak kelihatan di
+     sana — dan usulan dari situ akan menabraknya.
+
+     Arti tiap prefix dibaca dari produk yang ada (keputusan pemilik): nama
+     kategori/merek yang PALING SERING dipakai di prefix itu. Nomor urut per
+     kategori, tertinggi + 1 — nomor bolong tidak dipakai ulang, karena bisa
+     masih tertempel di stiker barang lama.
+
+     Yang menentukan tetap server (apiSimpanProdukLengkap, baru:true): layar
+     ini hanya memberi usulan dan peringatan lebih awal. */
+  const POLA_SKU_TOKO = /^([A-Z]{2})(\d{2})(\d{2})(\d{4})$/;
+  let petaSkuSimpan = null, petaSkuJam = 0;
+  const skuPad = (n, w) => String(n).padStart(w, '0');
+  const normNamaSku = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+  function htmlPenentuSku() {
+    return `<div class="penentu-sku" id="penentuSku">
+        <div class="baris3 penentu-pilih" id="skPilih" aria-busy="true">
+          <div class="grup"><label>Tipe</label><select id="skTipe" disabled></select></div>
+          <div class="grup"><label>Kategori</label><select id="skKategori" disabled></select></div>
+          <div class="grup"><label>Merek</label><select id="skMerek" disabled></select></div>
+        </div>
+        <div id="skTambah"></div>
+        <p class="cek-sku sembunyi" id="skCatatan"></p>
+        <div class="baris2">
+          <div class="grup"><label>SKU *</label><input type="text" id="pSku" autocomplete="off">
+            <p class="cek-sku" id="skCek" aria-label="Memuat daftar SKU"><span class="rangka" style="width:220px"></span></p></div>
+          <div class="grup"><label>Barcode</label><input type="text" id="pBarcode"></div>
+        </div>
+      </div>`;
+  }
+
+  /** Bentuk ringkas yang dipakai layar: siapa memakai SKU apa, dan arti tiap prefix. */
+  function susunPetaSku(d) {
+    const p = { sku: new Map(), tipe: Object.assign({}, d.nama_tipe || {}), kat: {}, mer: {},
+                maks: {}, pkAda: {}, pmAda: new Set() };
+    const hitK = {}, hitM = {};
+    (d.baris || []).forEach(([sku, nama, kategori, merek, aktif]) => {
+      p.sku.set(String(sku), { nama: String(nama || ''), aktif: !!aktif });
+      const m = POLA_SKU_TOKO.exec(String(sku));
+      if (!m) return;
+      const [, t, pk, pm, no] = m;
+      if (!p.tipe[t]) p.tipe[t] = '';
+      (p.pkAda[t] = p.pkAda[t] || new Set()).add(pk);
+      p.pmAda.add(pm);
+      p.maks[t + pk] = Math.max(p.maks[t + pk] || 0, Number(no));
+      if (kategori) { const o = hitK[t + pk] = hitK[t + pk] || {}; o[kategori] = (o[kategori] || 0) + 1; }
+      if (merek) { const o = hitM[pm] = hitM[pm] || {}; o[merek] = (o[merek] || 0) + 1; }
+    });
+    const terbanyak = (o) => Object.keys(o).sort((a, b) => o[b] - o[a] || urutNama(a, b))[0];
+    Object.keys(hitK).forEach((k) => { (p.kat[k.slice(0, 2)] = p.kat[k.slice(0, 2)] || {})[k.slice(2)] = terbanyak(hitK[k]); });
+    Object.keys(hitM).forEach((pm) => { p.mer[pm] = terbanyak(hitM[pm]); });
+    return p;
+  }
+
+  /** Prefix bebas berikutnya = tertinggi + 1 (celah tidak diisi, sama dengan nomor urut). */
+  function prefixBerikut(terpakai) {
+    const angka = [...(terpakai || [])].map(Number).filter((n) => n > 0);
+    return skuPad((angka.length ? Math.max(...angka) : 0) + 1, 2);
+  }
+
+  function jarakEditSku(a, b) {
+    const d = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let kiri = d[0]; d[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const lama = d[j];
+        d[j] = Math.min(d[j] + 1, d[j - 1] + 1, kiri + (a[i - 1] === b[j - 1] ? 0 : 1));
+        kiri = lama;
+      }
+    }
+    return d[b.length];
+  }
+
+  /** [[prefix, nama], ...] yang mirip nama baru — penjaga salah ketik. Paling mirip dulu. */
+  function namaMiripSku(nama, pasangan) {
+    const n = normNamaSku(nama);
+    if (n.length < 2) return [];
+    return pasangan
+      .map(([k, x]) => ({ k, x, y: normNamaSku(x) }))
+      .filter((o) => o.y !== n && (o.y.includes(n) || n.includes(o.y) || jarakEditSku(n, o.y) <= 2))
+      .sort((a, b) => jarakEditSku(n, a.y) - jarakEditSku(n, b.y))
+      .slice(0, 3).map((o) => [o.k, o.x]);
+  }
+
+  async function muatPetaSku(paksa) {
+    if (!paksa && petaSkuSimpan && Date.now() - petaSkuJam < 120000) return petaSkuSimpan;
+    petaSkuSimpan = susunPetaSku(await API.petaSku({ latar: true }));
+    petaSkuJam = Date.now();
+    return petaSkuSimpan;
+  }
+
+  async function pasangPenentuSku() {
+    const tipe = $('#skTipe'), kat = $('#skKategori'), mer = $('#skMerek'), sku = $('#pSku'), bc = $('#pBarcode');
+    /* Barcode mengikuti SKU selama isinya masih SAMA dengan SKU sebelumnya
+       (dataset.lalu, diisi juga oleh usulan). Barcode pabrik yang diketik
+       sendiri tidak ikut tertimpa. */
+    sku.addEventListener('input', () => {
+      if (!bc.value || bc.value === sku.dataset.lalu) bc.value = sku.value;
+      sku.dataset.lalu = sku.value;
+      cekSkuPenentu();
+    });
+    [tipe, kat, mer].forEach((el) => el.addEventListener('change', () => {
+      if (el === tipe) isiKategoriSku();
+      hitungUsulanSku();
+    }));
+    $('#skTambah').addEventListener('input', () => hitungUsulanSku());
+    try {
+      await muatPetaSku(false);
+    } catch (e) {
+      /* GAGAL = pilihan disembunyikan, kolom teks lama dibuka lagi. Daftar
+         kosong tidak boleh dibaca sebagai "semua SKU belum terpakai". */
+      if (!$('#penentuSku')) return;
+      $('#skPilih').classList.add('sembunyi');
+      $$('#barisKatMerek > .grup').forEach((g) => g.classList.remove('sembunyi'));
+      $('#barisKatMerek').classList.remove('baris-tipe-saja');
+      tandaCekSku('waspada', 'Daftar SKU gagal dimuat (' + esc(e.message) + '). Ketik SKU sendiri — ' +
+        'server tetap menolak SKU yang sudah terpakai.');
+      return;
+    }
+    if (!$('#penentuSku')) return;                       // modal sudah ditutup
+    $('#skPilih').removeAttribute('aria-busy');
+    const peta = petaSkuSimpan;
+    const kodeTipe = Object.keys(peta.tipe).sort();
+    tipe.innerHTML = kodeTipe.map((k) => `<option value="${esc(k)}">${esc(k)}${peta.tipe[k] ? ' · ' + esc(peta.tipe[k]) : ''}</option>`).join('') +
+      '<option value="+">+ Tipe baru…</option>';
+    if (kodeTipe.includes('CS')) tipe.value = 'CS';
+    const merek = Object.keys(peta.mer).map((pm) => [pm, peta.mer[pm]]).sort((a, b) => urutNama(a[1], b[1]));
+    mer.innerHTML = '<option value="">— pilih merek —</option>' +
+      merek.map(([pm, n]) => `<option value="${pm}">${esc(n)} · ${pm}</option>`).join('') +
+      '<option value="+">+ Merek baru…</option>';
+    [tipe, kat, mer].forEach((el) => { el.disabled = false; });
+    isiKategoriSku();
+    hitungUsulanSku();
+    function tandaCekSku(kelas, html) {
+      const c = $('#skCek');
+      if (c) { c.className = 'cek-sku ' + kelas; c.innerHTML = html; c.removeAttribute('aria-label'); }
+    }
+  }
+
+  function isiKategoriSku() {
+    const peta = petaSkuSimpan, t = $('#skTipe').value, kat = $('#skKategori');
+    const daftar = t === '+' ? [] : Object.keys(peta.kat[t] || {}).map((pk) => [pk, peta.kat[t][pk]])
+      .sort((a, b) => urutNama(a[1], b[1]));
+    kat.innerHTML = (daftar.length ? '<option value="">— pilih kategori —</option>' : '') +
+      daftar.map(([pk, n]) => `<option value="${pk}">${esc(n)} · ${pk}</option>`).join('') +
+      '<option value="+">+ Kategori baru…</option>';
+    kat.value = daftar.length ? '' : '+';
+  }
+
+  /** Isian nama/kode untuk yang "+ baru". Digambar ulang HANYA bila susunannya berubah. */
+  function gambarTambahSku(perlu, prefixKat, prefixMer) {
+    const wadah = $('#skTambah');
+    const kunci = perlu.join(',');
+    if (wadah.dataset.susun !== kunci) {
+      const simpan = {};
+      $$('#skTambah input').forEach((i) => { simpan[i.id] = i.value; });
+      const blok = {
+        tipe: `<div class="baris2 tambah-prefix"><div class="grup"><label>Kode tipe (2 huruf)</label>
+          <input type="text" id="skKodeTipe" maxlength="2" autocomplete="off"></div>
+          <div class="grup"><label>Nama tipe</label><input type="text" id="skNamaTipe" autocomplete="off"></div></div>`,
+        kat: `<div class="baris2 tambah-prefix"><div class="grup"><label>Nama kategori baru</label>
+          <input type="text" id="skNamaKat" autocomplete="off"></div>
+          <div class="grup"><label>Prefix</label><input type="text" id="skPrefixKat" disabled></div></div>`,
+        mer: `<div class="baris2 tambah-prefix"><div class="grup"><label>Nama merek baru</label>
+          <input type="text" id="skNamaMer" autocomplete="off"></div>
+          <div class="grup"><label>Prefix</label><input type="text" id="skPrefixMer" disabled></div></div>`
+      };
+      wadah.innerHTML = perlu.map((k) => blok[k]).join('');
+      wadah.dataset.susun = kunci;
+      Object.keys(simpan).forEach((id) => { if ($('#' + id)) $('#' + id).value = simpan[id]; });
+    }
+    if ($('#skPrefixKat')) $('#skPrefixKat').value = prefixKat;
+    if ($('#skPrefixMer')) $('#skPrefixMer').value = prefixMer;
+  }
+
+  /**
+   * Hitung usulan SKU dari pilihan — juga saat nama/kode baru diketik, karena
+   * kode tipe baru ikut menjadi awal SKU.
+   */
+  function hitungUsulanSku() {
+    const peta = petaSkuSimpan;
+    if (!peta || !$('#penentuSku')) return;
+    const vTipe = $('#skTipe').value, vKat = $('#skKategori').value, vMer = $('#skMerek').value;
+    const perlu = [];
+    if (vTipe === '+') perlu.push('tipe');
+    if (vKat === '+') perlu.push('kat');
+    if (vMer === '+') perlu.push('mer');
+    const catatan = [], galat = [];
+
+    let t = vTipe;
+    if (vTipe === '+') {
+      t = String($('#skKodeTipe')?.value || '').trim().toUpperCase();
+      if ($('#skKodeTipe') && $('#skKodeTipe').value !== t) $('#skKodeTipe').value = t;
+    }
+    const pkBaru = vTipe === '+' ? '01' : prefixBerikut(peta.pkAda[t]);
+    const pmBaru = prefixBerikut(peta.pmAda);
+    gambarTambahSku(perlu, pkBaru, pmBaru);
+
+    if (vTipe === '+') {
+      if (!/^[A-Z]{2}$/.test(t)) galat.push('Kode tipe harus tepat 2 huruf, mis. AK.');
+      else if (peta.tipe[t] !== undefined) galat.push('Tipe ' + t + ' sudah ada — pilih dari daftar Tipe.');
+      else catatan.push('Tipe baru <strong>' + esc(t) + '</strong> — kategori pertamanya memakai prefix <strong>01</strong>.');
+    }
+    const pk = vKat === '+' ? pkBaru : vKat;
+    const pm = vMer === '+' ? pmBaru : vMer;
+    let namaKat = vKat === '+' ? String($('#skNamaKat')?.value || '').trim() : ((peta.kat[t] || {})[vKat] || '');
+    let namaMer = vMer === '+' ? String($('#skNamaMer')?.value || '').trim() : (peta.mer[vMer] || '');
+
+    if (vKat === '+' && vTipe !== '+') {
+      const ada = Object.keys(peta.kat[t] || {}).map((k) => [k, peta.kat[t][k]]);
+      const sama = ada.find(([, n]) => normNamaSku(n) === normNamaSku(namaKat));
+      if (sama) galat.push('Kategori "' + esc(sama[1]) + '" sudah ada (prefix ' + sama[0] + ') — pilih dari daftar Kategori.');
+      else {
+        catatan.push('Prefix kategori ' + esc(t) + ' bebas berikutnya: <strong>' + pk + '</strong>.');
+        const mirip = namaMiripSku(namaKat, ada);
+        if (mirip.length) catatan.push('Nama mirip yang sudah ada: ' + mirip.map(([k, n]) => '<strong>' + esc(n) + ' · ' + k + '</strong>').join(', ') + ' — pastikan bukan salah ketik.');
+      }
+    }
+    if (vMer === '+') {
+      const ada = Object.keys(peta.mer).map((k) => [k, peta.mer[k]]);
+      const sama = ada.find(([, n]) => normNamaSku(n) === normNamaSku(namaMer));
+      if (sama) galat.push('Merek "' + esc(sama[1]) + '" sudah ada (prefix ' + sama[0] + ') — pilih dari daftar Merek.');
+      else {
+        catatan.push('Prefix merek bebas berikutnya: <strong>' + pm + '</strong> — berlaku untuk semua tipe.');
+        const mirip = namaMiripSku(namaMer, ada);
+        if (mirip.length) catatan.push('Nama mirip yang sudah ada: ' + mirip.map(([k, n]) => '<strong>' + esc(n) + ' · ' + k + '</strong>').join(', ') + ' — pastikan bukan salah ketik.');
+      }
+    }
+    const c = $('#skCatatan');
+    const baris = galat.length ? galat : catatan;
+    c.className = 'cek-sku' + (galat.length ? ' gagal' : '') + (baris.length ? '' : ' sembunyi');
+    c.innerHTML = baris.join('<br>');
+    $('#penentuSku').dataset.galat = galat.join(' ').replace(/<[^>]+>/g, '');
+
+    $('#pKategori').value = namaKat;
+    $('#pMerek').value = namaMer;
+    const sku = $('#pSku'), bc = $('#pBarcode');
+    const lengkap = /^[A-Z]{2}$/.test(t) && pk && pm && !galat.length;
+    if (lengkap) {
+      const baru = t + pk + pm + skuPad((peta.maks[t + pk] || 0) + 1, 4);
+      if (!bc.value || bc.value === sku.value) bc.value = baru;
+      sku.value = baru;
+      sku.dataset.lalu = baru;
+    }
+    cekSkuPenentu();
+  }
+
+  /** Status di bawah kolom SKU: terpakai (oleh siapa), belum, atau nomor bolong. */
+  function cekSkuPenentu() {
+    const peta = petaSkuSimpan, c = $('#skCek');
+    if (!c || !peta) return;
+    const v = String($('#pSku').value || '').trim();
+    const tanda = (kelas, html) => { c.className = 'cek-sku ' + kelas; c.innerHTML = html; c.removeAttribute('aria-label'); };
+    if (!v) return tanda('', 'Pilih kategori dan merek untuk usulan SKU, atau ketik sendiri.');
+    const dipakai = peta.sku.get(v);
+    if (dipakai) {
+      return tanda('gagal', '✗ Sudah dipakai: <strong>' + esc(dipakai.nama) + '</strong>' +
+        (dipakai.aktif ? '' : ' (nonaktif)') + ' — pilih nomor lain atau pakai usulan.');
+    }
+    const m = POLA_SKU_TOKO.exec(v);
+    if (!m) return tanda('waspada', '⚠ Belum terpakai, tapi tidak mengikuti pola toko (2 huruf + 8 angka).');
+    const maks = peta.maks[m[1] + m[2]] || 0;
+    const namaKat = (peta.kat[m[1]] || {})[m[2]];
+    if (maks && Number(m[4]) <= maks) {
+      return tanda('waspada', '⚠ Belum terpakai, tapi nomor ' + m[4] + ' di bawah nomor tertinggi ' +
+        esc(namaKat || m[1] + m[2]) + ' (' + skuPad(maks, 4) + ') — nomor bolong bisa masih tertempel di stiker lama.');
+    }
+    tanda('ok', '✓ Belum terpakai' + (maks ? ' · nomor tertinggi ' + esc(namaKat || m[1] + m[2]) + ' saat ini ' + skuPad(maks, 4) : ''));
+  }
+
   /**
    * Formulir "Ubah produk" menarik produknya SENDIRI, segar — v1.149.0.
    *
@@ -2855,15 +3133,15 @@ const Admin = (() => {
       </div>
 
       <div data-panel="umum">
-        <div class="baris2">
+        ${baru ? htmlPenentuSku() : `<div class="baris2">
           <div class="grup"><label>SKU *</label>
-            <input type="text" id="pSku" value="${esc(p?.sku || '')}" ${baru ? '' : 'disabled'}></div>
+            <input type="text" id="pSku" value="${esc(p?.sku || '')}" disabled></div>
           <div class="grup"><label>Barcode</label><input type="text" id="pBarcode" value="${esc(p?.barcode || '')}"></div>
-        </div>
+        </div>`}
         <div class="grup"><label>Nama produk *</label><input type="text" id="pNama" value="${esc(p?.nama || '')}"></div>
-        <div class="baris3">
-          <div class="grup"><label>Kategori</label><input type="text" id="pKategori" value="${esc(p?.kategori || '')}"></div>
-          <div class="grup"><label>Merek</label><input type="text" id="pMerek" value="${esc(p?.merek || '')}"></div>
+        <div class="baris3${baru ? ' baris-tipe-saja' : ''}" id="barisKatMerek">
+          <div class="grup${baru ? ' sembunyi' : ''}"><label>Kategori</label><input type="text" id="pKategori" value="${esc(p?.kategori || '')}"></div>
+          <div class="grup${baru ? ' sembunyi' : ''}"><label>Merek</label><input type="text" id="pMerek" value="${esc(p?.merek || '')}"></div>
           <div class="grup"><label>Tipe HP cocok</label><input type="text" id="pTipe" value="${esc(p?.tipe_hp || '')}"
             placeholder="mis. iPhone 13/14"></div>
         </div>
@@ -2970,6 +3248,7 @@ const Admin = (() => {
     (p?.tier || []).forEach(t => tambahBarisTier(t));
     (p?.varian || []).forEach(v => tambahBarisVarian(v));
     (p?.kompatibel || []).forEach(k => tambahBarisKompatibel(k));
+    if (baru) pasangPenentuSku();
   }
 
   function tambahBarisKompatibel(k = {}) {
@@ -3389,6 +3668,14 @@ const Admin = (() => {
       diubah: nilai('pDiubah')
     };
     if (!body.sku || !body.nama) return toast('SKU dan nama wajib diisi.', 'galat');
+    /* Produk BARU (bagian 264): server menolak SKU yang sudah ada alih-alih
+       menimpanya, dan memeriksa prefix kategori/merek. */
+    const penentu = $('#penentuSku');
+    if (penentu) {
+      if (penentu.dataset.galat) return toast(penentu.dataset.galat, 'galat');
+      body.baru = true;
+      if ($('#skTipe') && $('#skTipe').value === '+') body.nama_tipe = nilai('skNamaTipe');
+    }
     /* null = tidak satu pun cabang dicentang. Server akan menormalkannya jadi
        '*' — kebalikan dari yang dimaksud — jadi ditolak di sini, dengan kalimat
        yang menyebut kedua jalan keluarnya. */
@@ -3403,10 +3690,16 @@ const Admin = (() => {
          sebelum katalognya selesai ditarik ulang. */
       await API.tugas(async () => {
         await API.simpanProdukLengkap(body);
+        petaSkuSimpan = null;                            // SKU baru: daftar lama sudah basi
         await Sync.tarikMaster(true);
         await sukses('Produk tersimpan.', 'produk');
       });
     } catch (e) {
+      /* Ditolak karena SKU/prefix keburu dipakai orang lain: tarik ulang
+         daftarnya dan usulkan nomor berikutnya. */
+      if (penentu && (e.kode === 'SKU_TERPAKAI' || e.kode === 'PREFIX_SKU')) {
+        try { await muatPetaSku(true); hitungUsulanSku(); } catch (e2) { /* pesan utama tetap tampil */ }
+      }
       /* Ditampilkan MENETAP di dalam modalnya, bukan lewat toast yang hilang
          sendiri. Pesan bentroknya panjang, ia menyuruh melakukan sesuatu, dan
          suntingan yang sudah diketik masih utuh di layar — orang harus sempat

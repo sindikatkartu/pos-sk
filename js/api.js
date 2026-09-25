@@ -138,7 +138,7 @@ const API = (() => {
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota',
     'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
-    'daftar_produk', 'produk_satu', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
+    'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
     'daftar_aset',
@@ -553,6 +553,7 @@ let _pernahJawab = false;
     dashboard:         (d, o) => panggil('ringkasan_dashboard', d, Object.assign({ timeout: 90000 }, o || {})),
     daftarProduk:      (d) => panggil('daftar_produk', d, { timeout: 90000 }),
     produkSatu:        (d) => panggil('produk_satu', d),
+    petaSku:           (o) => panggil('peta_sku', {}, o || {}),
     /* `opsi` diteruskan supaya penyegaran berkala bisa lewat sebagai LATAR.
        Tanpa itu lencana yang menyegar diri tiap beberapa menit menyalakan
        penanda sibuk dan mengunci layar tanpa ada yang menekan apa pun.
