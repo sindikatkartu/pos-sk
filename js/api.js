@@ -180,7 +180,7 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
@@ -601,6 +601,8 @@ let _pernahJawab = false;
     hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
     /* Koreksi shift pulsa yang sudah ditutup + riwayatnya (bagian 260). */
     koreksiShiftPulsa: (d) => panggil('koreksi_shift_pulsa', d, { timeout: 90000 }),
+    /* Shift yang lupa dicatat, ditambahkan di ujung rantai (bagian 265). */
+    susulanShiftPulsa: (d) => panggil('susulan_shift_pulsa', d, { timeout: 90000 }),
     riwayatKoreksiShiftPulsa: (d) => panggil('riwayat_koreksi_shift_pulsa', d, { timeout: 60000 }),
     batalShiftPulsa:   (d) => panggil('batal_shift_pulsa', d, { timeout: 60000 }),
     matriksPulsa:      (d) => panggil('matriks_pulsa', d, { timeout: 90000 }),

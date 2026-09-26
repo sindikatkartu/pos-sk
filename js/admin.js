@@ -7047,7 +7047,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#lapulsaDari')) {
       w.innerHTML = `
         <div class="kartu">
-          <h3>Shift pulsa yang sudah ditutup</h3>
+          <div class="bar-alat"><h3>Shift pulsa yang sudah ditutup</h3>
+            ${/* Shift yang lupa dicatat petugas (bagian 265) — pintu pengawas. */
+              bolehKoreksiShift() ? `<div class="kanan">${tombolTambah('btnSusulanShift', 'Shift susulan')}</div>` : ''}</div>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeLapulsa"></span>
             ${bolehCabangDash() ? `<div class="kendali-tetap"><label>Cabang</label>
@@ -7123,7 +7125,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? ` <span class="petunjuk">${esc(String(r.catatan).slice(0, 40))}</span>` : ''}</td>
               ${adaAksiShift() ? `<td data-l=""><div class="aksi-baris">${bolehKoreksiShift() && String(r.status) === 'TUTUP'
                 ? tombolBaris('', 'Koreksi', IKON.ubah, `data-koreksi-shift="${esc(String(r.id_shift))}"`,
-                    'Koreksi penjualan, reward, atau kas fisik shift ini') : ''}${bolehHapusShift() && r.bisa_hapus
+                    r.bisa_hapus ? 'Koreksi saldo akhir, penjualan, reward, atau kas fisik shift ini'
+                                 : 'Koreksi penjualan, reward, atau kas fisik shift ini') : ''}${bolehHapusShift() && r.bisa_hapus
                 ? tombolBaris('bahaya', 'Hapus', IKON.hapus, `data-hapus-shift="${esc(String(r.id_shift))}"`,
                     'Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis') : ''}</div></td>` : ''}
             </tr>`).join('')}</tbody>
@@ -7140,25 +7143,34 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* ==================== KOREKSI SHIFT PULSA (bagian 260) ====================
      Form: penjualan & reward per sumber, kas fisik, alasan wajib. Hitungan di
      layar memakai rumus yang SAMA dengan server (hitungShiftpulsa) — yang
-     menentukan tetap server. Saldo awal/akhir sengaja tidak bisa diubah:
-     saldo akhir diwariskan ke shift berikutnya. */
+     menentukan tetap server. Saldo AKHIR hanya bisa diubah pada shift tutup
+     terakhir cabangnya (bagian 265, `bisa_hapus` dari server = aturan yang
+     sama): di tengah rantai, saldo akhir sudah menjadi saldo awal shift
+     berikutnya. Saldo awal tidak pernah bisa diubah — ia warisan. */
   async function bukaKoreksiShift(id) {
     let r;
     try { r = await API.rincianShiftPulsa({ id_shift: id }); }
     catch (e) { return toast(e.message, 'galat'); }
     const s = r.shift || {}, saldo = r.saldo || [];
+    const ujung = !!((($('#hasilLapulsa') || {})._rows || []).find((x) => String(x.id_shift) === id) || {}).bisa_hapus;
     const nama = {};
     ((($('#isiShiftpulsa') || {})._st || {}).sumber || []).forEach((x) => { nama[x.kode_sumber] = x.nama; });
     const isian = (k, v, ket) => `<input type="text" inputmode="numeric" class="uang" data-koreksi="${k}"
       value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(+v || 0))}" aria-label="${esc(ket)}">`;
     bukaModal('Koreksi shift ' + (s.jenis_shift || '') + ' ' + (s.kode_cabang || '') + ' · ' + String(s.tanggal || '').slice(0, 10), `
-      <p class="petunjuk">Saldo awal & saldo akhir tidak bisa diubah — saldo akhir menjadi saldo awal shift berikutnya.
+      <p class="petunjuk">${ujung
+        ? 'Ini shift terakhir cabang ini, jadi <strong>saldo akhir</strong> masih bisa dikoreksi — angka itu yang akan diwarisi shift berikutnya.'
+        : 'Saldo akhir tidak bisa diubah — sudah menjadi saldo awal shift berikutnya.'}
         Koreksi menerbitkan <strong>jurnal koreksi</strong> sebesar selisihnya, dan tercatat di riwayat shift ini.</p>
       <div class="gulir-x"><table class="tabel" id="tabelKoreksi">
-        <thead><tr><th>Sumber</th><th class="kanan">Modal</th><th class="kanan">Penjualan</th><th class="kanan">Reward</th></tr></thead>
-        <tbody>${saldo.map((b) => `<tr data-sumber="${esc(String(b.kode_sumber))}" data-konsumsi="${+b.konsumsi || 0}" data-deposit="${+b.deposit || 0}">
+        <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th><th class="kanan">Saldo akhir</th><th class="kanan">Modal</th>
+          <th class="kanan">Penjualan</th><th class="kanan">Reward</th></tr></thead>
+        <tbody>${saldo.map((b) => `<tr data-sumber="${esc(String(b.kode_sumber))}" data-awal="${+b.saldo_awal || 0}"
+            data-akhir="${+b.saldo_akhir || 0}" data-deposit="${+b.deposit || 0}">
           <td data-l="Sumber">${esc(nama[b.kode_sumber] || String(b.kode_sumber))} <span class="petunjuk">${esc(String(b.kode_sumber))}</span></td>
-          <td class="kanan" data-l="Modal">${rp(b.konsumsi)}</td>
+          <td class="kanan" data-l="Saldo awal">${rp(b.saldo_awal)}</td>
+          <td class="kanan" data-l="Saldo akhir">${ujung ? isian('saldo_akhir', b.saldo_akhir, 'Saldo akhir ' + b.kode_sumber) : rp(b.saldo_akhir)}</td>
+          <td class="kanan" data-l="Modal" data-modal>${rp(b.konsumsi)}</td>
           <td class="kanan" data-l="Penjualan">${isian('penjualan', b.penjualan, 'Penjualan ' + b.kode_sumber)}</td>
           <td class="kanan" data-l="Reward">${isian('reward', b.reward, 'Reward ' + b.kode_sumber)}</td></tr>`).join('')}</tbody>
       </table></div>
@@ -7169,12 +7181,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanKoreksi">${ikonAlat('simpan')}<span>Simpan koreksi</span></button>`);
     const m = $('#modalUmum');
-    m._koreksi = { id, s };
+    m._koreksi = { id, s, ujung };
     const hitung = () => {
       let jual = 0, modal = 0, dep = 0;
       m.querySelectorAll('#tabelKoreksi tbody tr').forEach((tr) => {
         jual += angkaDari(tr.querySelector('[data-koreksi="penjualan"]').value);
-        modal += +tr.dataset.konsumsi || 0; dep += +tr.dataset.deposit || 0;
+        const akhirEl = tr.querySelector('[data-koreksi="saldo_akhir"]');
+        const akhir = akhirEl ? angkaDari(akhirEl.value) : (+tr.dataset.akhir || 0);
+        /* Rumus yang sama dengan _hitungShiftPulsa: awal + deposit − akhir. */
+        const pakai = (+tr.dataset.awal || 0) + (+tr.dataset.deposit || 0) - akhir;
+        tr.querySelector('[data-modal]').innerHTML = rp(pakai);
+        modal += pakai; dep += +tr.dataset.deposit || 0;
       });
       const keluar = +s.total_keluar || 0;
       const kasSistem = (+s.kas_awal || 0) + jual - dep - keluar;
@@ -7182,6 +7199,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const baris = (l, lama, baru) => `<tr><td>${l}</td><td class="kanan">${rp(lama)}</td><td class="kanan">${rp(baru)}</td></tr>`;
       $('#pratinjauKoreksi').innerHTML = `<table class="tabel"><thead><tr><th>Hasil</th><th class="kanan">Sekarang</th>
         <th class="kanan">Sesudah koreksi</th></tr></thead><tbody>
+        ${baris('Modal', s.total_modal_saldo, modal)}
         ${baris('Total penjualan', s.total_penjualan, jual)}${baris('Kas sistem', s.kas_sistem, kasSistem)}
         ${baris('Kas fisik', s.kas_fisik, kas)}${baris('Selisih kas', s.selisih, kas - kasSistem)}
         ${baris('Margin', s.margin, jual - modal - keluar)}</tbody></table>`;
@@ -7195,10 +7213,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!k) return;
     const alasan = ($('#alasanKoreksi').value || '').trim();
     if (alasan.length < 5) { toast('Tulis alasan koreksinya — minimal 5 huruf.', 'galat'); $('#alasanKoreksi').focus(); return; }
-    const sumber = [...m.querySelectorAll('#tabelKoreksi tbody tr')].map((tr) => ({
-      kode_sumber: tr.dataset.sumber,
-      penjualan: angkaDari(tr.querySelector('[data-koreksi="penjualan"]').value),
-      reward: angkaDari(tr.querySelector('[data-koreksi="reward"]').value) }));
+    const sumber = [...m.querySelectorAll('#tabelKoreksi tbody tr')].map((tr) => {
+      const o = { kode_sumber: tr.dataset.sumber,
+        penjualan: angkaDari(tr.querySelector('[data-koreksi="penjualan"]').value),
+        reward: angkaDari(tr.querySelector('[data-koreksi="reward"]').value) };
+      /* Dikirim hanya dari shift terakhir — server menolaknya di tempat lain. */
+      const akhir = tr.querySelector('[data-koreksi="saldo_akhir"]');
+      if (akhir) o.saldo_akhir = angkaDari(akhir.value);
+      return o;
+    });
     const kas_fisik = angkaDari(m.querySelector('[data-koreksi="kas_fisik"]').value);
     if (!(await tanya('Simpan koreksi shift ini?',
       `<p>Jurnal koreksi sebesar selisihnya akan terbit di buku besar, dan shift ini ditandai <strong>diedit</strong>
@@ -7218,13 +7241,134 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const rw = d.riwayat || [];
     bukaModal('Riwayat koreksi ' + id, rw.length ? rw.map((x) => `
       <div class="riwayat-koreksi">
-        <p style="margin:0 0 4px"><strong>${esc(waktuTampil(x.waktu))}</strong> · ${esc(x.nama)}${x.no_jurnal
+        <p style="margin:0 0 4px"><strong>${esc(waktuTampil(x.waktu))}</strong> · ${esc(x.nama)}${x.susulan
+          ? ' · <em>dicatat susulan</em>' : ''}${x.no_jurnal
           ? ` · jurnal <code>${esc(x.no_jurnal)}</code>` : ''}</p>
         <p class="petunjuk" style="margin:0 0 6px">Alasan: ${esc(x.alasan || '—')}</p>
         <div class="gulir-x"><table class="tabel"><thead><tr><th>Angka</th><th class="kanan">Sebelum</th><th class="kanan">Sesudah</th></tr></thead>
-          <tbody>${x.ubah.map((u) => `<tr><td data-l="Angka">${esc(u.label)}</td><td class="kanan" data-l="Sebelum">${rp(u.lama)}</td>
+          <tbody>${x.ubah.map((u) => `<tr><td data-l="Angka">${esc(u.label)}</td><td class="kanan" data-l="Sebelum">${u.lama === null ? '—' : rp(u.lama)}</td>
             <td class="kanan" data-l="Sesudah">${rp(u.baru)}</td></tr>`).join('')}</tbody></table></div>
       </div>`).join('') : '<p class="pesan">Belum ada riwayat koreksi.</p>');
+  }
+
+  /* ==================== SHIFT SUSULAN (bagian 265) ====================
+     Shift yang lupa dicatat petugas. Saldo awal DIWARISI dari shift terakhir
+     cabangnya (dibaca lewat shift_pulsa_aktif, jalur yang sama dengan form
+     Buka), jadi yang diketik hanya yang dilaporkan petugas: saldo akhir,
+     deposit, penjualan, reward, kas. Server hanya menerima susulan di UJUNG
+     rantai — sesudah shift terakhir, tanpa shift yang sedang buka. */
+  async function bukaSusulanShift() {
+    const cabangList = bolehCabangDash() ? daftarKodeCabang() : [String(APP_STATE.cabang || '')];
+    const kemarin = tanggalLokal(new Date(Date.now() - 864e5));
+    bukaModal('Shift susulan', `
+      <p class="petunjuk">Untuk shift yang lupa dicatat. Saldo awal diwarisi dari shift terakhir cabangnya,
+        dan shift susulan hanya bisa ditambahkan <strong>sesudah</strong> shift terakhir, selama tidak ada shift yang sedang buka.
+        Jurnalnya bertanggal hari shift itu, dan shiftnya ditandai <strong>diedit</strong>.</p>
+      <div class="baris3">
+        <div class="grup"><label>Cabang</label><select id="susCabang">
+          <option value="">— pilih —</option>
+          ${cabangList.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>
+        <div class="grup"><label>Tanggal shift</label><input type="date" id="susTanggal" value="${esc(kemarin)}" max="${esc(tanggalLokal())}"></div>
+        <div class="grup"><label>Jenis shift</label><select id="susJenis">
+          ${['PAGI', 'MALAM'].map((j) => `<option value="${j}">${j}</option>`).join('')}</select></div>
+      </div>
+      <div id="susIsi"><p class="petunjuk">Pilih cabangnya dulu.</p></div>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanSusulan" disabled>${ikonAlat('simpan')}<span>Simpan shift susulan</span></button>`);
+    const m = $('#modalUmum');
+    m._susulan = null;
+    $('#susCabang').addEventListener('change', () => API.tugas(muatSumberSusulan));
+    m.addEventListener('input', (e) => {
+      if (!e.target.closest('[data-sus]')) return;
+      /* Kas fisik mengikuti total penjualan sampai orangnya mengetik sendiri. */
+      if (e.target.dataset.sus === 'kas_fisik') e.target.dataset.diketik = '1';
+      hitungSusulan();
+    });
+    if (cabangList.length === 1) { $('#susCabang').value = cabangList[0]; await muatSumberSusulan(); }
+  }
+
+  async function muatSumberSusulan() {
+    const m = $('#modalUmum'), w = $('#susIsi');
+    const cabang = $('#susCabang').value;
+    m._susulan = null; $('#btnSimpanSusulan').disabled = true;
+    if (!cabang) { w.innerHTML = '<p class="petunjuk">Pilih cabangnya dulu.</p>'; return; }
+    memuat('#susIsi');
+    let st;
+    try { st = await API.shiftPulsaAktif({ cabang }); }
+    catch (e) { return galat('#susIsi', e); }
+    if (st.aktif) {
+      w.innerHTML = `<p class="pesan peringatan">Cabang ${esc(cabang)} sedang punya shift yang terbuka. Shift susulan hanya bisa
+        ditambahkan di ujung — batalkan shift yang terbuka dulu, atau tunggu sampai ditutup.</p>`;
+      return;
+    }
+    const sumber = st.sumber || [];
+    if (!sumber.length) { w.innerHTML = `<p class="pesan galat">Belum ada sumber saldo untuk cabang ${esc(cabang)}.</p>`; return; }
+    const isian = (k, ket) => `<input type="text" inputmode="numeric" class="uang" data-sus="${k}" value="0" aria-label="${esc(ket)}">`;
+    w.innerHTML = `
+      <div class="gulir-x"><table class="tabel" id="tabelSusulan">
+        <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th><th class="kanan">Deposit</th><th class="kanan">Saldo akhir</th>
+          <th class="kanan">Modal</th><th class="kanan">Penjualan</th><th class="kanan">Reward</th></tr></thead>
+        <tbody>${sumber.map((s) => `<tr data-sumber="${esc(String(s.kode_sumber))}" data-awal="${+s.saldo_awal || 0}">
+          <td data-l="Sumber">${esc(s.nama || String(s.kode_sumber))} <span class="petunjuk">${esc(String(s.kode_sumber))}</span></td>
+          <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}</td>
+          <td class="kanan" data-l="Deposit">${isian('deposit', 'Deposit ' + s.kode_sumber)}</td>
+          <td class="kanan" data-l="Saldo akhir">${isian('saldo_akhir', 'Saldo akhir ' + s.kode_sumber)}</td>
+          <td class="kanan" data-l="Modal" data-modal>${rp(0)}</td>
+          <td class="kanan" data-l="Penjualan">${isian('penjualan', 'Penjualan ' + s.kode_sumber)}</td>
+          <td class="kanan" data-l="Reward">${isian('reward', 'Reward ' + s.kode_sumber)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <div class="grup" style="max-width:320px"><label>Kas fisik (uang yang diserahkan)</label>${isian('kas_fisik', 'Kas fisik')}</div>
+      <div class="grup"><label>Alasan *</label>
+        <input type="text" id="alasanSusulan" maxlength="200" placeholder="mis. petugas lupa mencatat shift malam"></div>
+      <div id="pratinjauSusulan" class="pratinjau-koreksi"></div>`;
+    m._susulan = { cabang };
+    $('#btnSimpanSusulan').disabled = false;
+    hitungSusulan();
+  }
+
+  function hitungSusulan() {
+    const m = $('#modalUmum');
+    if (!m._susulan) return;
+    let jual = 0, modal = 0, dep = 0;
+    m.querySelectorAll('#tabelSusulan tbody tr').forEach((tr) => {
+      const v = (k) => angkaDari(tr.querySelector(`[data-sus="${k}"]`).value);
+      const pakai = (+tr.dataset.awal || 0) + v('deposit') - v('saldo_akhir');
+      tr.querySelector('[data-modal]').innerHTML = rp(pakai);
+      modal += pakai; jual += v('penjualan'); dep += v('deposit');
+    });
+    const kasEl = m.querySelector('[data-sus="kas_fisik"]');
+    const kasSistem = jual - dep;
+    if (!kasEl.dataset.diketik) kasEl.value = new Intl.NumberFormat(CONFIG.LOCALE).format(Math.max(0, kasSistem));
+    const kas = angkaDari(kasEl.value);
+    const baris = (l, v) => `<tr><td>${l}</td><td class="kanan">${rp(v)}</td></tr>`;
+    $('#pratinjauSusulan').innerHTML = `<table class="tabel"><thead><tr><th>Hasil</th><th class="kanan">Angka</th></tr></thead><tbody>
+      ${baris('Modal', modal)}${baris('Total penjualan', jual)}${baris('Margin', jual - modal)}
+      ${baris('Kas sistem', kasSistem)}${baris('Selisih kas', kas - kasSistem)}</tbody></table>`;
+  }
+
+  async function simpanSusulanShift() {
+    const m = $('#modalUmum'), k = m._susulan;
+    if (!k) return;
+    const alasan = ($('#alasanSusulan').value || '').trim();
+    if (alasan.length < 5) { toast('Tulis alasannya — minimal 5 huruf.', 'galat'); $('#alasanSusulan').focus(); return; }
+    const tanggal = $('#susTanggal').value, jenis_shift = $('#susJenis').value;
+    if (!tanggal) { toast('Isi tanggal shiftnya.', 'galat'); return; }
+    const sumber = [...m.querySelectorAll('#tabelSusulan tbody tr')].map((tr) => {
+      const v = (x) => angkaDari(tr.querySelector(`[data-sus="${x}"]`).value);
+      return { kode_sumber: tr.dataset.sumber, deposit: v('deposit'), saldo_akhir: v('saldo_akhir'),
+               penjualan: v('penjualan'), reward: v('reward') };
+    });
+    const kas_fisik = angkaDari(m.querySelector('[data-sus="kas_fisik"]').value);
+    if (!(await tanya(`Simpan shift ${jenis_shift} ${k.cabang} tanggal ${tanggal}?`,
+      `<p>Shift ini langsung tercatat <strong>tutup</strong>, jurnalnya terbit di buku besar bertanggal ${esc(tanggal)},
+         dan saldo akhirnya menjadi saldo awal shift berikutnya di ${esc(k.cabang)}.</p>`, { ya: 'Simpan shift susulan' }))) return;
+    try {
+      const r = await API.susulanShiftPulsa({ cabang: k.cabang, tanggal, jenis_shift, sumber, kas_fisik, alasan });
+      tutupModal();
+      toast(`Shift ${r.id_shift} tercatat${r.no_jurnal ? ' — jurnal ' + r.no_jurnal : ''}.`, 'sukses');
+      if (r.jurnal_gagal) toast('Jurnal shift ini gagal: ' + r.jurnal_gagal, 'galat');
+      await muatLaporanpulsa();
+    } catch (e) { toast(e.message, 'galat'); }
   }
 
   /* ==================== SHIFT PULSA ====================
@@ -11926,6 +12070,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.koreksiShift) return bukaKoreksiShift(d.koreksiShift);          // bagian 260
       if (d.riwayatKoreksi) return bukaRiwayatKoreksi(d.riwayatKoreksi);
       if (t.id === 'btnSimpanKoreksi') return simpanKoreksiShift();
+      if (t.id === 'btnSusulanShift') return bukaSusulanShift();            // bagian 265
+      if (t.id === 'btnSimpanSusulan') return simpanSusulanShift();
       if (d.hapusShift) {
         /* Angka shiftnya ikut ditulis di pertanyaannya. Menghapus "shift" itu
            abstrak; menghapus shift yang penjualannya Rp0 adalah keputusan yang
