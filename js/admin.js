@@ -964,10 +964,10 @@ const Admin = (() => {
      ulang di akhir, bukan empat. */
   async function segarkanDashLatar(tiket) {
     const tugasSegar = [];
-    for (const b of ['inti', 'monitor', 'berat']) {
+    for (const b of ['inti', 'monitor', 'berat', 'petugas']) {
       if (b === 'monitor' && !kartuMonitorBoleh().length) continue;
       tugasSegar.push((b === 'monitor' ? ambilMonitorParalel({ latar: true })
-        : API.dashboard({ ...paramDash(), bagian: b }, { latar: true }))
+        : API.dashboard({ ...paramDash(), bagian: b, ...(b === 'inti' ? { tanpa_klaim: true } : {}) }, { latar: true }))
         .then((d) => { if (tiket === tiketDash) tulisSimpanDash(b, d); }));
     }
     if (basiDash('grafik30')) {
@@ -1149,6 +1149,28 @@ const Admin = (() => {
     ${o.tabel ? `<div class="kaki-dash"><button type="button" class="tabel-tautan" data-tabel-dash="${o.tabel}">Lihat sebagai tabel${o.kaki ? ' · ' + esc(o.kaki) : ''}</button></div>` : ''}
   </div>`;
 
+  /** Kartu peringkat petugas — dipakai inti lama dan bagian 'petugas' (bagian 268). */
+  const kartuPetugasDash = (rows) => kartuDaftarDash('Petugas', '', barisDash((rows || []).slice(0, 5).map(r =>
+      [esc(r.nama), rp(r.omzet), r.poin + ' poin']), 'Belum ada klaim petugas'),
+    { tabel: 'petugas', kaki: 'semua', id: 'kartuPetugas' });
+
+  async function isiKartuPetugas(tiket, janji) {
+    let d;
+    try { d = await janji; }
+    catch (e) {
+      if (tiket !== tiketDash) return;
+      /* Gagal = kartu ini saja yang "tidak tersedia", bukan kosong: kosong
+         terbaca "belum ada klaim", dan itu jawaban yang salah. */
+      const k = $('#kartuPetugas');
+      if (k) k.outerHTML = kartuDaftarDash('Petugas', '', `<div class="dr-kosong">Tidak tersedia (${esc(e.message)})</div>`, { id: 'kartuPetugas' });
+      return;
+    }
+    if (tiket !== tiketDash) return;
+    if (dataDash) dataDash.petugas = d;
+    const k = $('#kartuPetugas');
+    if (k) k.outerHTML = kartuPetugasDash((d && d.peringkat && d.peringkat.petugas) || []);
+  }
+
   /** Baris daftar ringkas: [nama, angka, sub?]. Kosong = satu baris keterangan. */
   const barisDash = (rows, kosong) => rows.length
     ? rows.map(r => `<div class="dr-baris"><span class="dr-nama">${r[0]}</span>${r[2] !== undefined && r[2] !== '' ? `<span class="dr-sub">${r[2]}</span>` : ''}<span class="dr-angka">${r[1]}</span></div>`).join('')
@@ -1322,7 +1344,8 @@ const Admin = (() => {
       case 'petugas':
         judul = 'Peringkat petugas';
         kolom = [{ judul: 'Nama', kunci: 'nama' }, { judul: 'Poin', kunci: 'poin', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
-        baris = (inti.peringkat && inti.peringkat.petugas) || [];
+        baris = (d.petugas && d.petugas.peringkat && d.petugas.peringkat.petugas) ||
+                (inti.peringkat && inti.peringkat.petugas) || [];
         break;
       case 'cabang':
         judul = 'Omzet per cabang';
@@ -1425,8 +1448,12 @@ const Admin = (() => {
       /* `bagian: 'inti'` — server lama yang belum mengenalnya membalas bentuk
          penuh, dan itu ditangani: kalau peringkat dan stoknya sudah ikut,
          bagian berat tidak ditarik lagi. */
-      const basi = Math.max(basiDash('inti'), basiDash('monitor'), basiDash('berat'), basiDash('grafik30'));
-      const d = await ambilDash('inti', () => API.dashboard({ ...paramDash(), bagian: 'inti' }));
+      const basi = Math.max(basiDash('inti'), basiDash('monitor'), basiDash('berat'), basiDash('grafik30'), basiDash('petugas'));
+      /* Peringkat petugas BERANGKAT BERSAMAAN dengan inti (bagian 268) — dulu
+         ikut di dalam inti dan menambah 2,0 dtk ke tunggu omzetnya. */
+      const janjiPetugas = ambilDash('petugas', () => API.dashboard({ ...paramDash(), bagian: 'petugas' }, { latar: true }));
+      janjiPetugas.catch(() => {});                       // ditangani di isiKartuPetugas
+      const d = await ambilDash('inti', () => API.dashboard({ ...paramDash(), bagian: 'inti', tanpa_klaim: true }));
       if (tiket !== tiketDash) return;
       /**
        * Penjagaan ini ditambahkan setelah kejadian nyata: tepat setelah Apps Script
@@ -1453,7 +1480,7 @@ const Admin = (() => {
 
       /* Seluruh muatan disimpan untuk pop-up "Lihat sebagai tabel" — pop-up
          tidak memanggil server (§159). */
-      dataDash = { inti: d, berat: null, monitor: null };
+      dataDash = { inti: d, berat: null, monitor: null, petugas: null };
 
       $('#isiDashboard').innerHTML = `
         <div class="bar-alat rapat bar-dash">
@@ -1518,9 +1545,8 @@ const Admin = (() => {
         <div class="petak-dash petak-dash-4">
           ${rangkaKartuPeringkat('Produk terlaris', 'wadahPeringkatProduk')}
           ${rangkaKartuPeringkat('Kategori', 'wadahPeringkatKategori')}
-          ${kartuDaftarDash('Petugas', '', barisDash((pk.petugas || []).slice(0, 5).map(r =>
-              [esc(r.nama), rp(r.omzet), r.poin + ' poin']), 'Belum ada klaim petugas'),
-            { tabel: 'petugas', kaki: 'semua', id: 'kartuPetugas' })}
+          ${pk.petugas ? kartuPetugasDash(pk.petugas) : `<div class="kartu rapat kartu-dash" id="kartuPetugas" aria-busy="true">
+            <h4>Petugas</h4><div class="isi-dash">${rangkaBaris(4, ['80%', '62%', '74%', '56%'])}</div></div>`}
           ${kartuDaftarDash('Cabang', '', barisDash((pk.cabang || d.per_cabang || []).slice(0, 5).map(r =>
               [esc(r.cabang), rp(r.omzet), r.nota + ' nota']), 'Belum ada transaksi'),
             { tabel: 'cabang', kaki: 'semua', id: 'kartuCabang' })}
@@ -1529,6 +1555,9 @@ const Admin = (() => {
         ${rangkaKartuStok('wadahStokDash')}`;
 
       muatGrafik(30);
+      /* Peringkat petugas (bagian 268): server LAMA masih mengirimnya di inti —
+         kartunya sudah tergambar di atas; selain itu diisi begitu tiba. */
+      if (!pk.petugas) isiKartuPetugas(tiket, janjiPetugas);
       /* Kartu monitor ditarik di LATAR sesudah layar terbaca — sama alasannya
          dengan `berat`: mengunci tombol selama tujuh daftar dihitung berarti
          mengunci layar yang sudah selesai. */
