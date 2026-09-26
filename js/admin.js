@@ -785,6 +785,33 @@ const Admin = (() => {
     });
   };
 
+  /**
+   * Menu "⋮" di DALAM baris tabel (bagian 267): posisinya fixed, dihitung dari
+   * tombolnya — menu absolut di dalam pembungkus tabel yang bisa digeser
+   * terpotong di baris terakhir. Dibuka ke atas bila ruang di bawah tidak cukup.
+   * Menggulir menutupnya: menu fixed tidak ikut bergerak bersama barisnya.
+   */
+  function letakkanMenuBaris(tombol, m) {
+    const r = tombol.getBoundingClientRect();
+    m.style.position = 'fixed';
+    m.style.left = 'auto'; m.style.bottom = 'auto'; m.style.margin = '0';
+    m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+    const tinggi = m.offsetHeight;
+    const bawah = r.bottom + 6 + tinggi <= window.innerHeight - 8;
+    /* Dijepit ke dalam layar apa pun posisi tombolnya. */
+    const atas = bawah ? r.bottom + 6 : r.top - 6 - tinggi;
+    m.style.top = Math.min(Math.max(8, atas), Math.max(8, window.innerHeight - tinggi - 8)) + 'px';
+    /* Penutup gulir dipasang SESUDAH gulir yang ikut lahir dari kliknya reda —
+       dipasang seketika, peristiwa gulir yang tertunda menutup menu yang baru
+       saja dibuka. Hanya satu penutup hidup pada satu waktu. */
+    if (letakkanMenuBaris.tutup) window.removeEventListener('scroll', letakkanMenuBaris.tutup, true);
+    const tutup = letakkanMenuBaris.tutup = () => {
+      window.removeEventListener('scroll', tutup, true);
+      if (!m.hidden) tutupMenuLain();
+    };
+    setTimeout(() => { if (!m.hidden && letakkanMenuBaris.tutup === tutup) window.addEventListener('scroll', tutup, true); }, 250);
+  }
+
   /** Menu "⋮" yang sedang terbuka, kalau ada. Cuma boleh satu. */
   const menuLainTerbuka = () => $$('.menu-lain .popover-menu').find(m => !m.hidden) || null;
 
@@ -2960,9 +2987,11 @@ const Admin = (() => {
       cekSkuPenentu();
     });
     [tipe, kat, mer].forEach((el) => el.addEventListener('change', () => {
-      if (el === tipe) isiKategoriSku();
+      if (el === tipe) { isiKategoriSku(); ikutPasangTipe(); }
       hitungUsulanSku();
     }));
+    /* Centang "dipasang" yang disentuh petugas tidak diikutkan lagi (bagian 267). */
+    $('#pButuhPasang')?.addEventListener('change', (e) => { e.target.dataset.disentuh = '1'; });
     $('#skTambah').addEventListener('input', () => hitungUsulanSku());
     $('#pTipe').addEventListener('input', isiNamaUsulan);
     try {
@@ -2991,11 +3020,23 @@ const Admin = (() => {
       '<option value="+">+ Merek baru…</option>';
     [tipe, kat, mer].forEach((el) => { el.disabled = false; });
     isiKategoriSku();
+    ikutPasangTipe();
     hitungUsulanSku();
     function tandaCekSku(kelas, html) {
       const c = $('#skCek');
       if (c) { c.className = 'cek-sku ' + kelas; c.innerHTML = html; c.removeAttribute('aria-label'); }
     }
+  }
+
+  /**
+   * Tipe TG (tempered glass) = barang yang DIPASANG — aturan yang sama dengan
+   * impor (_pasangImpor, bagian 267). Centangnya ikut tipe selama petugas belum
+   * menyentuhnya; sesudah disentuh, pilihan petugas yang berlaku.
+   */
+  function ikutPasangTipe() {
+    const c = $('#pButuhPasang');
+    if (!c || c.dataset.disentuh) return;
+    c.checked = $('#skTipe').value === 'TG';
   }
 
   function isiKategoriSku() {
@@ -7135,6 +7176,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const bolehKoreksiShift = () => bolehIzin('laporan_pulsa', 'ubah');
   const adaAksiShift = () => bolehHapusShift() || bolehKoreksiShift();
 
+  /**
+   * Tindakan per baris di menu "⋮" (bagian 267, pemilik: "masukkan saja ke
+   * tombol ellipsis") — dua tombol berteks membuat tabel 13 kolom tidak muat di
+   * laptop 1280 px. Menunya `menu-baris`: ditempatkan fixed saat dibuka,
+   * supaya tidak terpotong pembungkus tabel yang bisa digeser.
+   */
+  function menuBarisShift(r, i) {
+    const id = esc(String(r.id_shift));
+    const isi = (bolehKoreksiShift() && String(r.status) === 'TUTUP'
+      ? `<button class="popover-item" role="menuitem" data-koreksi-shift="${id}"
+          title="${r.bisa_hapus ? 'Koreksi saldo akhir, penjualan, reward, atau kas fisik shift ini' : 'Koreksi penjualan, reward, atau kas fisik shift ini'}">
+          <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.ubah}</svg><span>Koreksi</span></button>` : '') +
+      (bolehHapusShift() && r.bisa_hapus
+      ? `<button class="popover-item bahaya" role="menuitem" data-hapus-shift="${id}"
+          title="Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis">
+          <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.hapus}</svg><span>Hapus</span></button>` : '');
+    if (!isi) return '';
+    return menuTindakan({ id: 'menuShiftPulsa' + i, idTombol: 'btnMenuShiftPulsa' + i, kunci: 'shift-pulsa', isi })
+      .replace('<div class="menu-lain">', '<div class="menu-lain menu-baris">');
+  }
+
   function gambarLaporanpulsa() {
     const w = $('#hasilLapulsa');
     if (!w) return;
@@ -7151,13 +7213,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            v1.203 — tiap shift yang ditutup langsung dijurnal. Yang belum dijurnal ditandai
            merah di kolom terakhir, dan itu berarti sebabnya perlu dibereskan, bukan diabaikan.</p>
         <div class="gulir-x">
-          <table class="tabel">
+          <table class="tabel tabel-padat">
             <thead><tr><th>Tanggal</th><th>Cabang</th><th>Shift</th><th class="kanan">Modal awal</th>
               <th class="kanan">Topup</th>
               <th class="kanan">Modal</th><th class="kanan">Penjualan</th><th class="kanan">Margin</th>
               <th class="kanan">Saldo akhir</th><th class="kanan">Selisih kas</th>
               <th class="kanan">Reward</th><th>Status</th>${adaAksiShift() ? '<th></th>' : ''}</tr></thead>
-            <tbody>${rows.map(r => `<tr>
+            <tbody>${rows.map((r, i) => `<tr>
               <td data-l="Tanggal">${esc(tglTampil(r.tanggal))}</td>
               <td data-l="Cabang">${esc(String(r.kode_cabang))}</td>
               <td data-l="Shift">${esc(String(r.jenis_shift))}</td>
@@ -7174,12 +7236,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? ` <button type="button" class="tanda-diedit" data-riwayat-koreksi="${esc(String(r.id_shift))}"
                     title="Angka shift ini sudah dikoreksi ${+r.koreksi} kali — klik untuk melihat riwayatnya">diedit</button>` : ''}${r.catatan
                 ? ` <span class="petunjuk">${esc(String(r.catatan).slice(0, 40))}</span>` : ''}</td>
-              ${adaAksiShift() ? `<td data-l=""><div class="aksi-baris">${bolehKoreksiShift() && String(r.status) === 'TUTUP'
-                ? tombolBaris('', 'Koreksi', IKON.ubah, `data-koreksi-shift="${esc(String(r.id_shift))}"`,
-                    r.bisa_hapus ? 'Koreksi saldo akhir, penjualan, reward, atau kas fisik shift ini'
-                                 : 'Koreksi penjualan, reward, atau kas fisik shift ini') : ''}${bolehHapusShift() && r.bisa_hapus
-                ? tombolBaris('bahaya', 'Hapus', IKON.hapus, `data-hapus-shift="${esc(String(r.id_shift))}"`,
-                    'Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis') : ''}</div></td>` : ''}
+              ${adaAksiShift() ? `<td data-l="" class="sel-menu">${menuBarisShift(r, i)}</td>` : ''}
             </tr>`).join('')}</tbody>
             ${rows.length ? `<tfoot><tr><th colspan="3">Total ${rows.length} shift</th>
               <th></th><th class="kanan">${rp(t.topup)}</th><th class="kanan">${rp(t.modal)}</th><th class="kanan">${rp(t.jual)}</th>
@@ -11240,6 +11297,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (m) {
           m.hidden = !buka;
           pemicuMenu.setAttribute('aria-expanded', String(!!buka));
+          if (buka && pemicuMenu.closest('.menu-baris')) letakkanMenuBaris(pemicuMenu, m);
           if (buka) m.querySelector('button')?.focus();
         }
         return;

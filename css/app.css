@@ -789,6 +789,15 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   bottom: auto; top: 100%; left: auto; right: 0;
   margin: 6px 0 0; min-width: 240px;
 }
+/* ⋮ di dalam baris tabel (bagian 267): menu lebih ramping, tombol setinggi
+   tombol baris lain, sel tidak melebar. Posisi fixed dipasang saat dibuka. */
+.menu-baris .popover-menu { min-width: 160px; z-index: 60; }
+.menu-baris > .tombol { min-height: 32px; padding: 4px 8px; }
+td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4px; padding-right: 8px; }
+/* Tabel 13 kolom (Laporan pulsa, bagian 267): jarak sel dirapatkan, bukan
+   hurufnya dikecilkan — supaya muat di laptop 1280 px tanpa digeser. */
+.tabel-padat th, .tabel-padat td { padding-left: 10px; padding-right: 10px; }
+.popover-item.bahaya, .popover-item.bahaya .ikon-svg { color: var(--bahaya); }
 /* Titik pengingat keranjang stiker. Angkanya hidup di dalam menu; titik ini
    tugasnya cuma satu — memberi tahu bahwa ada isinya, tanpa harus dibuka. */
 .titik-tanda {
