@@ -144,7 +144,7 @@ const Struk = (() => {
     out.push(...tengah(APP_STATE.namaCabang || APP_STATE.cabang));
     out.push(garis);
     out.push(...duaKolom('No', nota.no_nota));
-    out.push(...duaKolom(tglTampil(nota.tanggal), nota.jam));
+    out.push(...duaKolom(tglCetak(nota.tanggal), nota.jam));
     out.push(...duaKolom('Kasir', APP_STATE.user.nama));
     /* SELURUH yang terlibat, termasuk tim per baris — bukan hanya klaim nota.
        Angka poinnya sengaja TIDAK dicetak: itu angka internal toko, dan struk
@@ -185,9 +185,9 @@ const Struk = (() => {
       out.push(...duaKolom(String(b.metode).toUpperCase(), rupiah(b.jumlah)));
     });
     if (nota._kembali > 0) out.push(...duaKolom('KEMBALI', rupiah(nota._kembali)));
-    if (nota.jatuh_tempo) out.push(...duaKolom('Jatuh tempo', tglTampil(nota.jatuh_tempo)));
+    if (nota.jatuh_tempo) out.push(...duaKolom('Jatuh tempo', tglCetak(nota.jatuh_tempo)));
     if (nota.garansi_hari > 0) {
-      out.push(...bungkus(`Garansi ${nota.garansi_hari} hari (s.d. ${tglTampil(nota.garansi_sampai)})`));
+      out.push(...bungkus(`Garansi ${nota.garansi_hari} hari (s.d. ${tglCetak(nota.garansi_sampai)})`));
     }
 
     out.push('');
@@ -455,7 +455,7 @@ const Struk = (() => {
        sendiri oleh document.write berikutnya (langkah "document open" di
        spesifikasi HTML), dan isi "Menyusun…" tadi terhapus bersamanya. */
     w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>${j}</title>
-<style>${GAYA_DOKUMEN}</style></head><body>${isiHtml}</body></html>`);
+<style>${GAYA_DOKUMEN}</style></head><body>${keTanggalCetak(isiHtml)}</body></html>`);
     w.document.close();
     w.focus();
     setTimeout(() => { w.print(); }, 250);

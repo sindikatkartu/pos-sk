@@ -430,7 +430,13 @@ function tanggalTambahHari(tglYmd, hari) {
  */
 
 /**
- * `yyyy-MM-dd` (atau ISO lengkap) -> `DD/MM/YYYY`. Untuk DILIHAT, bukan disimpan.
+ * `yyyy-MM-dd` (atau ISO lengkap) -> `DD-MM-YYYY`. Untuk DILIHAT DI LAYAR, bukan disimpan.
+ *
+ * TANDA HUBUNG, bukan garis miring, sejak v1.260 (bagian 266). Keputusan
+ * pemilik 26 Sep 2026: "koreksi tanggal DD-MM-YYYY (catat dan jadikan
+ * standart format tanggal)" — untuk LAYAR saja; struk, dokumen A4, dan ekspor
+ * tetap DD/MM/YYYY lewat `tglCetak()`. Keputusan 2 Sep di bawah (empat
+ * angka tahun) tetap berlaku; yang diganti hanya pemisahnya.
  *
  * TAHUNNYA EMPAT ANGKA, dan itu keputusan pemilik (2 Sep 2026): "semua bagian
  * yang berkaitan dengan tanggal harus DD/MM/YYYY". Sebelumnya dua angka —
@@ -447,7 +453,30 @@ function tglTampil(v) {
   const s = String(v == null ? '' : v).trim();
   if (!s) return '—';
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+}
+
+/**
+ * Kembaran tglTampil untuk KERTAS: struk, dokumen A4 (transfer, slip gaji,
+ * laporan penjualan). Tetap DD/MM/YYYY — keputusan pemilik 26 Sep 2026,
+ * "layar saja, cetakan tetap /".
+ */
+function tglCetak(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+}
+
+/**
+ * Isi dokumen cetak disusun dengan pemformat LAYAR di banyak tempat (tabel
+ * laporan yang sama dipakai layar dan kertas). Daripada menggandakan tiap
+ * penyusunnya, pintu cetak mengembalikan tanggalnya ke bentuk kertas di SATU
+ * tempat. Hanya pola tanggal utuh DD-MM-YYYY yang diganti; nomor dokumen di
+ * aplikasi ini tidak berbentuk begitu (TF-SK01/2609/0001, SP-SK01-20260925-…).
+ */
+function keTanggalCetak(html) {
+  return String(html == null ? '' : html).replace(/(^|[^\d-])(\d{2})-(\d{2})-(\d{4})(?![\d-])/g, '$1$2/$3/$4');
 }
 
 /**
@@ -1517,7 +1546,7 @@ function ikonAksi(nama) {
 
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, waktuTampil, jamTampil,
+  module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, tglCetak, keTanggalCetak, waktuTampil, jamTampil,
                      angkaDari, ribuan, susunPeranNota, resolvePenjualPemasang,
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,

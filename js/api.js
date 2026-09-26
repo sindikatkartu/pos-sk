@@ -45,6 +45,41 @@ const API = (() => {
   let _sibukOrang = 0;
 
   /**
+   * PANGGILAN YANG HANYA MEMBACA — tidak mengunci layar (bagian 266).
+   *
+   * Sejak v1.256 (bagian 262) setiap permintaan orang mengunci klik dan
+   * pindah menu SEKETIKA. Tujuannya menahan TINDAKAN ganda — satu uuid setoran
+   * terpakai di dua cabang karena Terima ditekan dua kali. Tapi kunci yang sama
+   * ikut menahan orang di layar yang sedang MEMUAT: diukur 26 Sep 2026, Produk
+   * 7 detik dan Dashboard pertama ±23 detik tidak bisa ditinggalkan. Membaca
+   * dua kali tidak merusak apa pun; menyimpan dua kali merusak.
+
+   * Keputusan pemilik 26 Sep 2026: kunci hanya saat MENYIMPAN. Daftar ini
+   * sengaja DAFTAR PUTIH: aksi yang lupa dicantumkan tetap mengunci (lambat
+   * tapi aman), tidak ada aksi tulis yang bisa lolos karena kelalaian. Setiap
+   * namanya wajib ada di AMAN_DIULANG juga — dijaga uji.js.
+   */
+  const HANYA_BACA = new Set([
+    'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
+    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota',
+    'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
+    'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
+    'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
+    'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset',
+    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
+    'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
+    'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
+    'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
+    'shift_belum_setor', 'arus_kas', 'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat',
+    'daftar_minta_void', 'daftar_lini', 'keadaan_pulsa_pos', 'daftar_sumber_pulsa',
+    'shift_pulsa_aktif', 'daftar_shift_pulsa', 'riwayat_koreksi_shift_pulsa', 'foto_pulsa',
+    'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
+    'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak'
+  ]);
+  /** Apakah permintaan ini mengunci layar: dari orang DAN bukan sekadar membaca. */
+  const mengunci = (aksi, opsi) => opsi.latar !== true && !HANYA_BACA.has(aksi);
+
+  /**
    * JEJAK WAKTU per aksi — bahan diagnosa, bukan hiasan.
    *
    * Dilaporkan pemilik 7 Sep 2026: layar Stok/Produk/Laporan "lebih dari 8
@@ -364,7 +399,7 @@ let _pernahJawab = false;
     if (!_online && !opsi.paksa) {
       throw Object.assign(new Error('Sedang offline'), { kode: 'OFFLINE' });
     }
-    const latar = opsi.latar === true;
+    const latar = !mengunci(aksi, opsi);
     _sibuk++; if (!latar) _sibukOrang++; _kabar();
     const _t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     let _msServer = null, _galat = null, _ulang = 0;
@@ -449,7 +484,10 @@ let _pernahJawab = false;
    * "sibuk" selamanya, dan itu jauh lebih buruk daripada masalah yang diobati.
    */
   async function tugas(fn, opsi = {}) {
-    const latar = opsi.latar === true;
+    /* `baca: true` (bagian 266): rantai yang hanya memuat layar — garis muat
+       tetap menyala, pindah menu tidak ditahan. Tulisan di dalamnya tetap
+       mengunci lewat panggil(). */
+    const latar = opsi.latar === true || opsi.baca === true;
     _sibuk++; if (!latar) _sibukOrang++; _kabar();
     try { return await fn(); }
     finally { _sibuk--; if (!latar) _sibukOrang--; _kabar(); }
@@ -473,6 +511,7 @@ let _pernahJawab = false;
     get online() { return _online; },
     get sibuk()  { return _sibuk; },
     get sibukOrang() { return _sibukOrang; },
+    hanyaBaca: (aksi) => HANYA_BACA.has(aksi),
     setToken(t) { _token = t; },
     getToken()  { return _token; },
     tugas,

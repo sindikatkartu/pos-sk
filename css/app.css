@@ -2317,6 +2317,8 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    app.js): hanya Rp & kelurusan angka — kepala tabelnya dibiarkan. */
 .tabel-uang .rp { display: none; }
 .tabel-uang td, .tabel-uang th { font-variant-numeric: tabular-nums; }
+/* Tanggal DD-MM-YYYY tidak dipatah di tanda hubungnya (bagian 266). */
+.sel-tgl { white-space: nowrap; }
 .satuan-uang.satuan-tabel { display: block; margin: 0 0 6px; }
 /* Satu lebar per digit — tanpa ini kolom angka tidak pernah benar-benar
    lurus, dan itu yang membuat tabel terbaca "berantakan". */

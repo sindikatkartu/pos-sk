@@ -465,13 +465,32 @@ function pasangPengawasTabel() {
   rapikanTabel(document.body);
   rapikanTanggal(document.body);
   rapikanTabelUang(document.body);
+  rapikanSelTanggal(document.body);
   new MutationObserver((daftarUbah) => {
     for (const u of daftarUbah) for (const n of u.addedNodes) {
       rapikanTabel(n);
       rapikanTanggal(n);
       rapikanTabelUang(n);
+      rapikanSelTanggal(n);
     }
   }).observe(document.body, { childList: true, subtree: true });
+}
+
+/**
+ * SEL TANGGAL TIDAK DIPATAH (bagian 266). Sejak tanggal layar DD-MM-YYYY,
+ * peramban boleh memotong baris SESUDAH tanda hubung: kolom sempit menulis
+ * "17-09-" lalu "2026" di baris berikutnya — garis miring dulu tidak pernah
+ * dipotong. Sel yang isinya SEMATA tanggal (atau tanggal + jam) diberi
+ * `sel-tgl` (nowrap). Satu pengawas seperti rapikanTabelUang, bukan puluhan
+ * tempat tabel digambar.
+ */
+const POLA_SEL_TGL = /^\d{2}-\d{2}-\d{4}(?: \d{2}:\d{2}(?::\d{2})?)?$/;
+function rapikanSelTanggal(akar) {
+  if (!akar || akar.nodeType !== 1) return;
+  const sel = akar.tagName === 'TD' ? [akar] : akar.querySelectorAll ? akar.querySelectorAll('td') : [];
+  for (const td of sel) {
+    if (!td.classList.contains('sel-tgl') && POLA_SEL_TGL.test(td.textContent.trim())) td.classList.add('sel-tgl');
+  }
 }
 
 /**
@@ -556,7 +575,7 @@ function rapikanTabelUang(akar) {
 /** `yyyy-MM-dd` -> `DD/MM/YYYY`; nilai tak dikenal jadi string kosong. */
 function _isoKeRupa(v) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || ''));
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';   // DD-MM-YYYY (bagian 266)
 }
 
 /**
@@ -586,8 +605,8 @@ function _ketikTanggal(teks) {
   if (!a) return '';
   const d = a.slice(0, 8);
   let out = d.slice(0, 2).join('');
-  if (d.length > 2) out += '/' + d.slice(2, 4).join('');
-  if (d.length > 4) out += '/' + d.slice(4, 8).join('');
+  if (d.length > 2) out += '-' + d.slice(2, 4).join('');
+  if (d.length > 4) out += '-' + d.slice(4, 8).join('');
   return out;
 }
 
@@ -612,13 +631,13 @@ function rapikanTanggal(akar) {
     rupa.type = 'text';
     rupa.className = 'tgl-rupa';
     rupa.inputMode = 'numeric';
-    rupa.placeholder = 'dd/mm/yyyy';
+    rupa.placeholder = 'dd-mm-yyyy';
     rupa.maxLength = 10;
     rupa.autocomplete = 'off';
     /* Label yang menunjuk kolom aslinya harus tetap menunjuk sesuatu yang bisa
        difokuskan — dan yang dilihat orang sekarang kotak inilah. */
     if (asli.id) rupa.setAttribute('aria-labelledby', asli.id + '_lbl');
-    rupa.setAttribute('aria-label', asli.getAttribute('aria-label') || 'Tanggal (dd/mm/yyyy)');
+    rupa.setAttribute('aria-label', asli.getAttribute('aria-label') || 'Tanggal (dd-mm-yyyy)');
     rupa.value = _isoKeRupa(asli.value);
     if (asli.disabled) rupa.disabled = true;
     bungkus.appendChild(rupa);

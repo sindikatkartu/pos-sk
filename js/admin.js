@@ -930,28 +930,37 @@ const Admin = (() => {
   }
 
   /** Segarkan seluruh bagian di latar, lalu gambar ulang dari simpanan yang baru. */
+  /* BERSAMAAN, bukan berurutan (bagian 266). Diukur 26 Sep 2026 di toko:
+     inti → monitor → berat → grafik bergiliran = 11 + 10 + 11 + 11 ≈ 44 dtk,
+     padahal keempatnya tidak saling menunggu. Tiap bagian yang berhasil
+     langsung disimpan; yang gagal tidak membuang yang berhasil. Satu gambar
+     ulang di akhir, bukan empat. */
   async function segarkanDashLatar(tiket) {
-    try {
-      for (const b of ['inti', 'monitor', 'berat']) {
-        if (b === 'monitor' && !kartuMonitorBoleh().length) continue;
-        const d = b === 'monitor' ? await ambilMonitorParalel({ latar: true })
-          : await API.dashboard({ ...paramDash(), bagian: b }, { latar: true });
-        if (tiket !== tiketDash) return;
-        tulisSimpanDash(b, d);
-      }
-      if (basiDash('grafik30')) {
-        const g = await API.dataGrafik({ hari: 30 }, { latar: true });
+    const tugasSegar = [];
+    for (const b of ['inti', 'monitor', 'berat']) {
+      if (b === 'monitor' && !kartuMonitorBoleh().length) continue;
+      tugasSegar.push((b === 'monitor' ? ambilMonitorParalel({ latar: true })
+        : API.dashboard({ ...paramDash(), bagian: b }, { latar: true }))
+        .then((d) => { if (tiket === tiketDash) tulisSimpanDash(b, d); }));
+    }
+    if (basiDash('grafik30')) {
+      tugasSegar.push(API.dataGrafik({ hari: 30 }, { latar: true }).then((g) => {
         if (tiket !== tiketDash) return;
         tulisSimpanDash('grafik30', g);
         delete grafikMuatan['30'];
-      }
-      if (tiket !== tiketDash) return;
-      muatDashboard();
-    } catch (e) {
-      if (tiket !== tiketDash) return;
-      const l = $('#dashBasi');
-      if (l) l.textContent = 'Gagal memperbarui (' + e.message + ') — angka di bawah masih yang tersimpan.';
+      }));
     }
+    const hasil = await Promise.allSettled(tugasSegar);
+    if (tiket !== tiketDash) return;
+    const gagal = hasil.filter((r) => r.status === 'rejected');
+    /* Gambar ulang HANYA bila semuanya segar: muatDashboard menyegarkan lagi
+       bagian yang masih basi, jadi menggambar ulang sesudah gagal berarti
+       putaran ulang tanpa akhir selama servernya gagal. Yang berhasil sudah
+       tersimpan dan tampil pada pembukaan berikutnya. */
+    if (!gagal.length) { muatDashboard(); return; }
+    const l = $('#dashBasi');
+    if (l) l.textContent = 'Gagal memperbarui (' + (gagal[0].reason && gagal[0].reason.message) +
+      ') — angka di bawah masih yang tersimpan.';
   }
 
   /**
@@ -981,10 +990,10 @@ const Admin = (() => {
    * Tanggal tetap DD/MM seperti seluruh aplikasi.
    */
   function ringkasRentang(dari, sampai, tanpaTahun) {
-    const u = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? { t: m[1], hb: m[3] + '/' + m[2] } : null; };
+    const u = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? { t: m[1], hb: m[3] + '-' + m[2] } : null; };
     const a = u(dari), b = u(sampai);
     if (!a || !b) return tglTampil(dari) + ' – ' + tglTampil(sampai);
-    const thn = tanpaTahun ? '' : '/' + b.t;
+    const thn = tanpaTahun ? '' : '-' + b.t;
     if (a.t + a.hb === b.t + b.hb) return a.hb + thn;
     if (a.t === b.t) return a.hb + ' – ' + b.hb + thn;
     return tglTampil(dari) + ' – ' + tglTampil(sampai);
@@ -1132,7 +1141,7 @@ const Admin = (() => {
   const waktuRingkas = (iso) => {
     const t = String(iso || ''); if (t.length < 16) return t;
     const hariIni = typeof tanggalLokal === 'function' ? tanggalLokal() : '';
-    return (t.slice(0, 10) === hariIni ? 'hari ini' : t.slice(8, 10) + '/' + t.slice(5, 7)) + ' ' + t.slice(11, 16);
+    return (t.slice(0, 10) === hariIni ? 'hari ini' : t.slice(8, 10) + '-' + t.slice(5, 7)) + ' ' + t.slice(11, 16);
   };
 
   /* Strip peringatan di atas KPI: shift terbuka + perangkat menunggu. Yang
@@ -2847,10 +2856,20 @@ const Admin = (() => {
   /** Bentuk ringkas yang dipakai layar: siapa memakai SKU apa, dan arti tiap prefix. */
   function susunPetaSku(d) {
     const p = { sku: new Map(), tipe: Object.assign({}, d.nama_tipe || {}), kat: {}, mer: {},
-                maks: {}, pkAda: {}, pmAda: new Set() };
-    const hitK = {}, hitM = {};
+                maks: {}, pkAda: {}, pmAda: new Set(), awalan: {} };
+    const hitK = {}, hitM = {}, hitAwal = {};
     (d.baris || []).forEach(([sku, nama, kategori, merek, aktif]) => {
       p.sku.set(String(sku), { nama: String(nama || ''), aktif: !!aktif });
+      /* AWALAN NAMA per kategori (bagian 266): teks sebelum " <merek> " di
+         nama produk. Diukur 26 Sep 2026: 3.260 dari 3.422 produk bermerek
+         mengikuti "[awalan kategori] [merek] [tipe HP]" — "Case A" bernama
+         "Fashion Case A …", "TPU Clear" tetap "TPU Clear …". Dibaca dari
+         katalog, bukan diketik di kode: kategori baru ikut dengan sendirinya. */
+      const mk = String(merek || ''), nm = String(nama || ''), i = mk ? nm.indexOf(' ' + mk + ' ') : -1;
+      if (kategori && i > 0) {
+        const o = hitAwal[kategori] = hitAwal[kategori] || {};
+        o[nm.slice(0, i)] = (o[nm.slice(0, i)] || 0) + 1;
+      }
       const m = POLA_SKU_TOKO.exec(String(sku));
       if (!m) return;
       const [, t, pk, pm, no] = m;
@@ -2864,7 +2883,33 @@ const Admin = (() => {
     const terbanyak = (o) => Object.keys(o).sort((a, b) => o[b] - o[a] || urutNama(a, b))[0];
     Object.keys(hitK).forEach((k) => { (p.kat[k.slice(0, 2)] = p.kat[k.slice(0, 2)] || {})[k.slice(2)] = terbanyak(hitK[k]); });
     Object.keys(hitM).forEach((pm) => { p.mer[pm] = terbanyak(hitM[pm]); });
+    Object.keys(hitAwal).forEach((k) => { p.awalan[k] = terbanyak(hitAwal[k]); });
     return p;
+  }
+
+  /**
+   * Usulan nama produk baru (bagian 266): "[awalan kategori] [merek] [tipe HP]".
+   * Merek Multi = TG serba-muat, yang di katalog bernama "… Multi_Fit".
+   * Kosong bila kategori atau merek belum dipilih — nama setengah jadi lebih
+   * menyesatkan daripada kolom kosong.
+   */
+  function usulNamaProduk(peta, namaKat, namaMer, tipeHp) {
+    const kat = String(namaKat || '').trim(), mer = String(namaMer || '').trim();
+    if (!kat || !mer) return '';
+    const awal = (peta && peta.awalan[kat]) || kat;
+    if (/^multi$/i.test(mer)) return awal + ' Multi_Fit';
+    return [awal, mer, String(tipeHp || '').trim()].filter(Boolean).join(' ');
+  }
+
+  /* Nama mengikuti usulan selama isinya masih SAMA dengan usulan sebelumnya
+     (atau kosong) — pola yang sama dengan Barcode mengikuti SKU. Sekali
+     diketik petugas, tidak ditimpa lagi. */
+  function isiNamaUsulan() {
+    const nama = $('#pNama');
+    if (!nama || !$('#penentuSku')) return;
+    const usul = usulNamaProduk(petaSkuSimpan, $('#pKategori').value, $('#pMerek').value, $('#pTipe').value);
+    if (!nama.value || nama.value === nama.dataset.usulan) nama.value = usul;
+    nama.dataset.usulan = usul;
   }
 
   /** Prefix bebas berikutnya = tertinggi + 1 (celah tidak diisi, sama dengan nomor urut). */
@@ -2919,6 +2964,7 @@ const Admin = (() => {
       hitungUsulanSku();
     }));
     $('#skTambah').addEventListener('input', () => hitungUsulanSku());
+    $('#pTipe').addEventListener('input', isiNamaUsulan);
     try {
       await muatPetaSku(false);
     } catch (e) {
@@ -3049,6 +3095,7 @@ const Admin = (() => {
 
     $('#pKategori').value = namaKat;
     $('#pMerek').value = namaMer;
+    isiNamaUsulan();
     const sku = $('#pSku'), bc = $('#pBarcode');
     const lengkap = /^[A-Z]{2}$/.test(t) && pk && pm && !galat.length;
     if (lengkap) {
@@ -6866,7 +6913,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <p class="petunjuk" style="margin:8px 0 0">Hanya terlihat oleh Owner dan Head Admin. Klik kotak cabang untuk rinciannya.</p>
       </div>`;
       $('#wadahPeriodeMatpulsa').innerHTML = Periode.html(PERIODE_MATPULSA);
-      Periode.pasang(PERIODE_MATPULSA, () => API.tugas(muatHasilMatpulsa));
+      Periode.pasang(PERIODE_MATPULSA, () => API.tugas(muatHasilMatpulsa, { baca: true }));
     }
     return muatHasilMatpulsa();
   }
@@ -7062,7 +7109,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div id="hasilLapulsa"></div>`;
       $('#wadahPeriodeLapulsa').innerHTML = Periode.html(PERIODE_LAPULSA);
       Periode.pasang(PERIODE_LAPULSA, muatHasilLapulsa);
-      $('#lapulsaCabang')?.addEventListener('change', () => API.tugas(muatHasilLapulsa));
+      $('#lapulsaCabang')?.addEventListener('change', () => API.tugas(muatHasilLapulsa, { baca: true }));
     }
     return muatHasilLapulsa();
   }
@@ -7094,8 +7141,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const rows = w._rows || [];
     const t = rows.reduce((a, r) => ({
       jual: a.jual + (+r.total_penjualan || 0), modal: a.modal + (+r.total_modal_saldo || 0),
-      margin: a.margin + (+r.margin || 0), selisih: a.selisih + (+r.selisih || 0)
-    }), { jual: 0, modal: 0, margin: 0, selisih: 0 });
+      margin: a.margin + (+r.margin || 0), selisih: a.selisih + (+r.selisih || 0),
+      topup: a.topup + (+r.total_deposit || 0), reward: a.reward + (+r.total_reward || 0)
+    }), { jual: 0, modal: 0, margin: 0, selisih: 0, topup: 0, reward: 0 });
 
     w.innerHTML = `
       <div class="kartu">
@@ -7105,19 +7153,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="gulir-x">
           <table class="tabel">
             <thead><tr><th>Tanggal</th><th>Cabang</th><th>Shift</th><th class="kanan">Modal awal</th>
+              <th class="kanan">Topup</th>
               <th class="kanan">Modal</th><th class="kanan">Penjualan</th><th class="kanan">Margin</th>
               <th class="kanan">Saldo akhir</th><th class="kanan">Selisih kas</th>
-              <th>Status</th>${adaAksiShift() ? '<th></th>' : ''}</tr></thead>
+              <th class="kanan">Reward</th><th>Status</th>${adaAksiShift() ? '<th></th>' : ''}</tr></thead>
             <tbody>${rows.map(r => `<tr>
-              <td data-l="Tanggal">${esc(String(r.tanggal))}</td>
+              <td data-l="Tanggal">${esc(tglTampil(r.tanggal))}</td>
               <td data-l="Cabang">${esc(String(r.kode_cabang))}</td>
               <td data-l="Shift">${esc(String(r.jenis_shift))}</td>
               <td class="kanan" data-l="Modal awal">${rp(r.saldo_awal_total)}</td>
+              <td class="kanan" data-l="Topup">${rp(r.total_deposit)}</td>
               <td class="kanan" data-l="Modal">${rp(r.total_modal_saldo)}</td>
               <td class="kanan" data-l="Penjualan">${rp(r.total_penjualan)}</td>
               <td class="kanan" data-l="Margin">${rp(r.margin)}</td>
               <td class="kanan" data-l="Saldo akhir">${rp(r.saldo_akhir_total)}</td>
               <td class="kanan" data-l="Selisih kas">${(+r.selisih || 0) !== 0 ? rp(r.selisih) : '—'}</td>
+              <td class="kanan" data-l="Reward">${rp(r.total_reward)}</td>
               <td data-l="Status">${esc(String(r.status))}${(+r.koreksi || 0) > 0
                 /* Tanda "diedit" ala WhatsApp (bagian 260); diklik = riwayatnya. */
                 ? ` <button type="button" class="tanda-diedit" data-riwayat-koreksi="${esc(String(r.id_shift))}"
@@ -7131,9 +7182,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                     'Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis') : ''}</div></td>` : ''}
             </tr>`).join('')}</tbody>
             ${rows.length ? `<tfoot><tr><th colspan="3">Total ${rows.length} shift</th>
-              <th></th><th class="kanan">${rp(t.modal)}</th><th class="kanan">${rp(t.jual)}</th>
+              <th></th><th class="kanan">${rp(t.topup)}</th><th class="kanan">${rp(t.modal)}</th><th class="kanan">${rp(t.jual)}</th>
               <th class="kanan">${rp(t.margin)}</th><th></th><th class="kanan">${rp(t.selisih)}</th>
-              <th></th>${adaAksiShift() ? '<th></th>' : ''}</tr></tfoot>` : ''}
+              <th class="kanan">${rp(t.reward)}</th><th></th>${adaAksiShift() ? '<th></th>' : ''}</tr></tfoot>` : ''}
           </table>
         </div>
         ${rows.length ? '' : '<p class="pesan">Belum ada shift pulsa yang ditutup.</p>'}
@@ -7188,8 +7239,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         jual += angkaDari(tr.querySelector('[data-koreksi="penjualan"]').value);
         const akhirEl = tr.querySelector('[data-koreksi="saldo_akhir"]');
         const akhir = akhirEl ? angkaDari(akhirEl.value) : (+tr.dataset.akhir || 0);
-        /* Rumus yang sama dengan _hitungShiftPulsa: awal + deposit − akhir. */
-        const pakai = (+tr.dataset.awal || 0) + (+tr.dataset.deposit || 0) - akhir;
+        /* Rumus yang sama dengan _hitungShiftPulsa: awal + deposit + reward − akhir. */
+        const pakai = (+tr.dataset.awal || 0) + (+tr.dataset.deposit || 0) +
+          angkaDari(tr.querySelector('[data-koreksi="reward"]').value) - akhir;
         tr.querySelector('[data-modal]').innerHTML = rp(pakai);
         modal += pakai; dep += +tr.dataset.deposit || 0;
       });
@@ -7277,7 +7329,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol utama" id="btnSimpanSusulan" disabled>${ikonAlat('simpan')}<span>Simpan shift susulan</span></button>`);
     const m = $('#modalUmum');
     m._susulan = null;
-    $('#susCabang').addEventListener('change', () => API.tugas(muatSumberSusulan));
+    $('#susCabang').addEventListener('change', () => API.tugas(muatSumberSusulan, { baca: true }));
     m.addEventListener('input', (e) => {
       if (!e.target.closest('[data-sus]')) return;
       /* Kas fisik mengikuti total penjualan sampai orangnya mengetik sendiri. */
@@ -7332,7 +7384,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     let jual = 0, modal = 0, dep = 0;
     m.querySelectorAll('#tabelSusulan tbody tr').forEach((tr) => {
       const v = (k) => angkaDari(tr.querySelector(`[data-sus="${k}"]`).value);
-      const pakai = (+tr.dataset.awal || 0) + v('deposit') - v('saldo_akhir');
+      const pakai = (+tr.dataset.awal || 0) + v('deposit') + v('reward') - v('saldo_akhir');
       tr.querySelector('[data-modal]').innerHTML = rp(pakai);
       modal += pakai; jual += v('penjualan'); dep += v('deposit');
     });
@@ -7391,7 +7443,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function hitungShiftpulsa(st, keluar) {
     let modal = 0, jual = 0, deposit = 0, reward = 0;
     (st.sumber || []).forEach(s => {
-      modal += (+s.saldo_awal || 0) + (+s.deposit || 0) - (+s.saldo_akhir || 0);
+      /* Reward = yang di-redeem ke saldo utama (bagian 266) — rumus server. */
+      modal += (+s.saldo_awal || 0) + (+s.deposit || 0) + (+s.reward || 0) - (+s.saldo_akhir || 0);
       jual += (+s.penjualan || 0); deposit += (+s.deposit || 0); reward += (+s.reward || 0);
     });
     const kasSistem = (+st.kas_awal || 0) + jual - deposit - (+keluar || 0);
@@ -7511,6 +7564,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="kartu">
         <h3>Saldo per sumber</h3>
+        <p class="petunjuk">Reward = reward yang di-redeem ke saldo utama selama shift ini. Reward yang belum di-redeem tidak diisi.</p>
         <div class="gulir-x">
           <table class="tabel">
             <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th><th class="kanan">Deposit masuk</th>
@@ -7521,7 +7575,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}<br><span class="petunjuk">terkunci</span></td>
               <td data-l="Deposit masuk"><input type="text" class="kanan uang spsAngka" data-sp="deposit" data-i="${i}" value="${rp0(s.deposit)}"></td>
               <td data-l="Saldo akhir"><input type="text" class="kanan uang spsAngka" data-sp="saldo_akhir" data-i="${i}" value="${rp0(s.saldo_akhir)}"></td>
-              <td class="kanan" data-l="Konsumsi (modal)"><strong>${rp((+s.saldo_awal || 0) + (+s.deposit || 0) - (+s.saldo_akhir || 0))}</strong></td>
+              <td class="kanan" data-l="Konsumsi (modal)"><strong>${rp((+s.saldo_awal || 0) + (+s.deposit || 0) + (+s.reward || 0) - (+s.saldo_akhir || 0))}</strong></td>
               <td data-l="Penjualan"><input type="text" class="kanan uang spsAngka" data-sp="penjualan" data-i="${i}" value="${rp0(s.penjualan)}"></td>
               <td data-l="Reward"><input type="text" class="kanan uang spsAngka" data-sp="reward" data-i="${i}" value="${rp0(s.reward)}"></td>
             </tr>`).join('')}</tbody>
@@ -8962,7 +9016,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const sel = e.target.closest && e.target.closest('[data-cabang-layar]');
     if (!sel) return;
     cabangLayar[sel.dataset.cabangLayar] = sel.value;
-    API.tugas(() => muat(sel.dataset.cabangLayar));
+    API.tugas(() => muat(sel.dataset.cabangLayar), { baca: true });
   });
 
   async function muatOpname() {
@@ -10713,7 +10767,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $$('#tabGaji [data-tab-gaji]').forEach((b) => b.classList.toggle('aktif', b.dataset.tabGaji === tab));
     $('#panelGaji').hidden = tab !== 'gaji';
     $('#panelKasbon').hidden = tab !== 'kasbon';
-    return API.tugas(() => (tab === 'gaji' ? muatHasilGaji() : muatKasbon()));
+    return API.tugas(() => (tab === 'gaji' ? muatHasilGaji() : muatKasbon()), { baca: true });
   }
 
   async function muatHasilGaji() {
@@ -11001,7 +11055,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * menutup seluruh rantai simpan → tarik master → muat ulang sekaligus.
    */
   async function muat(layar) {
-    return API.tugas(() => _muat(layar));
+    /* Memuat layar tidak menahan orang pindah menu (bagian 266). */
+    return API.tugas(() => _muat(layar), { baca: true });
   }
 
   async function _muat(layar) {
@@ -12328,7 +12383,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnSelesaiReturBeli') { tutupModal(); return muat('returbeli'); }
 
       /* --- arsip --- */
-      if (t.id === 'btnHitungUlangArsip') return API.tugas(() => muatArsip(true));   // bagian 258
+      if (t.id === 'btnHitungUlangArsip') return API.tugas(() => muatArsip(true), { baca: true });   // bagian 258
       if (t.id === 'btnUjiArsip' || t.id === 'btnJalankanArsip') {
         const sungguhan = t.id === 'btnJalankanArsip';
         if (sungguhan && !(await tanya('Jalankan rotasi SUNGGUHAN?',

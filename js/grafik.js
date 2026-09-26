@@ -100,7 +100,7 @@ const Grafik = (() => {
      dibiarkan utuh — cabang itu yang membuat label bulanan tidak kacau. */
   const tglPendek = (t) => {
     const b = String(t).split('-');
-    return b.length === 3 ? b[2] + '/' + b[1] : String(t);
+    return b.length === 3 ? b[2] + '-' + b[1] : String(t);   // DD-MM (bagian 266)
   };
 
   /** Skala sumbu yang berakhir di angka bulat, supaya label sumbu enak dibaca. */
