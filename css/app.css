@@ -85,11 +85,6 @@
   --sumber-pos:       #22c07a;
   --sumber-pulsa:     #f0a132;
   --sumber-accurate:  #6f7bf7;
-  /* Lapisan tipis kolom Gabungan. HITAM di tema terang, PUTIH di gelap —
-     satu nilai untuk keduanya mustahil: yang menggelapkan latar terang akan
-     menggelapkan latar gelap juga, dan kolomnya berubah jadi lubang. */
-  --kons-gabung:      rgba(0,0,0,.03);
-  --kons-gabung-tot:  rgba(0,0,0,.06);
   /* Merah untuk angka minus DI ATAS kepala gelap. `--bahaya` dibuat untuk
      latar terang; di atas #12243a ia terlalu tua dan hampir hilang. */
   --kons-minus:       #ff9090;
@@ -252,8 +247,6 @@ html[data-tema="gelap"] {
   --sumber-pos:       #5fd6a0;
   --sumber-pulsa:     #f5bd6b;
   --sumber-accurate:  #9aa4fb;
-  --kons-gabung:      rgba(255,255,255,.045);
-  --kons-gabung-tot:  rgba(255,255,255,.09);
   --kons-minus:       #ff9090;
   --bahaya-tombol: #cf2222;
   --bahaya-lembut: #221313;
@@ -2277,14 +2270,11 @@ table.matriks-kons .kode {
 table.matriks-kons tr.subtotal td {
   background: var(--panel-2); font-weight: 700; border-top: 1px solid var(--garis-rangka);
 }
-table.matriks-kons .gabung { background: var(--kons-gabung); font-weight: 700; }
-/* Sel yang SEKALIGUS subtotal dan kolom Gabungan. Tanpa aturan ini pita
-   subtotalnya terputus tepat di kolom terakhir — `.gabung` berbobot dua
-   kelas dan menang atas latar subtotalnya, jadi barisnya terlihat
-   putus-putus. Dilaporkan pemilik 20 Sep 2026 di tema gelap. */
-table.matriks-kons tr.subtotal td.gabung {
-  background: var(--panel-2); box-shadow: inset 0 0 0 999px var(--kons-gabung-tot);
-}
+/* Kolom Gabungan dibedakan oleh TEBALNYA saja, tanpa latar sendiri
+   (bagian 275, pemilik 28 Sep 2026: "warnanya disamakan dengan
+   sebelahnya"). Latarnya ikut baris: putih, atau pita subtotal yang utuh
+   sampai kolom terakhir. */
+table.matriks-kons .gabung { font-weight: 700; }
 /* Nol dan "tidak ada angkanya" sengaja DIBEDAKAN, dan keduanya dipucatkan:
    di tabel lima kolom, nol yang setegas angka lain membuat mata berhenti
    di tempat yang tidak ada isinya. */
