@@ -3513,22 +3513,49 @@ function siapkanRentangShift() {
   if (!sp.value) sp.value = tanggalLokal();
 }
 
+/* Pilihan cabang Laporan shift (bagian 274). Pemilik 27 Sep 2026: "menu
+   shift: sedia semua cabang" — untuk Owner, Head Admin, dan Manajer Area,
+   yaitu tepat peran berizin Shift yang memegang akses_lintas_cabang (diukur
+   dari data peran yang berlaku). Bawaannya Semua cabang. Servernya sudah
+   menerima `cabang: '*'` dan menolak cabang lain untuk akun satu cabang. */
+let cabangShift = '*';
+function kodeCabangShift() {
+  const s = APP_STATE.daftarCabangSemua.length ? APP_STATE.daftarCabangSemua : APP_STATE.daftarCabang;
+  return (s || []).slice().sort(urutNama);
+}
+const bolehCabangShift = () => !!APP_STATE.flag?.akses_lintas_cabang && kodeCabangShift().length > 1;
+function gambarPilihCabangShift() {
+  const w = $('#wadahCabangShift');
+  if (!w) return;
+  if (!bolehCabangShift()) { w.innerHTML = ''; return; }
+  w.innerHTML = `<select id="cabangShift" class="kendali-tetap" title="Cabang" aria-label="Cabang">
+    <option value="*"${cabangShift === '*' ? ' selected' : ''}>Semua cabang</option>
+    ${kodeCabangShift().map(k => `<option value="${esc(k)}"${k === cabangShift ? ' selected' : ''}>${esc(k)}</option>`).join('')}
+  </select>`;
+}
+
 async function muatDaftarShift() {
   const wadah = $('#isiRiwayatShift');
   if (!wadah) return;
   siapkanRentangShift();
+  gambarPilihCabangShift();
+  const lintas = bolehCabangShift();
   Rangka.pasang(wadah, rangkaDaftar(6, ['88%', '70%', '82%', '64%']));   // bentuk asli diingat (bagian 262)
   try {
-    const d = await API.daftarShift({ dari: $('#shiftDari').value, sampai: $('#shiftSampai').value });
+    const d = await API.daftarShift({ dari: $('#shiftDari').value, sampai: $('#shiftSampai').value,
+      ...(lintas ? { cabang: cabangShift } : {}) });
+    /* Kolom Cabang hanya bila yang tampil bisa lebih dari satu cabang. */
+    const kolCabang = lintas && cabangShift === '*';
     const rows = d.shift || [];
     if (!rows.length) {
       wadah.innerHTML = '<p style="color:var(--teks-redup)">Tidak ada shift pada rentang ini.</p>';
       return;
     }
     wadah.innerHTML = `<div class="gulir-x"><table>
-      <tr><th>Shift</th><th>Kasir</th><th>Buka</th><th>Tutup</th>
+      <tr>${kolCabang ? '<th>Cabang</th>' : ''}<th>Shift</th><th>Kasir</th><th>Buka</th><th>Tutup</th>
           <th class="angka">Nota</th><th class="angka">Penjualan</th><th class="angka">Selisih kas</th><th></th></tr>
       ${rows.map(r => `<tr>
+        ${kolCabang ? `<td>${esc(r.cabang)}</td>` : ''}
         <td>${esc(r.id_shift)}</td>
         <td>${kasirTampil(r)}</td>
         <td>${esc(waktuTampil(r.buka))}</td>
@@ -3537,19 +3564,21 @@ async function muatDaftarShift() {
         <td class="angka">${r.tutup ? rp(r.total_penjualan) : '—'}</td>
         <td class="angka">${r.tutup
           ? `<span class="${Math.abs(r.selisih) >= 1 ? 'bahaya' : ''}">${rp(r.selisih)}</span>` : '—'}</td>
-        <td><button class="tombol" data-lapshift="${esc(r.id_shift)}"
+        <td><button class="tombol" data-lapshift="${esc(r.id_shift)}" data-lapshift-cabang="${esc(r.cabang || '')}"
               style="padding:6px 10px;font-size:var(--fs-13)">Laporan</button></td>
       </tr>`).join('')}</table></div>
       ${d.boleh_semua ? '' : '<p class="petunjuk">Anda hanya melihat shift Anda sendiri.</p>'}`;
   } catch (e) { wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
-async function bukaLaporanShift(idShift) {
+async function bukaLaporanShift(idShift, cabang) {
   $('#lapShiftJudul').textContent = 'Laporan shift ' + idShift;
   Rangka.pasang($('#lapShiftIsi'), rangkaDaftar(7, ['76%', '58%', '68%', '50%']));   // bagian 262
   $('#tiraiLapShift').classList.add('tampil');
   try {
-    const d = await API.laporanShift({ id_shift: idShift });
+    /* Cabang barisnya ikut (bagian 274): shift cabang lain tidak ada di
+       sheet cabang sesi. Kosong = cabang sesi, seperti dulu. */
+    const d = await API.laporanShift({ id_shift: idShift, ...(cabang ? { cabang } : {}) });
     const k = d.kas, p = d.penjualan;
     const baris = (label, nilai, tebal) => `<div class="total-baris${tebal ? ' besar' : ''}">
       <span>${esc(label)}</span><span>${nilai}</span></div>`;
@@ -6730,7 +6759,12 @@ function pasangEvent() {
   Periode.pasang(PERIODE_SHIFT, () => muatDaftarShift());
   $('#isiRiwayatShift').addEventListener('click', e => {
     const id = e.target.dataset?.lapshift;
-    if (id) bukaLaporanShift(id);
+    if (id) bukaLaporanShift(id, e.target.dataset.lapshiftCabang);
+  });
+  document.addEventListener('change', e => {
+    if (e.target.id !== 'cabangShift') return;
+    cabangShift = e.target.value;
+    API.tugas(() => muatDaftarShift(), { baca: true });
   });
   document.addEventListener('click', e => {
     if (e.target.dataset?.tutupLapshift) $('#tiraiLapShift').classList.remove('tampil');

@@ -295,10 +295,15 @@ const Admin = (() => {
        kartunya digambar ulang dan tombol yang barusan ditekan sudah tidak ada
        lagi sebagai simpul. Penanda inilah yang membuat fokus bisa dikembalikan
        ke penggantinya tanpa penangan kliknya perlu hafal tujuh id. */
-    return `<div class="menu-lain">
-      <button class="tombol" id="${o.idTombol}" aria-haspopup="menu" aria-expanded="false"
+    /* `o.baris` = ⋮ di dalam baris tabel; `o.tanda` = 'perlu' | 'bahaya'
+       mewarnai titiknya (bagian 274). Arti warnanya ikut ditulis di label,
+       supaya tidak hanya terbaca oleh yang bisa membedakan warna. */
+    const kata = o.tanda === 'perlu' ? 'Tindakan lain — ada permintaan menunggu'
+      : o.tanda === 'bahaya' ? 'Tindakan lain — termasuk Hapus' : 'Tindakan lain';
+    return `<div class="menu-lain${o.baris ? ' menu-baris' : ''}">
+      <button class="tombol${o.tanda ? ' tanda-' + o.tanda : ''}" id="${o.idTombol}" aria-haspopup="menu" aria-expanded="false"
               aria-controls="${o.id}" data-menu-kunci="${esc(o.kunci || '')}"
-              aria-label="Tindakan lain" title="Tindakan lain">
+              aria-label="${kata}" title="${kata}">
         ${IKON_TITIK_TIGA}${o.titik || ''}
       </button>
       <div class="popover-akun popover-menu" id="${o.id}" role="menu"
@@ -5704,6 +5709,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * pembuat yang sama). `judul` opsional untuk tooltip yang lebih panjang
    * daripada labelnya.
    */
+  /**
+   * Butir menu ⋮ baris (bagian 274): ikon + teks, atribut aksinya SAMA dengan
+   * tombol yang digantikannya — penangan kliknya tidak berubah.
+   */
+  const butirBaris = (gaya, label, jalur, atribut, judul) =>
+    `<button class="popover-item ${gaya}" role="menuitem" title="${esc(judul || label)}" ${atribut}>` +
+    `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${jalur}</svg><span>${esc(label)}</span></button>`;
+  /** id elemen yang aman dari kode apa pun (id_user/id_perangkat). */
+  const idAman = (s) => String(s).replace(/[^\w-]/g, '_');
+
   const tombolBaris = (gaya, label, jalur, atribut, judul) =>
     `<button class="tombol kecil ${gaya}" title="${esc(judul || label)}" ${atribut}>` +
     `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${jalur}</svg><span>${esc(label)}</span></button>`;
@@ -5813,17 +5828,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Peran', render: r => `<span class="lencana">${esc(r.nama_peran)}</span>` },
             { judul: 'Cabang', render: r => r.cabang === '*' ? 'semua' : esc(r.cabang) },
             { judul: 'Login terakhir', render: r => esc(waktuTampil(r.terakhir_login)) },
-            /* IKON SAJA, diminta pemilik 21 Sep 2026. Sebelumnya "Ubah"
-               bertinggi 28 px (punya ikon) dan "Reset PIN" 27 px (tanpa
-               ikon), jadi keduanya meleset 4 px di baris yang sama.
-               Lewat tombolIkon keduanya memakai ukuran yang sama dengan
-               tombol ikon di tabel Perangkat — kelurusannya bukan diatur
-               satu per satu, ia akibat dari memakai pembuat yang sama. */
-            { judul: '', render: r => 
-              tombolIkon('', 'Ubah', IKON.ubah, `data-edit-user="${esc(r.id_user)}"`) +
-              (bolehIzin('user', 'ubah')
-                ? tombolIkon('', 'Reset PIN', IKON.reset_pin, `data-reset-pin="${esc(r.id_user)}"`)
-                : '') }
+            /* Lebih dari satu tombol → menu ⋮ (bagian 274, pemilik 27 Sep
+               2026: "yang row memiliki tombol lebih dari satu dipindah ke
+               elipsis saja"). Satu tombol tetap ikon. */
+            { judul: '', kelas: 'sel-menu', render: r => {
+              const id = esc(r.id_user);
+              if (!bolehIzin('user', 'ubah')) return tombolIkon('', 'Ubah', IKON.ubah, `data-edit-user="${id}"`);
+              return menuTindakan({ id: 'menuBarisUser' + idAman(r.id_user), idTombol: 'btnBarisUser' + idAman(r.id_user),
+                kunci: 'baris-user', baris: true,
+                isi: butirBaris('', 'Ubah', IKON.ubah, `data-edit-user="${id}"`) +
+                  (bolehIzin('user', 'ubah')
+                    ? butirBaris('', 'Reset PIN', IKON.reset_pin, `data-reset-pin="${id}"`) : '') });
+            } }
           ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true, kunci: 'user' })}
         </div>
 
@@ -5917,24 +5933,37 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                   (r.dibuat
                     ? `<div class="meta-kecil">didaftarkan ${esc(umurKata(r.dibuat))}</div>` : '');
               } },
-            { judul: '', render: r => `
-              ${bolehIzin('user', 'ubah')
-                ? tombolIkon('', 'Ganti nama perangkat', IKON.ubah,
-                    `data-nama-perangkat="${esc(r.id_perangkat)}"`) +
-                  tombolIkon('', 'Tetapkan meja (lini usaha)', IKON.meja,
-                    `data-meja-perangkat="${esc(r.id_perangkat)}"`) : ''}
-              ${bolehIzin('user', 'setujui') ? `
-                ${r.status !== 'DISETUJUI' ? tombolIkon('sukses', 'Setujui perangkat', IKON.setujui,
-                    `data-perangkat="${esc(r.id_perangkat)}" data-status="DISETUJUI"`) : ''}
-                ${r.status !== 'DIBLOKIR' ? tombolIkon('bahaya', 'Blokir perangkat', IKON.blokir,
-                    `data-perangkat="${esc(r.id_perangkat)}" data-status="DIBLOKIR"`) : ''}` : ''}
-              ${/* Hapus TIDAK muncul untuk yang DISETUJUI — server pun menolaknya.
-                    Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
-                    jebakan, bukan tombol; yang masih hidup diblokir dulu, dan
-                    langkah itulah yang memutus aksesnya. */
-                 bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI'
-                ? tombolIkon('bahaya', 'Hapus perangkat', IKON.hapus,
-                    `data-hapus-perangkat="${esc(r.id_perangkat)}"`) : ''}` }
+            /* Tombolnya masuk menu ⋮ bila lebih dari satu (bagian 274).
+               Titik KUNING = permintaan gabung menunggu disetujui; MERAH =
+               ada Hapus di dalamnya. Kuning menang: yang perlu dilihat
+               permintaannya. */
+            { judul: '', kelas: 'sel-menu', render: r => {
+              const id = esc(r.id_perangkat);
+              const butir = [];
+              if (bolehIzin('user', 'ubah')) {
+                butir.push(['', 'Ganti nama', IKON.ubah, `data-nama-perangkat="${id}"`, 'Ganti nama perangkat'],
+                  ['', 'Tetapkan meja', IKON.meja, `data-meja-perangkat="${id}"`, 'Tetapkan meja (lini usaha)']);
+              }
+              if (bolehIzin('user', 'setujui')) {
+                if (r.status !== 'DISETUJUI') butir.push(['sukses', 'Setujui', IKON.setujui,
+                  `data-perangkat="${id}" data-status="DISETUJUI"`, 'Setujui perangkat']);
+                if (r.status !== 'DIBLOKIR') butir.push(['bahaya', 'Blokir', IKON.blokir,
+                  `data-perangkat="${id}" data-status="DIBLOKIR"`, 'Blokir perangkat']);
+              }
+              /* Hapus TIDAK muncul untuk yang DISETUJUI — server pun menolaknya.
+                 Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
+                 jebakan, bukan tombol; yang masih hidup diblokir dulu, dan
+                 langkah itulah yang memutus aksesnya. */
+              const adaHapus = bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI';
+              if (adaHapus) butir.push(['bahaya', 'Hapus', IKON.hapus, `data-hapus-perangkat="${id}"`, 'Hapus perangkat']);
+              if (!butir.length) return '';
+              if (butir.length === 1) { const [g, , j, a, t] = butir[0]; return tombolIkon(g, t, j, a); }
+              const menunggu = r.status === 'MENUNGGU' && bolehIzin('user', 'setujui');
+              return menuTindakan({ id: 'menuBarisPerangkat' + idAman(r.id_perangkat),
+                idTombol: 'btnBarisPerangkat' + idAman(r.id_perangkat), kunci: 'baris-perangkat', baris: true,
+                tanda: menunggu ? 'perlu' : adaHapus ? 'bahaya' : '',
+                isi: butir.map(b => butirBaris(...b)).join('') });
+            } }
           ], perangkat, { kosong: 'Belum ada perangkat', pisahNonaktif: true, kunci: 'perangkat',
                nonaktif: r => r.status === 'DIBLOKIR' })}
         </div>`;
@@ -7222,8 +7251,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           title="Hapus shift tutup terakhir cabang ini; jurnalnya dibalik otomatis">
           <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.hapus}</svg><span>Hapus</span></button>` : '');
     if (!isi) return '';
-    return menuTindakan({ id: 'menuShiftPulsa' + i, idTombol: 'btnMenuShiftPulsa' + i, kunci: 'shift-pulsa', isi })
-      .replace('<div class="menu-lain">', '<div class="menu-lain menu-baris">');
+    return menuTindakan({ id: 'menuShiftPulsa' + i, idTombol: 'btnMenuShiftPulsa' + i, kunci: 'shift-pulsa', isi,
+      baris: true, tanda: (bolehHapusShift() && r.bisa_hapus) ? 'bahaya' : '' });
   }
 
   function gambarLaporanpulsa() {
