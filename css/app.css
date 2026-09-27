@@ -661,8 +661,11 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    terbaca tumbuh dari kartu yang membukanya. Lebarnya lebar yang sama dengan
    sidebar terbentang dikurangi tepinya: itu lebar yang isinya sudah terbukti
    muat. Aturan mode laci (≤1024px) mengembalikannya ke bentuk semula, karena
-   di sana sidebarnya lebar lagi walau kelas lipatnya masih menempel. */
-#app.sisi-lipat .popover-akun {
+   di sana sidebarnya lebar lagi walau kelas lipatnya masih menempel.
+   #popoverAkun, BUKAN .popover-akun (bagian 276): menu ⋮ memakai kelas
+   yang sama, dan aturan ini dulu ikut menggepengkan SEMUA menu ⋮ kepala kartu
+   saat sidebar dilipat — kotaknya jadi garis tipis, isinya meluber. */
+#app.sisi-lipat #popoverAkun {
   left: calc(100% + 4px); right: auto; bottom: 4px; margin-bottom: 0;
   width: 220px;
 }
@@ -673,7 +676,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    dari layar. */
 .sisi-bawah { position: relative; }
 /* Saat sidebar TERLIPAT popover ini MENYAMPING, selebar isinya — lihat aturan
-   `#app.sisi-lipat .popover-akun` di bawah. Tanpa itu ia mewarisi
+   `#app.sisi-lipat #popoverAkun` di atas. Tanpa itu ia mewarisi
    `left:8px; right:8px` dari rel selebar 68px dan menjadi kolom 52px: setiap
    butir terpotong, keterangan temanya terbelah enam baris, dan kotak centangnya
    berdiri sendirian tanpa label. Dilaporkan pemilik 9 Sep 2026: "jendela
@@ -2728,7 +2731,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   }
   #app.sisi-lipat .sisi-atas { justify-content: flex-start; padding: 14px 14px 12px; }
   #app.sisi-lipat .kartu-user { justify-content: flex-start; padding: 0 8px; }
-  #app.sisi-lipat .popover-akun {
+  #app.sisi-lipat #popoverAkun {
     left: 8px; right: 8px; bottom: 100%; margin-bottom: 8px; width: auto;
   }
 
