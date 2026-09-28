@@ -4073,6 +4073,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const sudahAda = lewatiAda ? await skuTerdaftar() : null;
 
     const salah = [];
+    /* Beli > eceran TIDAK LAGI di `salah` (bagian 279) — cuma diberi tahu.
+       Sama seperti server: eceran > 0 tetap wajib, margin negatif tidak lagi
+       membatalkan pratinjau. Dua salinan aturan ini harus tetap SAMA supaya
+       pratinjau tidak menjanjikan sesuatu yang ditolak server, atau
+       sebaliknya menolak sesuatu yang sebenarnya server terima. */
+    const peringatan = [];
     const kunci = new Set();
     let dilewati = 0;
     barisImpor.forEach((r, i) => {
@@ -4092,7 +4098,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (entitas === 'produk') {
         if (!r.nama) salah.push(`Baris ${no}: nama kosong`);
         if (!(r.harga_eceran > 0)) salah.push(`Baris ${no}: harga eceran harus > 0`);
-        if (r.harga_beli_terakhir > r.harga_eceran) salah.push(`Baris ${no}: harga beli melebihi harga eceran`);
+        if (r.harga_beli_terakhir > r.harga_eceran) {
+          peringatan.push(`Baris ${no} (${r.sku}): harga beli ${r.harga_beli_terakhir} melebihi harga eceran ${r.harga_eceran}`);
+        }
       }
       if (entitas === 'pelanggan' || entitas === 'supplier') {
         if (!r.nama) salah.push(`Baris ${no}: nama kosong`);
@@ -4113,6 +4121,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              dari salinan katalog di perangkat ini — produk yang dinonaktifkan tidak terhitung di
              sini dan baru dilewati oleh server.</small></div>`
           : `<div class="pesan sukses">${barisImpor.length} baris siap diimpor.</div>`}
+      ${!salah.length && peringatan.length ? `<div class="pesan peringatan"><strong>${peringatan.length} baris harga beli melebihi eceran</strong> — tetap akan diimpor apa adanya:
+        <ul style="margin:8px 0 0 16px">${peringatan.slice(0, 15).map(s => `<li>${esc(s)}</li>`).join('')}</ul>
+        ${peringatan.length > 15 ? `<div style="margin-top:6px">…dan ${peringatan.length - 15} lainnya</div>` : ''}</div>` : ''}
       <div style="max-height:220px;overflow:auto">
         ${tabel(judul.slice(0, 6).map(h => ({ judul: h, kunci: h })), barisImpor.slice(0, 30))}
       </div>`;
