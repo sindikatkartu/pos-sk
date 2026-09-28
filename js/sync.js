@@ -102,7 +102,7 @@ const Sync = (() => {
          sama sekali, servernya memakai cabang sesi. */
       for (const o of antri.filter(o => o.jenis === 'cetak_ulang')) {
         try {
-          await API.catatCetakUlang(o.dokumen);
+          await API.catatCetakUlang(o.dokumen, { latar: true });   // antrean, bukan klik (bagian 277)
           o.status = 'SYNCED'; o.waktu_sinkron = new Date().toISOString();
         } catch (e) {
           o.percobaan = (o.percobaan || 0) + 1;
@@ -288,7 +288,11 @@ const Sync = (() => {
 
       document.dispatchEvent(new Event('master:diperbarui'));
       return d;
-    });
+    /* `{ latar }` WAJIB ikut ke pembungkusnya (bagian 277), bukan hanya ke
+       permintaannya: tanpa itu pewaktu 5 menit mengunci SEMUA tombol selama
+       tarikan + penyimpanan ulang katalog — "tombol tiba-tiba membeku saat
+       standby" (pemilik, 28 Sep 2026). Yang dipicu orang tetap mengunci. */
+    }, { latar });
   }
 
   /** Tarik stok terkini (perkiraan yang dipakai saat offline). */

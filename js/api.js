@@ -539,7 +539,7 @@ let _pernahJawab = false;
     shiftAktif:      ()  => panggil('shift_aktif'),
     daftarShift:     (d) => panggil('daftar_shift', d),
     laporanShift:    (d) => panggil('laporan_shift', d, { timeout: 90000 }),
-    catatCetakUlang: (d) => panggil('catat_cetak_ulang', d),
+    catatCetakUlang: (d, o) => panggil('catat_cetak_ulang', d, o),
 
     kirimPenjualan:  (d, o) => ulang(() => panggil('kirim_penjualan', d, { timeout: 60000, ...o })),
     voidPenjualan:   (d) => panggil('void_penjualan', d),
