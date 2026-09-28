@@ -240,8 +240,13 @@ const Sync = (() => {
          pernah dilaporkan sama sekali, dan justru saat jaringan bermasalah
          itulah yang paling banyak pecah. */
       const galat = (typeof antreanGalat === 'function') ? antreanGalat() : [];
+      /* Status penyimpanan awet ikut denyut (bagian 278) — layar Perangkat
+         menandai tablet yang datanya boleh dibuang peramban. null = tidak
+         diketahui (peramban tanpa API ini); server mengabaikannya. */
+      let awet = null;
+      try { if (navigator.storage && navigator.storage.persisted) awet = await navigator.storage.persisted(); } catch (e) { awet = null; }
       const d = await API.tarikMaster(
-        galat.length ? { versi, paksa, galat } : { versi, paksa }, { latar });
+        galat.length ? { versi, paksa, galat, awet } : { versi, paksa, awet }, { latar });
       if (galat.length && typeof kosongkanAntreanGalat === 'function') kosongkanAntreanGalat();
       if (!d.perubahan) {
         await DB.kvSet('master_diperbarui', new Date().toISOString());

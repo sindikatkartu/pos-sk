@@ -5917,7 +5917,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                   (kunci > 0
                     ? ` <span class="lencana merah">terkunci ${kunci} menit lagi</span>` +
                       `<div class="meta-kecil">${num(r.gagal_login)}\u00d7 PIN salah</div>`
-                    : '');
+                    : '') +
+                  /* Penyimpanan awet (bagian 278), dilaporkan denyut perangkat.
+                     'tidak' = peramban boleh membuang data POS di sana, dan
+                     bersamanya identitas perangkat \u2014 lalu harus disetujui
+                     ulang. Kosong = belum pernah melapor: tidak ditulis apa-apa. */
+                  (r.penyimpanan_awet === 'tidak'
+                    ? '<div><span class="lencana kuning" title="Peramban boleh menghapus data POS di perangkat ini saat ' +
+                      'ruang penyimpanan menipis, lalu perangkat harus disetujui ulang. Pasang POS sebagai aplikasi: ' +
+                      'di Chrome, ketuk \u22ee \u2192 Instal aplikasi / Tambahkan ke layar utama.">penyimpanan tidak awet</span></div>'
+                    : r.penyimpanan_awet === 'ya' ? '<div class="meta-kecil">penyimpanan awet</div>' : '');
               } },
             /* Umur dalam KATA di atas, tanggal lengkapnya di bawah. Yang dicari
                orang di sini "masih dipakai atau sudah bisa dibuang", dan itu
