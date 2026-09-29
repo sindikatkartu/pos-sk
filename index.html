@@ -171,6 +171,14 @@
         <!-- Pemilih tema DICABUT dari popover 10 Sep 2026 atas permintaan pemilik:
              satu tempat saja, di Pengaturan > Setelan toko. Dua sakelar untuk
              satu setelan membuat orang bertanya-tanya mana yang berlaku. -->
+        <!-- Ganti cabang (bagian 280): BEDA dari pemilih cabang yang dicabut
+             9 Sep 2026 (KONTEKS §113-114) — itu berlaku di SELURUH layar
+             termasuk Kasir/Bayar, ini sengaja disembunyikan `siapkanGantiCabang()`
+             saat layarKini === 'kasir' atau ada shift aktif. Hidden bawaan;
+             baris ini sendiri tidak pernah menyalakan risiko transaksi nyasar. -->
+        <div class="popover-pisah" id="grupGantiCabang" hidden>
+          <button class="popover-item" id="btnGantiCabang" role="menuitem">Ganti cabang</button>
+        </div>
         <div class="popover-pisah">
           <button class="popover-item keluar" id="btnKeluar" role="menuitem">Keluar</button>
         </div>

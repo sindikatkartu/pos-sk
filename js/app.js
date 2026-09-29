@@ -1138,6 +1138,7 @@ function bukaPopoverAkun() {
      pemilik 9 Sep 2026 "Sistem · Cabang" menggantung tepat di atas kartu
      pengguna yang barusan dibuka. */
   sembunyiFlyoutSisi();
+  siapkanGantiCabang();
   $('#popoverAkun').hidden = false;
   $('#btnKartuUser').setAttribute('aria-expanded', 'true');
   const f = $('#popoverAkun').querySelector('a, button, input');
@@ -1152,6 +1153,60 @@ function tutupPopoverAkun(kembalikanFokus) {
      pengguna, adalah kursor yang melompat tanpa sebab. */
   if (kembalikanFokus && $('#popoverAkun').contains(document.activeElement)) {
     $('#btnKartuUser').focus();
+  }
+}
+
+/**
+ * Ganti cabang sesi, TANPA login ulang (bagian 280).
+ *
+ * `apiGantiCabang` sudah lengkap di server sejak 6 Sep 2026 dan tidak
+ * disentuh di sini. Yang dicabut 9 Sep 2026 (KONTEKS §113-114) adalah
+ * PEMANGGILNYA di layar — waktu itu tombolnya hidup di SELURUH layar
+ * termasuk Kasir, dan kasir yang lupa baru pindah cabang bisa membayar
+ * nota yang mendarat di cabang yang salah tanpa sadar.
+ *
+ * Versi ini sengaja lebih sempit dari yang dicabut: `bolehGantiCabang()`
+ * menolak tombolnya sendiri saat layar sedang Kasir ATAU ada shift aktif.
+ * Karena jalan ke Bayar/Buka shift/Tutup shift tidak pernah tersentuh,
+ * tidak perlu Mode Tinjau (peringatan berlapis) yang dulu menyertainya —
+ * risiko yang dijaganya tidak pernah muncul di sini.
+ *
+ * Fungsi-fungsi ini di LINGKUP ATAS berkas, bukan di dalam pasangEvent():
+ * bukaPopoverAkun() (di atas) memanggil siapkanGantiCabang() dan keduanya
+ * harus saling terlihat. Menaruhnya di dalam pasangEvent() melempar
+ * ReferenceError setiap kali popover dibuka — popovernya gagal terbuka
+ * SAMA SEKALI, tertangkap uji-menu-lipat.mjs (galat halaman + popover tidak
+ * pernah terbuka saat sidebar dilipat).
+ */
+function bolehGantiCabang() {
+  return !!APP_STATE.flag?.akses_lintas_cabang &&
+         (APP_STATE.daftarCabang || []).length > 1 &&
+         layarKini !== 'kasir' && !APP_STATE.idShift;
+}
+
+function siapkanGantiCabang() {
+  const grup = $('#grupGantiCabang');
+  if (grup) grup.hidden = !bolehGantiCabang();
+}
+
+async function mulaiGantiCabang(kode, tombol) {
+  const semua = $$('#modalUmum [data-cabang]');
+  semua.forEach(b => { b.disabled = true; });
+  if (tombol) tombol.classList.add('sibuk');
+  try {
+    await API.gantiCabang({ cabang: kode });
+    /* Sesi LOKAL diperbarui di sini, bukan dibiarkan menyusul tarikan
+       berikutnya. mulai() (ujung berkas ini) memulihkan sesi dari
+       DB.kvGet('sesi') saat halaman dimuat ulang, SEBELUM satu permintaan
+       pun terkirim ke server — tanpa baris ini, muat ulang di bawah
+       membawa APP_STATE.cabang kembali ke yang LAMA sampai sesi berikutnya. */
+    const sesi = await DB.kvGet('sesi', null);
+    if (sesi) { sesi.cabang = kode; await DB.kvSet('sesi', sesi); }
+    location.reload();
+  } catch (e) {
+    Admin.toast(e.message || 'Gagal pindah cabang.', 'galat');
+    semua.forEach(b => { b.disabled = false; });
+    if (tombol) tombol.classList.remove('sibuk');
   }
 }
 
@@ -6071,6 +6126,32 @@ function pasangEvent() {
          satu-satunya jalan keluar berupa muat ulang manual. */
       tbl.classList.remove('sibuk'); tbl.disabled = false;
     }
+  });
+
+  /* bolehGantiCabang/siapkanGantiCabang/mulaiGantiCabang (bagian 280) di
+     LINGKUP ATAS berkas, dekat bukaPopoverAkun — lihat catatan di sana. */
+  $('#btnGantiCabang').addEventListener('click', async () => {
+    tutupPopoverAkun(false);
+    /* Nama cabang untuk tampilan saja — daftar yang BOLEH dituju tetap
+       `APP_STATE.daftarCabang` (dari jawaban login), sama persis dengan yang
+       diperiksa server. `cabang_list` cuma sumber nama; kalau kosong (perangkat
+       baru, belum pernah menarik master) daftarnya tetap tampil, cuma tanpa nama. */
+    const semua = await DB.kvGet('cabang_list', []);
+    const nama = {};
+    (semua || []).forEach(c => { nama[c.kode] = c.nama; });
+    const tujuan = (APP_STATE.daftarCabang || [])
+      .filter(k => k !== APP_STATE.cabang)
+      .sort(urutNama);
+    if (!tujuan.length) return;
+
+    Admin.modal('Ganti cabang',
+      `<p class="petunjuk">Cabang aktif sekarang <strong>${esc(APP_STATE.cabang)}</strong>. ` +
+      `Pilih satu untuk pindah — langsung berlaku, tanpa keluar dari akun.</p>` +
+      `<div class="daftar-ganti-cabang">${tujuan.map(k =>
+        `<button class="tombol penuh" data-cabang="${esc(k)}">${esc(k)}${nama[k] ? ' — ' + esc(nama[k]) : ''}</button>`
+      ).join('')}</div>`);
+    $$('#modalUmum [data-cabang]').forEach(b =>
+      b.addEventListener('click', () => mulaiGantiCabang(b.dataset.cabang, b)));
   });
 
   /* --- pencarian & produk --- */

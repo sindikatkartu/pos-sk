@@ -1279,6 +1279,12 @@ main { flex: 1; overflow: hidden; position: relative; }
 .tombol.peringatan:active { filter: brightness(.95); }
 .tombol.penuh { width: 100%; }
 
+/* Daftar cabang di modal "Ganti cabang" (bagian 280) — satu tombol per
+   cabang, kode rata kiri (bukan di tengah seperti tombol biasa) supaya
+   terbaca sebagai DAFTAR PILIHAN, bukan sekumpulan aksi berdampingan. */
+.daftar-ganti-cabang { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.daftar-ganti-cabang .tombol { justify-content: flex-start; }
+
 /* ==================== SPANDUK VERSI BARU ====================
    Di atas segalanya kecuali modal, tepat di bawah garis muat. Warna panel
    biasa dengan garis aksen di bawah — bukan latar warna penuh: ia
