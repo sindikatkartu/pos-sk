@@ -1194,14 +1194,20 @@ async function mulaiGantiCabang(kode, tombol) {
   semua.forEach(b => { b.disabled = true; });
   if (tombol) tombol.classList.add('sibuk');
   try {
-    await API.gantiCabang({ cabang: kode });
+    const d = await API.gantiCabang({ cabang: kode });
     /* Sesi LOKAL diperbarui di sini, bukan dibiarkan menyusul tarikan
        berikutnya. mulai() (ujung berkas ini) memulihkan sesi dari
        DB.kvGet('sesi') saat halaman dimuat ulang, SEBELUM satu permintaan
        pun terkirim ke server — tanpa baris ini, muat ulang di bawah
-       membawa APP_STATE.cabang kembali ke yang LAMA sampai sesi berikutnya. */
+       membawa APP_STATE.cabang kembali ke yang LAMA sampai sesi berikutnya.
+       nama_cabang ikut, kalau tidak tooltip sidebar tetap menyebut toko lama. */
     const sesi = await DB.kvGet('sesi', null);
-    if (sesi) { sesi.cabang = kode; await DB.kvSet('sesi', sesi); }
+    if (sesi) { sesi.cabang = kode; sesi.nama_cabang = (d && d.nama_cabang) || ''; await DB.kvSet('sesi', sesi); }
+    /* Cabang pilihan DIINGAT untuk login berikutnya (keputusan pemilik 30 Sep
+       2026, bagian 281). apiLogin mendahulukan cabang_terakhir kiriman
+       perangkat di atas baris perangkat di server; tanpa baris ini login
+       sesudahnya diam-diam membawa orangnya kembali ke cabang lama. */
+    await DB.kvSet('cabang_terakhir', kode);
     location.reload();
   } catch (e) {
     Admin.toast(e.message || 'Gagal pindah cabang.', 'galat');
