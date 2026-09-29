@@ -3766,7 +3766,7 @@ const Admin = (() => {
     $$('.pCabang').forEach(c => { c.disabled = !!semua; });
   }
 
-  async function simpanProduk() {
+  async function simpanProduk(izinkanRugi = false) {
     const body = {
       sku: nilai('pSku'), barcode: nilai('pBarcode'), nama: nilai('pNama'),
       kategori: nilai('pKategori'), merek: nilai('pMerek'), tipe_hp: nilai('pTipe'),
@@ -3789,6 +3789,7 @@ const Admin = (() => {
          di 11_Admin.gs. Kosong untuk produk baru, dan itu memang benar. */
       diubah: nilai('pDiubah')
     };
+    if (izinkanRugi === true) body.izinkan_rugi = true;
     if (!body.sku || !body.nama) return toast('SKU dan nama wajib diisi.', 'galat');
     /* Produk BARU (bagian 264): server menolak SKU yang sudah ada alih-alih
        menimpanya, dan memeriksa prefix kategori/merek. */
@@ -3817,6 +3818,18 @@ const Admin = (() => {
         await sukses('Produk tersimpan.', 'produk');
       });
     } catch (e) {
+      /* Margin negatif (bagian 282): server bertanya lewat kode HARGA_RUGI.
+         Disengaja → kirim ulang sekali dengan izin; salah ketik → form tetap
+         terbuka, isiannya utuh, untuk dibetulkan. */
+      if (e.kode === 'HARGA_RUGI' && izinkanRugi !== true) {
+        const lanjut = await tanya('Jual di bawah modal?',
+          `<p class="petunjuk">${esc(e.message)} Setiap nota barang ini akan tercatat rugi.
+           Simpan kalau memang disengaja (harga promo, reward provider); kalau salah ketik,
+           pilih Batal lalu betulkan harganya.</p>`,
+          { ya: 'Tetap simpan' });
+        if (lanjut) return simpanProduk(true);
+        return;
+      }
       /* Ditolak karena SKU/prefix keburu dipakai orang lain: tarik ulang
          daftarnya dan usulkan nomor berikutnya. */
       if (penentu && (e.kode === 'SKU_TERPAKAI' || e.kode === 'PREFIX_SKU')) {
