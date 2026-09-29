@@ -1544,6 +1544,44 @@ function ikonAksi(nama) {
     : '';
 }
 
+/**
+ * JENIS SHIFT SEBUAH AKUN — dibaca dari NAMANYA (bagian 284).
+ *
+ * Diukur 30 Sep 2026 dari log audit 16-29 Sep: sembilan shift pulsa dibuka
+ * akun pagi pada jam malam. Empat di antaranya tanpa login baru sama sekali
+ * (petugas pagi menutup shift tanpa keluar, petugas malam memakai sesinya),
+ * lima sisanya login baru dengan akun pagi lalu ditutup lagi dalam 2-5 menit.
+ *
+ * Tidak ada kolom "jam kerja" di sheet user, dan tidak ditambah: ke-22 akun
+ * petugas shift SUDAH memuat kata pagi/malam di nama atau username-nya
+ * ("SK 01 Pagi", "sk03pulsamalam", "SK Grosir 01 - Malam"). Akun pribadi
+ * (pemilik, admin, gudang) tidak memuat keduanya, jadi jawabannya kosong dan
+ * aturan shift tidak berlaku bagi mereka. Nama yang memuat KEDUANYA juga
+ * kosong: lebih baik tidak menjaga daripada menjaga dengan jenis yang salah.
+ */
+function jenisShiftAkun(user) {
+  const t = String((user && user.nama) || '') + ' ' + String((user && user.username) || '');
+  const pagi = /pagi/i.test(t), malam = /malam/i.test(t);
+  if (pagi === malam) return '';
+  return pagi ? 'PAGI' : 'MALAM';
+}
+
+/**
+ * Apakah jam ini wajar untuk membuka shift berjenis itu (bagian 284).
+ * Batasnya keputusan pemilik 30 Sep 2026: pagi SEBELUM 15.00, malam MULAI
+ * 14.00. Satu jam tumpang tindih (14.00-14.59) sengaja: malam sering datang
+ * lebih awal, dan pagi yang tutup telat tetap sah. Diukur: shift malam dibuka
+ * 14.xx-15.xx, pagi 07.xx-09.xx.
+ * Jam dibaca dari jam PERANGKAT (Date lokal), sama dengan yang dilihat petugas.
+ * Jenis kosong (bukan akun shift) selalu cocok.
+ */
+function jamShiftCocok(jenis, tgl) {
+  const jam = (tgl || new Date()).getHours();
+  if (jenis === 'PAGI') return jam < 15;
+  if (jenis === 'MALAM') return jam >= 14;
+  return true;
+}
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, tglCetak, keTanggalCetak, waktuTampil, jamTampil,
@@ -1551,5 +1589,5 @@ if (typeof module !== 'undefined' && module.exports) {
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
-                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi };
+                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok };
 }

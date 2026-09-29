@@ -115,6 +115,99 @@ function bolehIzin(modul, aksi) {
 }
 
 /**
+ * KELUAR DARI AKUN — satu jalur untuk tombol Keluar dan untuk keluar
+ * otomatis sesudah tutup shift (bagian 284). Sebelumnya isi ini hanya hidup
+ * di dalam penangan tombol Keluar.
+ */
+async function keluarAkun() {
+  // Kosong dengan sengaja: mengakhiri sesi di server itu kebersihan, bukan
+  // syarat. Yang menentukan orang benar-benar keluar adalah token yang
+  // dibuang di baris berikutnya, dan itu tidak boleh digagalkan jaringan.
+  try { await API.logout(); } catch (e) {}
+  /* Angka dashboard yang tersimpan di perangkat ikut dibuang (bagian 258). */
+  try { localStorage.removeItem('possk_dash_v1'); } catch (e) { /* diblokir */ }
+  await DB.kvSet('token', null);
+  location.reload();
+}
+
+/**
+ * SESUDAH SHIFT DITUTUP, AKUN SHIFT DIKELUARKAN (bagian 284).
+ *
+ * Sebabnya diukur, bukan diduga: petugas pagi menutup shift lalu pulang
+ * tanpa keluar, dan petugas malam meneruskan di sesi yang sama — seluruh
+ * shift malam tercatat atas nama akun pagi (SK03, 25 dan 28 Sep 2026).
+ *
+ * Hanya akun SHIFT (jenisShiftAkun tidak kosong). Pemilik dan admin yang
+ * sesekali memegang laci tidak dikeluarkan. Akun yang memegang dua jenis
+ * shift (KASIR_PULSA) baru dikeluarkan kalau yang satunya juga sudah tutup.
+ * Ringkasan hasil tutup shift DITAMPILKAN di dialognya, karena angka selisih
+ * itulah yang dibaca saat serah terima laci. Dialognya tanpa Batal; menutupnya
+ * dengan Esc atau klik di luar tetap berakhir keluar.
+ */
+async function keluarSesudahTutupShift(ringkas, yangDitutup) {
+  const u = APP_STATE.user;
+  if (!jenisShiftAkun(u)) return false;
+  let masihBuka = '';
+  if (yangDitutup === 'pulsa' && APP_STATE.idShift) masihBuka = 'Shift kasir';
+  if (yangDitutup === 'kasir' && bolehIzin('pulsa', 'lihat')) {
+    try { const st = await API.shiftPulsaAktif({}); if (st && st.aktif) masihBuka = 'Shift pulsa'; }
+    catch (e) {
+      /* Gagal membaca = dianggap tidak ada yang buka: keluar tidak merusak
+         shift pulsa (shift pulsa milik cabang, bukan milik sesi), sedangkan
+         sesi yang tertinggal justru yang sedang dicegah. */
+    }
+  }
+  if (masihBuka) {
+    Admin.toast(masihBuka + ' masih buka. Tutup juga, lalu akun ini keluar sendiri.', 'galat');
+    return false;
+  }
+  await Admin.tanya('Shift ditutup',
+    `<p>${esc(ringkas)}</p>
+     <p class="petunjuk">Akun <strong>${esc(u.nama || '')}</strong> dikeluarkan sekarang, supaya petugas
+       berikutnya masuk dengan akunnya sendiri.</p>`,
+    { ya: 'Keluar', tanpaBatal: true });
+  await keluarAkun();
+  return true;
+}
+
+/**
+ * BUKA SHIFT DI LUAR JAM AKUNNYA — ditanya dulu (bagian 284).
+ *
+ * Pulang true = lanjutkan membuka shift. "Keluar & ganti akun" mengeluarkan
+ * akunnya; Esc/klik di luar hanya membatalkan pembukaan, tanpa keluar.
+ * Keduanya memulangkan false dari Admin.tanya, jadi yang memilih Keluar
+ * dibedakan dari klik pada tombolnya sendiri (lihat catatan di bawah).
+ */
+async function konfirmasiJamShift(kini) {
+  const u = APP_STATE.user;
+  const jenis = jenisShiftAkun(u);
+  const d = kini || new Date();
+  if (!jenis || jamShiftCocok(jenis, d)) return true;
+  const dua = (n) => String(n).padStart(2, '0');
+  const lain = jenis === 'PAGI' ? 'malam' : 'pagi';
+  const janji = Admin.tanya('Ini akun shift ' + jenis.toLowerCase(),
+    `<div class="pesan peringatan">Anda masuk sebagai <strong>${esc(u.nama || '')}</strong>, sekarang pukul
+       ${dua(d.getHours())}.${dua(d.getMinutes())} — biasanya jam shift ${lain}.</div>
+     <p class="petunjuk">Kalau Anda petugas ${lain}, keluar lalu masuk dengan akun ${lain} Anda.
+       Shift yang dibuka akan tercatat atas nama akun ini.</p>`,
+    { ya: 'Tetap buka shift', batal: 'Keluar & ganti akun', jenis: 'bahaya' });
+  /* Didengar di fase CAPTURE pada document, bukan di tombolnya. Klik sungguhan
+     menjalankan microtask di antara dua pendengar: pendengar milik tanya
+     menyelesaikan janjinya, lanjutan await di bawah langsung jalan, dan
+     pendengar kedua di tombol yang sama baru menyetel tandanya SESUDAH itu —
+     "Keluar & ganti akun" terbaca sebagai Esc (tertangkap uji-jam-shift). */
+  let pilihKeluar = false;
+  const catat = (e) => { if (e.target.closest && e.target.closest('#btnTanyaBatal')) pilihKeluar = true; };
+  document.addEventListener('click', catat, true);
+  let lanjut;
+  try { lanjut = await janji; }
+  finally { document.removeEventListener('click', catat, true); }
+  if (lanjut) return true;
+  if (pilihKeluar) await keluarAkun();
+  return false;
+}
+
+/**
  * DAFTAR MENU — inti dari "menu muncul sesuai hak akses".
  *
  * `izin`       : syarat MINIMAL agar menu muncul. Perhatikan pilihannya —
@@ -6117,14 +6210,7 @@ function pasangEvent() {
        Tanpa penanda, ikon yang tidak bereaksi mengundang sentuhan kedua. */
     tbl.classList.add('sibuk'); tbl.disabled = true;
     try {
-      // Kosong dengan sengaja: mengakhiri sesi di server itu kebersihan, bukan
-      // syarat. Yang menentukan orang benar-benar keluar adalah token yang
-      // dibuang di baris berikutnya, dan itu tidak boleh digagalkan jaringan.
-      try { await API.logout(); } catch (e) {}
-      /* Angka dashboard yang tersimpan di perangkat ikut dibuang (bagian 258). */
-      try { localStorage.removeItem('possk_dash_v1'); } catch (e) { /* diblokir */ }
-      await DB.kvSet('token', null);
-      location.reload();
+      await keluarAkun();
     } finally {
       /* Biasanya halaman sudah memuat ulang sebelum baris ini berarti apa-apa.
          Ia ada untuk jalur yang TIDAK sampai ke sana — kvSet gagal, penyimpanan
@@ -6523,6 +6609,8 @@ function pasangEvent() {
 
   /* --- shift --- */
   $('#btnBukaShift').addEventListener('click', async () => {
+    /* Akun pagi di jam malam (dan sebaliknya) ditanya dulu — bagian 284. */
+    if (!(await konfirmasiJamShift())) return;
     try {
       const d = await API.bukaShift({ kas_awal: angkaDari($('#inpKasAwal').value) });
       APP_STATE.idShift = d.id_shift;
@@ -6600,6 +6688,9 @@ function pasangEvent() {
         ? 'Shift ditutup, kas cocok.'
         : `Shift ditutup — selisih ${rp(d.selisih)}.`,
         Math.abs(d.selisih) < 1 ? 'sukses' : 'galat');
+      /* Akun shift dikeluarkan sesudah hasilnya dibaca — bagian 284. */
+      await keluarSesudahTutupShift(Math.abs(d.selisih) < 1
+        ? 'Kas cocok.' : 'Selisih kas ' + rpTeks(d.selisih) + '.', 'kasir');
     } catch (e) {
       /* Shift yang TIDAK ADA di server, atau yang ternyata sudah tertutup,
          harus dilepaskan perangkat ini — bukan ditampilkan sebagai galat lalu

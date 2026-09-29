@@ -7603,7 +7603,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const w = $('#isiShiftpulsa');
     if (!w) return;
     const st = w._st || {};
-    if (!st.aktif) gambarBukaShiftpulsa(w, st);
+    if (!st.aktif) {
+      gambarBukaShiftpulsa(w, st);
+      /* Jenis shift terpilih sesuai akunnya (bagian 284); akun non-shift
+         tetap pilihan pertama, PAGI. */
+      const sj = $('#spsJenis'), ja = jenisShiftAkun(APP_STATE.user);
+      if (sj && ja) sj.value = ja;
+    }
     else gambarTutupShiftpulsa(w, st);
     kunciModeLihatPulsa(w);
   }
@@ -11962,6 +11968,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnFotoPulsa') { $('#spsFoto')?.click(); return; }
       if (t.id === 'btnBukaShiftPulsa') {
         t.disabled = true;
+        /* Akun pagi di jam malam (dan sebaliknya) ditanya dulu — bagian 284. */
+        if (!(await konfirmasiJamShift())) { t.disabled = false; return; }
         try {
           /* Kolom saldo awal hanya ada di shift pertama cabang (bagian 228);
              kalau tidak ada, kuncinya tidak dikirim sama sekali. */
@@ -12044,9 +12052,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await muat('pulsa');
           /* Jurnal yang gagal DISEBUT, tidak ditelan: shift yang tertutup tanpa
              jurnal terlihat persis sama dengan yang berjurnal. */
-          if (h.jurnal_gagal) toast('Shift sudah ditutup, tapi pencatatan ke buku besar gagal. Beri tahu admin: ' + h.jurnal_gagal, 'galat');
-          else toast('Shift ditutup. Margin ' + rpTeks(h.margin) + ', selisih kas ' + rpTeks(h.selisih) +
-                     '. Serahkan uang ' + rpTeks(h.kas_fisik) + ' ke Head Admin — ia menerimanya di Kas & Bank.');
+          const ringkas = h.jurnal_gagal
+            ? 'Shift sudah ditutup, tapi pencatatan ke buku besar gagal. Beri tahu admin: ' + h.jurnal_gagal
+            : 'Shift ditutup. Margin ' + rpTeks(h.margin) + ', selisih kas ' + rpTeks(h.selisih) +
+              '. Serahkan uang ' + rpTeks(h.kas_fisik) + ' ke Head Admin — ia menerimanya di Kas & Bank.';
+          toast(ringkas, h.jurnal_gagal ? 'galat' : undefined);
+          /* Akun shift dikeluarkan sesudah hasilnya dibaca — bagian 284. */
+          await keluarSesudahTutupShift(ringkas, 'pulsa');
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
