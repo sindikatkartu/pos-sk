@@ -2022,6 +2022,98 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .tren-angka { display: flex; gap: 12px; flex-wrap: wrap; font-size: var(--fs-11); color: var(--teks-redup); margin-bottom: 4px; }
 .tren-angka strong { color: var(--teks); font-variant-numeric: tabular-nums; }
 
+/* ==================== SEMUA CABANG SEKALI LIHAT (bagian 290) ====================
+   Blok di atas empat belas kartu lama, hanya bila dashboard memuat lebih dari
+   satu cabang. Warna tiap cabang dari admin.js (warna mengikuti cabang); di
+   sini hanya bentuk. Kolom sub-kotak dipilih supaya selalu membagi habis:
+   empat cabang 4 / 2 / 2, tiga cabang 3 / 3 / 1 — tidak ada kotak yatim. */
+.dash-cabang { display: flex; flex-direction: column; gap: var(--irama); margin-bottom: var(--irama); }
+.dash-cabang .kartu { margin-bottom: 0; }
+.kartu.rapat.kartu-cab { --tepi-x: 12px; --tepi-y: 10px; display: flex; flex-direction: column; min-width: 0; }
+.kartu-cab h4 { margin: 0 0 6px; font-size: var(--fs-13); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kartu-cab h4 .sub { font-weight: 400; color: var(--teks-redup); font-size: var(--fs-11); }
+.isi-cab { min-width: 0; }
+.petak-cab { display: grid; gap: var(--irama); align-items: stretch; }
+.petak-cab-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.petak-cab-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.petak-sub { display: grid; gap: 8px; }
+.petak-sub.kol-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.petak-sub.kol-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.petak-sub.kol-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.petak-sub.kol-5 { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.sub-cab { --c: var(--teks-redup); border: 1px solid var(--garis); border-radius: 10px; padding: 10px 12px 10px 14px;
+           position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sub-cab::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); }
+.sub-atas { display: flex; align-items: center; gap: 6px; font-size: var(--fs-13); min-width: 0; }
+.sub-atas .lencana { font-size: var(--fs-11); }
+.sub-ket { font-size: var(--fs-11); color: var(--teks-redup); }
+.titik-shift { width: 9px; height: 9px; border-radius: 50%; background: var(--teks-redup); opacity: .45; margin-left: auto; flex: none; }
+.titik-shift.buka { background: var(--sukses); opacity: 1; box-shadow: 0 0 0 3px var(--sukses-lembut); }
+.sub-besar { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sub-baris { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: var(--fs-12); color: var(--teks-redup); min-width: 0; }
+.sub-baris b { color: var(--teks); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.sub-baris b.bahaya { color: var(--bahaya); }
+.sub-garis { border-top: 1px dashed var(--garis); margin: 2px 0; }
+/* Garis 7 hari boleh MENYUSUT: di HP kecil kotaknya 127 px, dan garis 92 px
+   tetap di sebelah lencana selisih meluberkan barisnya. */
+.spark-cab { display: inline-flex; justify-content: flex-end; flex: 0 1 92px; min-width: 0; min-height: 24px; }
+.spark-cab svg { width: 100%; max-width: 92px; height: auto; }
+.eg-cab { display: grid; grid-template-columns: minmax(0, 220px) 1fr 1fr; gap: 12px; align-items: stretch; }
+.eg-donat, .kas-donat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.kas-donat { flex-direction: row; gap: 16px; margin-bottom: 4px; }
+.kas-donat .leg-cab { flex-direction: column; align-items: flex-start; }
+.donat-bungkus { flex: none; line-height: 0; }
+.viz-cab { display: block; overflow: visible; }
+.viz-cab text { font-size: 11px; fill: var(--teks-redup); }
+.viz-cab .donat-atas { font-size: 17px; font-weight: 700; fill: var(--teks); }
+.viz-cab .label-seri { fill: var(--teks); font-weight: 600; }
+.leg-cab { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; font-size: var(--fs-12); color: var(--teks-redup); }
+.leg-cab span { display: inline-flex; align-items: center; gap: 6px; }
+.leg-cab i, .petak-piutang .nama i, .tren-kepala i { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }
+.tren-cab + .tren-cab { margin-top: 8px; }
+.tren-kepala { display: flex; align-items: center; gap: 6px; font-size: var(--fs-13); }
+.tren-total { margin-left: auto; font-size: var(--fs-12); color: var(--teks-redup); }
+.tren-total b { color: var(--teks); font-variant-numeric: tabular-nums; }
+.jam-cab + .jam-cab { margin-top: 4px; }
+.jam-kepala { display: flex; gap: 6px; font-size: var(--fs-12); }
+.jam-kepala span { margin-left: auto; color: var(--teks-redup); }
+.jam-kepala b { color: var(--teks); }
+.ket-cab { font-size: var(--fs-11); color: var(--teks-redup); margin: 6px 0 0; }
+.bar100-cab { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: var(--fs-12); margin-top: 6px; }
+.bar100-cab .isi { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--garis-halus); }
+.bar100-cab .isi span { height: 100%; }
+.bar100-cab .nil { text-align: right; color: var(--teks-redup); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar100-total { border-top: 1px solid var(--garis); margin-top: 6px; }
+.petak-piutang { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(0, 1fr)); font-size: var(--fs-12); font-variant-numeric: tabular-nums; }
+.petak-piutang > span { padding: 6px 4px; border-bottom: 1px solid var(--garis-halus); text-align: right; white-space: nowrap; }
+.petak-piutang .kepala { color: var(--teks-redup); font-weight: 600; font-size: var(--fs-11); }
+.petak-piutang .kepala:first-child, .petak-piutang .nama { text-align: left; display: flex; align-items: center; gap: 6px; }
+.petak-piutang .redup { color: var(--teks-redup); }
+.petak-piutang .peringatan { color: var(--peringatan); }
+.petak-piutang .bahaya { color: var(--bahaya); }
+.petak-piutang .total { font-weight: 700; border-bottom: 0; }
+.top-cab { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-12); }
+.top-cab > div { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 6px; align-items: baseline; }
+.top-cab > .kosong { display: block; color: var(--teks-redup); }
+.top-cab .no { color: var(--teks-redup); font-variant-numeric: tabular-nums; }
+.top-cab .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top-cab .v { color: var(--teks-redup); font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 1100px) {
+  .petak-cab-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .petak-cab-3 > :last-child { grid-column: 1 / -1; }
+  .petak-sub.kol-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) { .eg-cab { grid-template-columns: 1fr 1fr; } .eg-donat { grid-column: 1 / -1; } }
+@media (max-width: 620px) {
+  .petak-cab-3, .petak-cab-2, .eg-cab { grid-template-columns: 1fr; }
+  .petak-cab-3 > :last-child { grid-column: auto; }
+  .petak-sub.kol-2, .petak-sub.kol-3 { grid-template-columns: 1fr; }
+  .sub-besar { font-size: 15px; }
+}
+/* HP kecil: dua kotak berdampingan tinggal 127 px — terlalu sempit untuk
+   "4 nota · margin 33.2%". Satu kolom (4 ÷ 1 tetap membagi habis). */
+@media (max-width: 359px) { .petak-sub.kol-4 { grid-template-columns: 1fr; } }
+
 /* Strip peringatan di atas KPI: yang menuntut tindakan sekarang berdiri di
    atas, bukan di kartu kedelapan. */
 .strip-dash { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin-bottom: var(--irama); flex-wrap: wrap;

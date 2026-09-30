@@ -896,8 +896,8 @@ const Admin = (() => {
   const PERIODE_DASH = { id: 'periodeDash', dari: 'dashDari', sampai: 'dashSampai', judul: 'Periode' };
   let dashKustom = { dari: '', sampai: '' };
   const paramDash = () => periodeDash === 'kustom'
-    ? { periode: 'kustom', cabang: cabangDash, dari: dashKustom.dari, sampai: dashKustom.sampai }
-    : { periode: periodeDash, cabang: cabangDash };
+    ? { periode: 'kustom', cabang: cabangParamDash(), dari: dashKustom.dari, sampai: dashKustom.sampai }
+    : { periode: periodeDash, cabang: cabangParamDash() };
 
   /* ==================== DATA TERAKHIR DULU (bagian 258) ====================
      Diukur 25 Sep 2026: bagian monitor 32 dtk & berat 24 dtk saat cache server
@@ -1005,7 +1005,9 @@ const Admin = (() => {
     !!APP_STATE.flag?.akses_lintas_cabang && daftarKodeCabang().length > 1;
   const pilihCabangDash = () => bolehCabangDash()
     ? `<select id="cabangDash" class="kendali-tetap" title="Cabang">
-        <option value="*" ${cabangDash === '*' ? 'selected' : ''}>Semua cabang</option>
+        <option value="*" ${cabangDash === '*' || (KELOMPOK_DASH[cabangDash] && !adaKelompokDash()) ? 'selected' : ''}>Semua cabang</option>
+        ${/* Bagian 290: kelompok jenis toko di dropdown yang sama — satu kendali, bukan dua. */
+          adaKelompokDash() ? Object.keys(KELOMPOK_DASH).map(k => `<option value="${k}" ${cabangDash === k ? 'selected' : ''}>${KELOMPOK_DASH[k]}</option>`).join('') : ''}
         ${daftarKodeCabang().map(c => `<option value="${esc(c)}" ${cabangDash === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
       </select>` : '';
 
@@ -1168,12 +1170,14 @@ const Admin = (() => {
          terbaca "belum ada klaim", dan itu jawaban yang salah. */
       const k = $('#kartuPetugas');
       if (k) k.outerHTML = kartuDaftarDash('Petugas', '', `<div class="dr-kosong">Tidak tersedia (${esc(e.message)})</div>`, { id: 'kartuPetugas' });
+      isiCabPetugas(null, e.message);
       return;
     }
     if (tiket !== tiketDash) return;
     if (dataDash) dataDash.petugas = d;
     const k = $('#kartuPetugas');
     if (k) k.outerHTML = kartuPetugasDash((d && d.peringkat && d.peringkat.petugas) || []);
+    isiCabPetugas(d);
   }
 
   /** Baris daftar ringkas: [nama, angka, sub?]. Kosong = satu baris keterangan. */
@@ -1236,6 +1240,7 @@ const Admin = (() => {
       if (tiket !== tiketDash) return;
       if (dataDash) dataDash.monitor = m;
       isiKartuMonitor(m);
+      isiCabShift(m);
       const strip = $('#stripDash');
       if (strip && dataDash) strip.innerHTML = stripDash(dataDash.inti, m);
     } catch (e) {
@@ -1446,6 +1451,368 @@ const Admin = (() => {
     }
   }
 
+  /* ==================== SEMUA CABANG SEKALI LIHAT (bagian 290) ====================
+     Diminta pemilik 30 Sep 2026: SKG01 jenis usaha lain (grosir), jadi dashboard
+     harus memisah ecer dari grosir sambil tetap memantau SEMUA cabang dalam
+     sekali lihat. Blok ini hanya tergambar bila jawaban server memuat LEBIH DARI
+     SATU cabang; empat belas kartu lama tetap di bawahnya (keputusan pemilik:
+     pilihan A). Tidak ada panggilan server baru — isinya dari inti, berat,
+     petugas, monitor, dan grafik 30 hari yang memang sudah ditarik.
+
+     WARNA MENGIKUTI CABANG, bukan urutannya di satu kartu: SK01 biru di semua
+     kartu. Urutan dasarnya daftar cabang (bukan data), jadi cabang yang hari
+     ini kosong tidak menggeser warna yang lain. Palet lolos uji buta warna
+     (validate_palette, 30 Sep 2026); karena SKG01 berkontras rendah, nama
+     cabang selalu ditulis langsung di samping tandanya. */
+  const KELOMPOK_DASH = { ecer: 'Semua ecer', grosir: 'Semua grosir' };
+  const jenisCabDash = (kode) => jenisToko(kode, APP_STATE.setting);
+  const kodeKelompokDash = (k) => daftarKodeCabang().filter(c => jenisCabDash(c) === (k === 'ecer' ? 'eceran' : 'grosir'));
+  /** Pilihan kelompok hanya ada bila KEDUA jenis punya cabang — satu kelompok saja = "Semua cabang". */
+  const adaKelompokDash = () => kodeKelompokDash('ecer').length > 0 && kodeKelompokDash('grosir').length > 0;
+  /** Nilai `cabang` yang dikirim ke server: kelompok jadi DAFTAR kode. */
+  const cabangParamDash = () => KELOMPOK_DASH[cabangDash]
+    ? (kodeKelompokDash(cabangDash).join(',') || '*') : cabangDash;
+
+  const WARNA_JENIS_DASH = { eceran: '#2c84db', grosir: '#e0781f' };
+  const WARNA_CAB_DASH = { eceran: ['#2a78d6', '#1baf7a', '#4a3aa7'], grosir: ['#e0781f', '#b3548a'],
+                           '': ['#2a78d6', '#1baf7a', '#4a3aa7', '#e0781f', '#b3548a'] };
+  const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
+  const WARNA_METODE_DASH = { tunai: '#2c84db', qris: '#e0781f', transfer: '#8b5cf6', piutang: '#2e9e7d' };
+
+  /** "1,2 jt" / "450 rb" — angka ringkas untuk petak sempit; angka utuhnya di title. */
+  const jtDash = (n) => {
+    const v = Number(n) || 0, a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt';
+    if (a >= 1e3) return Math.round(v / 1e3).toLocaleString('id-ID') + ' rb';
+    return String(Math.round(v));
+  };
+  const jamIsoDash = (v) => { const m = /T?(\d{2}:\d{2})/.exec(String(v || '').substring(10)); return m ? m[1] : ''; };
+  const pakaiDash = (s) => String(s).replace(/[^A-Za-z0-9_-]/g, '');
+
+  let cabDash = null;   // { pc, grup, warna(kode), adaMargin, shift }
+
+  const kartuCab = (id, judul, sub, isi, kelas) => `<div class="kartu rapat kartu-cab${kelas ? ' ' + kelas : ''}" id="${id}">
+      <h4>${esc(judul)}${sub ? ` <span class="sub">· ${esc(sub)}</span>` : ''}</h4><div class="isi-cab">${isi}</div></div>`;
+  const kosongCab = (teks) => `<div class="dr-kosong">${esc(teks)}</div>`;
+
+  function blokCabangDash(d) {
+    const pc = ((d && d.per_cabang) || []).filter(c => c && c.cabang);
+    cabDash = null;
+    if (pc.length < 2) return '';
+    const semua = Array.from(new Set(daftarKodeCabang().concat(pc.map(c => c.cabang)))).sort(urutNama);
+    const grup = ['eceran', 'grosir', ''].map(j => ({ jenis: j, label: LABEL_JENIS_DASH[j],
+      kode: pc.filter(c => jenisCabDash(c.cabang) === j).map(c => c.cabang) })).filter(g => g.kode.length);
+    cabDash = {
+      pc, grup, shift: (d && d.shift_terbuka) || [],
+      adaMargin: pc.some(c => c.laba_kotor !== undefined),
+      warna: (k) => { const j = jenisCabDash(k);
+        return WARNA_CAB_DASH[j][semua.filter(c => jenisCabDash(c) === j).indexOf(k)] || '#6e7781'; }
+    };
+    const duaJenis = grup.length === 2 && grup.every(g => g.jenis);
+    const rangka = rangkaBaris(4, ['80%', '62%', '74%', '56%']);
+    return `<div class="dash-cabang" id="dashCabang">
+      ${kartuSekilasCab()}
+      ${duaJenis ? kartuEcerGrosirCab() : ''}
+      <div class="petak-cab petak-cab-3">
+        ${kartuCab('cabTren', 'Tren per cabang', '30 hari · juta rupiah', rangka)}
+        ${kartuJamCab()}
+        ${kartuKasCab()}
+      </div>
+      ${kartuCab('cabTerlaris', 'Terlaris per cabang', 'qty', rangka)}
+      <div class="petak-cab petak-cab-${grup.length + 1}">
+        ${grup.map(g => kartuCab('cabKat-' + (g.jenis || 'semua'), g.jenis ? 'Kategori ' + g.label.toLowerCase() : 'Kategori per jenis',
+          cabDash.adaMargin ? 'omzet · margin' : 'omzet', rangka)).join('')}
+        ${kartuPiutangCab()}
+      </div>
+      ${kartuCab('cabPetugas', 'Petugas per cabang', 'poin klaim', rangka)}
+    </div>`;
+  }
+
+  function kartuSekilasCab() {
+    const { pc } = cabDash;
+    return kartuCab('cabSekilas', 'Cabang sekilas', 'vs periode lalu', `<div class="petak-sub kol-${Math.min(pc.length, 5)}">${pc.map(c => {
+      const j = jenisCabDash(c.cabang);
+      const margin = c.laba_kotor !== undefined && c.omzet > 0 ? c.laba_kotor / c.omzet * 100 : null;
+      const sh = cabDash.shift.find(s => s.cabang === c.cabang);
+      return `<div class="sub-cab" style="--c:${cabDash.warna(c.cabang)}" data-cab="${esc(c.cabang)}">
+        <div class="sub-atas"><strong>${esc(c.cabang)}</strong>${j ? lencanaDash(LABEL_JENIS_DASH[j], '') : ''}
+          <span class="titik-shift${sh ? ' buka' : ''}" title="${sh ? 'Ada shift terbuka' : 'Tidak ada shift terbuka'}"></span></div>
+        <div class="sub-besar">${rp(c.omzet)}</div>
+        <div class="sub-baris">${c.omzet_lalu === undefined ? '<span></span>' : (lencanaSelisih(c.omzet, c.omzet_lalu) || '<span></span>')}<span class="spark-cab" data-spark="${esc(c.cabang)}"></span></div>
+        <div class="sub-baris"><span>${c.nota} nota</span>${margin !== null ? `<span>margin <b>${margin.toFixed(1)}%</b></span>` : ''}</div>
+        <div class="sub-garis"></div>
+        <div class="sub-baris"><span>Piutang</span><b>${!c.piutang ? 'tidak terbaca' : c.piutang.total ? rp(c.piutang.total) : '—'}</b></div>
+        <div class="sub-baris" data-shift="${esc(c.cabang)}"><span>Shift</span><b>${sh ? 'buka · ' + esc(sh.id_user) + ' ' + esc(jamIsoDash(sh.buka)) : 'tidak ada yang buka'}</b></div>
+      </div>`;
+    }).join('')}</div>`);
+  }
+
+  /** Donat SVG: celah 2 px antar potong, angka utama di tengah. */
+  function donatCab(bagian, atas, bawah, uk) {
+    const r = uk / 2, t = Math.round(uk * 0.15), ri = r - t, tot = bagian.reduce((a, b) => a + b.v, 0);
+    const p = (rr, a) => (r + rr * Math.cos(a)).toFixed(2) + ' ' + (r + rr * Math.sin(a)).toFixed(2);
+    let jalur = '';
+    if (tot <= 0) jalur = `<circle cx="${r}" cy="${r}" r="${r - t / 2}" fill="none" stroke="var(--garis)" stroke-width="${t}"/>`;
+    else {
+      const isi = bagian.filter(b => b.v > 0), celah = isi.length > 1 ? 2 / r : 0;
+      let s = -Math.PI / 2;
+      isi.forEach(b => {
+        const sd = b.v / tot * Math.PI * 2;
+        if (sd >= Math.PI * 2 - 1e-6) {
+          jalur += `<circle cx="${r}" cy="${r}" r="${r - t / 2}" fill="none" stroke="${b.c}" stroke-width="${t}"><title>${esc(b.l)}</title></circle>`;
+        } else {
+          const a0 = s + celah / 2, a1 = s + sd - celah / 2, L = sd > Math.PI ? 1 : 0;
+          jalur += `<path d="M ${p(r, a0)} A ${r} ${r} 0 ${L} 1 ${p(r, a1)} L ${p(ri, a1)} A ${ri} ${ri} 0 ${L} 0 ${p(ri, a0)} Z" fill="${b.c}"><title>${esc(b.l)}</title></path>`;
+        }
+        s += sd;
+      });
+    }
+    /* Dibungkus selebar donatnya: donat berukuran tetap bukan grafik yang
+       "menciut" di wadah lebar — legendanya yang mengisi sisanya. */
+    return `<div class="donat-bungkus"><svg class="viz-cab" viewBox="0 0 ${uk} ${uk}" width="${uk}" height="${uk}" role="img" aria-label="${esc(bawah + ' ' + atas)}">${jalur}
+      <text x="${r}" y="${r - 1}" text-anchor="middle" class="donat-atas">${esc(atas)}</text>
+      <text x="${r}" y="${r + 14}" text-anchor="middle">${esc(bawah)}</text></svg></div>`;
+  }
+
+  function kartuEcerGrosirCab() {
+    const g = cabDash.grup.map(x => {
+      const cs = cabDash.pc.filter(c => x.kode.includes(c.cabang));
+      const s = (k) => cs.reduce((a, c) => a + (Number(c[k]) || 0), 0);
+      return { ...x, omzet: s('omzet'), nota: s('nota'),
+               lalu: cs.every(c => c.omzet_lalu !== undefined) ? s('omzet_lalu') : null,
+               laba: cabDash.adaMargin ? s('laba_kotor') : null, warna: WARNA_JENIS_DASH[x.jenis] };
+    });
+    const tot = g.reduce((a, x) => a + x.omzet, 0);
+    return kartuCab('cabEcerGrosir', 'Ecer vs grosir', 'porsi omzet', `<div class="eg-cab">
+      <div class="eg-donat">${donatCab(g.map(x => ({ l: x.label + ' ' + rpTeks(x.omzet), v: x.omzet, c: x.warna })), jtDash(tot), 'omzet total', 150)}
+        <div class="leg-cab">${g.map(x => `<span><i style="background:${x.warna}"></i>${esc(x.label)} ${tot > 0 ? Math.round(x.omzet / tot * 100) : 0}%</span>`).join('')}</div></div>
+      ${g.map(x => `<div class="sub-cab" style="--c:${x.warna}">
+        <div class="sub-atas"><strong>${esc(x.label)}</strong><span class="sub-ket">${esc(x.kode.join(' · '))}</span></div>
+        <div class="sub-besar">${rp(x.omzet)}</div>
+        <div class="sub-baris">${x.lalu === null ? '<span></span>' : (lencanaSelisih(x.omzet, x.lalu) || '<span></span>')}</div>
+        <div class="sub-baris"><span>Nota</span><b>${x.nota}</b></div>
+        <div class="sub-baris"><span>Rata-rata/nota</span><b>${rp(x.nota ? x.omzet / x.nota : 0)}</b></div>
+        ${x.laba !== null ? `<div class="sub-baris"><span>Laba kotor</span><b>${rp(x.laba)}</b></div>
+        <div class="sub-baris"><span>Margin</span><b>${x.omzet > 0 ? (x.laba / x.omzet * 100).toFixed(1) : '0.0'}%</b></div>` : ''}
+      </div>`).join('')}</div>`);
+  }
+
+  function kartuJamCab() {
+    const pc = cabDash.pc.filter(c => Array.isArray(c.jam) && c.jam.length === 24);
+    if (!pc.length) return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', kosongCab('Belum tersedia — menunggu server terbaru'));
+    const ada = [];
+    for (let j = 0; j < 24; j++) if (pc.some(c => Number(c.jam[j]) > 0)) ada.push(j);
+    if (!ada.length) return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', kosongCab('Belum ada penjualan'));
+    const J = [];
+    for (let j = ada[0]; j <= ada[ada.length - 1]; j++) J.push(j);
+    const jj = (j) => String(j).padStart(2, '0');
+    const W = 340, lebar = (W - 8) / J.length, bw = Math.max(Math.min(lebar * 0.42, 10), 3);
+    return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', pc.map((c, r) => {
+      const akhir = r === pc.length - 1, H = akhir ? 44 : 30, bawah = akhir ? 14 : 0;
+      const d = J.map(j => Number(c.jam[j]) || 0), mx = Math.max(...d), pk = d.indexOf(mx), w = cabDash.warna(c.cabang);
+      return `<div class="jam-cab"><div class="jam-kepala"><strong>${esc(c.cabang)}</strong><span>${mx > 0
+          ? `puncak <b>${jj(J[pk])}:00</b> · ${esc(jtDash(mx))}` : 'tidak ada penjualan'}</span></div>
+        <svg class="viz-cab" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Jam ramai ${esc(c.cabang)}">
+          <line x1="4" x2="${W - 4}" y1="${H - bawah}" y2="${H - bawah}" stroke="var(--garis)"/>${d.map((v, i) => {
+            const cx = 4 + i * lebar + lebar / 2, t = v > 0 ? Math.max((H - bawah - 3) * v / mx, 2) : 0;
+            return (t ? `<rect x="${(cx - bw / 2).toFixed(1)}" y="${(H - bawah - t).toFixed(1)}" width="${bw.toFixed(1)}" height="${t.toFixed(1)}" rx="${(bw / 2).toFixed(1)}" fill="${w}"${i === pk ? '' : ' fill-opacity=".55"'}><title>${esc(c.cabang)} ${jj(J[i])}:00 · ${esc(rpTeks(v))}</title></rect>` : '') +
+              (akhir && (i % 2 === 0 || J.length <= 8) ? `<text x="${cx.toFixed(1)}" y="${H - 2}" text-anchor="middle">${jj(J[i])}</text>` : '');
+          }).join('')}</svg></div>`;
+    }).join('') + '<p class="ket-cab">Batang pekat = jam puncak cabang itu; tiap cabang berskala sendiri.</p>');
+  }
+
+  /** Metode bayar → kelompok tetap: transfer_bca dst. ikut "transfer". */
+  const metodeDasarDash = (m) => { const s = String(m || '').toLowerCase();
+    return /^transfer/.test(s) ? 'transfer' : (WARNA_METODE_DASH[s] ? s : 'lainnya'); };
+  const labelMetodeDash = (m) => m === 'qris' ? 'QRIS' : m.charAt(0).toUpperCase() + m.slice(1);
+
+  function kartuKasCab() {
+    const pc = cabDash.pc.filter(c => c.metode && typeof c.metode === 'object');
+    if (!pc.length) return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', kosongCab('Belum tersedia — menunggu server terbaru'));
+    const per = pc.map(c => { const o = {};
+      Object.keys(c.metode).forEach(m => { const k = metodeDasarDash(m); o[k] = (o[k] || 0) + (Number(c.metode[m]) || 0); });
+      return { cabang: c.cabang, o, tot: Object.values(o).reduce((a, b) => a + b, 0) }; });
+    const total = {};
+    per.forEach(x => Object.keys(x.o).forEach(k => { total[k] = (total[k] || 0) + x.o[k]; }));
+    const urut = Object.keys(total).sort((a, b) => total[b] - total[a]);
+    const semua = urut.reduce((a, k) => a + total[k], 0);
+    if (!semua) return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', kosongCab('Belum ada pembayaran'));
+    const warna = (k) => WARNA_METODE_DASH[k] || '#6e7781';
+    const batang = (nama, o, tot) => `<div class="bar100-cab"><strong>${esc(nama)}</strong><div class="isi">${tot > 0
+      ? urut.filter(k => o[k] > 0).map(k => `<span style="width:${(o[k] / tot * 100).toFixed(2)}%;background:${warna(k)}" title="${esc(nama + ' · ' + labelMetodeDash(k) + ' ' + Math.round(o[k] / tot * 100) + '% · ' + rpTeks(o[k]))}"></span>`).join('')
+      : '<span class="kosong"></span>'}</div><span class="nil">${esc(jtDash(tot))}</span></div>`;
+    return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', `
+      <div class="kas-donat">${donatCab(urut.map(k => ({ l: labelMetodeDash(k) + ' ' + rpTeks(total[k]), v: total[k], c: warna(k) })), jtDash(semua), 'kas masuk', 120)}
+        <div class="leg-cab">${urut.map(k => `<span><i style="background:${warna(k)}"></i>${esc(labelMetodeDash(k))} ${Math.round(total[k] / semua * 100)}%</span>`).join('')}</div></div>
+      ${per.map(x => batang(x.cabang, x.o, x.tot)).join('')}
+      <div class="bar100-total">${batang('Total', total, semua)}</div>`);
+  }
+
+  function kartuPiutangCab() {
+    const pc = cabDash.pc;
+    if (!pc.some(c => c.piutang)) return kartuCab('cabPiutang', 'Umur piutang per cabang', 'rupiah', kosongCab('Belum tersedia — menunggu server terbaru'));
+    const sel = (v, kelas) => `<span class="${v > 0 ? kelas : 'redup'}" title="${esc(rpTeks(v))}">${v > 0 ? esc(jtDash(v)) : '—'}</span>`;
+    const tot = { belum: 0, d1_30: 0, d30plus: 0 };
+    pc.forEach(c => { if (c.piutang) ['belum', 'd1_30', 'd30plus'].forEach(k => { tot[k] += Number(c.piutang[k]) || 0; }); });
+    return kartuCab('cabPiutang', 'Umur piutang per cabang', 'rupiah', `<div class="petak-piutang">
+      <span class="kepala">Cabang</span><span class="kepala">Lancar</span><span class="kepala">1–30 hr</span><span class="kepala">&gt; 30 hr</span>
+      ${pc.map(c => `<span class="nama"><i style="background:${cabDash.warna(c.cabang)}"></i>${esc(c.cabang)}</span>${c.piutang
+        ? sel(c.piutang.belum, '') + sel(c.piutang.d1_30, 'peringatan') + sel(c.piutang.d30plus, 'bahaya')
+        : '<span class="redup">tidak terbaca</span><span></span><span></span>'}`).join('')}
+      <span class="nama total">Total</span>${sel(tot.belum, 'total') + sel(tot.d1_30, 'peringatan total') + sel(tot.d30plus, 'bahaya total')}
+    </div>`);
+  }
+
+  const gantiCab = (id, html) => { const el = $('#' + id); if (el) el.outerHTML = html; };
+
+  /** Bagian berat tiba: terlaris & kategori per cabang. */
+  function isiCabBerat(b) {
+    if (!cabDash) return;
+    /* `per_cabang` bagian INTI (server lama mengirim inti+berat sekaligus) tidak
+       membawa `produk` — itu bukan "belum ada penjualan", melainkan belum ada datanya. */
+    const per = b && Array.isArray(b.per_cabang) && b.per_cabang.some(x => x && Array.isArray(x.produk)) ? b.per_cabang : null;
+    const cap = b && b.diperbarui ? 'qty · per ' + b.diperbarui : 'qty';
+    if (!per) {
+      const alasan = b ? 'Belum tersedia — menunggu server terbaru' : 'Tidak tersedia';
+      gantiCab('cabTerlaris', kartuCab('cabTerlaris', 'Terlaris per cabang', 'qty', kosongCab(alasan)));
+      cabDash.grup.forEach(g => { const id = 'cabKat-' + (g.jenis || 'semua');
+        gantiCab(id, kartuCab(id, g.jenis ? 'Kategori ' + g.label.toLowerCase() : 'Kategori per jenis', '', kosongCab(alasan))); });
+      return;
+    }
+    const peta = {};
+    per.forEach(x => { peta[x.cabang] = x; });
+    gantiCab('cabTerlaris', kartuCab('cabTerlaris', 'Terlaris per cabang', cap,
+      `<div class="petak-sub kol-${Math.min(cabDash.pc.length, 5)}">${cabDash.pc.map(c => {
+        const pr = (peta[c.cabang] && peta[c.cabang].produk) || [];
+        return `<div class="sub-cab" style="--c:${cabDash.warna(c.cabang)}"><div class="sub-atas"><strong>${esc(c.cabang)}</strong></div>
+          <div class="top-cab">${pr.length ? pr.map((p, i) => `<div><span class="no">${i + 1}</span><span class="nm" title="${esc(p.nama)}">${esc(p.nama)}</span><span class="v">${esc(ribuan(p.qty))}</span></div>`).join('')
+            : '<div class="kosong">Belum ada penjualan</div>'}</div></div>`;
+      }).join('')}</div>`));
+    cabDash.grup.forEach(g => {
+      const kat = {};
+      g.kode.forEach(k => ((peta[k] && peta[k].kategori) || []).forEach(x => {
+        const t = kat[x.nama] || (kat[x.nama] = { nama: x.nama, omzet: 0, laba: 0, adaLaba: x.laba !== undefined });
+        t.omzet += Number(x.omzet) || 0; t.laba += Number(x.laba) || 0;
+      }));
+      const rows = Object.values(kat).sort((a, b) => b.omzet - a.omzet).slice(0, 5)
+        .map(x => [esc(x.nama), rp(x.omzet), x.adaLaba && x.omzet > 0 ? (x.laba / x.omzet * 100).toFixed(1) + '%' : '']);
+      const id = 'cabKat-' + (g.jenis || 'semua');
+      gantiCab(id, kartuCab(id, g.jenis ? 'Kategori ' + g.label.toLowerCase() : 'Kategori per jenis',
+        (cabDash.adaMargin ? 'omzet · margin' : 'omzet') + (b.diperbarui ? ' · per ' + b.diperbarui : ''),
+        `<div class="sub-ket">${esc(g.kode.join(' · '))}</div>${barisDash(rows, 'Belum ada penjualan')}`));
+    });
+  }
+
+  /** Peringkat petugas tiba: tiga teratas tiap cabang menurut poin DI cabang itu. */
+  function isiCabPetugas(d, galatnya) {
+    if (!cabDash) return;
+    const pt = d && d.peringkat && Array.isArray(d.peringkat.petugas) ? d.peringkat.petugas : null;
+    if (galatnya || !pt) {
+      gantiCab('cabPetugas', kartuCab('cabPetugas', 'Petugas per cabang', 'poin klaim', kosongCab('Tidak tersedia' + (galatnya ? ' (' + galatnya + ')' : ''))));
+      return;
+    }
+    if (pt.length && !pt.some(p => p.per_cabang)) {
+      gantiCab('cabPetugas', kartuCab('cabPetugas', 'Petugas per cabang', 'poin klaim', kosongCab('Belum tersedia — menunggu server terbaru')));
+      return;
+    }
+    gantiCab('cabPetugas', kartuCab('cabPetugas', 'Petugas per cabang', 'poin klaim',
+      `<div class="petak-sub kol-${Math.min(cabDash.pc.length, 5)}">${cabDash.pc.map(c => {
+        const daftar = pt.filter(p => p.per_cabang && Number(p.per_cabang[c.cabang]) > 0)
+          .map(p => ({ nama: p.nama, poin: Number(p.per_cabang[c.cabang]) }))
+          .sort((a, b) => b.poin - a.poin).slice(0, 3);
+        return `<div class="sub-cab" style="--c:${cabDash.warna(c.cabang)}"><div class="sub-atas"><strong>${esc(c.cabang)}</strong></div>
+          <div class="top-cab">${daftar.length ? daftar.map((p, i) => `<div><span class="no">${i + 1}</span><span class="nm" title="${esc(p.nama)}">${esc(p.nama)}</span><span class="v">${esc(ribuan(p.poin))} poin</span></div>`).join('')
+            : '<div class="kosong">Belum ada klaim</div>'}</div></div>`;
+      }).join('')}</div>`));
+  }
+
+  /** Monitor tiba: baris shift tiap cabang diperjelas (tutup, selisih kas). */
+  function isiCabShift(m) {
+    if (!cabDash || !m || !Array.isArray(m.shift)) return;
+    m.shift.forEach(s => {
+      const kotak = $('#cabSekilas [data-cab="' + pakaiDash(s.cabang) + '"]');
+      if (!kotak) return;
+      const b = kotak.querySelector('[data-shift] b'), titik = kotak.querySelector('.titik-shift');
+      const st = String(s.status || '');
+      const sel = Number(s.selisih) || 0;
+      if (b) {
+        b.className = st === 'TUTUP' && sel < 0 ? 'bahaya' : '';
+        b.textContent = st === 'BUKA' ? 'buka · ' + (s.nama || s.id_user || '') + ' ' + jamIsoDash(s.buka)
+          : st === 'TUTUP' ? 'tutup' + (sel ? ' · selisih ' + (sel > 0 ? '+' : '−') + rpTeks(Math.abs(sel)) : ' · pas')
+          : 'belum dibuka hari ini';
+      }
+      if (titik) { titik.classList.toggle('buka', st === 'BUKA'); titik.title = st === 'BUKA' ? 'Ada shift terbuka' : 'Tidak ada shift terbuka'; }
+    });
+  }
+
+  /** Grafik 30 hari tiba: panel tren per jenis + garis kecil 7 hari di kotak cabang. */
+  function isiCabTren(g, galatnya) {
+    if (!cabDash) return;
+    const seri = g && Array.isArray(g.seri_cabang) ? g.seri_cabang : null;
+    if (galatnya || !seri || !Array.isArray(g.tanggal)) {
+      gantiCab('cabTren', kartuCab('cabTren', 'Tren per cabang', '30 hari', kosongCab('Tidak tersedia' + (galatnya ? ' (' + galatnya + ')' : ''))));
+      return;
+    }
+    const peta = {};
+    seri.forEach(s => { peta[s.nama] = (s.data || []).map(Number); });
+    /* Garis kecil 7 hari terakhir di tiap kotak Cabang sekilas. */
+    cabDash.pc.forEach(c => {
+      const el = $('#cabSekilas [data-spark="' + pakaiDash(c.cabang) + '"]');
+      const d = (peta[c.cabang] || []).slice(-7);
+      if (!el || d.length < 2) return;
+      const W = 92, H = 24, mx = Math.max(...d) || 1, w = cabDash.warna(c.cabang);
+      const pt = d.map((v, i) => (i * (W - 6) / (d.length - 1) + 3).toFixed(1) + ',' + (H - 3 - (H - 6) * v / mx).toFixed(1));
+      const [lx, ly] = pt[pt.length - 1].split(',');
+      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="7 hari ${esc(c.cabang)}"><title>7 hari terakhir ${esc(c.cabang)}</title>
+        <polyline points="${pt.join(' ')}" fill="none" stroke="${w}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lx}" cy="${ly}" r="2.5" fill="${w}"/></svg>`;
+    });
+    const tgl = g.tanggal, n = tgl.length;
+    const panel = (gp) => {
+      const ss = gp.kode.filter(k => peta[k] && peta[k].length === n).map(k => ({ k, d: peta[k].map(v => v / 1e6), c: cabDash.warna(k) }));
+      const kepala = `<div class="tren-kepala"><i style="background:${WARNA_JENIS_DASH[gp.jenis] || 'var(--teks-redup)'}"></i><strong>${esc(gp.label)}</strong>`;
+      if (!ss.length || n < 2) return `<div class="tren-cab">${kepala}</div>${kosongCab('Belum ada data')}</div>`;
+      const W = 340, kanan = 70, H = 108, kiri = 30, bawah = 16, atas = 8;
+      const maks = Math.max(0.1, ...ss.flatMap(s => s.d)) * 1.12;
+      const x = (i) => kiri + i * ((W - kiri - kanan) / (n - 1)), y = (v) => atas + (H - atas - bawah) * (1 - v / maks);
+      const tot = ss.reduce((a, s) => a + s.d.reduce((p, q) => p + q, 0), 0);
+      const uj = ss.map(s => ({ s, yy: y(s.d[n - 1]) })).sort((a, b) => a.yy - b.yy);
+      for (let i = 1; i < uj.length; i++) if (uj[i].yy - uj[i - 1].yy < 12) uj[i].yy = uj[i - 1].yy + 12;
+      const tengah = maks / 2, fmt = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: v < 10 ? 1 : 0 });
+      const langkah = Math.max(1, Math.round(n / 4));
+      return `<div class="tren-cab">${kepala}<span class="tren-total">${n} hari <b>${esc(fmt(tot))} jt</b></span></div>
+        <svg class="viz-cab" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Tren ${esc(gp.label)}">
+          <line x1="${kiri}" x2="${W - kanan}" y1="${y(0)}" y2="${y(0)}" stroke="var(--garis)"/>
+          <line x1="${kiri}" x2="${W - kanan}" y1="${y(tengah).toFixed(1)}" y2="${y(tengah).toFixed(1)}" stroke="var(--garis-halus)"/>
+          <text x="${kiri - 4}" y="${(y(tengah) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(tengah))}</text>
+          ${ss.map(s => `<path d="${s.d.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ')}" fill="none" stroke="${s.c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><title>${esc(s.k)}</title></path>
+            <circle cx="${x(n - 1).toFixed(1)}" cy="${y(s.d[n - 1]).toFixed(1)}" r="3.5" fill="${s.c}" stroke="var(--panel)" stroke-width="2"/>`).join('')}
+          ${uj.map(u => `<text x="${(x(n - 1) + 7).toFixed(1)}" y="${(u.yy + 4).toFixed(1)}" class="label-seri">${esc(u.s.k)}</text><text x="${W - 2}" y="${(u.yy + 4).toFixed(1)}" text-anchor="end">${esc(fmt(u.s.d[n - 1]))}</text>`).join('')}
+          ${tgl.map((t, i) => (i % langkah === 0 && i < n - langkah / 2) || i === n - 1
+            ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="middle">${esc(String(t).substring(8, 10) + '-' + String(t).substring(5, 7))}</text>` : '').join('')}
+        </svg></div>`;
+    };
+    gantiCab('cabTren', kartuCab('cabTren', 'Tren per cabang', n + ' hari · juta rupiah', cabDash.grup.map(panel).join('')));
+  }
+
+  /** Grafik 30 hari dipakai BERSAMA kartu tren lama — satu permintaan, bukan dua. */
+  let janjiGrafik30 = null;
+  function ambilGrafik30() {
+    if (grafikMuatan['30']) return Promise.resolve(grafikMuatan['30']);
+    if (!janjiGrafik30) {
+      janjiGrafik30 = ambilDash('grafik30', () => API.dataGrafik({ hari: 30 }))
+        .then(g => { grafikMuatan['30'] = g; return g; })
+        .finally(() => { janjiGrafik30 = null; });
+    }
+    return janjiGrafik30;
+  }
+  async function muatCabTren(tiket) {
+    if (!cabDash) return;
+    try {
+      const g = await ambilGrafik30();
+      if (tiket === tiketDash) isiCabTren(g);
+    } catch (e) { if (tiket === tiketDash) isiCabTren(null, e.message); }
+  }
+
   async function muatDashboard() {
     rangkaDashboard();
     const tiket = ++tiketDash;
@@ -1515,6 +1882,8 @@ const Admin = (() => {
             { ikon: 'piutang', warna: 'kuning', ke: 'piutang' })
         ].join(''), 'petak-kpi')}
 
+        ${blokCabangDash(d)}
+
         ${/* BARIS 1 — tren, kas & piutang, jam ramai. Tiga kartu berdiri sendiri,
               sama tinggi (align-items: stretch). */''}
         <div class="petak-dash">
@@ -1560,9 +1929,11 @@ const Admin = (() => {
         ${rangkaKartuStok('wadahStokDash')}`;
 
       muatGrafik(30);
+      muatCabTren(tiket);
       /* Peringkat petugas (bagian 268): server LAMA masih mengirimnya di inti —
          kartunya sudah tergambar di atas; selain itu diisi begitu tiba. */
       if (!pk.petugas) isiKartuPetugas(tiket, janjiPetugas);
+      else isiCabPetugas(d);
       /* Kartu monitor ditarik di LATAR sesudah layar terbaca — sama alasannya
          dengan `berat`: mengunci tombol selama tujuh daftar dihitung berarti
          mengunci layar yang sudah selesai. */
@@ -1610,6 +1981,7 @@ const Admin = (() => {
         const el = $('#' + id);
         if (el) el.outerHTML = `<div class="kartu rapat" id="${id}"><p class="pesan galat" style="margin:0">Peringkat &amp; stok gagal dimuat — ${esc(e.message)}</p></div>`;
       });
+      isiCabBerat(null);
     }
   }
 
@@ -1629,6 +2001,7 @@ const Admin = (() => {
         [esc(r.nama), rp(r.omzet), adaMargin ? (r.margin || 0).toFixed(1) + '%' : '']), 'Belum ada penjualan'),
       { tabel: 'kategori', kaki: 'semua', id: 'wadahPeringkatKategori' });
     if (ws) ws.outerHTML = kartuStokDash(st, cap, 'wadahStokDash');
+    isiCabBerat(b);
   }
 
   /** Kartu "Kesehatan stok" — dipisah supaya bisa digambar belakangan. */
@@ -1719,7 +2092,8 @@ const Admin = (() => {
     try {
       /* "Laba 6 bln" memakai muatan 30 hari (tren_bulanan ikut di dalamnya). */
       const kunci = mode === 'bulanan' ? '30' : mode;
-      const g = grafikMuatan[kunci] || (grafikMuatan[kunci] = await ambilDash('grafik' + kunci, () => API.dataGrafik({ hari: Number(kunci) })));
+      const g = grafikMuatan[kunci] || (grafikMuatan[kunci] = await (kunci === '30' ? ambilGrafik30()
+        : ambilDash('grafik' + kunci, () => API.dataGrafik({ hari: Number(kunci) }))));
       if (grafikModeKini !== mode) return;              /* orang sudah ganti mode */
       const r = g.ringkas;
       /* Satu baris angka ringkas, bukan empat petak: petak KPI di atas sudah
