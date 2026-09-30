@@ -1510,14 +1510,16 @@ const Admin = (() => {
     };
     const duaJenis = grup.length === 2 && grup.every(g => g.jenis);
     const rangka = rangkaBaris(4, ['80%', '62%', '74%', '56%']);
+    /* Tren · Jam ramai · Kas masuk PALING ATAS, di atas Cabang sekilas —
+       keputusan pemilik 1 Okt 2026 (bagian 291), semua ukuran layar. */
     return `<div class="dash-cabang" id="dashCabang">
-      ${kartuSekilasCab()}
-      ${duaJenis ? kartuEcerGrosirCab() : ''}
       <div class="petak-cab petak-cab-3">
         ${kartuCab('cabTren', 'Tren per cabang', '30 hari · juta rupiah', rangka)}
         ${kartuJamCab()}
         ${kartuKasCab()}
       </div>
+      ${kartuSekilasCab()}
+      ${duaJenis ? kartuEcerGrosirCab() : ''}
       ${kartuCab('cabTerlaris', 'Terlaris per cabang', 'qty', rangka)}
       <div class="petak-cab petak-cab-${grup.length + 1}">
         ${grup.map(g => kartuCab('cabKat-' + (g.jenis || 'semua'), g.jenis ? 'Kategori ' + g.label.toLowerCase() : 'Kategori per jenis',
