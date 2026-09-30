@@ -242,7 +242,10 @@ const API = (() => {
     'tandai_butuh_pasang', 'tetapkan_cabang_produk', 'template_impor',
     'siapkan_gaji', 'simpan_gaji', 'bayar_gaji', 'beri_kasbon', 'terima_transfer', 'tutup_buku',
     'tutup_shift', 'tutup_shift_pulsa', 'unggah_accurate', 'unggah_foto_pulsa',
-    'void_penjualan'
+    'void_penjualan',
+    /* Migrasi kode pelanggan (bagian 287): idempoten, tapi tiap panggilan
+       menulis satu baris log_audit — ulangan otomatis mengotori jejaknya. */
+    'ganti_kode_pelanggan'
   ]);
 
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),

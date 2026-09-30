@@ -1608,6 +1608,18 @@ function cocokPelanggan(p, kata) {
 }
 
 /**
+ * Kode pelanggan lama C### → G2609### (bagian 287) — kembaran
+ * kodePelangganBaku() di 05_Master.gs. Dipakai saat nota yang DITAHAN sebelum
+ * migrasi dilanjutkan: tanpa ini pelanggannya tidak ketemu dan nota itu
+ * diam-diam kembali ke "Pelanggan umum".
+ */
+function kodePelangganBaku(k) {
+  const s = String(k == null ? '' : k).trim();
+  const m = /^C(\d{3})$/.exec(s);
+  return m ? 'G2609' + m[1] : s;
+}
+
+/**
  * JENIS TOKO (bagian 286) — dari setelan "toko_grosir" (kode dipisah koma).
  * Pulang 'grosir' / 'eceran', atau '' bila setelannya KOSONG: tanpa daftar,
  * pemisahan tidak berlaku sama sekali. Menganggap semua toko "eceran" saat
@@ -1632,5 +1644,5 @@ if (typeof module !== 'undefined' && module.exports) {
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
                      labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
-                     angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko };
+                     angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku };
 }

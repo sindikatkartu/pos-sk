@@ -2540,7 +2540,10 @@ const Tahanan = (() => {
     /* Pelanggan dulu (ia bisa membawa level harga), lalu level yang tersimpan
        — urutan ini yang membuat level pilihan kasir menang atas level bawaan
        pelanggan, persis seperti saat ia mengisinya. */
-    const pel = t.pelanggan?.kode ? await DB.get('pelanggan', t.pelanggan.kode) : null;
+    /* Kode lama (ditahan sebelum migrasi bagian 287) dicari dengan kode barunya. */
+    const pel = t.pelanggan?.kode
+      ? (await DB.get('pelanggan', t.pelanggan.kode)) || (await DB.get('pelanggan', kodePelangganBaku(t.pelanggan.kode)))
+      : null;
     Keranjang.setPelanggan(pel || null);
     Keranjang.setLevel(t.level || 'eceran');
     const hilang = [], berubah = [];
