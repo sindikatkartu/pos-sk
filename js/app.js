@@ -3511,6 +3511,21 @@ function gambarJagaDiskon() {
     return true;
   }
 
+  /* Pengajuan ke Owner (bagian 288). Pengajuan untuk nota LAIN, atau yang
+     diskonnya sudah dinaikkan sesudah diajukan, ditarik — Owner tidak boleh
+     menyetujui angka yang bukan lagi angka di layar. */
+  const aj = APP_STATE.pengajuanDiskon;
+  if (aj && (aj.uuid !== APP_STATE.uuidNota || (aj.status === 'MENUNGGU' && persen > aj.persen + 0.001))) {
+    tarikPengajuanDiskon(false);
+  } else if (aj && aj.status === 'MENUNGGU') {
+    w.innerHTML = `<div class="pesan info" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span style="flex:1;min-width:180px">Menunggu persetujuan Owner untuk diskon ${bulat}%…
+          <span class="meta-kecil">Layar ini diperbarui sendiri.</span></span>
+        <button class="tombol kecil" id="btnTarikPengajuanDiskon">Tarik pengajuan</button>
+      </div>`;
+    return false;
+  }
+
   if (!API.online) {
     w.innerHTML = `<div class="pesan galat">Diskon ${bulat}% melebihi batas Anda (${maks}%),
       dan persetujuan atasan tidak bisa diminta selagi jaringan mati.
@@ -3518,11 +3533,84 @@ function gambarJagaDiskon() {
     return false;
   }
 
-  w.innerHTML = `<div class="pesan peringatan" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <span style="flex:1;min-width:180px">Diskon ${bulat}% melebihi batas Anda (${maks}%).</span>
-      <button class="tombol kecil utama" id="btnMintaOtorisasi">Minta persetujuan</button>
+  const ditolak = APP_STATE.pengajuanDiskon && APP_STATE.pengajuanDiskon.status === 'DITOLAK'
+    ? APP_STATE.pengajuanDiskon : null;
+  w.innerHTML = (ditolak ? `<div class="pesan galat">Owner menolak diskon ${esc(String(ditolak.persen))}%:
+      ${esc(ditolak.alasan_tolak || 'tanpa alasan')}</div>` : '') +
+    /* Kalimat di atas, DUA jalan berdampingan di bawahnya (bagian 288): dalam
+       kotak selebar modal bayar, kalimat + dua tombol sebaris tidak muat, dan
+       tombol kedua jatuh sendirian ke baris berikutnya. */
+    `<div class="pesan peringatan">
+      <div>Diskon ${bulat}% melebihi batas Anda (${maks}%).</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="tombol kecil utama" id="btnMintaOtorisasi" title="Atasan di toko memasukkan username & PIN-nya">Minta persetujuan (PIN)</button>
+        <button class="tombol kecil" id="btnAjukanDiskonOwner" title="Owner menyetujui dari HP-nya, di mana pun">Ajukan ke Owner</button>
+      </div>
     </div>`;
   return false;
+}
+
+/**
+ * PENGAJUAN DISKON KE OWNER (bagian 288) — sisi kasir.
+ * Kasir menulis alasan, pengajuannya menempel pada uuid nota yang sedang
+ * dibayar, lalu layar bayar menanyakan keputusannya tiap 5 detik. Disetujui
+ * = APP_STATE.otorisasiDiskon terisi dengan bentuk yang SAMA seperti
+ * persetujuan PIN, jadi selesaikanTransaksi() tidak tahu bedanya.
+ */
+let _timerPengajuanDiskon = null;
+async function ajukanDiskonKeOwner() {
+  const t = Keranjang.total();
+  const persen = Keranjang.persenDiskon();
+  const bulat = Math.round(persen * 100) / 100;
+  const alasan = await Admin.tanya('Ajukan diskon ke Owner',
+    `<div class="pesan info">Nota ${rp(t.bruto)} · diskon ${rp(t.diskon_item + t.diskon_nota)}
+       (<strong>${bulat}%</strong>) · dibayar ${rp(t.total)}</div>
+     <p class="petunjuk">Owner menyetujui dari HP-nya. Alasan ini yang ia baca.</p>`,
+    { isian: 'Alasan diskon (mis. langganan lama, barang display)', minimal: 3, ya: 'Kirim ke Owner' });
+  if (!alasan) return;
+  try {
+    const d = await API.ajukanDiskon({ uuid: APP_STATE.uuidNota, persen, nilai: t.diskon_item + t.diskon_nota, alasan });
+    APP_STATE.pengajuanDiskon = { id: d.id, uuid: APP_STATE.uuidNota, persen, status: 'MENUNGGU' };
+    gambarRingkasBayar();
+    jadwalCekPengajuanDiskon();
+  } catch (e) { Admin.toast(e.message, 'galat'); }
+}
+function jadwalCekPengajuanDiskon() {
+  clearTimeout(_timerPengajuanDiskon);
+  _timerPengajuanDiskon = setTimeout(cekPengajuanDiskon, 5000);
+}
+async function cekPengajuanDiskon() {
+  const aj = APP_STATE.pengajuanDiskon;
+  if (!aj || aj.status !== 'MENUNGGU') return;
+  /* Notanya sudah selesai / dikosongkan: pengajuan yang tertinggal ditarik,
+     supaya tidak menumpuk di antrean Owner untuk pembeli yang sudah pulang. */
+  if (aj.uuid !== APP_STATE.uuidNota) { tarikPengajuanDiskon(false); return; }
+  try {
+    const d = await API.cekDiskon({ id: aj.id });
+    if (APP_STATE.pengajuanDiskon !== aj) return;          // sudah diganti/ditarik di tengah jalan
+    if (d.jenis === 'DISKON') {
+      APP_STATE.otorisasiDiskon = { id: d.id, penyetuju: d.nama_penyetuju || 'Owner', persen: d.persen };
+      APP_STATE.pengajuanDiskon = null;
+      Admin.toast('Diskon disetujui ' + (d.nama_penyetuju || 'Owner') + '.');
+      gambarRingkasBayar();
+      return;
+    }
+    if (d.jenis === 'DISKON_DITOLAK') {
+      aj.status = 'DITOLAK'; aj.alasan_tolak = d.alasan_tolak;
+      gambarRingkasBayar();
+      return;
+    }
+    if (d.jenis !== 'DISKON_MINTA') { APP_STATE.pengajuanDiskon = null; gambarRingkasBayar(); return; }
+  } catch (e) { /* jaringan sesaat: dicoba lagi pada detak berikutnya */ }
+  jadwalCekPengajuanDiskon();
+}
+/** @param gambar  false saat dipanggil DARI gambarJagaDiskon (hindari putaran). */
+function tarikPengajuanDiskon(gambar) {
+  const aj = APP_STATE.pengajuanDiskon;
+  clearTimeout(_timerPengajuanDiskon);
+  APP_STATE.pengajuanDiskon = null;
+  if (aj && aj.status === 'MENUNGGU') API.batalDiskon({ id: aj.id }).catch(() => { /* hanya kebersihan antrean Owner */ });
+  if (gambar !== false) gambarRingkasBayar();
 }
 
 function bukaOtorisasiDiskon() {
@@ -6719,6 +6807,8 @@ function pasangEvent() {
   /* --- persetujuan diskon --- */
   $('#byrJagaDiskon').addEventListener('click', e => {
     if (e.target.id === 'btnMintaOtorisasi') bukaOtorisasiDiskon();
+    if (e.target.id === 'btnAjukanDiskonOwner') ajukanDiskonKeOwner();
+    if (e.target.id === 'btnTarikPengajuanDiskon') tarikPengajuanDiskon();
   });
   $('#btnBatalOtorisasi').addEventListener('click', () => {
     $('#otPin').value = '';

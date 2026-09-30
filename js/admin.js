@@ -4820,10 +4820,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div id="pbDimukaIsi" hidden>
           <div class="saring-baris">
             <div class="kendali-tetap"><label>Tanggal dibayar</label><input type="date" id="pbDimukaTgl" value="${esc(String(d.tanggal || '').substring(0, 10))}"></div>
-            <div class="kendali-tetap"><label>Dari</label><select id="pbDimukaSumber">
-              <option value="transfer">Transfer bank</option><option value="kas_admin">Kas Admin</option></select></div>
-            <div class="kendali-tetap"><label>Nominal</label><input type="text" id="pbDimukaJumlah" class="uang" value="${rp0(d.total)}"></div>
           </div>
+          ${htmlBagianBayar('pbDimukaBagian', BANK_BAYAR.concat([['kas_admin', 'Kas Admin']]), d.total)}
           <p class="petunjuk">Tanggal saat uangnya diserahkan ke supplier. Utangnya langsung lunas pada tanggal itu;
              kalau jumlahnya kurang dari total, sisanya tetap utang dan dibayar di menu Utang.</p>
         </div>
@@ -5712,6 +5710,34 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#isiUtang', e); }
   }
 
+  /**
+   * BAYAR PER BANK, UTUH ATAU DIPECAH (bagian 289).
+   * Pemilik 30 Sep 2026: transfer dipecah ke BCA/BNI/BRI/Mandiri "sehingga
+   * pembukuan sudah tersortir ke bank mana", berlaku untuk pembelian "baik utuh
+   * maupun split". Satu baris = satu sumber + nominal; "+ Pecah ke bank lain"
+   * menambah baris. Transfer umum tidak ditawarkan — servernya pun menolak.
+   * Kode metode = kunci AKUN_BAYAR di 00_Config.gs (dijaga uji statis).
+   */
+  const BANK_BAYAR = [['transfer_bca', 'BCA'], ['transfer_bni', 'BNI'], ['transfer_bri', 'BRI'], ['transfer_mandiri', 'Mandiri']];
+  const LABEL_METODE_BAYAR = Object.assign(Object.fromEntries(BANK_BAYAR),
+    { kas_admin: 'Kas Admin', tunai: 'Tunai', qris: 'QRIS', transfer: 'Transfer' });
+  const barisBagianBayar = (opsi, jumlah, bolehHapus) => `
+    <div class="saring-baris" data-bagian-baris>
+      <div class="kendali-tetap"><label>Bank / sumber</label><select data-bagian-metode>
+        ${opsi.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}</select></div>
+      <div class="kendali-tetap"><label>Nominal</label>
+        <input type="text" inputmode="numeric" class="uang" data-bagian-jumlah value="${ribuan(jumlah || 0)}"></div>
+      ${bolehHapus ? `<div class="aksi"><button type="button" class="tombol kecil" data-hapus-bagian title="Hapus baris ini">${ikonAlat('batal')}<span>Hapus</span></button></div>` : ''}
+    </div>`;
+  const htmlBagianBayar = (id, opsi, jumlah) => `
+    <div class="bagian-bayar" id="${id}" data-opsi='${esc(JSON.stringify(opsi))}'>${barisBagianBayar(opsi, jumlah, false)}</div>
+    <button type="button" class="tombol kecil" data-tambah-bagian="${id}" style="margin-bottom:12px">${ikonAlat('tambah')}<span>Pecah ke bank lain</span></button>`;
+  const bacaBagianBayar = (id) => Array.from(document.querySelectorAll('#' + id + ' [data-bagian-baris]')).map((r) => ({
+    metode: r.querySelector('[data-bagian-metode]').value,
+    jumlah: angkaDari(r.querySelector('[data-bagian-jumlah]').value)
+  }));
+  const teksBagianBayar = (bagian) => bagian.map((b) => rpTeks(b.jumlah) + ' dari ' + (LABEL_METODE_BAYAR[b.metode] || b.metode)).join(', ');
+
   function dialogBayarUtang(uuid, cabang) {
     lepasUuidDokumen('bayar_utang');         // dokumen BARU — lihat uuidDokumen()
     const u = ($('#isiUtang')._rows || []).find(x => x.uuid === uuid);
@@ -5720,14 +5746,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(u.nama_supplier)} · faktur ${esc(tglTampil(u.tanggal))} · sisa <strong>${rp(u.sisa)}</strong></p>
       <div class="baris2">
         <div class="grup"><label>Tanggal</label><input type="date" id="buTanggal" value="${tanggalLokal()}"></div>
-        <div class="grup"><label>Nominal bayar</label><input type="text" inputmode="numeric" class="uang" id="buJumlah" value="${ribuan(u.sisa)}"></div>
-      </div>
-      <div class="baris2">
-        <div class="grup"><label>Metode</label><select id="buMetode">
-          <option value="transfer">Transfer bank</option><option value="tunai">Tunai</option>
-          <option value="qris">QRIS</option></select></div>
         <div class="grup"><label>Referensi / no. bukti transfer</label><input type="text" id="buRef"></div>
       </div>
+      ${htmlBagianBayar('buBagian', BANK_BAYAR.concat([['tunai', 'Tunai'], ['qris', 'QRIS']]), u.sisa)}
       <div id="pesanBayarUtang"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarUtang"
@@ -8910,6 +8931,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">Untuk barang yang <strong>benar terjual lalu dikembalikan</strong>, pakai
             <strong>Retur</strong>, bukan pembatalan. Pembatalan hanya untuk nota yang memang salah dibuat.</p>
         </div>
+        ${/* Pengajuan diskon Owner (bagian 288): SESUDAH kartu pembuka, bukan di
+             atasnya — kartu pertama tiap layar wajib berkalimat pembuka, dan
+             kartu ini kosong untuk yang bukan Owner. */ ''}
+        <div id="kartuDiskonMinta"></div>
 
         ${bolehPutus ? `<div class="kartu">
           <h3>Menunggu keputusan</h3>
@@ -8942,7 +8967,58 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
           ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan pembatalan' })}
         </div>`;
+      await gambarDiskonMinta();
     } catch (e) { galat('#isiPembatalan', e); }
+  }
+
+  /**
+   * PENGAJUAN DISKON YANG MENUNGGU OWNER (bagian 288).
+   *
+   * Kasir mengajukan dari layar bayar; Owner memutuskan dari mana pun —
+   * "tidak harus setujui didalam toko". Kartu ini hanya untuk OWNER (server
+   * menjawab daftar kosong untuk yang lain). Digambar ulang sendiri tiap 20
+   * detik SELAMA layar Pembatalan terbuka, supaya pengajuan baru muncul tanpa
+   * Owner menyentuh apa pun — pembeli sedang menunggu di kasir.
+   */
+  let _timerDiskonMinta = null;
+  async function gambarDiskonMinta() {
+    const w = $('#kartuDiskonMinta');
+    if (!w) return;
+    if (String(APP_STATE.user?.peran) !== 'OWNER') { w.innerHTML = ''; return; }
+    let rows;
+    try { rows = await API.daftarDiskonMinta(); }
+    catch (e) { w.innerHTML = `<div class="kartu"><h3>Diskon menunggu persetujuan</h3><div class="pesan galat">Pengajuan diskon gagal dimuat: ${esc(e.message)}</div></div>`; return; }
+    w.innerHTML = rows.length ? `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Diskon menunggu persetujuan</h3>
+          <span class="lencana kuning">${rows.length} menunggu</span></div>
+        <p class="petunjuk">Kasir menunggu di layar bayar. Begitu Anda menyetujui, notanya bisa langsung diselesaikan
+          — persis seperti persetujuan PIN di toko. Persetujuan hanya berlaku untuk nota itu, sekali pakai.</p>
+        ${tabel([
+          { judul: 'Cabang', render: r => `<span class="lencana">${esc(r.cabang)}</span>` },
+          { judul: 'Kasir', render: r => `${esc(r.nama_peminta)}<div class="meta-kecil">${esc(waktuTampil(r.waktu))}</div>` },
+          { judul: 'Nilai nota', angka: true, render: r => rp(r.subtotal) },
+          { judul: 'Diskon', angka: true, render: r => `${rp(r.nilai)}<div class="meta-kecil">${esc(String(r.persen))}%</div>` },
+          { judul: 'Alasan', kunci: 'alasan' },
+          { judul: '', kelas: 'sel-menu', render: r => menuTindakan({
+              id: 'menuDiskon' + idAman(r.id), idTombol: 'btnDiskon' + idAman(r.id), kunci: 'baris-diskon', baris: true,
+              isi: butirBaris('', 'Setujui', IKON.setujui, `data-setujui-diskon="${esc(r.id)}"`) +
+                   butirBaris('bahaya', 'Tolak', IKON.batal, `data-tolak-diskon="${esc(r.id)}"`) }) }
+        ], rows, { kosong: 'Tidak ada pengajuan' })}
+      </div>` : '';
+    detakDiskonMinta();
+  }
+  /* Berdetak hanya selama layar Pembatalan terbuka. Selagi dialog atau menu ⋮
+     baris sedang terbuka, gambar ulang DITUNDA ke detak berikutnya — menggambar
+     ulang kartu menutup menu yang sedang dipakai Owner. */
+  function detakDiskonMinta() {
+    clearTimeout(_timerDiskonMinta);
+    _timerDiskonMinta = setTimeout(() => {
+      if (!document.querySelector('#layarPembatalan.aktif')) return;
+      const sibuk = document.querySelector('.tirai.tampil') ||
+                    document.querySelector('#kartuDiskonMinta [aria-expanded="true"]');
+      if (sibuk) detakDiskonMinta(); else gambarDiskonMinta();
+    }, 20000);
   }
 
   /* Pencari nota untuk pengajuan. Bentuknya sengaja sama dengan formVoid() —
@@ -10114,7 +10190,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * statis yang membandingkannya dengan sumbernya — dua daftar yang sama-sama
    * dipatok tangan akan menyimpang diam-diam.
    */
-  const AKUN_KAS = ['1-1100', '1-1150', '1-1200', '1-1210'];
+  /* + rekening per bank 1-1201..1-1204 (bagian 289). */
+  const AKUN_KAS = ['1-1100', '1-1150', '1-1200', '1-1210', '1-1201', '1-1202', '1-1203', '1-1204'];
 
   const PERIODE_KAS = { id: 'kasPeriodePilih', dari: 'kasDari', sampai: 'kasSampai',
                         nilai: 'bulan', label: 'Periode' };
@@ -11586,19 +11663,37 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      /* Baris bayar per bank (bagian 289). */
+      if (d.tambahBagian !== undefined) {
+        const w = document.getElementById(d.tambahBagian);
+        if (w) {
+          const opsi = JSON.parse(w.dataset.opsi || '[]');
+          const sudah = bacaBagianBayar(d.tambahBagian);
+          w.insertAdjacentHTML('beforeend', barisBagianBayar(opsi, 0, true));
+          /* Bank berikutnya yang belum dipakai langsung terpilih. */
+          const bebas = opsi.find(([v]) => !sudah.some((b) => b.metode === v));
+          const baru = w.lastElementChild.querySelector('[data-bagian-metode]');
+          if (bebas && baru) baru.value = bebas[0];
+          w.lastElementChild.querySelector('[data-bagian-jumlah]')?.focus();
+        }
+        return;
+      }
+      if (d.hapusBagian !== undefined) { t.closest('[data-bagian-baris]')?.remove(); return; }
+
       /* --- utang supplier --- */
       if (d.bayarUtang) return dialogBayarUtang(d.bayarUtang, d.cabang);
       if (t.id === 'btnKonfirmasiBayarUtang') {
         /* Konfirmasi (bagian 245): uang keluar ke supplier. */
+        const bagian = bacaBagianBayar('buBagian');
         if (!(await tanya('Bayar utang ini?',
-              `<p class="petunjuk">${esc(rpTeks(angka('buJumlah')))} dibayar tanggal ${esc(tglTampil(nilai('buTanggal')))} lewat ${esc(nilai('buMetode') || 'transfer')}, dan jurnalnya dicatat.</p>`,
+              `<p class="petunjuk">${esc(teksBagianBayar(bagian))} dibayar tanggal ${esc(tglTampil(nilai('buTanggal')))}, dan jurnalnya dicatat per bank.</p>`,
               { ya: 'Simpan' }))) return;
         t.disabled = true;
         try {
           const r = await API.bayarUtang({
             uuid: uuidDokumen('bayar_utang'),
             uuid_utang: d.uuid, cabang: d.cabang, tanggal: nilai('buTanggal'),
-            jumlah: angka('buJumlah'), metode: nilai('buMetode'), referensi: nilai('buRef')
+            bagian, referensi: nilai('buRef')
           });
           lepasUuidDokumen('bayar_utang');
           tutupModal();
@@ -12355,15 +12450,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.periksaOk) {
         /* Dibaca SEBELUM tanya(): isinya milik modal rincian yang masih terbuka. */
         const dimuka = $('#pbDimuka') && $('#pbDimuka').checked ? {
-          tanggal: nilai('pbDimukaTgl'), metode: nilai('pbDimukaSumber') || 'transfer',
-          jumlah: angkaDari($('#pbDimukaJumlah') ? $('#pbDimukaJumlah').value : '')
+          tanggal: nilai('pbDimukaTgl'), bagian: bacaBagianBayar('pbDimukaBagian')
         } : null;
         if (dimuka && !dimuka.tanggal) return toast('Isi tanggal pembayaran ke supplier.', 'galat');
-        const sumberTeks = dimuka && dimuka.metode === 'kas_admin' ? 'Kas Admin' : 'Transfer bank';
         if (!(await tanya('Tandai pembelian ini sudah diperiksa?',
               dimuka
-                ? `<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Pembayaran ${esc(rpTeks(dimuka.jumlah))}
-                     tanggal ${esc(tglTampil(dimuka.tanggal))} dari ${sumberTeks} dicatat, dan utangnya dilunasi.</p>`
+                ? `<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Pembayaran ${esc(teksBagianBayar(dimuka.bagian))}
+                     tanggal ${esc(tglTampil(dimuka.tanggal))} dicatat per bank, dan utangnya dilunasi.</p>`
                 : '<p class="petunjuk">Barang, jumlah, dan harganya cocok dengan faktur. Sesudah ini utangnya bisa dibayar di menu Utang.</p>',
               { ya: 'Sudah diperiksa' }))) return;
         try {
@@ -12786,6 +12879,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           lepasUuidDokumen('ajukanVoid');
           await sukses('Pengajuan terkirim. Admin akan memutuskannya.', 'pembatalan');
         } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
+      /* Keputusan pengajuan diskon (bagian 288). */
+      if (d.setujuiDiskon) {
+        try {
+          await API.putusDiskon({ id: d.setujuiDiskon, setuju: true });
+          toast('Diskon disetujui — kasir bisa menyelesaikan notanya.');
+        } catch (x) { toast(x.message, 'galat'); }
+        await gambarDiskonMinta();
+        return;
+      }
+      if (d.tolakDiskon) {
+        const alasan = await tanya('Tolak pengajuan diskon ini?',
+          '<p class="petunjuk">Alasannya langsung terbaca di layar kasir — sebutkan berapa yang boleh.</p>',
+          { isian: 'Alasan penolakan (minimal 3 karakter)', minimal: 3, ya: 'Tolak', jenis: 'bahaya' });
+        if (!alasan) return;
+        try {
+          await API.putusDiskon({ id: d.tolakDiskon, setuju: false, alasan });
+          toast('Pengajuan diskon ditolak.');
+        } catch (x) { toast(x.message, 'galat'); }
+        await gambarDiskonMinta();
         return;
       }
       if (d.setujuiVoid) {

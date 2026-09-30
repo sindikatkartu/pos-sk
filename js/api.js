@@ -74,7 +74,10 @@ const API = (() => {
     'daftar_minta_void', 'daftar_lini', 'keadaan_pulsa_pos', 'daftar_sumber_pulsa',
     'shift_pulsa_aktif', 'daftar_shift_pulsa', 'riwayat_koreksi_shift_pulsa', 'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
-    'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak'
+    'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
+    /* Pengajuan diskon ke Owner (bagian 288): kasir menanyakan keputusan tiap
+       beberapa detik, Owner membaca antreannya — keduanya membaca saja. */
+    'cek_diskon', 'daftar_diskon_minta'
   ]);
   /** Apakah permintaan ini mengunci layar: dari orang DAN bukan sekadar membaca. */
   const mengunci = (aksi, opsi) => opsi.latar !== true && !HANYA_BACA.has(aksi);
@@ -198,7 +201,10 @@ const API = (() => {
        DISETUJUI dijawab "duplikat", tidak pernah membatalkan nota dua kali.
        Justru inilah aksi yang paling perlu diulang otomatis: 404 di tengah
        persetujuan meninggalkan admin menebak apakah notanya jadi batal. */
-    'ajukan_void', 'putus_minta_void', 'tarik_minta_void'
+    'ajukan_void', 'putus_minta_void', 'tarik_minta_void',
+    /* bagian 288: dua bacaan, dan menarik pengajuan yang sudah ditarik hanya
+       memulangkan keadaannya — tidak menulis apa pun untuk kedua kalinya. */
+    'cek_diskon', 'daftar_diskon_minta', 'batal_diskon'
   ]);
   /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
      ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
@@ -245,7 +251,10 @@ const API = (() => {
     'void_penjualan',
     /* Migrasi kode pelanggan (bagian 287): idempoten, tapi tiap panggilan
        menulis satu baris log_audit — ulangan otomatis mengotori jejaknya. */
-    'ganti_kode_pelanggan'
+    'ganti_kode_pelanggan',
+    /* bagian 288: ulangan otomatis mengajukan dua kali / memutus yang sudah
+       diputus dan memulangkan galat untuk keputusan yang sebenarnya berhasil. */
+    'ajukan_diskon', 'putus_diskon'
   ]);
 
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
@@ -577,6 +586,13 @@ let _pernahJawab = false;
     laporanNota:     (d) => panggil('laporan_nota', d, { timeout: 90000 }),
     laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
     otorisasiDiskon: (d) => panggil('otorisasi_diskon', d),
+    /* Pengajuan diskon ke Owner (bagian 288). Tanya-keputusan berjalan di
+       latar: kasir tidak boleh melihat layar terkunci tiap lima detik. */
+    ajukanDiskon:      (d) => panggil('ajukan_diskon', d),
+    cekDiskon:         (d) => panggil('cek_diskon', d, { latar: true, timeout: 20000 }),
+    batalDiskon:       (d) => panggil('batal_diskon', d),
+    daftarDiskonMinta: (d) => panggil('daftar_diskon_minta', d || {}, { latar: true }),
+    putusDiskon:       (d) => panggil('putus_diskon', d),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
