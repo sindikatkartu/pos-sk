@@ -5137,17 +5137,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${menuTindakan({ id: 'menuPelanggan', kunci: 'pelanggan', idTombol: 'btnMenuPelanggan',
               isi: butirNonaktif('pelanggan', hitungMati(pel)) })}</div>
         <p class="petunjuk">Pelanggan dipilih kasir saat menutup nota — untuk poin, piutang, dan harga khusus. Supplier ada di kartu bawah, dipakai saat mencatat pembelian.</p>
-        ${tabel([
-          { judul: 'Kode', kunci: 'kode' },
-          { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
-          { judul: 'Telepon', kunci: 'telepon' },
-          { judul: 'Level harga', render: r => `<span class="lencana">${esc(normalLevelWeb(r.level_harga))}</span>` },
-          { judul: 'Limit kredit', angka: true, render: r => rp(r.limit_kredit) },
-          { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
-          { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
-              ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
-        ], pel, { kosong: 'Belum ada pelanggan', pisahNonaktif: true, kunci: 'pelanggan' })}
+        ${/* Saringan jenis + kotak cari (bagian 286). Back office tetap
+             menampilkan SEMUA pelanggan; yang dipisah otomatis hanya Kasir. */ ''}
+        <div class="saring-baris">
+          <div class="kendali-tetap"><label for="mitraJenis">Jenis</label><select id="mitraJenis">
+            ${[['', 'Semua'], ['eceran', 'Ecer'], ['grosir', 'Grosir']].map(([v, t]) =>
+              `<option value="${v}"${(w._pelSaring?.jenis || '') === v ? ' selected' : ''}>${t}</option>`).join('')}
+          </select></div>
+          <div class="kendali-penuh"><label for="mitraCari">Cari</label>
+            <input type="search" id="mitraCari" placeholder="Nama, kode, atau nomor HP" autocomplete="off"
+                   value="${esc(w._pelSaring?.kata || '')}"></div>
+        </div>
+        <div id="tabelMitraPelanggan"></div>
       </div>` : ''}
 
       ${sup ? `
@@ -5165,6 +5166,38 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true, kunci: 'supplier' })}
       </div>` : ''}`;
+    if (pel) {
+      gambarTabelMitraPelanggan();
+      /* Hanya TABELNYA yang digambar ulang saat mengetik — kotak carinya
+         tidak ikut dibuang, jadi kursor dan huruf yang sedang diketik aman. */
+      const saring = () => {
+        w._pelSaring = { jenis: $('#mitraJenis').value, kata: $('#mitraCari').value };
+        gambarTabelMitraPelanggan();
+      };
+      $('#mitraJenis').addEventListener('change', saring);
+      $('#mitraCari').addEventListener('input', saring);
+    }
+  }
+
+  /** Tabel pelanggan Mitra, disaring jenis & kata (bagian 286). */
+  function gambarTabelMitraPelanggan() {
+    const w = $('#isiMitra'), wadah = $('#tabelMitraPelanggan');
+    if (!w || !wadah || !w._pel) return;
+    const jenis = w._pelSaring?.jenis || '', kata = w._pelSaring?.kata || '';
+    const baris = w._pel.filter(r => (!jenis || normalLevelWeb(r.level_harga) === jenis) && cocokPelanggan(r, kata));
+    const disaring = !!(jenis || String(kata).trim());
+    wadah.innerHTML = tabel([
+      { judul: 'Kode', kunci: 'kode' },
+      { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
+      { judul: 'Telepon', kunci: 'telepon' },
+      { judul: 'Level harga', render: r => `<span class="lencana">${esc(normalLevelWeb(r.level_harga))}</span>` },
+      { judul: 'Limit kredit', angka: true, render: r => rp(r.limit_kredit) },
+      { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
+      { judul: 'Piutang', angka: true, render: r => r.sisa_piutang > 0
+          ? `<span class="stok-kritis">${rp(r.sisa_piutang)}</span>` : '—' },
+      { judul: '', render: r => `<button class="tombol kecil" data-edit-pelanggan="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
+    ], baris, { kosong: disaring ? 'Tidak ada pelanggan yang cocok' : 'Belum ada pelanggan',
+                pisahNonaktif: true, kunci: 'pelanggan' });
   }
 
   function editorPelanggan(kode) {
@@ -8086,7 +8119,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     tema: 'Tema tampilan', metode_hpp: 'Metode HPP',
     footer_struk: 'Baris penutup struk', lebar_struk: 'Lebar kertas struk',
     mdr_qris: 'Potongan QRIS', auto_jurnal: 'Posting jurnal otomatis',
-    klaim_petugas_wajib: 'Wajib klaim petugas'
+    klaim_petugas_wajib: 'Wajib klaim petugas',
+    toko_grosir: 'Toko grosir'
   };
 
   /* Keterangan sebaris di bawah kotak isian. */
@@ -8099,7 +8133,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     footer_struk: 'Baris terakhir sebelum kertas terpotong.',
     lebar_struk: '58 atau 80.',
     mdr_qris: 'Dicatat sebagai beban di jurnal.',
-    tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.'
+    tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
+    toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir; toko lain hanya pelanggan eceran. Kosong = tidak dipisah.'
   };
 
   /* Baris kedua di dalam kartu sakelar: apa yang terjadi kalau ia dinyalakan. */
@@ -8117,7 +8152,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* Contoh isi untuk kotak yang masih kosong. Kotak kosong tanpa contoh tidak
      memberi tahu bentuk isian yang diharapkan. */
   const CONTOH_SETTING = {
-    alamat_usaha: 'Jl. …', telepon_usaha: '08…', npwp: '00.000.000.0-000.000'
+    alamat_usaha: 'Jl. …', telepon_usaha: '08…', npwp: '00.000.000.0-000.000',
+    toko_grosir: 'SKG01'
   };
 
   /* `klaim_petugas_wajib` ikut di sini sejak v1.132.0. Sebelumnya ia tidak
@@ -8174,7 +8210,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       kunci: ['footer_struk', 'lebar_struk'] },
     { judul: 'Penjualan & stok', ikon: 'stok',
       ket: 'Aturan yang dipakai kasir saat melayani.',
-      kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris'] },
+      kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris', 'toko_grosir'] },
     { judul: 'Tampilan', ikon: 'tampilan',
       ket: 'Berlaku untuk semua perangkat yang masuk.',
       kunci: ['tema'] }

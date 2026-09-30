@@ -1103,9 +1103,46 @@ main { flex: 1; overflow: hidden; position: relative; }
    nota berikutnya akan dihargai berbeda — kecuali ia memang curiga dan
    memeriksa satu per satu. Tandanya membuat keadaan itu terlihat tanpa
    dicari. */
-.baris-alat-kasir select.disetel {
+.baris-alat-kasir select.disetel,
+.baris-alat-kasir .pilih-pelanggan.disetel {
   border-color: var(--peringatan); background: var(--peringatan-lembut);
 }
+/* TOMBOL PILIH PELANGGAN (bagian 286). Berupa dan berukuran SAMA dengan
+   dropdown yang digantikannya — 220 px di PC, sel grid di HP, setinggi
+   deretannya (align-self: stretch) — supaya baris alat kasir tidak bergeser
+   satu piksel pun. Namanya dipotong elipsis, ikon cari di ujung kanan
+   menggantikan panah dropdown: yang ditekan membuka pencarian, bukan daftar. */
+.pilih-pelanggan {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 220px; max-width: 220px; align-self: stretch; padding: 8px 12px;
+  background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
+  color: var(--teks); font: inherit; font-size: var(--fs-14); text-align: left; cursor: pointer;
+  transition: border-color .08s, box-shadow .08s;
+}
+.pilih-pelanggan:focus-visible { outline: none; border-color: var(--utama); box-shadow: var(--cincin); }
+.pilih-pelanggan:disabled { opacity: .6; cursor: not-allowed; background: var(--panel-2); }
+.pilih-pelanggan .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pilih-pelanggan .ikon-svg { width: 16px; height: 16px; flex: none; color: var(--teks-redup); }
+/* Jendela cari pelanggan: daftar bergulir di dalam modal, satu baris per
+   pelanggan — nama tebal, di bawahnya nomor HP dan kode, lencana level di
+   kanan. Angka nomor rata (tabular) supaya nomor-nomor bisa dibandingkan. */
+.daftar-pilih-pelanggan {
+  display: flex; flex-direction: column; margin-top: 10px; max-height: 52vh; overflow: auto;
+  border: 1px solid var(--garis); border-radius: var(--radius);
+}
+.daftar-pilih-pelanggan > button {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border: 0; border-bottom: 1px solid var(--garis); background: transparent;
+  color: var(--teks); font: inherit; text-align: left; cursor: pointer; min-height: 48px;
+}
+.daftar-pilih-pelanggan > button:last-child { border-bottom: 0; }
+.daftar-pilih-pelanggan > button:hover, .daftar-pilih-pelanggan > button:focus-visible,
+.daftar-pilih-pelanggan > button.terpilih { background: var(--panel-2); outline: none; }
+.daftar-pilih-pelanggan .isi { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.daftar-pilih-pelanggan .isi strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.daftar-pilih-pelanggan .sub { font-size: var(--fs-13); color: var(--teks-redup); font-variant-numeric: tabular-nums; }
+.daftar-pilih-pelanggan mark { background: transparent; color: var(--utama); font-weight: 700; }
+.daftar-pilih-pelanggan .kosong { padding: 18px 12px; color: var(--teks-redup); text-align: center; }
 
 .daftar-produk { flex: 1; overflow: auto; display: grid; gap: 6px; align-content: start; padding-bottom: 4px; }
 /* Kepadatan baris adalah keputusan operasional, bukan selera. Katalognya 3.310

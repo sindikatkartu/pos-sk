@@ -2031,12 +2031,19 @@ async function muatMaster() {
   await bacaLiniKeState();
 
   const pel = await DB.all('pelanggan');
+  /* Disimpan untuk jendela cari pelanggan (bagian 286) — dibaca dari sini,
+     bukan dari IndexedDB setiap kali jendelanya dibuka. */
+  APP_STATE.pelanggan = pel || [];
+  /* Dropdown tetap berisi SEMUA pelanggan, tidak disaring jenis toko: nota
+     tahan yang membawa pelanggan dari jenis toko lain harus pulih apa adanya.
+     Menyetel .value ke kode yang tidak punya <option> diam-diam menjadi ''. */
   $('#selPelanggan').innerHTML = '<option value="">Pelanggan umum</option>' +
     // Labelnya ikut dinormalkan supaya tidak bertentangan dengan kolom level di
     // sebelahnya: memilih pelanggan lama membuat #selLevel berbunyi "Grosir",
     // dan label yang tetap berbunyi "(reseller)" hanya membingungkan kasir.
     urutkanOleh(pel, p => p.nama)
       .map(p => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(Harga.normalLevel(p.level_harga))})</option>`).join('');
+  gambarTombolPelanggan();
 
   /* Daftar petugas. Store `petugas` baru ada sejak DB_VERSI 3; perangkat yang
      belum sempat memutakhirkan skema lokalnya tidak boleh gagal memuat kasir
@@ -2122,6 +2129,112 @@ function tandaiKendaliKasir() {
   tandai($('#selLevel'), $('#selLevel')?.value && $('#selLevel').value !== 'eceran');
   tandai($('#selPelanggan'), $('#selPelanggan')?.value);
   tandai($('#selPetugas'), $('#selPetugas')?.value);
+  gambarTombolPelanggan();
+}
+
+/**
+ * TOMBOL PILIH PELANGGAN (bagian 286) — cermin dari #selPelanggan.
+ * Dropdown yang tersembunyi tetap sumber nilainya; tombol ini hanya
+ * menampilkan nama yang terpilih dan tanda kuning bila bukan "Pelanggan
+ * umum". Digambar dari tandaiKendaliKasir(), satu titik yang dilewati semua
+ * jalur yang mengubah pelanggan — termasuk yang datang dari kode (nota tahan,
+ * reset keranjang), yang tidak memicu 'change'.
+ */
+function gambarTombolPelanggan() {
+  const b = $('#btnPilihPelanggan'), s = $('#selPelanggan');
+  if (!b || !s) return;
+  const kode = s.value;
+  const p = kode ? (APP_STATE.pelanggan || []).find(x => String(x.kode) === String(kode)) : null;
+  const nama = kode ? (p ? p.nama : (s.selectedOptions[0]?.textContent || kode)) : 'Pelanggan umum';
+  const nm = b.querySelector('.nm');
+  if (nm) nm.textContent = nama;
+  b.title = kode ? nama + ' — tekan untuk mengganti pelanggan'
+                 : 'Cari pelanggan: nama, kode, atau nomor HP';
+  b.classList.toggle('disetel', !!kode);
+}
+
+/**
+ * JENDELA CARI PELANGGAN (bagian 286).
+ *
+ * Isinya disaring JENIS TOKO (setelan toko_grosir): di toko grosir hanya
+ * pelanggan grosir, di toko ecer hanya pelanggan eceran. "Pelanggan umum"
+ * selalu ada selama kotak carinya kosong. Pencarian: nama, kode, atau nomor
+ * HP (cocokPelanggan, pos.js). Enter memilih hasil teratas — kasir yang
+ * mengetik nomor lengkap tidak perlu menyentuh daftar sama sekali.
+ */
+const BATAS_DAFTAR_PELANGGAN = 100;
+function daftarPelangganToko() {
+  const jenis = jenisToko(APP_STATE.cabang, APP_STATE.setting);
+  const semua = urutkanOleh(APP_STATE.pelanggan || [], p => p.nama);
+  return { jenis, daftar: jenis ? semua.filter(p => Harga.normalLevel(p.level_harga) === jenis) : semua };
+}
+function sorotCocok(teks, kata) {
+  const t = String(teks == null ? '' : teks), q = String(kata || '').trim();
+  if (!q) return esc(t);
+  let i = t.toLowerCase().indexOf(q.toLowerCase()), n = q.length;
+  if (i < 0) {
+    /* Nomor HP: cari angkanya, bukan ketikannya ("+62 852" di dalam "0852…"). */
+    const qd = angkaTelepon(q).replace(/^0/, '');
+    if (qd.length >= 3 && /^[\d\s+\-().]+$/.test(t)) { i = t.indexOf(qd); n = qd.length; }
+  }
+  if (i < 0) return esc(t);
+  return esc(t.slice(0, i)) + '<mark>' + esc(t.slice(i, i + n)) + '</mark>' + esc(t.slice(i + n));
+}
+function gambarDaftarPilihPelanggan() {
+  const w = $('#daftarPilihPelanggan'), info = $('#infoPilihPelanggan');
+  if (!w) return;
+  const kata = ($('#cariPelanggan')?.value || '').trim();
+  const { jenis, daftar } = daftarPelangganToko();
+  const cocok = daftar.filter(p => cocokPelanggan(p, kata));
+  const tampil = cocok.slice(0, BATAS_DAFTAR_PELANGGAN);
+  const kini = $('#selPelanggan')?.value || '';
+  if (info) {
+    info.textContent = (jenis === 'grosir' ? 'Toko grosir — hanya pelanggan grosir. '
+                       : jenis === 'eceran' ? 'Toko ecer — hanya pelanggan eceran. ' : '') +
+      (kata ? cocok.length + ' ditemukan' : daftar.length + ' pelanggan') +
+      (cocok.length > tampil.length ? ', ' + tampil.length + ' pertama ditampilkan — ketik untuk mempersempit.' : '.');
+  }
+  const umum = kata ? '' :
+    `<button type="button" data-pilih-pelanggan="" class="${kini ? '' : 'terpilih'}">
+       <span class="isi"><strong>Pelanggan umum</strong><span class="sub">tanpa nama pelanggan</span></span></button>`;
+  w.innerHTML = umum + tampil.map(p => `
+    <button type="button" data-pilih-pelanggan="${esc(p.kode)}" class="${String(p.kode) === kini ? 'terpilih' : ''}">
+      <span class="isi"><strong>${sorotCocok(p.nama, kata)}</strong>
+        <span class="sub">${p.telepon ? sorotCocok(p.telepon, kata) + ' · ' : ''}${sorotCocok(p.kode, kata)}</span></span>
+      <span class="lencana">${esc(Harga.normalLevel(p.level_harga))}</span>
+    </button>`).join('') +
+    (!umum && !tampil.length ? '<div class="kosong">Tidak ada pelanggan yang cocok.</div>' : '');
+}
+function pilihPelangganDariJendela(kode) {
+  const s = $('#selPelanggan');
+  if (!s) return;
+  s.value = kode || '';
+  Admin.tutupModal();
+  /* Lewat 'change', jalur yang sama dengan dropdown dulu: level harga,
+     keranjang, dan daftar produk mengikuti tanpa jalur kedua. */
+  s.dispatchEvent(new Event('change'));
+  $('#btnPilihPelanggan')?.focus();
+}
+function bukaPilihPelanggan() {
+  Admin.modal('Pilih pelanggan', `
+    <input type="search" id="cariPelanggan" placeholder="Nama, kode, atau nomor HP"
+           autocomplete="off" inputmode="search" aria-label="Cari pelanggan">
+    <p class="petunjuk" id="infoPilihPelanggan" style="margin:8px 0 0"></p>
+    <div class="daftar-pilih-pelanggan" id="daftarPilihPelanggan" role="listbox" aria-label="Pelanggan"></div>`);
+  gambarDaftarPilihPelanggan();
+  const inp = $('#cariPelanggan');
+  inp.addEventListener('input', gambarDaftarPilihPelanggan);
+  inp.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const pertama = $('#daftarPilihPelanggan [data-pilih-pelanggan]');
+    if (pertama) pilihPelangganDariJendela(pertama.dataset.pilihPelanggan);
+  });
+  $('#daftarPilihPelanggan').addEventListener('click', e => {
+    const b = e.target.closest('[data-pilih-pelanggan]');
+    if (b) pilihPelangganDariJendela(b.dataset.pilihPelanggan);
+  });
+  inp.focus();
 }
 
 /**
@@ -2584,6 +2697,10 @@ function tombolTimBaris(x) {
 }
 
 function gambarKeranjang() {
+  /* Tombol pelanggan ikut di sini (bagian 286): sesudah bayar, keranjang
+     dikosongkan lewat gambarKeranjang() SAJA — tanpa gambarProduk() — dan
+     tombolnya akan terus memajang nama pelanggan nota yang barusan selesai. */
+  gambarTombolPelanggan();
   const b = Keranjang.baris;
   const t = Keranjang.total();
 
@@ -6332,6 +6449,7 @@ function pasangEvent() {
     e.preventDefault(); tarikUlangMaster();
   });
   $('#selLevel').addEventListener('change', e => { Keranjang.setLevel(e.target.value); gambarKeranjang(); gambarProduk($('#inpCari').value); });
+  $('#btnPilihPelanggan')?.addEventListener('click', bukaPilihPelanggan);
   $('#selPelanggan').addEventListener('change', async e => {
     const p = e.target.value ? await DB.get('pelanggan', e.target.value) : null;
     Keranjang.setPelanggan(p);

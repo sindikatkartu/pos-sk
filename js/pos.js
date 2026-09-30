@@ -1582,6 +1582,48 @@ function jamShiftCocok(jenis, tgl) {
   return true;
 }
 
+/**
+ * PENCARIAN PELANGGAN (bagian 286) — nama, kode, atau nomor HP.
+ *
+ * Nomor dibandingkan ANGKANYA saja, dan awalan 62 disamakan dengan 0: kasir
+ * mengetik "0852", "852", "62852", atau "+62 852-2288" untuk orang yang sama,
+ * dan nomor di data pun kadang ditulis dengan spasi atau strip. Angka baru
+ * dicocokkan mulai tiga digit — "08" saja cocok dengan hampir semua orang.
+ */
+function angkaTelepon(t) {
+  let d = String(t == null ? '' : t).replace(/\D/g, '');
+  if (d.startsWith('62')) d = '0' + d.slice(2);
+  return d;
+}
+function cocokPelanggan(p, kata) {
+  const q = String(kata == null ? '' : kata).trim().toLowerCase();
+  if (!q) return true;
+  if (String((p && p.nama) || '').toLowerCase().includes(q)) return true;
+  if (String((p && p.kode) || '').toLowerCase().includes(q)) return true;
+  const qd = angkaTelepon(q);
+  if (qd.length < 3) return false;
+  const t = angkaTelepon(p && p.telepon);
+  /* Tanpa nol depan juga: "852228" harus menemukan 085222888998. */
+  return t.includes(qd) || t.replace(/^0/, '').includes(qd.replace(/^0/, ''));
+}
+
+/**
+ * JENIS TOKO (bagian 286) — dari setelan "toko_grosir" (kode dipisah koma).
+ * Pulang 'grosir' / 'eceran', atau '' bila setelannya KOSONG: tanpa daftar,
+ * pemisahan tidak berlaku sama sekali. Menganggap semua toko "eceran" saat
+ * setelannya belum terisi akan menyembunyikan seluruh pelanggan grosir di
+ * toko grosir — daftar yang mendadak kosong tanpa satu kata pun.
+ */
+function daftarTokoGrosir(setting) {
+  return String((setting && setting.toko_grosir) || '')
+    .split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+}
+function jenisToko(kode, setting) {
+  const d = daftarTokoGrosir(setting);
+  if (!d.length) return '';
+  return d.includes(String(kode || '').trim().toUpperCase()) ? 'grosir' : 'eceran';
+}
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, tglCetak, keTanggalCetak, waktuTampil, jamTampil,
@@ -1589,5 +1631,6 @@ if (typeof module !== 'undefined' && module.exports) {
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
-                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok };
+                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
+                     angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko };
 }

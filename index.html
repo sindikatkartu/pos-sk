@@ -244,7 +244,13 @@
                Sebelumnya keempatnya berderet dengan rupa yang sama persis, dan
                kolom yang paling menentukan poin terbaca seperti saringan. -->
           <span class="pemisah-alat" aria-hidden="true"></span>
-          <select id="selPelanggan" style="width:auto;max-width:220px"></select>
+          <!-- Pelanggan dipilih lewat TOMBOL yang membuka jendela cari (bagian 286):
+               231 nama di dropdown tidak bisa dicari, apalagi lewat nomor HP.
+               Dropdown aslinya TETAP ada, tersembunyi, dan tetap sumber nilai —
+               level harga, nota tahan, poin, dan piutang membacanya seperti dulu. -->
+          <select id="selPelanggan" class="sembunyi" aria-hidden="true" tabindex="-1"></select>
+          <button type="button" id="btnPilihPelanggan" class="pilih-pelanggan"
+                  title="Cari pelanggan: nama, kode, atau nomor HP"><span class="nm">Pelanggan umum</span><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></button>
           <!-- Siapa yang melayani. Berlaku untuk seluruh baris nota, KECUALI baris
                yang punya timnya sendiri (lihat tombol "Tim" di keranjang). -->
           <select id="selPetugas" style="width:auto;max-width:220px"
