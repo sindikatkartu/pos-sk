@@ -3396,14 +3396,23 @@ const labelPecahan = (n) => n >= 1000
    diketik, sehingga fokus dan posisi kursor hilang dan ketikan terasa macet.
    Sekarang: gambarMetode() hanya dipanggil saat susunan barisnya berubah,
    sedangkan setiap ketukan cukup memanggil gambarRingkasBayar(). */
+/* Metode bayar kasir. Transfer umum DIBUANG (bagian 300, pemilik 1 Okt 2026):
+   tiap transfer menyebut banknya, supaya jurnalnya jatuh ke 1-1201…1-1204,
+   bukan ke 1-1200 yang tidak bisa dicocokkan dengan rekening mana pun.
+   Kodenya = kunci AKUN_BAYAR di 00_Config.gs. */
+const METODE_KASIR = ['tunai', 'transfer_bca', 'transfer_bni', 'transfer_bri', 'transfer_mandiri',
+                      'qris', 'debit', 'kredit', 'piutang'];
 function gambarMetode() {
+  /* Metode di luar daftar (mis. "transfer" dari nota yang dipulihkan) = belum dipilih. */
+  APP_STATE.metodeBayar.forEach((m) => { if (METODE_KASIR.indexOf(m.metode) === -1) m.metode = ''; });
   $('#byrDaftarMetode').innerHTML = APP_STATE.metodeBayar.map((m, i) => `
     <div class="baris2" style="margin-bottom:8px;align-items:end">
       <div>
         <label>Metode ${i + 1}</label>
-        <select data-i="${i}" data-f="metode">
-          ${['tunai','transfer','qris','debit','kredit','piutang'].map(x =>
-            `<option value="${x}" ${m.metode === x ? 'selected' : ''}>${x.toUpperCase()}</option>`).join('')}
+        <select data-i="${i}" data-f="metode"${m.metode ? '' : ' aria-invalid="true"'}>
+          ${m.metode ? '' : '<option value="" selected disabled>— pilih —</option>'}
+          ${METODE_KASIR.map(x =>
+            `<option value="${x}" ${m.metode === x ? 'selected' : ''}>${labelMetode(x)}</option>`).join('')}
         </select>
       </div>
       <div style="display:flex;gap:6px;align-items:end">
@@ -3471,6 +3480,10 @@ function gambarRingkasBayar() {
      jadi selisihnya memang tidak akan pernah negatif; penjagaannya tetap ada
      supaya perubahan berikutnya tidak diam-diam membukanya lagi. */
   $('#btnSelesaikan').disabled = selisih < 0;
+  /* Pesan dikosongkan dulu, lalu diisi lagi oleh pemeriksaan yang MASIH gagal
+     (bagian 300). Sebelumnya pesan yang sudah dibetulkan tetap terpajang merah
+     di samping tombol yang sudah aktif. */
+  pesan('#pesanBayar', '');
   /* KELEBIHAN BAYAR HANYA MASUK AKAL UNTUK TUNAI.
      Uang kembalian diambil dari laci; ia tidak bisa diberikan dari transfer,
      QRIS, atau kartu. `selesaikanTransaksi()` memang hanya memotong kelebihan
@@ -3495,6 +3508,13 @@ function gambarRingkasBayar() {
   }
   if (APP_STATE.metodeBayar.filter(m => m.metode === 'piutang').length > 1) {
     pesan('#pesanBayar', 'Satu nota hanya boleh punya satu baris piutang.', 'galat');
+    $('#btnSelesaikan').disabled = true;
+  }
+  /* Baris tambahan mulai "— pilih —" (bagian 300, pilihan A pemilik): bank
+     yang terpilih diam-diam membuat transfer BRI tercatat sebagai BCA. */
+  const iTanpaMetode = APP_STATE.metodeBayar.findIndex(m => !m.metode);
+  if (iTanpaMetode >= 0) {
+    pesan('#pesanBayar', `Pilih metode bayar baris ${iTanpaMetode + 1} — untuk transfer, pilih banknya.`, 'galat');
     $('#btnSelesaikan').disabled = true;
   }
 
@@ -3997,7 +4017,7 @@ async function bukaLaporanShift(idShift, cabang) {
       <h4 style="margin:16px 0 6px">Per metode bayar</h4>
       ${d.per_metode.length ? `<div class="gulir-x"><table>
         <tr><th>Metode</th><th class="angka">Diterima</th><th class="angka">MDR</th><th class="angka">Netto</th></tr>
-        ${d.per_metode.map(m => `<tr><td>${esc(String(m.metode).toUpperCase())}</td>
+        ${d.per_metode.map(m => `<tr><td>${esc(labelMetode(m.metode))}</td>
           <td class="angka">${rp(m.jumlah)}</td><td class="angka">${rp(m.mdr)}</td>
           <td class="angka">${rp(m.netto)}</td></tr>`).join('')}</table></div>`
         : '<p class="petunjuk">Belum ada pembayaran.</p>'}
@@ -4507,7 +4527,7 @@ const KOLOM_LAP = {
     { judul: 'Omzet', angka: true, render: x => rp(x.total) }
   ],
   perMetode: () => [
-    { judul: 'Metode', render: x => esc(String(x.metode).toUpperCase()) },
+    { judul: 'Metode', render: x => esc(labelMetode(x.metode)) },
     { judul: 'Nominal', angka: true, render: x => rp(x.jumlah) },
     { judul: 'Biaya MDR', angka: true, render: x => rp(x.mdr) },
     { judul: 'Netto', angka: true, render: x => rp(x.jumlah - x.mdr) }
@@ -6416,6 +6436,26 @@ function pasangEvent() {
       return;
     }
 
+    /* Shift PULSA yang dibuka akun ini juga menahan Keluar (bagian 299).
+       Pemilik, 1 Okt 2026: petugas pulang tanpa mengisi saldo akhir, penjualan,
+       dan uang laci. Hanya PEMBUKANYA yang ditahan — shift pulsa milik cabang,
+       dan Owner yang sekadar melihat tidak boleh terkurung olehnya. Gagal
+       membaca (offline) = dibolehkan, sama seperti keluarSesudahTutupShift:
+       yang dicegah sesi yang tertinggal, bukan petugas yang terjebak. */
+    if (API.online && bolehIzin('pulsa', 'buat')) {
+      tbl.classList.add('sibuk');
+      let sp = null;
+      try { sp = await API.shiftPulsaAktif({}); } catch (e) { sp = null; }
+      finally { tbl.classList.remove('sibuk'); }
+      const saya = String((APP_STATE.user && APP_STATE.user.id_user) || '');
+      if (sp && sp.aktif && saya && String(sp.id_user || '') === saya) {
+        bukaLayar('pulsa');
+        Admin.toast('Shift pulsa yang Anda buka belum ditutup. Isi saldo akhir, penjualan, dan uang laci, ' +
+                    'lalu tekan Kunci hitungan — sesudah itu baru bisa keluar.', 'galat');
+        return;
+      }
+    }
+
     /* SATU pertanyaan, dirakit dari keadaannya — bukan dua dialog berturut-turut.
      *
      * Dua sebab. Pertama, sampai v1.33 jalur yang paling biasa (tanpa shift,
@@ -6788,7 +6828,7 @@ function pasangEvent() {
   $('#btnTambahMetode').addEventListener('click', () => {
     const t = Keranjang.total().total;
     const sudah = APP_STATE.metodeBayar.reduce((a, m) => a + Number(m.jumlah || 0), 0);
-    APP_STATE.metodeBayar.push({ metode: 'transfer', jumlah: Math.max(0, t - sudah), referensi: '' });
+    APP_STATE.metodeBayar.push({ metode: '', jumlah: Math.max(0, t - sudah), referensi: '' });
     gambarBayar();
   });
   $('#byrDaftarMetode').addEventListener('input', e => {

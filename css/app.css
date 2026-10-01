@@ -1464,6 +1464,9 @@ input[type=number], input.uang, td .angka { font-variant-numeric: tabular-nums; 
    diratakan kanan supaya kelompok ribuannya berbaris lurus antar baris —
    itulah gunanya titik itu dipasang. */
 input.uang { text-align: right; }
+/* Kotak angka yang wajib diketik tapi masih kosong (bagian 299). */
+input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bahaya); background: var(--bahaya-lembut); }
+input[aria-invalid="true"]::placeholder { color: var(--bahaya); opacity: .8; }
 label {
   display: block; font-size: var(--fs-13); color: var(--teks-2);
   margin-bottom: 6px; font-weight: 600;

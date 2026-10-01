@@ -865,6 +865,13 @@ function angkaDari(v) {
  * ulang berkali-kali dan nilainya dibaca balik dari DOM; ribuan() yang memakai
  * Number() mentah akan mengubah '1.250.000' jadi '0' — kerugian senyap.
  */
+/** Label metode bayar untuk layar & laporan (bagian 300): "transfer_bca" →
+ *  "TRF BCA". Garis bawah kode tidak boleh sampai ke mata orang, dan
+ *  "TRANSFER MANDIRI" kepanjangan — disingkat TRF (pemilik, 1 Okt 2026). */
+function labelMetode(m) {
+  return String(m || '').replace(/^transfer_/, 'trf_').replace(/_/g, ' ').toUpperCase();
+}
+
 function ribuan(n) {
   const x = angkaDari(n);
   return (x < 0 ? '-' : '') + String(Math.abs(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');

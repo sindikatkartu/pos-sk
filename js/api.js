@@ -257,7 +257,9 @@ const API = (() => {
     'ajukan_diskon', 'putus_diskon',
     /* bagian 296: ulangan otomatis bisa membuat akun dua kali (kode berikutnya
        berbeda, jadi duplikatnya lolos pemeriksaan kode). */
-    'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa'
+    'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa',
+    /* bagian 298: ulangan otomatis bisa memposting jurnal selisih dua kali. */
+    'koreksi_saldo_pulsa'
   ]);
 
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
@@ -718,6 +720,7 @@ let _pernahJawab = false;
     hapusCoa:          (d) => panggil('hapus_coa', d),
     ajukanCoa:         (d) => panggil('ajukan_coa', d),
     putusCoa:          (d) => panggil('putus_coa', d),
+    koreksiSaldoPulsa: (d) => panggil('koreksi_saldo_pulsa', d),
     simpanAset:        (d) => panggil('simpan_aset', d),
     /* Sama longgarnya dengan tutup buku: keduanya menjurnal lalu menghitung
        ulang saldo bulanan, dan itu pembacaan sheet penuh. */

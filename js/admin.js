@@ -5971,7 +5971,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="baris2">
         <div class="grup"><label>Metode</label><select id="bpMetode">
-          <option value="tunai">Tunai</option><option value="transfer">Transfer</option>
+          <option value="tunai">Tunai</option><option value="transfer_bca">TRF BCA</option><option value="transfer_bni">TRF BNI</option>
+          <option value="transfer_bri">TRF BRI</option><option value="transfer_mandiri">TRF Mandiri</option>
           <option value="qris">QRIS</option></select></div>
         <div class="grup"><label>Referensi</label><input type="text" id="bpRef"></div>
       </div>
@@ -7726,12 +7727,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const ujung = !!((($('#hasilLapulsa') || {})._rows || []).find((x) => String(x.id_shift) === id) || {}).bisa_hapus;
     const nama = {};
     ((($('#isiShiftpulsa') || {})._st || {}).sumber || []).forEach((x) => { nama[x.kode_sumber] = x.nama; });
+    /* ✎ koreksi saldo awal/akhir (bagian 298): angka di batas dua shift — form
+       sendiri karena dampaknya menyeberang ke shift sebelah. */
+    const tombolSaldo = (kolom, b) => `<button type="button" class="tombol-ikon kecil" data-koreksi-saldo="${kolom}"
+      data-sumber="${esc(String(b.kode_sumber))}" data-nilai="${+b[kolom] || 0}" data-nama="${esc(nama[b.kode_sumber] || String(b.kode_sumber))}"
+      title="Koreksi ${kolom === 'saldo_awal' ? 'saldo awal' : 'saldo akhir'} — shift sebelah ikut berubah" aria-label="Koreksi ${kolom === 'saldo_awal' ? 'saldo awal' : 'saldo akhir'} ${esc(String(b.kode_sumber))}">✎</button>`;
     const isian = (k, v, ket) => `<input type="text" inputmode="numeric" class="uang" data-koreksi="${k}"
       value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(+v || 0))}" aria-label="${esc(ket)}">`;
     bukaModal('Koreksi shift ' + (s.jenis_shift || '') + ' ' + (s.kode_cabang || '') + ' · ' + String(s.tanggal || '').slice(0, 10), `
       <p class="petunjuk">${ujung
         ? 'Ini shift terakhir cabang ini, jadi <strong>saldo akhir</strong> masih bisa dikoreksi — angka itu yang akan diwarisi shift berikutnya.'
-        : 'Saldo akhir tidak bisa diubah — sudah menjadi saldo awal shift berikutnya.'}
+        : 'Saldo akhir sudah menjadi saldo awal shift berikutnya — ubah lewat tombol ✎: keduanya ikut berubah.'}
         Koreksi menerbitkan <strong>jurnal koreksi</strong> sebesar selisihnya, dan tercatat di riwayat shift ini.</p>
       <div class="gulir-x"><table class="tabel" id="tabelKoreksi">
         <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th><th class="kanan">Saldo akhir</th><th class="kanan">Modal</th>
@@ -7739,8 +7745,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <tbody>${saldo.map((b) => `<tr data-sumber="${esc(String(b.kode_sumber))}" data-awal="${+b.saldo_awal || 0}"
             data-akhir="${+b.saldo_akhir || 0}" data-deposit="${+b.deposit || 0}">
           <td data-l="Sumber">${esc(nama[b.kode_sumber] || String(b.kode_sumber))} <span class="petunjuk">${esc(String(b.kode_sumber))}</span></td>
-          <td class="kanan" data-l="Saldo awal">${rp(b.saldo_awal)}</td>
-          <td class="kanan" data-l="Saldo akhir">${ujung ? isian('saldo_akhir', b.saldo_akhir, 'Saldo akhir ' + b.kode_sumber) : rp(b.saldo_akhir)}</td>
+          <td class="kanan" data-l="Saldo awal">${rp(b.saldo_awal)} ${tombolSaldo('saldo_awal', b)}</td>
+          <td class="kanan" data-l="Saldo akhir">${ujung ? isian('saldo_akhir', b.saldo_akhir, 'Saldo akhir ' + b.kode_sumber) : rp(b.saldo_akhir) + ' ' + tombolSaldo('saldo_akhir', b)}</td>
           <td class="kanan" data-l="Modal" data-modal>${rp(b.konsumsi)}</td>
           <td class="kanan" data-l="Penjualan">${isian('penjualan', b.penjualan, 'Penjualan ' + b.kode_sumber)}</td>
           <td class="kanan" data-l="Reward">${isian('reward', b.reward, 'Reward ' + b.kode_sumber)}</td></tr>`).join('')}</tbody>
@@ -7806,6 +7812,68 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { toast(e.message, 'galat'); }
   }
 
+  /* ==================== KOREKSI SALDO AWAL/AKHIR (bagian 298) ====================
+     Nilai baru + alasan → "Periksa dampak" (server menghitung, pratinjau: true)
+     → daftar shift yang ikut berubah beserta modal & margin sebelum/sesudah →
+     baru Simpan. Yang menentukan tetap server. */
+  function bukaKoreksiSaldo(o) {
+    const label = o.kolom === 'saldo_awal' ? 'saldo awal' : 'saldo akhir';
+    bukaModal(`Koreksi ${label} ${o.nama}`, `
+      <p class="petunjuk">Shift ${esc(o.id)}. Saldo akhir sebuah shift = saldo awal shift sesudahnya, jadi
+        shift sebelah <strong>ikut berubah</strong>. Jurnal selisih terbit otomatis, dan tercatat di riwayat ✎ kedua shift.</p>
+      <div class="petak petak-form">
+        <label>${label === 'saldo awal' ? 'Saldo awal' : 'Saldo akhir'} tercatat<input type="text" readonly tabindex="-1" value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(o.nilai))}"></label>
+        <label>Seharusnya<input type="text" inputmode="numeric" class="uang" id="ksNilai" value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(o.nilai))}"></label>
+      </div>
+      <label>Alasan koreksi *<input type="text" id="ksAlasan" maxlength="200" placeholder="mis. petugas lupa mengisi saldo akhir DIGIPOS"></label>
+      <div id="ksDampak"></div>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol" id="btnKsPeriksa">${ikonAlat('tampil')}<span>Periksa dampak</span></button>
+       <button class="tombol utama" id="btnKsSimpan" disabled>${ikonAlat('simpan')}<span>Simpan koreksi</span></button>`);
+    const m = $('#modalUmum');
+    m._ks = o;
+    /* Angka berubah sesudah diperiksa = pemeriksaannya basi: Simpan dikunci lagi. */
+    m.addEventListener('input', (e) => { if (e.target.id === 'ksNilai') { $('#btnKsSimpan').disabled = true; $('#ksDampak').innerHTML = ''; } });
+  }
+
+  async function periksaKoreksiSaldo() {
+    const m = $('#modalUmum'), o = m._ks;
+    if (!o) return;
+    const nilai = angkaDari($('#ksNilai').value);
+    try {
+      const r = await API.koreksiSaldoPulsa({ id_shift: o.id, kode_sumber: o.sumber, kolom: o.kolom, nilai, pratinjau: true });
+      const nmKolom = (k) => k === 'saldo_awal' ? 'Saldo awal' : 'Saldo akhir';
+      $('#ksDampak').innerHTML = `<p class="petunjuk" style="margin:10px 0 4px">Yang akan berubah:</p>
+        <div class="gulir-x"><table class="tabel"><thead><tr><th>Shift</th><th>Angka</th><th class="kanan">Sekarang</th>
+          <th class="kanan">Sesudah</th><th class="kanan">Modal</th><th class="kanan">Margin</th></tr></thead><tbody>
+        ${r.terdampak.map((t) => `<tr><td data-l="Shift">${esc(t.jenis_shift)} ${esc(tglTampil(t.tanggal))}
+            ${t.status === 'BUKA' ? lencanaDash('masih buka', 'kuning') : ''}</td>
+          <td data-l="Angka">${nmKolom(t.kolom)}</td><td class="kanan" data-l="Sekarang">${rp(t.lama)}</td>
+          <td class="kanan" data-l="Sesudah"><strong>${rp(t.baru)}</strong></td>
+          <td class="kanan" data-l="Modal">${t.modal_baru === undefined ? '—' : rp(t.modal_lama) + ' → ' + rp(t.modal_baru)}</td>
+          <td class="kanan" data-l="Margin">${t.margin_baru === undefined ? '—' : rp(t.margin_lama) + ' → ' + rp(t.margin_baru)}</td></tr>`).join('')}
+        </tbody></table></div>`;
+      m._ks.nilaiDiperiksa = nilai;
+      $('#btnKsSimpan').disabled = false;
+    } catch (e) { $('#ksDampak').innerHTML = `<p class="pesan galat">${esc(e.message)}</p>`; $('#btnKsSimpan').disabled = true; }
+  }
+
+  async function simpanKoreksiSaldo() {
+    const m = $('#modalUmum'), o = m._ks;
+    if (!o) return;
+    const alasan = ($('#ksAlasan').value || '').trim();
+    if (alasan.length < 5) { toast('Tulis alasan koreksinya — minimal 5 huruf.', 'galat'); $('#ksAlasan').focus(); return; }
+    const nilai = angkaDari($('#ksNilai').value);
+    if (nilai !== o.nilaiDiperiksa) { toast('Angkanya berubah sesudah diperiksa — tekan Periksa dampak lagi.', 'galat'); return; }
+    try {
+      const r = await API.koreksiSaldoPulsa({ id_shift: o.id, kode_sumber: o.sumber, kolom: o.kolom, nilai, alasan });
+      tutupModal();
+      const jurnal = r.terdampak.map((t) => t.no_jurnal).filter(Boolean);
+      toast(`Saldo dikoreksi di ${r.terdampak.length} shift${jurnal.length ? ' — jurnal ' + jurnal.join(', ') : ''}.`, 'sukses');
+      await muatLaporanpulsa();
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+
   async function bukaRiwayatKoreksi(id) {
     let d;
     try { d = await API.riwayatKoreksiShiftPulsa({ id_shift: id }); }
@@ -7852,8 +7920,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $('#susCabang').addEventListener('change', () => API.tugas(muatSumberSusulan, { baca: true }));
     m.addEventListener('input', (e) => {
       if (!e.target.closest('[data-sus]')) return;
-      /* Kas fisik mengikuti total penjualan sampai orangnya mengetik sendiri. */
-      if (e.target.dataset.sus === 'kas_fisik') e.target.dataset.diketik = '1';
+      /* Kas fisik TIDAK lagi diisi otomatis dari kas sistem (bagian 299):
+         angka yang terisi sendiri itulah yang tidak pernah dihitung orang. */
+      tandaiKosong(e.target);
       hitungSusulan();
     });
     if (cabangList.length === 1) { $('#susCabang').value = cabangList[0]; await muatSumberSusulan(); }
@@ -7875,7 +7944,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     const sumber = st.sumber || [];
     if (!sumber.length) { w.innerHTML = `<p class="pesan galat">Belum ada sumber saldo untuk cabang ${esc(cabang)}.</p>`; return; }
-    const isian = (k, ket) => `<input type="text" inputmode="numeric" class="uang" data-sus="${k}" value="0" aria-label="${esc(ket)}">`;
+    const isian = (k, ket) => `<input type="text" inputmode="numeric" class="uang" data-sus="${k}" value="" placeholder="wajib diisi" aria-invalid="true" aria-label="${esc(ket)}">`;
     w.innerHTML = `
       <div class="gulir-x"><table class="tabel" id="tabelSusulan">
         <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th><th class="kanan">Deposit</th><th class="kanan">Saldo akhir</th>
@@ -7910,7 +7979,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
     const kasEl = m.querySelector('[data-sus="kas_fisik"]');
     const kasSistem = jual - dep;
-    if (!kasEl.dataset.diketik) kasEl.value = new Intl.NumberFormat(CONFIG.LOCALE).format(Math.max(0, kasSistem));
     const kas = angkaDari(kasEl.value);
     const baris = (l, v) => `<tr><td>${l}</td><td class="kanan">${rp(v)}</td></tr>`;
     $('#pratinjauSusulan').innerHTML = `<table class="tabel"><thead><tr><th>Hasil</th><th class="kanan">Angka</th></tr></thead><tbody>
@@ -7925,6 +7993,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (alasan.length < 5) { toast('Tulis alasannya — minimal 5 huruf.', 'galat'); $('#alasanSusulan').focus(); return; }
     const tanggal = $('#susTanggal').value, jenis_shift = $('#susJenis').value;
     if (!tanggal) { toast('Isi tanggal shiftnya.', 'galat'); return; }
+    if (!wajibDiketik([...m.querySelectorAll('[data-sus]')])) return;
     const sumber = [...m.querySelectorAll('#tabelSusulan tbody tr')].map((tr) => {
       const v = (x) => angkaDari(tr.querySelector(`[data-sus="${x}"]`).value);
       return { kode_sumber: tr.dataset.sumber, deposit: v('deposit'), saldo_akhir: v('saldo_akhir'),
@@ -7957,6 +8026,27 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#isiShiftpulsa')._st = d;
       gambarShiftpulsa();
     } catch (e) { galat('#isiShiftpulsa', e); }
+  }
+
+  /* KOTAK ANGKA WAJIB DIKETIK, termasuk 0 (bagian 299). Pemilik, 1 Okt 2026:
+     "bahkan angka 0 pun harus diketik", untuk semua form laporan pulsa.
+     Kotak mulai KOSONG, bukan 0: kotak berisi 0 tidak bisa dibedakan antara
+     "sudah dihitung, memang nol" dan "terlewat" — dan yang terlewat itulah
+     yang menjadi saldo akhir DIGIPOS 0 di bagian 297. Kotak kosong ditandai
+     aria-invalid (garis merah); server menolak hal yang sama. */
+  function tandaiKosong(el) {
+    if (String(el.value || '').trim() === '') el.setAttribute('aria-invalid', 'true');
+    else el.removeAttribute('aria-invalid');
+  }
+  /** true = semua terisi. false = toast berisi nama kotaknya, kotak pertama difokus. */
+  function wajibDiketik(els) {
+    const kosong = els.filter((el) => String(el.value || '').trim() === '');
+    kosong.forEach(tandaiKosong);
+    if (!kosong.length) return true;
+    toast('Belum diketik: ' + kosong.map((el) => el.getAttribute('aria-label') || el.dataset.label || '').join(', ') +
+          '. Angka 0 pun wajib diketik.', 'galat');
+    kosong[0].focus();
+    return false;
   }
 
   /** Hitungan yang SAMA dengan _hitungShiftPulsa di server. */
@@ -8033,7 +8123,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <tbody>${sumber.map(s => `<tr>
               <td data-l="Sumber">${esc(s.nama)} <span class="petunjuk">${esc(s.kode_sumber)}</span></td>
               <td class="kanan" data-l="Saldo awal">${st.bisa_ketik_saldo_awal
-                ? `<input type="text" inputmode="numeric" class="uang kendali-tetap" data-saldo-awal="${esc(s.kode_sumber)}" value="0" aria-label="Saldo awal ${esc(s.nama)}">`
+                ? `<input type="text" inputmode="numeric" class="uang kendali-tetap" data-saldo-awal="${esc(s.kode_sumber)}" value="" placeholder="wajib diisi" aria-invalid="true" aria-label="Saldo awal ${esc(s.nama)}">`
                 : rp(s.saldo_awal)}</td></tr>`).join('')}
             </tbody>
           </table>
@@ -8042,6 +8132,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="kartu"><div class="aksi">
         <button class="tombol utama" id="btnBukaShiftPulsa" ${sumber.length ? '' : 'disabled'}>Mulai hitungan</button>
       </div></div>`;
+    w.querySelectorAll('[data-saldo-awal]').forEach((el) => el.addEventListener('input', () => tandaiKosong(el)));
   }
 
   /* Batalkan shift salah buka (bagian 252): pembukanya sendiri, atau pengawas
@@ -8068,6 +8159,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function gambarTutupShiftpulsa(w, st) {
+    /* Angka yang diketik disimpan PER SHIFT di w._ketik (bagian 299), lalu
+       ditimpakan ke data server di tiap gambar. Dua sebab: (1) kotak yang
+       belum diketik harus tampil KOSONG, jadi "sudah diketik" perlu dicatat
+       terpisah dari angkanya; (2) muatShiftpulsa mengganti w._st, dan
+       sebelumnya setiap muat ulang (mis. sesudah unggah foto) menghapus
+       semua yang sudah diketik. Nilai bukan nol dari server dianggap sudah
+       diketik — SEKALI, saat shift itu pertama digambar; sesudahnya kotak
+       yang dikosongkan tetap kosong walau server masih menyimpan angkanya,
+       dan hitungannya memakai 0, bukan angka yang tidak terlihat. */
+    if (!w._ketik || w._ketik.id_shift !== st.id_shift) {
+      w._ketik = { id_shift: st.id_shift, nilai: {} }; w._kasFisik = 0;
+      (st.sumber || []).forEach((s) => KOLOM_SP.forEach((f) => { if (+s[f]) w._ketik.nilai[f + ':' + s.kode_sumber] = +s[f]; }));
+    }
+    const kt = w._ketik.nilai;
+    (st.sumber || []).forEach((s) => KOLOM_SP.forEach((f) => {
+      const k = f + ':' + s.kode_sumber;
+      s[f] = k in kt ? kt[k] : 0;
+    }));
+    w._kasFisik = 'kas_fisik' in kt ? kt.kas_fisik : 0;
+    const isiSp = (f, s, i, label) => {
+      const ada = (f + ':' + s.kode_sumber) in kt;
+      return `<input type="text" inputmode="numeric" class="kanan uang spsAngka" data-sp="${f}" data-i="${i}" value="${ada ? rp0(s[f]) : ''}" placeholder="wajib diisi"${ada ? '' : ' aria-invalid="true"'} aria-label="${esc(label + ' ' + s.nama)}">`;
+    };
     if (!w._keluar) w._keluar = (st.keluar || []).map(x => ({ keterangan: x.keterangan, jumlah: +x.jumlah || 0 }));
     const keluarBaris = w._keluar;
     const totalKeluar = keluarBaris.reduce((a, x) => a + (+x.jumlah || 0), 0);
@@ -8099,11 +8213,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <tbody>${(st.sumber || []).map((s, i) => `<tr>
               <td data-l="Sumber">${esc(s.nama)}<br><span class="petunjuk">${esc(s.kode_sumber)}</span></td>
               <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}<br><span class="petunjuk">terkunci</span></td>
-              <td data-l="Deposit masuk"><input type="text" class="kanan uang spsAngka" data-sp="deposit" data-i="${i}" value="${rp0(s.deposit)}"></td>
-              <td data-l="Saldo akhir"><input type="text" class="kanan uang spsAngka" data-sp="saldo_akhir" data-i="${i}" value="${rp0(s.saldo_akhir)}"></td>
+              <td data-l="Deposit masuk">${isiSp('deposit', s, i, 'Deposit')}</td>
+              <td data-l="Saldo akhir">${isiSp('saldo_akhir', s, i, 'Saldo akhir')}</td>
               <td class="kanan" data-l="Konsumsi (modal)"><strong>${rp((+s.saldo_awal || 0) + (+s.deposit || 0) + (+s.reward || 0) - (+s.saldo_akhir || 0))}</strong></td>
-              <td data-l="Penjualan"><input type="text" class="kanan uang spsAngka" data-sp="penjualan" data-i="${i}" value="${rp0(s.penjualan)}"></td>
-              <td data-l="Reward"><input type="text" class="kanan uang spsAngka" data-sp="reward" data-i="${i}" value="${rp0(s.reward)}"></td>
+              <td data-l="Penjualan">${isiSp('penjualan', s, i, 'Penjualan')}</td>
+              <td data-l="Reward">${isiSp('reward', s, i, 'Reward')}</td>
             </tr>`).join('')}</tbody>
           </table>
         </div>
@@ -8114,7 +8228,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <h3>Kas</h3>
         <div class="saring-baris">
           <div class="kendali-tetap"><label>Kas awal</label><input type="text" value="${rp0(st.kas_awal)}" disabled></div>
-          <div class="kendali-tetap"><label>Kas akhir fisik</label><input type="text" id="spsKasFisik" class="uang spsAngka" data-sp="kas_fisik" value="${rp0(w._kasFisik)}"></div>
+          <div class="kendali-tetap"><label>Kas akhir fisik</label><input type="text" inputmode="numeric" id="spsKasFisik" class="uang spsAngka" data-sp="kas_fisik" value="${'kas_fisik' in kt ? rp0(kt.kas_fisik) : ''}" placeholder="wajib diisi"${'kas_fisik' in kt ? '' : ' aria-invalid="true"'} aria-label="Kas akhir fisik"></div>
           <div class="kendali-tetap"><label>Pengeluaran</label><input type="text" value="${rp0(totalKeluar)}" disabled></div>
         </div>
         <p class="petunjuk">Kas akhir fisik = hasil menghitung uang sungguhan di laci, bukan angka
@@ -8249,15 +8363,24 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* Angka ditulis ke keadaan layar, BUKAN dibaca ulang dari DOM saat menyimpan.
      Membacanya dari DOM berarti satu kolom yang lupa dibaca mengirim nol tanpa
      satu pun tanda — dan nol di kolom saldo akhir melonjakkan modal. */
+  /* Kotak dikosongkan lagi = kembali "belum diketik" (bagian 299), bukan 0. */
   function ubahAngkaShiftpulsa(el) {
     const w = $('#isiShiftpulsa');
     if (!w || !w._st) return;
-    const v = angkaDari(el.value);
+    const kosong = String(el.value || '').trim() === '';
+    const v = kosong ? 0 : angkaDari(el.value);
     const sp = el.dataset.sp;
-    if (sp === 'kas_fisik') { w._kasFisik = v; }
+    const kt = (w._ketik && w._ketik.nilai) || {};
+    if (sp === 'kas_fisik') { w._kasFisik = v; if (kosong) delete kt.kas_fisik; else kt.kas_fisik = v; }
     else if (sp === 'keluar') { w._keluar = v; }
-    else { const s = (w._st.sumber || [])[+el.dataset.i]; if (s) s[sp] = v; }
+    else {
+      const s = (w._st.sumber || [])[+el.dataset.i];
+      if (!s) return;
+      s[sp] = v;
+      if (kosong) delete kt[sp + ':' + s.kode_sumber]; else kt[sp + ':' + s.kode_sumber] = v;
+    }
   }
+  const KOLOM_SP = ['deposit', 'saldo_akhir', 'penjualan', 'reward'];
 
   /* ==================== SUMBER SALDO PULSA ====================
      Master sumber saldo — aplikasi multi payment dan provider resmi tempat
@@ -10119,7 +10242,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Alasan retur *</label>
           <input type="text" id="returAlasan" placeholder="mis. kabel putus dalam 3 hari"></div>
         <div class="grup"><label>Metode selisih uang</label><select id="returMetode">
-          <option value="tunai">Tunai</option><option value="transfer">Transfer</option>
+          <option value="tunai">Tunai</option><option value="transfer_bca">TRF BCA</option><option value="transfer_bni">TRF BNI</option>
+          <option value="transfer_bri">TRF BRI</option><option value="transfer_mandiri">TRF Mandiri</option>
           <option value="qris">QRIS</option></select></div>
       </div>
 
@@ -10335,7 +10459,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <option value="UANG_KEMBALI">Uang dikembalikan</option>
         </select></div>
         <div class="grup"><label>Metode (bila uang kembali)</label><select id="rbMetode">
-          <option value="tunai">Tunai</option><option value="transfer">Transfer</option>
+          <option value="tunai">Tunai</option><option value="transfer_bca">TRF BCA</option><option value="transfer_bni">TRF BNI</option>
+          <option value="transfer_bri">TRF BRI</option><option value="transfer_mandiri">TRF Mandiri</option>
         </select></div>
       </div>
       <div class="grup"><label>Alasan retur *</label>
@@ -12698,6 +12823,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           /* Kolom saldo awal hanya ada di shift pertama cabang (bagian 228);
              kalau tidak ada, kuncinya tidak dikirim sama sekali. */
           const ketik = Array.from(document.querySelectorAll('[data-saldo-awal]'));
+          if (!wajibDiketik(ketik)) { t.disabled = false; return; }
           const saldoAwal = ketik.length
             ? Object.fromEntries(ketik.map(i => [i.dataset.saldoAwal, angkaDari(i.value)])) : null;
           /* Konfirmasi (bagian 245): saldo awal yang diketik dijurnal ke Modal
@@ -12731,13 +12857,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await API.batalShiftPulsa({ id_shift: st.id_shift });
           toast('Shift ' + st.id_shift + ' dibatalkan.');
           const w = $('#isiShiftpulsa');
-          if (w) { w._keluar = null; w._kasFisik = 0; w._catatan = ''; }
+          if (w) { w._keluar = null; w._kasFisik = 0; w._catatan = ''; w._ketik = null; }
           await muatShiftpulsa();
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;
       }
       if (t.id === 'btnTutupShiftPulsa') {
         const stM = ($('#isiShiftpulsa') || {})._st || {};
+        if (!wajibDiketik([...document.querySelectorAll('#isiShiftpulsa .spsAngka')])) return;
         const modalM = shiftMustahil(stM);
         if (modalM) {
           $('#spsMustahil').innerHTML = `<div class="pesan galat">Shift ini tidak bisa ditutup: semua saldo
@@ -13010,6 +13137,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.koreksiShift) return bukaKoreksiShift(d.koreksiShift);          // bagian 260
       if (d.riwayatKoreksi) return bukaRiwayatKoreksi(d.riwayatKoreksi);
       if (t.id === 'btnSimpanKoreksi') return simpanKoreksiShift();
+      if (d.koreksiSaldo) {
+        const k = $('#modalUmum')._koreksi;
+        return bukaKoreksiSaldo({ id: k ? k.id : '', kolom: d.koreksiSaldo, sumber: d.sumber, nilai: +d.nilai || 0, nama: d.nama });
+      }
+      if (t.id === 'btnKsPeriksa') return periksaKoreksiSaldo();
+      if (t.id === 'btnKsSimpan') return simpanKoreksiSaldo();
       if (t.id === 'btnSusulanShift') return bukaSusulanShift();            // bagian 265
       if (t.id === 'btnSimpanSusulan') return simpanSusulanShift();
       if (d.hapusShift) {

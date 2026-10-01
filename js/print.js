@@ -182,7 +182,8 @@ const Struk = (() => {
     out.push(garis);
 
     barisBayar(nota).forEach(b => {
-      out.push(...duaKolom(String(b.metode).toUpperCase(), rupiah(b.jumlah)));
+      // "transfer_bca" → "TRF BCA" (bagian 300) — sama dengan labelMetode() di pos.js.
+      out.push(...duaKolom(String(b.metode).replace(/^transfer_/, 'trf_').replace(/_/g, ' ').toUpperCase(), rupiah(b.jumlah)));
     });
     if (nota._kembali > 0) out.push(...duaKolom('KEMBALI', rupiah(nota._kembali)));
     if (nota.jatuh_tempo) out.push(...duaKolom('Jatuh tempo', tglCetak(nota.jatuh_tempo)));
