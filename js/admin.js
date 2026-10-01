@@ -1208,7 +1208,7 @@ const Admin = (() => {
 
   /** Baris daftar ringkas: [nama, angka, sub?]. Kosong = satu baris keterangan. */
   const barisDash = (rows, kosong) => rows.length
-    ? rows.map(r => `<div class="dr-baris"><span class="dr-nama">${r[0]}</span>${r[2] !== undefined && r[2] !== '' ? `<span class="dr-sub">${r[2]}</span>` : ''}<span class="dr-angka">${r[1]}</span></div>`).join('')
+    ? rows.map(r => `<div class="dr-baris"><span class="dr-nama">${r[0]}</span>${r[2] !== undefined && r[2] !== '' ? `<span class="dr-sub" title="${String(r[2]).replace(/<[^>]*>/g, '').replace(/"/g, '&quot;')}">${r[2]}</span>` : ''}<span class="dr-angka">${r[1]}</span></div>`).join('')
     : `<div class="dr-kosong">${esc(kosong || 'Belum ada data')}</div>`;
 
   const lencanaDash = (teks, warna) => `<span class="lencana ${warna || ''}">${esc(teks)}</span>`;
@@ -1808,6 +1808,13 @@ const Admin = (() => {
       const tot = ss.reduce((a, s) => a + s.d.reduce((p, q) => p + q, 0), 0);
       const uj = ss.map(s => ({ s, yy: y(s.d[n - 1]) })).sort((a, b) => a.yy - b.yy);
       for (let i = 1; i < uj.length; i++) if (uj[i].yy - uj[i - 1].yy < 12) uj[i].yy = uj[i - 1].yy + 12;
+      /* Tumpukan label yang terdorong melewati garis dasar digeser NAIK
+         seluruhnya (bagian 302): saat semua cabang 0, label ke-2 dan ke-3
+         jatuh ke baris tanggal dan "SK01" menimpa "02-10". Batasnya 6 px DI
+         ATAS garis dasar: label bernilai 0 yang duduk persis di garis dasar
+         pun sudah menyentuh huruf tanggal (diukur, enam lebar layar). */
+      const lewat = uj.length ? uj[uj.length - 1].yy - (y(0) - 6) : 0;
+      if (lewat > 0) uj.forEach(u => { u.yy -= lewat; });
       const tengah = maks / 2, fmt = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: v < 10 ? 1 : 0 });
       const langkah = Math.max(1, Math.round(n / 4));
       return `<div class="tren-cab">${kepala}<span class="tren-total">${n} hari <b>${esc(fmt(tot))} jt</b></span></div>
@@ -1819,7 +1826,7 @@ const Admin = (() => {
             <circle cx="${x(n - 1).toFixed(1)}" cy="${y(s.d[n - 1]).toFixed(1)}" r="3.5" fill="${s.c}" stroke="var(--panel)" stroke-width="2"/>`).join('')}
           ${uj.map(u => `<text x="${(x(n - 1) + 7).toFixed(1)}" y="${(u.yy + 4).toFixed(1)}" class="label-seri">${esc(u.s.k)}</text><text x="${W - 2}" y="${(u.yy + 4).toFixed(1)}" text-anchor="end">${esc(fmt(u.s.d[n - 1]))}</text>`).join('')}
           ${tgl.map((t, i) => (i % langkah === 0 && i < n - langkah / 2) || i === n - 1
-            ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="middle">${esc(String(t).substring(8, 10) + '-' + String(t).substring(5, 7))}</text>` : '').join('')}
+            ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(t).substring(8, 10) + '-' + String(t).substring(5, 7))}</text>` : '').join('')}
         </svg></div>`;
     };
     /* Jam perhitungannya ditulis (TTL grafik di server): angka sepuluh menit
@@ -12826,13 +12833,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           if (!wajibDiketik(ketik)) { t.disabled = false; return; }
           const saldoAwal = ketik.length
             ? Object.fromEntries(ketik.map(i => [i.dataset.saldoAwal, angkaDari(i.value)])) : null;
-          /* Konfirmasi (bagian 245): saldo awal yang diketik dijurnal ke Modal
-             Pemilik dan tidak bisa diketik lagi sesudah shift pertama ditutup. */
+          /* SELALU ditanya (bagian 302, pemilik 2 Okt 2026: "saldo awal sudah
+             dipastikan benar? jika benar lanjut yakin"). Saldo awal yang salah
+             baru ketahuan saat tutup — sesudah satu shift penuh dihitung di
+             atasnya (bagian 297, 301). Satu dialog saja: konfirmasi Modal
+             Pemilik shift pertama (bagian 245) digabung ke sini, bukan dua
+             dialog berturut-turut yang melatih orang menekan Ya tanpa membaca. */
+          const stB = ($('#isiShiftpulsa') || {})._st || {};
+          const daftarAwal = (stB.sumber || []).map(s => [s.nama || s.kode_sumber,
+            saldoAwal ? (+saldoAwal[s.kode_sumber] || 0) : (+s.saldo_awal || 0)]);
           const totalAwal = saldoAwal ? Object.values(saldoAwal).reduce((a, v) => a + (+v || 0), 0) : 0;
-          if (totalAwal > 0 && !(await tanya('Mulai shift dengan saldo awal ini?',
-                `<p class="petunjuk">Saldo awal aplikasi ${esc(rpTeks(totalAwal))} dicatat ke buku besar sebagai
-                   Modal Pemilik. Sesudah shift ini ditutup, angkanya tidak bisa diketik lagi.</p>`,
-                { ya: 'Mulai hitungan' }))) { t.disabled = false; return; }
+          if (!(await tanya('Saldo awal sudah dipastikan benar?',
+                `<p>Cocokkan dulu dengan saldo yang tertera di <strong>tiap aplikasi</strong> sekarang.
+                   Sesudah shift berjalan, saldo awalnya tidak bisa diubah petugas.</p>
+                 <table class="tabel"><thead><tr><th>Aplikasi</th><th class="kanan">Saldo awal</th></tr></thead><tbody>
+                   ${daftarAwal.map(([n, v]) => `<tr><td>${esc(n)}</td><td class="kanan">${rp(v)}</td></tr>`).join('')}
+                 </tbody></table>
+                 ${totalAwal > 0 ? `<p class="petunjuk">Saldo awal aplikasi ${esc(rpTeks(totalAwal))} dicatat ke buku besar sebagai
+                   Modal Pemilik. Sesudah shift ini ditutup, angkanya tidak bisa diketik lagi.</p>` : ''}`,
+                { ya: 'Yakin, lanjut' }))) { t.disabled = false; return; }
           const h = await API.bukaShiftPulsa({
             jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
             ...(saldoAwal ? { saldo_awal: saldoAwal } : {})
