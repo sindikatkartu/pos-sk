@@ -2013,14 +2013,17 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    di bawahnya terbaca sebagai satu blok yang pecah. */
 .petak-mini.petak-stok-mini { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
 @media (max-width: 900px) { .petak-mini.petak-stok-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Kartu Kesehatan stok dua-pertiga lebar di dashboard (bagian 294): empat kotak
+   angka berdampingan baru muat miliaran bila kartunya ≥ 700 px — diukur dari
+   lebar KARTU (container query), bukan layar. Di laptop 1180 kotaknya 110 px. */
+#wadahStokDash { container-type: inline-size; }
+@container (max-width: 700px) { .petak-mini.petak-stok-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Pemilih rentang grafik di judul kartu tren; di HP turun ke barisnya sendiri. */
 .seg { display: inline-flex; border: 1px solid var(--garis); border-radius: var(--radius); overflow: hidden; }
 .seg button { min-height: 40px; padding: 0 10px; font-size: var(--fs-11); background: transparent; border: 0; color: var(--teks-redup); cursor: pointer; }
 .seg button.aktif { background: var(--panel-2); color: var(--teks); font-weight: 600; }
 @media (max-width: 560px) { .kartu-dash h4 .seg { margin-left: 0; width: 100%; } .seg button { flex: 1; } }
-.tren-angka { display: flex; gap: 12px; flex-wrap: wrap; font-size: var(--fs-11); color: var(--teks-redup); margin-bottom: 4px; }
-.tren-angka strong { color: var(--teks); font-variant-numeric: tabular-nums; }
 
 /* ==================== SEMUA CABANG SEKALI LIHAT (bagian 290) ====================
    Blok di atas empat belas kartu lama, hanya bila dashboard memuat lebih dari
@@ -2032,6 +2035,11 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .kartu.rapat.kartu-cab { --tepi-x: 12px; --tepi-y: 10px; display: flex; flex-direction: column; min-width: 0; }
 .kartu-cab h4 { margin: 0 0 6px; font-size: var(--fs-13); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .kartu-cab h4 .sub { font-weight: 400; color: var(--teks-redup); font-size: var(--fs-11); }
+.kartu-cab h4 .seg { margin-left: auto; }
+/* Kesehatan stok selebar dua kolom di petak lama (bagian 294) — empat kotak
+   angkanya tidak muat di sepertiga lebar. Di HP petaknya satu kolom. */
+#petakDashLama > #wadahStokDash { grid-column: span 2; }
+@media (max-width: 560px) { #petakDashLama > #wadahStokDash { grid-column: auto; } .kartu-cab h4 .seg { margin-left: 0; width: 100%; } }
 .isi-cab { min-width: 0; }
 .petak-cab { display: grid; gap: var(--irama); align-items: stretch; }
 .petak-cab-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2074,10 +2082,16 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .tren-kepala { display: flex; align-items: center; gap: 6px; font-size: var(--fs-13); }
 .tren-total { margin-left: auto; font-size: var(--fs-12); color: var(--teks-redup); }
 .tren-total b { color: var(--teks); font-variant-numeric: tabular-nums; }
-.jam-cab + .jam-cab { margin-top: 4px; }
-.jam-kepala { display: flex; gap: 6px; font-size: var(--fs-12); }
-.jam-kepala span { margin-left: auto; color: var(--teks-redup); }
-.jam-kepala b { color: var(--teks); }
+/* Jam ramai sebagai histogram (bagian 293): kolom nama | batang, dan sumbu
+   "Jam" baris sendiri dengan kolom yang sama lebarnya dengan batang. */
+.jh { display: grid; grid-template-columns: 54px minmax(0, 1fr); column-gap: 8px; align-items: end; }
+.jh + .jh { margin-top: 6px; }
+.jh-nama { display: flex; flex-direction: column; justify-content: flex-end; line-height: 1.2; padding-bottom: 2px; font-size: var(--fs-12); }
+.jh-nama span { color: var(--teks-redup); font-size: var(--fs-11); font-variant-numeric: tabular-nums; }
+.jh-baris { display: block; width: 100%; border-bottom: 1px solid var(--garis); }
+.jh-sumbu { margin-top: 4px; }
+.jh-sumbu .jh-nama { color: var(--teks-redup); font-size: var(--fs-11); font-weight: 600; justify-content: center; padding-bottom: 0; }
+.jh-jam { display: grid; font-size: var(--fs-11); color: var(--teks-redup); text-align: center; font-variant-numeric: tabular-nums; }
 .ket-cab { font-size: var(--fs-11); color: var(--teks-redup); margin: 6px 0 0; }
 .bar100-cab { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: var(--fs-12); margin-top: 6px; }
 .bar100-cab .isi { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--garis-halus); }
@@ -2126,9 +2140,6 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    pemilik 12 Sep 2026): tinggi dan hurufnya sama di HP, tablet, PC. Dijaga
    uji-dashboard dengan mengukur tingginya di tiga lebar. */
 .bar-dash select { min-height: 40px; font-size: var(--fs-14); }
-/* Label "11:00" cuma ±36 px; kolom label bawaan grafik batang (minmax 90..150)
-   menyisakan jarak kosong ke batangnya. Hanya kartu Jam ramai. */
-#wadahJam .grafik-batang .bb { grid-template-columns: 48px 1fr auto; }
 
 /* Dua lajur yang RUNTUH jadi satu di bawah 780px. Tanpa titik runtuh ini, dua
    tabel berdampingan di tablet tegak masing-masing tinggal 180px dan nama
@@ -2668,6 +2679,16 @@ th.sempit, td.sempit { width: 1%; white-space: nowrap; }
   font-variant-numeric: tabular-nums; margin-left: auto;
 }
 .meta-kecil { font-size: var(--fs-12); color: var(--teks-redup); margin-top: 4px; }
+/* Keterangan di bawah angka BOLEH patah (bagian 295): sel angka nowrap, dan
+   keterangan sebaris memaksa kolomnya selebar keterangan, bukan angkanya. */
+td.angka .meta-kecil { white-space: normal; }
+/* Akun Perkiraan (bagian 296): akun kelompok sedikit menonjol, kode lurus. */
+#isiCoa tr.akun-induk td { background: var(--panel-2); }
+#isiCoa td.kode-akun { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#isiCoa .nama-akun { display: inline-block; }
+.pratinjau-akun { margin: 4px 0 8px; }
+/* Kolom ber-`patah` (Status di tabel Stok): label boleh dua baris di layar sempit. */
+td.boleh-patah .st { white-space: normal; }
 /* Margin bawah = --irama, sama dengan jarak antar blok. Yang 6px di atas
    runtuh ke dalam margin blok di atasnya, jadi yang benar-benar menentukan
    cuma yang bawah; 12px membuat keterangan menempel lebih rapat ke blok

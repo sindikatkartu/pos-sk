@@ -314,6 +314,9 @@ const MENU = [
      tidak ikut berubah dan tiap peran harus dicentang tangan. Yang mengurus
      aset tetap memang orang yang sama dengan yang menutup buku. */
   { id: 'aset',       label: 'Aset Tetap', grup: 'Keuangan',   izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  /* Akun Perkiraan (bagian 296): Owner menambah/mengubah, Akunting mengajukan,
+     peran lain dengan Laporan Keuangan·lihat hanya melihat. */
+  { id: 'coa',        label: 'Akun Perkiraan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   /* Gaji & kasbon (bagian 250). Modul izin SENDIRI, bukan menumpang
      laporan_keuangan seperti Aset: gaji orang per orang lebih sempit
      daripada laporan keuangan, dan Akunting yang memegang laporan belum
@@ -1846,6 +1849,33 @@ async function login(pakaiPassword = false) {
          akan mengembalikan tombol yang hanya bisa menghasilkan "PIN 6 digit." */
       if (pakaiPassword) tblLogin.disabled = false; else gambarPin();
     }
+  }
+}
+
+/**
+ * HAK AKSES DIPERBARUI TANPA LOGIN ULANG (bagian 292).
+ *
+ * Dipanggil dari denyut tarik master (sync.js, tiap 5 menit). Dulu izin, flag,
+ * dan batas diskon hanya dibaca saat login, jadi peran yang diubah Owner baru
+ * berlaku sesudah kasir keluar-masuk — sementara server sudah memakai yang
+ * baru dan menolak notanya. Sesi tersimpan ikut diperbarui, supaya tablet yang
+ * dimuat ulang tanpa jaringan tidak kembali ke batas lama.
+ */
+async function terapkanHakSesi(hak) {
+  if (!hak || !hak.flag || !APP_STATE.user) return;
+  const maksLama = APP_STATE.diskonMaks;
+  APP_STATE.izin = hak.izin || APP_STATE.izin;
+  APP_STATE.flag = hak.flag;
+  APP_STATE.diskonMaks = Number(hak.flag.diskon_maks_persen || 0);
+  try {
+    const s = await DB.kvGet('sesi', null);
+    if (s) { s.izin = APP_STATE.izin; s.flag = APP_STATE.flag; await DB.kvSet('sesi', s); }
+  } catch (e) { /* penyimpanan gagal: berlaku sampai muat ulang, denyut berikutnya mengulang */ }
+  /* Layar bayar yang sedang terbuka digambar ulang — batas yang turun harus
+     langsung memunculkan permintaan persetujuan, bukan menunggu kasir menyentuh
+     sesuatu. */
+  if (maksLama !== APP_STATE.diskonMaks && $('#tiraiBayar') && $('#tiraiBayar').classList.contains('tampil')) {
+    gambarRingkasBayar();
   }
 }
 

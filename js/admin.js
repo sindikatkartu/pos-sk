@@ -148,7 +148,7 @@ const Admin = (() => {
     if (!semua || !semua.length || !wadah) return null;
     const tanda = kolom.map(k => k.judul + (k.tanda ? ':' + k.tanda() : '')).join('|');
     const ada = LEBAR_KOLOM.get(semua);
-    if (ada && ada.tanda === tanda) return kunciKolomTanpaJudul(kolom, ada.lebar, wadah);
+    if (ada && ada.tanda === tanda) return kunciKolomTanpaJudul(kolom, pilihLebarPatah(ada, wadah), wadah);
     /* Font <th>/<td> dibaca dari sel sungguhan yang ditempel sebentar di wadah,
        supaya ukuran huruf mengikuti tema dan kartu tempatnya berada. */
     const probe = document.createElement('table');
@@ -161,13 +161,21 @@ const Admin = (() => {
     probe.remove();
     const ctx = document.createElement('canvas').getContext('2d');
     const ukur = (font, t) => { ctx.font = font; return ctx.measureText(t).width; };
-    const lebar = {};
+    const lebar = {}, patah = {};
     for (const k of kolom) {
       if (!k.judul || k.lentur) continue;
       /* Judul + panah urut (12px) — kepala tabel pun tidak boleh lebih sempit. */
       let maks = ukur(fontTh, k.judul) + 12;
       let markup = false;
       const unik = new Set();
+      /* Sel BERBARIS GANDA diukur PER BARIS, dan keterangan kecil
+         (.meta-kecil, mis. "3 lapisan · Rp…–Rp…" di bawah HPP) TIDAK ikut
+         menentukan lebar — ia boleh patah di bawah angkanya (bagian 295).
+         Dulu semuanya digabung jadi satu baris: kolom HPP dipesan 238 px dan
+         Nama di tablet tegak tinggal 77 px, patah empat baris. */
+      const pecahBaris = (html) => html.replace(/<div class="meta-kecil"[^>]*>[\s\S]*?<\/div>/g, '')
+        .replace(/<(div|br|p)\b[^>]*>/gi, '\n').replace(/<[^>]*>/g, '')
+        .split('\n').map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
       for (const r of semua) {
         let html = k.render ? String(k.render(r)) : k.tgl ? String(tglTampil(r[k.kunci])) : String(r[k.kunci] ?? '');
         /* <span class="rp"> dari rp() bukan lencana: jatah 18 px (padding + tepi
@@ -176,17 +184,35 @@ const Admin = (() => {
            di tablet (bagian 233). */
         html = html.replace(/<span class="rp">Rp<\/span>/g, 'Rp');
         if (html.indexOf('<') !== -1) markup = true;
-        unik.add(html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim());
+        pecahBaris(html).forEach(t => unik.add(t));
       }
+      /* Lencana (stok menipis/habis) menambah padding & tepi di sekitar angkanya. */
+      const jadi = (m) => Math.ceil(m + padTd + (markup ? 18 : 0) + 1);
+      let maksKata = 0;
       for (const t of unik) {
         const w = ukur(fontTd, k.angka ? t.replace(/\d/g, '0') : t);
         if (w > maks) maks = w;
+        if (k.patah) t.split(' ').forEach(x => { const wk = ukur(fontTd, x); if (wk > maksKata) maksKata = wk; });
       }
-      /* Lencana (stok menipis/habis) menambah padding & tepi di sekitar angkanya. */
-      lebar[k.judul] = Math.ceil(maks + padTd + (markup ? 18 : 0) + 1);
+      lebar[k.judul] = jadi(maks);
+      if (k.patah) patah[k.judul] = { penuh: jadi(maks), kata: jadi(Math.max(maksKata, ukur(fontTh, k.judul) + 12)) };
     }
-    LEBAR_KOLOM.set(semua, { tanda, lebar });
-    return lebar;
+    LEBAR_KOLOM.set(semua, { tanda, lebar, patah });
+    return pilihLebarPatah(LEBAR_KOLOM.get(semua), wadah);
+  }
+  /* Kolom `patah` (bagian 295; Status di tabel Stok): label UTUH selama Nama
+     masih kebagian ≥ 240 px, selain itu jatahnya kata terpanjang dan labelnya
+     turun dua baris. Dipilih SETIAP KALI tabel digambar (urut, halaman,
+     ketikan, muat), dari lebar wadah saat itu — bukan sekali per data. Dulu label
+     utuh 157 px di HP mendatar menyisakan 77 px untuk Nama. */
+  function pilihLebarPatah(hasil, wadah) {
+    const judulPatah = Object.keys(hasil.patah || {});
+    if (!judulPatah.length) return hasil.lebar;
+    const terpakai = Object.values(hasil.lebar).reduce((a, b) => a + b, 0);
+    if ((wadah.clientWidth || 0) - terpakai >= 240) return hasil.lebar;
+    const l = Object.assign({}, hasil.lebar);
+    judulPatah.forEach(j => { l[j] = hasil.patah[j].kata; });
+    return l;
   }
   /* Lajur tombol (tanpa judul) tidak bisa diukur dari teksnya — lebarnya
      ditentukan tombol dan apakah keduanya sebaris atau bertumpuk, dan itu
@@ -1357,16 +1383,6 @@ const Admin = (() => {
         baris = (d.petugas && d.petugas.peringkat && d.petugas.peringkat.petugas) ||
                 (inti.peringkat && inti.peringkat.petugas) || [];
         break;
-      case 'cabang':
-        judul = 'Omzet per cabang';
-        kolom = [{ judul: 'Cabang', kunci: 'cabang' }, { judul: 'Nota', kunci: 'nota', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
-        baris = (inti.peringkat && inti.peringkat.cabang) || inti.per_cabang || [];
-        break;
-      case 'jam':
-        judul = 'Omzet per jam';
-        kolom = [{ judul: 'Jam', render: r => String(r.jam).padStart(2, '0') + ':00' }, { judul: 'Nota', kunci: 'nota', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
-        baris = (inti.per_jam || []).filter(x => x.nota > 0); cari = false;
-        break;
       case 'piutang':
         judul = 'Kas masuk & umur piutang';
         kolom = [{ judul: 'Keterangan', kunci: 'k' }, { judul: 'Nominal', angka: true, render: r => rp(r.v) }];
@@ -1423,17 +1439,6 @@ const Admin = (() => {
                  { judul: 'Nota', kunci: 'jumlah_nota', angka: true }, { judul: 'Selisih kas', angka: true, render: r => r.status === 'TUTUP' ? rp(r.selisih) : '—' }];
         baris = mon.shift || []; cari = false;
         break;
-      case 'tren':
-        judul = 'Tren penjualan';
-        { const g = grafikTerakhir;
-          if (g && grafikModeKini === 'bulanan' && g.tren_bulanan) {
-            kolom = [{ judul: 'Bulan', kunci: 'periode' }, { judul: 'Laba kotor', angka: true, render: r => rp(r.laba_kotor) }];
-            baris = g.tren_bulanan;
-          } else if (g) {
-            kolom = [{ judul: 'Tanggal', render: r => esc(tglTampil(r.tanggal)) }, { judul: 'Nota', kunci: 'nota', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.total) }];
-            baris = g.deret_harian.map((x, i) => Object.assign({ tanggal: g.tanggal[i] }, x));
-          } }
-        cari = false; break;
       default: return;
     }
     bukaModal(judul, `
@@ -1498,7 +1503,9 @@ const Admin = (() => {
   function blokCabangDash(d) {
     const pc = ((d && d.per_cabang) || []).filter(c => c && c.cabang);
     cabDash = null;
-    if (pc.length < 2) return '';
+    /* Juga untuk SATU cabang sejak bagian 294 — kartu Tren & Jam ramai lama
+       dibuang, jadi tanpa blok ini dashboard satu cabang tidak punya keduanya. */
+    if (!pc.length) return '';
     const semua = Array.from(new Set(daftarKodeCabang().concat(pc.map(c => c.cabang)))).sort(urutNama);
     const grup = ['eceran', 'grosir', ''].map(j => ({ jenis: j, label: LABEL_JENIS_DASH[j],
       kode: pc.filter(c => jenisCabDash(c.cabang) === j).map(c => c.cabang) })).filter(g => g.kode.length);
@@ -1514,7 +1521,7 @@ const Admin = (() => {
        keputusan pemilik 1 Okt 2026 (bagian 291), semua ukuran layar. */
     return `<div class="dash-cabang" id="dashCabang">
       <div class="petak-cab petak-cab-3">
-        ${kartuCab('cabTren', 'Tren per cabang', '30 hari · juta rupiah', rangka)}
+        ${kartuTrenCab('30 hari · juta rupiah', rangka)}
         ${kartuJamCab()}
         ${kartuKasCab()}
       </div>
@@ -1608,19 +1615,23 @@ const Admin = (() => {
     const J = [];
     for (let j = ada[0]; j <= ada[ada.length - 1]; j++) J.push(j);
     const jj = (j) => String(j).padStart(2, '0');
-    const W = 340, lebar = (W - 8) / J.length, bw = Math.max(Math.min(lebar * 0.42, 10), 3);
-    return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', pc.map((c, r) => {
-      const akhir = r === pc.length - 1, H = akhir ? 44 : 30, bawah = akhir ? 14 : 0;
+    /* HISTOGRAM (bagian 293, contoh dari pemilik): satu batang PENUH per jam,
+       celah tipis 2 satuan, ujung rata. Sumbu "Jam" baris SENDIRI di bawah
+       semua cabang — di versi sebelumnya labelnya terbaca milik baris terakhir
+       saja. Nama cabang + jam puncak di kolom kiri; nilai omzet hanya lewat
+       sentuh/sorot (title), keputusan pemilik. Garis bantu tipis per jam
+       menembus tiap baris supaya batang sejajar dengan labelnya. */
+    const W = 320, lebar = W / J.length, CELAH = 2, H = 34;
+    const bantu = J.map((_, i) => i ? `<line x1="${(i * lebar).toFixed(1)}" x2="${(i * lebar).toFixed(1)}" y1="0" y2="${H}" stroke="var(--garis-halus)" stroke-width="0.6" vector-effect="non-scaling-stroke"/>` : '').join('');
+    return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', pc.map(c => {
       const d = J.map(j => Number(c.jam[j]) || 0), mx = Math.max(...d), pk = d.indexOf(mx), w = cabDash.warna(c.cabang);
-      return `<div class="jam-cab"><div class="jam-kepala"><strong>${esc(c.cabang)}</strong><span>${mx > 0
-          ? `puncak <b>${jj(J[pk])}:00</b> · ${esc(jtDash(mx))}` : 'tidak ada penjualan'}</span></div>
-        <svg class="viz-cab" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Jam ramai ${esc(c.cabang)}">
-          <line x1="4" x2="${W - 4}" y1="${H - bawah}" y2="${H - bawah}" stroke="var(--garis)"/>${d.map((v, i) => {
-            const cx = 4 + i * lebar + lebar / 2, t = v > 0 ? Math.max((H - bawah - 3) * v / mx, 2) : 0;
-            return (t ? `<rect x="${(cx - bw / 2).toFixed(1)}" y="${(H - bawah - t).toFixed(1)}" width="${bw.toFixed(1)}" height="${t.toFixed(1)}" rx="${(bw / 2).toFixed(1)}" fill="${w}"${i === pk ? '' : ' fill-opacity=".55"'}><title>${esc(c.cabang)} ${jj(J[i])}:00 · ${esc(rpTeks(v))}</title></rect>` : '') +
-              (akhir && (i % 2 === 0 || J.length <= 8) ? `<text x="${cx.toFixed(1)}" y="${H - 2}" text-anchor="middle">${jj(J[i])}</text>` : '');
-          }).join('')}</svg></div>`;
-    }).join('') + '<p class="ket-cab">Batang pekat = jam puncak cabang itu; tiap cabang berskala sendiri.</p>');
+      return `<div class="jh" data-jam-cab="${esc(c.cabang)}"><div class="jh-nama"><strong>${esc(c.cabang)}</strong><span>${mx > 0 ? jj(J[pk]) + ':00' : '—'}</span></div>
+        <svg class="jh-baris" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${bantu}${d.map((v, i) => {
+          const t = v > 0 ? Math.max((H - 2) * v / mx, 1.5) : 0;
+          return t ? `<rect x="${(i * lebar + CELAH / 2).toFixed(2)}" y="${(H - t).toFixed(1)}" width="${(lebar - CELAH).toFixed(2)}" height="${t.toFixed(1)}" fill="${w}"><title>${esc(c.cabang)} ${jj(J[i])}:00 · ${esc(rpTeks(v))}</title></rect>` : '';
+        }).join('')}</svg></div>`;
+    }).join('') + `<div class="jh jh-sumbu"><div class="jh-nama">Jam</div><div class="jh-jam" style="grid-template-columns:repeat(${J.length}, minmax(0, 1fr))">${J.map(j => `<span>${jj(j)}</span>`).join('')}</div></div>
+      <p class="ket-cab">Satu batang = satu jam · di bawah nama: jam puncak · sentuh batang untuk omzetnya · tiap cabang berskala sendiri.</p>`);
   }
 
   /** Metode bayar → kelompok tetap: transfer_bca dst. ikut "transfer". */
@@ -1721,7 +1732,7 @@ const Admin = (() => {
       `<div class="petak-sub kol-${Math.min(cabDash.pc.length, 5)}">${cabDash.pc.map(c => {
         const daftar = pt.filter(p => p.per_cabang && Number(p.per_cabang[c.cabang]) > 0)
           .map(p => ({ nama: p.nama, poin: Number(p.per_cabang[c.cabang]) }))
-          .sort((a, b) => b.poin - a.poin).slice(0, 3);
+          .sort((a, b) => b.poin - a.poin);   // tanpa batas baris (bagian 294)
         return `<div class="sub-cab" style="--c:${cabDash.warna(c.cabang)}"><div class="sub-atas"><strong>${esc(c.cabang)}</strong></div>
           <div class="top-cab">${daftar.length ? daftar.map((p, i) => `<div><span class="no">${i + 1}</span><span class="nm" title="${esc(p.nama)}">${esc(p.nama)}</span><span class="v">${esc(ribuan(p.poin))} poin</span></div>`).join('')
             : '<div class="kosong">Belum ada klaim</div>'}</div></div>`;
@@ -1747,14 +1758,24 @@ const Admin = (() => {
     });
   }
 
+  /* Kartu Tren per cabang membawa pilihan "Laba 6 bln" yang dulu ada di kartu
+     Tren lama (bagian 294) — hanya untuk peran yang boleh melihat margin. */
+  let modeTrenCab = '30', trenCabG = null;
+  const kartuTrenCab = (sub, isi) => `<div class="kartu rapat kartu-cab" id="cabTren">
+      <h4>Tren per cabang${sub ? ` <span class="sub">· ${esc(sub)}</span>` : ''}${cabDash && cabDash.adaMargin ? `
+        <span class="seg" role="group" aria-label="Isi grafik tren">${[['30', '30 hari'], ['laba', 'Laba 6 bln']].map(([v, t]) =>
+          `<button type="button" data-tren-cab="${v}" class="${v === modeTrenCab ? 'aktif' : ''}">${t}</button>`).join('')}</span>` : ''}</h4>
+      <div class="isi-cab">${isi}</div></div>`;
+
   /** Grafik 30 hari tiba: panel tren per jenis + garis kecil 7 hari di kotak cabang. */
   function isiCabTren(g, galatnya) {
     if (!cabDash) return;
     const seri = g && Array.isArray(g.seri_cabang) ? g.seri_cabang : null;
     if (galatnya || !seri || !Array.isArray(g.tanggal)) {
-      gantiCab('cabTren', kartuCab('cabTren', 'Tren per cabang', '30 hari', kosongCab('Tidak tersedia' + (galatnya ? ' (' + galatnya + ')' : ''))));
+      gantiCab('cabTren', kartuTrenCab('30 hari', kosongCab('Tidak tersedia' + (galatnya ? ' (' + galatnya + ')' : ''))));
       return;
     }
+    trenCabG = g;
     const peta = {};
     seri.forEach(s => { peta[s.nama] = (s.data || []).map(Number); });
     /* Garis kecil 7 hari terakhir di tiap kotak Cabang sekilas. */
@@ -1768,6 +1789,14 @@ const Admin = (() => {
       el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="7 hari ${esc(c.cabang)}"><title>7 hari terakhir ${esc(c.cabang)}</title>
         <polyline points="${pt.join(' ')}" fill="none" stroke="${w}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lx}" cy="${ly}" r="2.5" fill="${w}"/></svg>`;
     });
+    if (modeTrenCab === 'laba') {
+      gantiCab('cabTren', kartuTrenCab('laba kotor 6 bulan', '<div id="gLabaCab"></div>'));
+      if (Array.isArray(g.tren_bulanan) && g.tren_bulanan.length) {
+        Grafik.garis($('#gLabaCab'), { tanggal: g.tren_bulanan.map(x => x.periode),
+          seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(x => x.laba_kotor) }], tinggi: 160, tanpaTabel: true });
+      } else $('#gLabaCab').innerHTML = '<p class="grafik-kosong">Laba kotor hanya untuk peran yang berhak melihat margin.</p>';
+      return;
+    }
     const tgl = g.tanggal, n = tgl.length;
     const panel = (gp) => {
       const ss = gp.kode.filter(k => peta[k] && peta[k].length === n).map(k => ({ k, d: peta[k].map(v => v / 1e6), c: cabDash.warna(k) }));
@@ -1793,7 +1822,10 @@ const Admin = (() => {
             ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="middle">${esc(String(t).substring(8, 10) + '-' + String(t).substring(5, 7))}</text>` : '').join('')}
         </svg></div>`;
     };
-    gantiCab('cabTren', kartuCab('cabTren', 'Tren per cabang', n + ' hari · juta rupiah', cabDash.grup.map(panel).join('')));
+    /* Jam perhitungannya ditulis (TTL grafik di server): angka sepuluh menit
+       lalu tidak boleh menyamar jadi angka sekarang. */
+    gantiCab('cabTren', kartuTrenCab(n + ' hari · juta rupiah' + (g.dihitung ? ' · per ' + waktuTampil(g.dihitung) : ''),
+      cabDash.grup.map(panel).join('')));
   }
 
   /** Grafik 30 hari dipakai BERSAMA kartu tren lama — satu permintaan, bukan dua. */
@@ -1886,18 +1918,12 @@ const Admin = (() => {
 
         ${blokCabangDash(d)}
 
-        ${/* BARIS 1 — tren, kas & piutang, jam ramai. Tiga kartu berdiri sendiri,
-              sama tinggi (align-items: stretch). */''}
-        <div class="petak-dash">
-          <div class="kartu rapat kartu-dash" id="kartuTren">
-            <h4>Tren penjualan
-              <span class="seg" id="grafikMode" role="group" aria-label="Rentang grafik">
-                ${[['14', '14'], ['30', '30'], ['60', '60'], ['90', '90'], ['bulanan', 'Laba 6 bln']].map(([v, t]) =>
-                  `<button type="button" data-grafik="${v}" class="${v === '30' ? 'aktif' : ''}">${t}</button>`).join('')}
-              </span></h4>
-            <div class="isi-dash"><div id="wadahGrafik"><p class="grafik-kosong">Memuat grafik…</p></div></div>
-            <div class="kaki-dash"><button type="button" class="tabel-tautan" data-tabel-dash="tren">Lihat sebagai tabel</button></div>
-          </div>
+        ${/* PETAK LAMA, disusun ulang bagian 294: kartu Tren penjualan, Jam ramai,
+              dan Cabang DIBUANG — ketiganya sudah ada di blok per cabang di atas
+              (pemilik 1 Okt 2026). Lima kartu dalam SATU petak; Kesehatan stok
+              selebar dua kolom, jadi tiap baris penuh: 3 + (1 + 2) di PC,
+              2 + 2 + 2 di tablet, satu-satu di HP. */''}
+        <div class="petak-dash" id="petakDashLama">
           ${kartuDaftarDash('Kas & piutang', '', `
             <div class="dr-judul">Kas masuk</div>
             ${barisDash((kas.per_metode || []).map(r => [esc(String(r.metode).toUpperCase()), rp(r.jumlah)]), 'Belum ada pembayaran')}
@@ -1907,30 +1933,18 @@ const Admin = (() => {
               ['Lewat 1–30 hari', '<strong class="' + (pi.d1_30 > 0 ? 'peringatan' : '') + '">' + rp(pi.d1_30 || 0) + '</strong>'],
               ['Lewat 30+ hari', '<strong class="' + (pi.d30plus > 0 ? 'bahaya' : '') + '">' + rp(pi.d30plus || 0) + '</strong>']
             ])}`, { tabel: 'piutang', kaki: 'per pelanggan', id: 'kartuKas' })}
-          ${kartuDaftarDash('Jam ramai', 'omzet per jam',
-            '<div id="wadahJam"><p class="grafik-kosong">Belum ada penjualan</p></div>',
-            { tabel: 'jam', kaki: '24 jam', id: 'kartuJam' })}
-        </div>
-
-        ${/* BARIS 2 & 3 — kartu monitor. Rangka dulu, diisi belakangan dari
-              bagian 'monitor' di latar (sama polanya dengan 'berat'). Kartu yang
-              perannya tidak berhak tidak pernah digambar — rangkanya pun tidak. */''}
-        <div class="petak-dash" id="petakMonitor">${rangkaMonitor()}</div>
-
-        ${/* BARIS 4 — empat peringkat, empat kartu sendiri. */''}
-        <div class="petak-dash petak-dash-4">
           ${rangkaKartuPeringkat('Produk terlaris', 'wadahPeringkatProduk')}
           ${rangkaKartuPeringkat('Kategori', 'wadahPeringkatKategori')}
           ${pk.petugas ? kartuPetugasDash(pk.petugas) : `<div class="kartu rapat kartu-dash" id="kartuPetugas" aria-busy="true">
             <h4>Petugas</h4><div class="isi-dash">${rangkaBaris(4, ['80%', '62%', '74%', '56%'])}</div></div>`}
-          ${kartuDaftarDash('Cabang', '', barisDash((pk.cabang || d.per_cabang || []).slice(0, 5).map(r =>
-              [esc(r.cabang), rp(r.omzet), r.nota + ' nota']), 'Belum ada transaksi'),
-            { tabel: 'cabang', kaki: 'semua', id: 'kartuCabang' })}
+          ${rangkaKartuStok('wadahStokDash')}
         </div>
 
-        ${rangkaKartuStok('wadahStokDash')}`;
+        ${/* Kartu monitor. Rangka dulu, diisi belakangan dari bagian 'monitor' di
+              latar (sama polanya dengan 'berat'). Kartu yang perannya tidak berhak
+              tidak pernah digambar — rangkanya pun tidak. */''}
+        <div class="petak-dash" id="petakMonitor">${rangkaMonitor()}</div>`;
 
-      muatGrafik(30);
       muatCabTren(tiket);
       /* Peringkat petugas (bagian 268): server LAMA masih mengirimnya di inti —
          kartunya sudah tergambar di atas; selain itu diisi begitu tiba. */
@@ -1940,18 +1954,6 @@ const Admin = (() => {
          dengan `berat`: mengunci tombol selama tujuh daftar dihitung berarti
          mengunci layar yang sudah selesai. */
       muatDashboardMonitor(tiket);
-
-      /* Jam ramai. Jam yang NOL sengaja ikut dikirim server lalu disaring di sini,
-         bukan disaring di server: yang menentukan jam buka toko adalah pemiliknya,
-         dan menyaring di server berarti memutuskan untuk semua toko. */
-      const jam = (d.per_jam || []).filter(x => x.nota > 0);
-      if (jam.length) {
-        Grafik.batang($('#wadahJam'), {
-          data: jam.map(x => ({ label: String(x.jam).padStart(2, '0') + ':00',
-                                nilai: x.omzet, tambahan: x.nota + ' nota' })),
-          tanpaTabel: true
-        });
-      }
 
       /* Bagian berat. Kalau server (lama) sudah mengirimnya, langsung diisi;
          kalau tidak, ditarik di LATAR — layar sudah bisa dibaca, dan mengunci
@@ -2041,78 +2043,13 @@ const Admin = (() => {
   const rangkaKartuStok = (id) => `<div class="kartu rapat kartu-dash" id="${id}" aria-busy="true">
       <h4>Kesehatan stok</h4><div class="isi-dash">${rangkaBaris(5, ['80%', '62%', '90%', '70%', '54%'])}</div></div>`;
 
-  /* Muatan grafik terakhir, disimpan supaya perubahan tema bisa menggambar ulang
-     TANPA memanggil server lagi. SVG yang sudah tergambar tidak ikut berubah
-     warna sendiri seperti kotak dan teks — token CSS tidak menyentuh atribut
-     `fill` dan `stroke` yang sudah ditulis ke dalam elemennya. */
-  let grafikTerakhir = null;
-
-  /** Hanya menggambar. Tidak mengambil data, tidak menyentuh innerHTML wadahnya. */
-  function pasangGrafik(g) {
-    if (!g || !$('#gPenjualan')) return;
-    /* Tinggi 170 px, bukan 300 bawaan grafik.js — diminta pemilik 12 Sep 2026:
-       "petak tren penjualan terlalu melebar dan banyak yang lega". Kartunya
-       satu kolom, grafiknya mengikuti lebar kartu. */
-    if (grafikModeKini === 'bulanan') {
-      if (g.tren_bulanan) Grafik.garis($('#gPenjualan'), {
-        tanggal: g.tren_bulanan.map(x => x.periode),
-        seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(x => x.laba_kotor) }],
-        tinggi: 140, tanpaTabel: true
-      });
-      else $('#gPenjualan').innerHTML = '<p class="grafik-kosong">Laba kotor hanya untuk peran yang berhak melihat margin.</p>';
-      return;
-    }
-    // Satu garis per cabang bila lintas cabang; kalau hanya satu cabang, satu garis omzet.
-    /* seri_cabang SUDAH berbentuk yang dimengerti Grafik.garis: { nama, data }
-       (16_Grafik.gs). v1.179 memetakannya ulang ke dua kunci yang tidak
-       ada, dan "Semua cabang" meledak di s.data.forEach (§160). Apa adanya. */
-    const seri = g.seri_cabang.length > 1
-      ? g.seri_cabang
-      : [{ nama: 'Omzet', data: g.deret_harian.map(x => x.total) }];
-    Grafik.garis($('#gPenjualan'), { tanggal: g.tanggal, seri, tinggi: 140, tanpaTabel: true });
-  }
-
-  /* Tema diubah pemilik dari perangkat lain; perangkat ini baru tahu saat
-     sinkronisasi. Kotak dan teks sudah ikut gelap lewat token CSS — grafiknya
-     belum, dan grafik terang di tengah layar gelap terbaca sebagai kerusakan.
-     Digambar ulang dari muatan yang sudah ada: tidak ada panggilan server. */
-  document.addEventListener('tema:berubah', () => {
-    if (grafikTerakhir) pasangGrafik(grafikTerakhir);
-  });
-
-  /* Muatan grafik dicatat per mode supaya pergantian 14/30/60/90 yang sudah
-     pernah ditarik tidak menembak server lagi. */
+  /* Muatan grafik 30 hari dipakai blok "Semua cabang" (ambilGrafik30). Kartu
+     Tren & Jam ramai LAMA dibuang bagian 294 — beserta muatGrafik/pasangGrafik. */
   const grafikMuatan = {};
-  let grafikModeKini = '30';
-  async function muatGrafik(hari) {
-    const w = $('#wadahGrafik');
-    if (!w) return;
-    const mode = String(hari);
-    grafikModeKini = mode;
-    $$('#grafikMode [data-grafik]').forEach(b => b.classList.toggle('aktif', b.dataset.grafik === mode));
-    if (!grafikMuatan[mode]) w.innerHTML = '<p class="grafik-kosong">Memuat grafik…</p>';
-    try {
-      /* "Laba 6 bln" memakai muatan 30 hari (tren_bulanan ikut di dalamnya). */
-      const kunci = mode === 'bulanan' ? '30' : mode;
-      const g = grafikMuatan[kunci] || (grafikMuatan[kunci] = await (kunci === '30' ? ambilGrafik30()
-        : ambilDash('grafik' + kunci, () => API.dataGrafik({ hari: Number(kunci) }))));
-      if (grafikModeKini !== mode) return;              /* orang sudah ganti mode */
-      const r = g.ringkas;
-      /* Satu baris angka ringkas, bukan empat petak: petak KPI di atas sudah
-         menyebut omzet, rata-rata, dan margin untuk periode yang dipilih. */
-      w.innerHTML = `
-        <div class="tren-angka">${mode === 'bulanan'
-          ? '<span>Laba kotor 6 bulan terakhir</span>'
-          : `<span>${kunci} hari <strong>${rp(r.omzet)}</strong></span><span>per hari <strong>${rp(r.rata_per_hari)}</strong></span><span>per nota <strong>${rp(r.rata_per_nota)}</strong></span>`}
-          ${g.dihitung ? `<span class="petunjuk" style="margin:0 0 0 auto" title="${g.dari_cache ? 'tersimpan sementara di server' : ''}">per ${esc(waktuTampil(g.dihitung))}</span>` : ''}
-        </div>
-        <div id="gPenjualan"></div>`;
-      grafikTerakhir = g;
-      pasangGrafik(g);
-    } catch (e) {
-      w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
-    }
-  }
+  /* Tema berubah: hanya grafik laba (Grafik.garis menulis warnanya ke elemen) yang digambar ulang. */
+  document.addEventListener('tema:berubah', () => {
+    if (trenCabG && modeTrenCab === 'laba') isiCabTren(trenCabG);
+  });
 
   /**
    * Level harga yang masih hidup — satu sumber untuk SELURUH layar back office.
@@ -2525,7 +2462,10 @@ const Admin = (() => {
          baru dibersihkan). Menimpanya dengan nol akan membuat 3.500 produk
          terbaca "habis" sekaligus, dan itu kebohongan yang jauh lebih mahal
          daripada angka yang tertinggal beberapa menit. */
-      if (!stok.length) return;
+      /* Sejak bagian 295 server tidak lagi mengirim stok di daftar produk —
+         salinan perangkat satu-satunya sumber. Store kosong = BELUM TAHU:
+         kolomnya "—", bukan 0 yang terbaca "habis". */
+      if (!stok.length) { rows.forEach(r => { delete r.stok; }); return; }
       const peta = {};
       /* Kunci store `stok` berbentuk 'sku|kode_varian'. Yang dipakai layar ini
          stok SKU-nya, jadi varian dijumlahkan — sama dengan yang dihitung
@@ -2904,7 +2844,8 @@ const Admin = (() => {
           ...(modal ? [{ judul: 'Modal', angka: true, nilai: r => Number(r.harga_beli_terakhir) || 0, render: r => rp(r.harga_beli_terakhir) }] : []),
           { judul: 'Eceran', angka: true, nilai: r => Number(r.harga_eceran) || 0, render: r => rp(r.harga_eceran) },
           { judul: 'Grosir', angka: true, nilai: r => Number(r.harga_grosir) || 0, render: r => rp(r.harga_grosir) },
-          { judul: 'Stok', angka: true, nilai: r => Number(r.stok) || 0, render: r => lencanaStok(r.stok, r.stok_min) },
+          { judul: 'Stok', angka: true, nilai: r => Number(r.stok) || 0,
+            render: r => r.stok === undefined ? '<span class="redup" title="Stok perangkat belum ditarik">—</span>' : lencanaStok(r.stok, r.stok_min) },
           /* Kolom Terjual muncul SENDIRI saat penyaringnya dipakai, tanpa perlu
              memilihnya lagi di dropdown kolom. Daftar yang diurut menurut angka
              yang tidak kelihatan adalah daftar yang urutannya tidak bisa
@@ -5002,7 +4943,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        dibuang kolomnya, bukan informasinya. */
     { judul: 'Nama', kunci: 'nama', lentur: true, nilai: r => r.nama || '',
       render: r => esc(r.nama || '') + metaStok(r) },
-    { judul: 'Status', nilai: r => { const st = statusStok(r); return st ? st.label : ''; },
+    { judul: 'Status', patah: true, kelas: 'boleh-patah', nilai: r => { const st = statusStok(r); return st ? st.label : ''; },
       render: r => { const st = statusStok(r);
         return st ? `<span class="st ${st.kelas}">${esc(st.label)}</span>`
                   : '<span style="color:var(--teks-redup)">—</span>'; } },
@@ -5329,6 +5270,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanPembelian">${ikonAlat('simpan')}<span>Simpan pembelian</span></button>`);
     daftarPilihProduk = prod.produk;
+    timpaStokPerangkat(daftarPilihProduk);   // "stok N" di hasil pemilih (bagian 295)
     tambahBarisBeli();
     siapkanPindaiBeli(prod.produk);
     $('#beliPindai')?.focus();
@@ -7552,8 +7494,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                menandakan pindah BAGIAN halaman. Tab Pulsa memindahkan bagian
                halaman, jadi ia milik yang kedua.
 
-               #grafikMode di dashboard SENGAJA tetap .seg — ia pengalih di
-               dalam kartu, bukan tab halaman. Dua kelas, dua kegunaan.
+               Pengalih "30 hari / Laba 6 bln" di kartu Tren per cabang SENGAJA
+               tetap .seg — ia pengalih di dalam kartu, bukan tab halaman.
 
                margin-bottom:0 menyalin yang dipakai #tabLaporan: tanpa itu
                .tab-modal membawa jarak 18 px yang menggantung di dasar kartu. -->
@@ -9087,6 +9029,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanTransfer">${ikonAlat('kirim')}<span>Kirim</span></button>`);
     daftarPilihProduk = prod.produk;
+    timpaStokPerangkat(daftarPilihProduk);   // "stok N" di hasil pemilih (bagian 295)
     tambahBarisTf();
   }
 
@@ -9514,6 +9457,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanPermintaan">${ikonAlat('kirim')}<span>Kirim permintaan</span></button>`);
     daftarPilihProduk = prod.produk;
+    timpaStokPerangkat(daftarPilihProduk);   // "stok N" di hasil pemilih (bagian 295)
 
     /* Stok kedua cabang dibaca dari store `stok_cabang` di perangkat — yang
        sama dengan yang dipakai kasir untuk mengintip stok cabang lain. Instan
@@ -10608,6 +10552,226 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const PERIODE_ASET = { id: 'asetPeriodePilih', dari: 'asetPeriode', bulanan: true,
                          nilai: 'bulan', label: 'Periode' };
   let asetData = null;
+
+  /* ==================== AKUN PERKIRAAN (bagian 296) ====================
+     Seperti "Akun Perkiraan" di Accurate. Owner menambah & mengubah; Akunting
+     mengajukan, Owner memutuskan; peran lain dengan Laporan Keuangan·lihat
+     hanya melihat. Lima pengaman pilihan pemilik: kode dibuat sistem (tidak
+     diketik), nama kembar ditolak, pratinjau sebelum simpan, kode tidak bisa
+     diubah, setiap perubahan tercatat di audit. Server yang menjaga semuanya —
+     layar ini hanya memberi tahu lebih awal. */
+  let coaData = null;
+  const saringCoa = { q: '', tipe: '' };
+  const kunciNamaAkun = (n) => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const NORMAL_TIPE_D = ['Aset', 'HPP', 'Beban', 'Beban Lain'];
+  const normalAkun = (tipe, pengurang) => {
+    const d = NORMAL_TIPE_D.includes(tipe);
+    return (pengurang ? !d : d) ? 'D' : 'K';
+  };
+  /** Sama dengan _kodeAkunBerikut di server — hanya untuk pratinjau; server yang menentukan. */
+  function kodeAkunBerikut(akun, induk, sesudah) {
+    const m = /^(\d)-(\d{4})$/.exec(String(induk));
+    if (!m) return '';
+    const ada = new Set(akun.map(a => a.kode));
+    let maks = -1;
+    akun.forEach(a => {
+      if (a.induk !== induk) return;
+      const k = /^(\d)-(\d{4})$/.exec(a.kode);
+      if (k && k[1] === m[1]) maks = Math.max(maks, Number(k[2]));
+    });
+    let n = maks >= 0 ? maks + 1 : Number(m[2]) + 100;
+    const ks = sesudah && /^(\d)-(\d{4})$/.exec(sesudah);
+    if (ks && ks[1] === m[1]) n = Number(ks[2]) + 1;
+    while (n <= 9999 && ada.has(m[1] + '-' + String(n).padStart(4, '0'))) n++;
+    return n > 9999 ? '' : m[1] + '-' + String(n).padStart(4, '0');
+  }
+
+  async function muatCoa() {
+    const w = $('#isiCoa');
+    if (!w) return;
+    memuat('#isiCoa');
+    try {
+      coaData = await API.daftarCoa();
+      gambarCoa();
+    } catch (e) { galat('#isiCoa', e); }
+  }
+
+  function gambarCoa() {
+    const d = coaData, w = $('#isiCoa');
+    if (!d || !w) return;
+    const peta = {};
+    d.akun.forEach(a => { peta[a.kode] = a; });
+    const dalam = (a) => { let n = 0, x = a; while (x && x.induk && peta[x.induk] && n < 6) { n++; x = peta[x.induk]; } return n; };
+    /* Saldo akun INDUK = jumlah anak-anaknya (seperti Accurate), dihitung di sini dari angka yang sudah ada. */
+    const saldoInduk = {};
+    d.akun.forEach(a => {
+      if (a.saldo === null) return;
+      let x = peta[a.induk];
+      while (x) { saldoInduk[x.kode] = (saldoInduk[x.kode] || 0) + (Number(a.saldo) || 0); x = peta[x.induk]; }
+    });
+    const q = saringCoa.q.toLowerCase().trim();
+    const baris = d.akun.filter(a => (!saringCoa.tipe || a.tipe === saringCoa.tipe) &&
+      (!q || a.kode.toLowerCase().includes(q) || a.nama.toLowerCase().includes(q)));
+    const saldoSel = (a) => {
+      const v = a.transaksi ? a.saldo : saldoInduk[a.kode];
+      if (v === null || v === undefined) return a.transaksi ? '<span class="redup">—</span>' : '';
+      return `<span class="${v < 0 ? 'bahaya' : ''}">${rp(v)}</span>`;
+    };
+    /* Kolom menunya sendiri hanya ada bila boleh_ubah (lihat susunan kolom). */
+    const menuBaris = (a) => {
+      const id = esc(a.kode), bisaHapus = !a.sistem && !a.dipakai && !a.anak;
+      const isi = butirBaris('', 'Ubah nama', IKON.ubah, `data-coa-ubah="${id}"`) +
+        (!a.sistem ? butirBaris('', a.aktif ? 'Nonaktifkan' : 'Aktifkan', IKON.nonaktif, `data-coa-aktif="${id}" data-coa-jadi="${a.aktif ? '0' : '1'}"`) : '') +
+        (bisaHapus ? butirBaris('bahaya', 'Hapus', IKON.hapus, `data-coa-hapus="${id}"`, 'Hapus akun yang belum pernah dipakai') : '');
+      return menuTindakan({ id: 'menuCoa' + idAman(a.kode), idTombol: 'btnCoa' + idAman(a.kode), kunci: 'baris-coa',
+        baris: true, tanda: bisaHapus ? 'bahaya' : '', isi });
+    };
+    const tipeOpsi = ['<option value="">Semua tipe</option>'].concat(d.tipe.map(t =>
+      `<option value="${esc(t)}" ${saringCoa.tipe === t ? 'selected' : ''}>${esc(t)}</option>`)).join('');
+    const nMinta = (d.minta || []).filter(m => m.status === 'MENUNGGU').length;
+    w.innerHTML = `
+      ${(d.minta || []).length ? kartuMintaCoa(d) : ''}
+      <div class="kartu laporan-uang">
+        <div class="bar-alat"><h3>Bagan akun</h3>
+          <span class="satuan-uang">saldo dalam Rupiah · akun laba-rugi: bulan berjalan</span>
+          <div style="flex:1"></div>
+          ${d.boleh_ubah ? tombolTambah('btnCoaTambah', 'Tambah akun') : ''}
+          ${d.boleh_ajukan ? `<button class="tombol utama" id="btnCoaAjukan">${ikonAlat('kirim')}<span>Ajukan akun</span></button>` : ''}
+        </div>
+        <div class="saring-baris">
+          <label>Cari<input type="search" id="coaCari" class="kendali-tetap" placeholder="Kode atau nama…" value="${esc(saringCoa.q)}"></label>
+          <label>Tipe<select id="coaTipe" class="kendali-tetap">${tipeOpsi}</select></label>
+        </div>
+        ${tabel([
+          { judul: 'Kode', kunci: 'kode', kelas: 'kode-akun' },
+          { judul: 'Nama', kunci: 'nama', render: a =>
+              `<span class="nama-akun" style="padding-left:${dalam(a) * 16}px">${a.transaksi ? esc(a.nama) : '<strong>' + esc(a.nama) + '</strong>'}</span>` +
+              (a.sistem ? ' ' + lencanaDash('sistem', 'abu') : '') + (!a.aktif ? ' ' + lencanaDash('nonaktif', 'merah') : '') },
+          { judul: 'Tipe', kunci: 'tipe' },
+          { judul: 'Saldo', angka: true, nilai: a => Number(a.transaksi ? a.saldo : saldoInduk[a.kode]) || 0, render: saldoSel },
+          ...(d.boleh_ubah ? [{ judul: '', kelas: 'sel-menu', render: menuBaris }] : [])
+        ], baris, { kosong: q || saringCoa.tipe ? 'Tidak ada akun yang cocok' : 'Belum ada akun',
+                    dataAttr: a => a.transaksi ? '' : 'class="akun-induk"' })}
+        <p class="petunjuk">${d.boleh_ubah
+          ? 'Kode dibuat sistem dan tidak bisa diubah. Akun <strong>sistem</strong> dipakai POS: namanya boleh diubah, tapi tidak bisa dihapus atau dinonaktifkan. Akun lain bisa dihapus selama belum pernah dipakai jurnal dan tidak punya sub akun.'
+          : d.boleh_ajukan ? 'Akun baru diajukan ke Owner; begitu disetujui, akunnya langsung masuk bagan ini.'
+          : 'Hanya Owner yang menambah dan mengubah akun.'}${nMinta && d.boleh_ubah ? ` <strong>${nMinta} pengajuan menunggu keputusan Anda.</strong>` : ''}</p>
+      </div>`;
+    const cari = $('#coaCari');
+    if (cari) cari.addEventListener('input', () => {
+      saringCoa.q = cari.value;
+      const pos = cari.selectionStart;
+      gambarCoa();
+      const c2 = $('#coaCari'); if (c2) { c2.focus(); try { c2.setSelectionRange(pos, pos); } catch (e) { /* jenis search */ } }
+    });
+    const tp = $('#coaTipe');
+    if (tp) tp.addEventListener('change', () => { saringCoa.tipe = tp.value; gambarCoa(); });
+  }
+
+  function kartuMintaCoa(d) {
+    const warna = { MENUNGGU: 'kuning', DISETUJUI: 'hijau', DITOLAK: 'merah' };
+    return `<div class="kartu" id="kartuMintaCoa">
+      <div class="bar-alat"><h3>${d.boleh_ubah ? 'Pengajuan akun' : 'Pengajuan saya'}</h3></div>
+      ${tabel([
+        { judul: 'Akun', render: m => `<strong>${esc(m.nama)}</strong>` +
+            `<span class="petunjuk" style="display:block;margin:0">${m.kode ? esc(m.kode) : 'di bawah ' + esc(m.induk)} · ${esc(m.catatan)}</span>` },
+        { judul: 'Diajukan', render: m => esc(m.peminta) + `<span class="petunjuk" style="display:block;margin:0">${esc(waktuTampil(m.waktu))}</span>` },
+        { judul: 'Status', render: m => lencanaDash(m.status === 'DISETUJUI' ? 'disetujui' : m.status === 'DITOLAK' ? 'ditolak' : 'menunggu', warna[m.status]) +
+            (m.alasan_tolak ? `<span class="petunjuk" style="display:block;margin:0">${esc(m.alasan_tolak)}</span>` : '') },
+        ...(d.boleh_ubah ? [{ judul: '', kelas: 'sel-menu', render: m => m.status !== 'MENUNGGU' ? '' :
+            menuTindakan({ id: 'menuMintaCoa' + idAman(m.id), idTombol: 'btnMintaCoa' + idAman(m.id), kunci: 'baris-minta-coa',
+              baris: true, tanda: 'perlu',
+              isi: butirBaris('sukses', 'Setujui', IKON.setujui, `data-coa-setuju="${esc(m.id)}"`) +
+                   butirBaris('bahaya', 'Tolak', IKON.batal, `data-coa-tolak="${esc(m.id)}"`) }) }] : [])
+      ], d.minta, { kosong: 'Belum ada pengajuan' })}
+    </div>`;
+  }
+
+  /** Form tambah (Owner) / ajukan (Akunting). Pratinjau dulu, baru simpan. */
+  function bukaFormCoa(ajukan) {
+    const d = coaData;
+    if (!d) return;
+    const tipeAwal = d.tipe[0];
+    bukaModal(ajukan ? 'Ajukan akun baru' : 'Tambah akun', `
+      <div class="petak petak-form">
+        <label>Tipe akun<select id="coaFTipe">${d.tipe.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select></label>
+        <label>Sub akun dari<select id="coaFInduk"></select></label>
+        <label>Nomor sesudah<select id="coaFSesudah"></select></label>
+        <label>Kode (dibuat sistem)<input type="text" id="coaFKode" readonly tabindex="-1"></label>
+        <label>Nama akun<input type="text" id="coaFNama" maxlength="80" placeholder="mis. Bank BRI"></label>
+      </div>
+      <label class="cek"><input type="checkbox" id="coaFTransaksi" checked> Bisa dipakai transaksi
+        <span class="petunjuk" style="display:block;margin:0">Kosongkan untuk akun KELOMPOK yang hanya menampung sub akun.</span></label>
+      <label class="cek"><input type="checkbox" id="coaFPengurang"> Akun pengurang (kontra)
+        <span class="petunjuk" style="display:block;margin:0">Mis. Akumulasi Penyusutan atau Retur Penjualan — saldo normalnya dibalik.</span></label>
+      ${ajukan ? '<label>Untuk apa akun ini<input type="text" id="coaFCatatan" maxlength="120" placeholder="mis. rekening BRI baru untuk setoran grosir"></label>' : ''}
+      <p class="pesan galat sembunyi" id="coaFGalat"></p>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="coaFLanjut">${ikonAlat('tampil')}<span>Periksa dulu</span></button>`);
+    /* "Nomor sesudah": akun saudara tempat akun baru diletakkan — kodenya nomor
+       kosong pertama sesudahnya. Bawaan: sesudah akun terakhir. */
+    const isiKode = () => { $('#coaFKode').value = kodeAkunBerikut(d.akun, $('#coaFInduk').value, $('#coaFSesudah').value) || '—'; };
+    const isiSesudah = () => {
+      const saudara = d.akun.filter(a => a.induk === $('#coaFInduk').value);
+      $('#coaFSesudah').innerHTML = '<option value="">(paling akhir)</option>' +
+        saudara.map(a => `<option value="${esc(a.kode)}">${esc(a.kode)} · ${esc(a.nama)}</option>`).join('');
+      isiKode();
+    };
+    const isiInduk = () => {
+      const t = $('#coaFTipe').value;
+      const calon = d.akun.filter(a => a.tipe === t && !a.transaksi && a.aktif);
+      $('#coaFInduk').innerHTML = calon.map(a => `<option value="${esc(a.kode)}">${esc(a.kode)} · ${esc(a.nama)}</option>`).join('')
+        || '<option value="">(tidak ada akun kelompok untuk tipe ini)</option>';
+      isiSesudah();
+    };
+    $('#coaFTipe').value = tipeAwal;
+    isiInduk();
+    $('#coaFTipe').addEventListener('change', isiInduk);
+    $('#coaFInduk').addEventListener('change', isiSesudah);
+    $('#coaFSesudah').addEventListener('change', isiKode);
+    $('#coaFLanjut').addEventListener('click', async () => {
+      const g = $('#coaFGalat');
+      const tampilGalat = (t) => { g.textContent = t; g.classList.remove('sembunyi'); };
+      const nama = $('#coaFNama').value.replace(/\s+/g, ' ').trim();
+      const induk = $('#coaFInduk').value, tipe = $('#coaFTipe').value;
+      const transaksi = $('#coaFTransaksi').checked, pengurang = $('#coaFPengurang').checked;
+      const catatan = ajukan ? $('#coaFCatatan').value.trim() : '';
+      if (!induk) return tampilGalat('Pilih akun induknya.');
+      if (nama.length < 3) return tampilGalat('Nama akun minimal 3 huruf.');
+      const kembar = d.akun.find(a => kunciNamaAkun(a.nama) === kunciNamaAkun(nama));
+      if (kembar) return tampilGalat(`Nama "${nama}" sudah dipakai akun ${kembar.kode}.`);
+      if (ajukan && catatan.length < 3) return tampilGalat('Tulis untuk apa akun ini (minimal 3 huruf).');
+      const ind = d.akun.find(a => a.kode === induk);
+      const sesudah = $('#coaFSesudah').value;
+      const kode = kodeAkunBerikut(d.akun, induk, sesudah);
+      const normal = normalAkun(tipe, pengurang) === 'D' ? 'Debit' : 'Kredit';
+      tutupModal();
+      /* Pratinjau sebagai daftar ringkas (pola kartu dashboard), bukan tabel —
+         lima pasangan label–isi tidak butuh kepala kolom. */
+      const ya = await tanya(ajukan ? 'Ajukan akun ini?' : 'Buat akun ini?', `
+        <div class="pratinjau-akun">${barisDash([
+          ['Kode', '<strong>' + esc(kode) + '</strong>' + (ajukan ? ' <span class="petunjuk">(perkiraan)</span>' : '')],
+          ['Nama', '<strong>' + esc(nama) + '</strong>'],
+          ['Di bawah', esc(induk) + ' · ' + esc(ind ? ind.nama : '')],
+          ['Tipe', esc(tipe) + ' · saldo normal ' + normal + (pengurang ? ' (pengurang)' : '')],
+          ['Jenis', transaksi ? 'Akun transaksi' : 'Akun kelompok'],
+          ...(ajukan ? [['Untuk', esc(catatan)]] : [])
+        ])}</div>
+        <p class="petunjuk">${ajukan ? 'Owner akan memutuskan; kodenya ditetapkan saat disetujui.' : 'Kode dibuat sistem dan tidak bisa diubah.'}</p>`,
+        { ya: ajukan ? 'Ajukan' : 'Simpan akun' });
+      if (!ya) return;
+      try {
+        if (ajukan) {
+          await API.ajukanCoa({ induk, sesudah, nama, transaksi, pengurang, catatan });
+          toast('Pengajuan akun dikirim ke Owner.');
+        } else {
+          const h = await API.simpanCoa({ induk, sesudah, nama, transaksi, pengurang });
+          toast(`Akun ${h.akun.kode_akun} ${h.akun.nama} dibuat.`);
+        }
+        muatCoa();
+      } catch (x) { toast(x.message, 'galat'); }
+    });
+  }
 
   async function muatAset() {
     const w = $('#isiAset');
@@ -11714,6 +11878,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       pulsa: '#isiPulsa',
                       accurate: '#isiAccurate',
                       aset: '#isiAset',
+                      coa: '#isiCoa',
                       gaji: '#isiGaji',
                       kas: '#isiKas',
                       konsolidasi: '#isiKonsolidasi',
@@ -11748,6 +11913,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'pulsa': return muatPulsa();
       case 'accurate': return muatAccurate();
       case 'aset': return muatAset();
+      case 'coa':  return muatCoa();
       case 'gaji': return muatGaji();
       case 'kas': return muatKas();
       case 'konsolidasi': return muatKonsolidasi();
@@ -11924,6 +12090,57 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            melihat baris 200 dari halaman baru, bukan baris 101. */
         $(g.wadah)?.scrollIntoView({ block: 'start', behavior: 'auto' });
         return;
+      }
+      /* --- Akun Perkiraan (bagian 296) --- */
+      if (t.id === 'btnCoaTambah') return bukaFormCoa(false);
+      if (t.id === 'btnCoaAjukan') return bukaFormCoa(true);
+      if (d.coaUbah) {
+        const a = (coaData?.akun || []).find(x => x.kode === d.coaUbah);
+        const nama = await tanya('Ubah nama akun ' + d.coaUbah,
+          `<p>Nama sekarang: <strong>${esc(a ? a.nama : '')}</strong>. Kodenya tetap; jurnal lama ikut tampil dengan nama baru.</p>`,
+          { isian: 'Nama baru (minimal 3 huruf)', minimal: 3, ya: 'Simpan nama' });
+        if (!nama) return;
+        await API.simpanCoa({ kode: d.coaUbah, nama });
+        toast('Nama akun ' + d.coaUbah + ' diubah.');
+        return muatCoa();
+      }
+      if (d.coaAktif) {
+        const aktif = d.coaJadi === '1';
+        const ya = await tanya((aktif ? 'Aktifkan' : 'Nonaktifkan') + ' akun ' + d.coaAktif + '?',
+          aktif ? '<p>Akun ini bisa dipilih lagi saat mencatat transaksi.</p>'
+                : '<p>Akun tidak bisa dipilih lagi untuk transaksi baru. Jurnal lama tetap utuh dan tetap terbaca di laporan.</p>',
+          { ya: aktif ? 'Aktifkan' : 'Nonaktifkan' });
+        if (!ya) return;
+        await API.simpanCoa({ kode: d.coaAktif, aktif });
+        toast('Akun ' + d.coaAktif + (aktif ? ' diaktifkan.' : ' dinonaktifkan.'));
+        return muatCoa();
+      }
+      if (d.coaHapus) {
+        const ya = await tanya('Hapus akun ' + d.coaHapus + '?',
+          '<p>Akun ini belum pernah dipakai jurnal. Menghapusnya tidak bisa diurungkan.</p>',
+          { ya: 'Hapus akun', jenis: 'bahaya' });
+        if (!ya) return;
+        await API.hapusCoa({ kode: d.coaHapus });
+        toast('Akun ' + d.coaHapus + ' dihapus.');
+        return muatCoa();
+      }
+      if (d.coaSetuju) {
+        const m = (coaData?.minta || []).find(x => x.id === d.coaSetuju);
+        const ya = await tanya('Setujui akun "' + (m ? m.nama : '') + '"?',
+          `<p>Akun dibuat di bawah <strong>${esc(m ? m.induk : '')}</strong> dengan nomor berikutnya. Diajukan ${esc(m ? m.peminta : '')}: ${esc(m ? m.catatan : '')}</p>`,
+          { ya: 'Setujui & buat akun' });
+        if (!ya) return;
+        const h = await API.putusCoa({ id: d.coaSetuju, setuju: true });
+        toast('Akun ' + h.kode + ' dibuat.');
+        return muatCoa();
+      }
+      if (d.coaTolak) {
+        const alasan = await tanya('Tolak pengajuan akun?', '<p>Alasannya terlihat oleh yang mengajukan.</p>',
+          { isian: 'Alasan penolakan (minimal 3 huruf)', minimal: 3, ya: 'Tolak', jenis: 'bahaya' });
+        if (!alasan) return;
+        await API.putusCoa({ id: d.coaTolak, setuju: false, alasan });
+        toast('Pengajuan ditolak.');
+        return muatCoa();
       }
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
       if (d.editProduk)               return editorProduk(d.editProduk);
@@ -12965,7 +13182,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- laporan diskon --- */
 
       /* --- dashboard (v1.179) --- */
-      if (d.grafik !== undefined) return muatGrafik(d.grafik);
+      if (d.trenCab !== undefined) { modeTrenCab = d.trenCab; if (trenCabG) isiCabTren(trenCabG); return; }
       if (d.tabelDash !== undefined) return bukaTabelDash(d.tabelDash);
 
       /* --- ekspor --- */
@@ -13628,7 +13845,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     document.addEventListener('change', async (e) => {
       if (e.target.id === 'pbDimuka') { const x = $('#pbDimukaIsi'); if (x) x.hidden = !e.target.checked; return; }
-      if (e.target.id === 'grafikHari') { muatGrafik(Number(e.target.value)); return; }
       if (e.target.id === 'pCabangSemua') { terapkanCabangSemua(); return; }
       /* Periode dashboard menembak ulang API — beda dengan penyaring layar Produk
          yang menggambar ulang dari data di tangan. Di sini memang harus: omzet,

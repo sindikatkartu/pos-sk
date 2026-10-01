@@ -65,7 +65,7 @@ const API = (() => {
     'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
-    'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset',
+    'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset', 'daftar_coa',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
@@ -179,7 +179,7 @@ const API = (() => {
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
-    'daftar_aset',
+    'daftar_aset', 'daftar_coa',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian',
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
@@ -254,7 +254,10 @@ const API = (() => {
     'ganti_kode_pelanggan',
     /* bagian 288: ulangan otomatis mengajukan dua kali / memutus yang sudah
        diputus dan memulangkan galat untuk keputusan yang sebenarnya berhasil. */
-    'ajukan_diskon', 'putus_diskon'
+    'ajukan_diskon', 'putus_diskon',
+    /* bagian 296: ulangan otomatis bisa membuat akun dua kali (kode berikutnya
+       berbeda, jadi duplikatnya lolos pemeriksaan kode). */
+    'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa'
   ]);
 
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
@@ -709,6 +712,12 @@ let _pernahJawab = false;
 
     tutupBuku:         (d) => panggil('tutup_buku', d, { timeout: 120000 }),
     daftarAset:        (d) => panggil('daftar_aset', d),
+    /* Akun Perkiraan (bagian 296). */
+    daftarCoa:         (d) => panggil('daftar_coa', d || {}),
+    simpanCoa:         (d) => panggil('simpan_coa', d),
+    hapusCoa:          (d) => panggil('hapus_coa', d),
+    ajukanCoa:         (d) => panggil('ajukan_coa', d),
+    putusCoa:          (d) => panggil('putus_coa', d),
     simpanAset:        (d) => panggil('simpan_aset', d),
     /* Sama longgarnya dengan tutup buku: keduanya menjurnal lalu menghitung
        ulang saldo bulanan, dan itu pembacaan sheet penuh. */

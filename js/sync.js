@@ -248,6 +248,9 @@ const Sync = (() => {
       const d = await API.tarikMaster(
         galat.length ? { versi, paksa, galat, awet } : { versi, paksa, awet }, { latar });
       if (galat.length && typeof kosongkanAntreanGalat === 'function') kosongkanAntreanGalat();
+      /* Hak akses sesi ikut denyut ini (bagian 292) — di KEDUA jawaban, juga
+         saat master tidak berubah: mengubah peran tidak menaikkan versi master. */
+      if (d && d.hak && typeof terapkanHakSesi === 'function') await terapkanHakSesi(d.hak);
       if (!d.perubahan) {
         await DB.kvSet('master_diperbarui', new Date().toISOString());
         return d;
