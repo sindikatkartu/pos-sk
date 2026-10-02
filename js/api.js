@@ -193,7 +193,7 @@ const API = (() => {
     'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
-    'simpan_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
+    'simpan_kas', 'transfer_bank', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
     'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
     'bayar_piutang', 'bayar_utang',
@@ -583,6 +583,7 @@ let _pernahJawab = false;
     batalPembelian:  (d) => panggil('batal_pembelian', d, { timeout: 90000 }),
     periksaPembelian: (d) => panggil('periksa_pembelian', d, { timeout: 90000 }),
     simpanKas:       (d) => panggil('simpan_kas', d),
+    transferBank:    (d) => panggil('transfer_bank', d),
     daftarKas:       (d) => panggil('daftar_kas', d),
 
     laporanPenjualan:(d) => panggil('laporan_penjualan', d, { timeout: 60000 }),

@@ -10673,7 +10673,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ['KELUAR', 'Kas keluar — beban, gaji, reimburse'],
     ['MASUK',  'Kas masuk — setoran modal, pendapatan lain'],
     ['PRIVE',  'Prive — uang pemilik diambil'],
-    ['PINDAH', 'Pindah antar akun kas — setor ke bank, pelimpahan QRIS'],
+    /* PINDAH antar akun kas DIPINDAH ke kartu Transfer bank (bagian 303,
+       pemilik: "pindahkan") — satu jalan untuk memindahkan uang, lengkap
+       dengan biaya transfer dan nomor TB. */
     ['SETOR',  'Terima setoran shift toko']
   ];
 
@@ -11318,6 +11320,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       ${kartuArusKas(arus)}
       ${kartuSetoran(belum)}
+      ${kartuTransferBank(kas)}
       ${kartuCatatKas()}
 
       <div class="kartu laporan-uang">
@@ -11329,6 +11332,109 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     isiPilihanKas();
     $('#kasJenis')?.addEventListener('change', isiPilihanKas);
     $('#btnSimpanKas')?.addEventListener('click', simpanKasBaru);
+    isiPilihanTransfer();
+    $('#btnSimpanTransferBank')?.addEventListener('click', simpanTransferBank);
+  }
+
+  /* ==================== TRANSFER BANK (bagian 303) ====================
+     Seperti Accurate · Kas & Bank · Transfer Bank: Dari akun, Ke akun, Nilai,
+     Biaya transfer, Keterangan. Satu cabang (keputusan pemilik "A"). Server:
+     apiTransferBank (07_Sales.gs). Barisnya baris kas biasa ber-uuid "TB-…"
+     — saldo, Mutasi kas, ekspor, dan Koreksi balik ikut dengan sendirinya.
+     Laci toko (1-1100) tidak ditawarkan: uang laci keluar lewat Terima setoran. */
+  const AKUN_TRANSFER = AKUN_KAS.filter((k) => k !== '1-1100');
+  function kartuTransferBank(kas) {
+    const rows = (kas && kas.kas) || [];
+    const biaya = {};
+    rows.filter((k) => /^TB-.*-B$/.test(String(k.uuid))).forEach((k) => { biaya[String(k.uuid).slice(0, -2)] = +k.jumlah || 0; });
+    const tb = rows.filter((k) => /^TB-/.test(String(k.uuid)) && !/-B$/.test(String(k.uuid)));
+    const banyakCabang = cabangKas === '*';
+    const form = bolehIzin('kas', 'buat') ? `
+      <div class="saring-baris">
+        ${banyakCabang && bolehCabangDash() ? `<div class="kendali-tetap"><label>Cabang</label>
+          <select id="tbCabang" class="kendali-tetap">${daftarKodeCabang().map((c) =>
+            `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>` : ''}
+        <div class="kendali-penuh"><label>Dari akun</label><select id="tbDari"></select></div>
+        <div class="kendali-penuh"><label>Ke akun</label><select id="tbKe"></select></div>
+        <div class="kendali-tetap"><label>Nilai</label>
+          <input type="text" inputmode="numeric" class="uang kendali-tetap" id="tbJumlah" placeholder="0"></div>
+        <div class="kendali-tetap"><label>Biaya transfer</label>
+          <input type="text" inputmode="numeric" class="uang kendali-tetap" id="tbBiaya" placeholder="0"></div>
+      </div>
+      <div class="grup"><label>Keterangan</label>
+        <input type="text" id="tbKet" maxlength="120" placeholder="mis. setor Kas Admin ke BCA"></div>
+      <div class="aksi"><button class="tombol utama" id="btnSimpanTransferBank">Simpan transfer</button></div>
+      <p class="petunjuk">Uang berpindah tempat — tidak bertambah atau berkurang, dan tidak dihitung
+         sebagai kas masuk/keluar. Biaya transfer dibukukan ke 8-1100 Beban Administrasi Bank.</p>` : '';
+    const daftar = tb.length ? `<div class="gulir-x"><table class="tabel">
+      <thead><tr><th>No.</th><th>Tanggal</th>${banyakCabang ? '<th>Cabang</th>' : ''}<th>Dari</th><th>Ke</th>
+        <th class="kanan">Nilai</th><th class="kanan">Biaya</th><th>Keterangan</th></tr></thead>
+      <tbody>${tb.map((k) => {
+        const ket = String(k.keterangan || ''), i = ket.indexOf(' · ');
+        return `<tr><td data-l="No.">${esc(i > 0 ? ket.slice(0, i) : '')}</td>
+          <td data-l="Tanggal">${esc(tglTampil(k.tanggal))}</td>
+          ${banyakCabang ? `<td data-l="Cabang">${esc(k.kode_cabang || '')}</td>` : ''}
+          <td data-l="Dari">${esc(k.nama_akun_kas || k.akun_kas)}</td>
+          <td data-l="Ke">${esc(k.nama_akun || k.kode_akun)}</td>
+          <td class="kanan" data-l="Nilai">${rp(k.tipe === 'KELUAR' ? Math.abs(+k.jumlah || 0) : -Math.abs(+k.jumlah || 0))}</td>
+          <td class="kanan" data-l="Biaya">${rp(biaya[String(k.uuid)] || 0)}</td>
+          <td data-l="Keterangan">${esc(i > 0 ? ket.slice(i + 3) : ket)}</td></tr>`;
+      }).join('')}</tbody></table></div>` : '<p class="petunjuk">Belum ada transfer bank di periode ini.</p>';
+    return `<div class="kartu laporan-uang" id="kartuTransferBank">
+      <div class="bar-alat"><h3>Transfer bank</h3><span class="satuan-uang">dalam Rupiah</span></div>
+      ${form}${daftar}</div>`;
+  }
+
+  async function isiPilihanTransfer() {
+    if (!$('#tbDari')) return;
+    const coa = await DB.kvGet('coa', []);
+    const nama = {};
+    /* Cadangan dari neraca yang baru dimuat: perangkat yang daftar akunnya belum
+       tersegarkan tetap memajang "Bank BCA", bukan kode telanjang. */
+    (((kasData && kasData.ner && kasData.ner.aset) || [])).forEach((a) => { nama[String(a.kode)] = a.nama; });
+    (coa || []).forEach((c) => { nama[String(c.kode)] = c.nama; });
+    const opsi = AKUN_TRANSFER.map((k) => `<option value="${k}">${esc(k)} — ${esc(nama[k] || k)}</option>`).join('');
+    $('#tbDari').innerHTML = opsi;
+    $('#tbKe').innerHTML = opsi;
+    /* Bawaan: Kas Admin → bank pertama — kejadian paling sering. */
+    $('#tbDari').value = '1-1150';
+    $('#tbKe').value = '1-1201';
+  }
+
+  /* uuid bertahan sampai BERHASIL — jawaban yang hilang di jalan lalu tombolnya
+     ditekan lagi dijawab "duplikat" oleh server, bukan dicatat dua kali. */
+  let _uuidTb = null;
+  async function simpanTransferBank() {
+    const dari = nilai('tbDari'), ke = nilai('tbKe');
+    const jumlah = angka('tbJumlah'), biaya = angka('tbBiaya') || 0;
+    const ket = nilai('tbKet').trim();
+    if (!dari || !ke) return toast('Pilih akun asal dan tujuannya.', 'galat');
+    if (dari === ke) return toast('Akun asal dan tujuan tidak boleh sama.', 'galat');
+    if (!(jumlah > 0)) return toast('Nilai transfer harus lebih dari nol.', 'galat');
+    if (!(biaya >= 0)) return toast('Biaya transfer tidak boleh minus.', 'galat');
+    if (ket.length < 3) return toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang berpindah.', 'galat');
+    const cab = nilai('tbCabang') || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
+    const namaAkun = (k) => (($('#tbDari option[value="' + k + '"]') || {}).textContent || k);
+    const baris = (l, v) => `<tr><td>${esc(l)}</td><td class="kanan">${v}</td></tr>`;
+    if (!(await tanya('Simpan transfer bank?',
+          `<table class="tabel"><tbody>
+             ${baris('Dari', esc(namaAkun(dari)))}${baris('Ke', esc(namaAkun(ke)))}
+             ${baris('Nilai', rp(jumlah))}${baris('Biaya transfer', rp(biaya))}
+             ${baris('Total keluar dari asal', rp(jumlah + biaya))}</tbody></table>
+           <p class="petunjuk">Cabang ${esc(cab)}. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
+             Koreksi balik di Mutasi kas.</p>`,
+          { ya: 'Simpan transfer' }))) return;
+    const b = $('#btnSimpanTransferBank');
+    b.classList.add('sibuk'); b.disabled = true;
+    try {
+      const r = await API.transferBank({ cabang: cab,
+        uuid: _uuidTb || (_uuidTb = 'TB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)),
+        dari, ke, jumlah, biaya, keterangan: ket });
+      _uuidTb = null;
+      toast('Transfer ' + (r.no || '') + ' tersimpan.');
+      await muatHasilKas();
+    } catch (e) { toast('Gagal menyimpan transfer: ' + e.message, 'galat'); }
+    finally { b.classList.remove('sibuk'); b.disabled = false; }
   }
 
   /**
@@ -11375,6 +11481,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </table></div>
       <p class="petunjuk">Dibaca dari agregat bulanan buku besar — arus kasnya sudah
          dijurnal, tidak dihitung ulang dari daftar mutasi.</p>
+      ${/* Bagian 303: pemindahan antar akun kas dikeluarkan dari Masuk/Keluar. */
+        arus.internal_gagal ? `<p class="pesan peringatan">Pemindahan antar akun kas tidak terbaca
+           (${esc(arus.internal_gagal)}) — Masuk dan Keluar di atas MASIH memuat setoran toko dan
+           transfer bank.</p>`
+        : (+arus.total_internal > 0 ? `<p class="petunjuk">Pemindahan antar akun kas — setoran toko dan
+           transfer bank — sebesar ${rp(arus.total_internal)} tidak dihitung sebagai masuk maupun keluar:
+           uangnya hanya berpindah tempat. Rincian per akun di bawah tetap memuatnya.</p>` : '')}
       ${tabelPerAkun(arus)}
     </div>`;
   }
@@ -11551,10 +11664,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
 
     let lawan, label, petunjuk;
-    if (jenis === 'PINDAH') {
-      lawan = kasSaja; label = 'Ke akun kas';
-      petunjuk = 'Uang berpindah tempat, bukan bertambah atau berkurang. Uang dari laci toko hanya bisa dipindahkan lewat Terima setoran di atas.';
-    } else if (jenis === 'PRIVE') {
+    if (jenis === 'PRIVE') {
       lawan = bisa.filter((c) => String(c.kode) === '3-1200');
       label = 'Akun prive';
       petunjuk = 'Uang pemilik yang diambil dari usaha. Bukan beban — ia mengurangi ekuitas.';
@@ -11566,7 +11676,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       label = 'Akun lawan';
       petunjuk = jenis === 'MASUK'
         ? 'Uang masuk ke usaha: setoran modal (3-1100), pendapatan lain (7-1100).'
-        : 'Uang keluar dari usaha: gaji (6-1100), listrik, perlengkapan, reimburse uang talangan toko.';
+        : 'Uang keluar dari usaha: gaji (6-1100), listrik, perlengkapan, reimburse uang talangan toko. Memindahkan uang antar kas/bank lewat kartu Transfer bank.';
     }
     $('#kasAkun').innerHTML = opsi(lawan) || '<option value="">(tidak ada)</option>';
     $('#labelKasLawan').textContent = label;
@@ -11599,8 +11709,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!(jumlah > 0)) return toast('Nominal harus lebih dari nol.', 'galat');
     if (!ket) return toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang bergerak.', 'galat');
 
-    /* PRIVE dan PINDAH sama-sama KELUAR dari sumber kasnya; yang membedakan
-       akun lawannya, dan itu sudah dipilih dropdown di atas. */
+    /* PRIVE juga KELUAR dari sumber kasnya; yang membedakan akun lawannya,
+       dan itu sudah dipilih dropdown di atas. */
     const tipe = jenis === 'MASUK' ? 'MASUK' : 'KELUAR';
     /* Konfirmasi (bagian 245): uang back office bergerak dan dijurnal. */
     if (!(await tanya(tipe === 'MASUK' ? 'Catat kas masuk?' : 'Catat kas keluar?',
