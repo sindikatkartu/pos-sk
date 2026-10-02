@@ -179,7 +179,7 @@ const API = (() => {
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
-    'daftar_aset', 'daftar_coa',
+    'daftar_aset', 'daftar_coa', 'rekon_bank',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian',
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
@@ -193,7 +193,7 @@ const API = (() => {
     'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
-    'simpan_kas', 'transfer_bank', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
+    'simpan_kas', 'transfer_bank', 'dokumen_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
     'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
     'bayar_piutang', 'bayar_utang',
@@ -259,7 +259,10 @@ const API = (() => {
        berbeda, jadi duplikatnya lolos pemeriksaan kode). */
     'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa',
     /* bagian 298: ulangan otomatis bisa memposting jurnal selisih dua kali. */
-    'koreksi_saldo_pulsa'
+    'koreksi_saldo_pulsa',
+    /* bagian 304: kunci yang diulang dijawab STATUS "sudah dikunci" untuk
+       penguncian yang sebenarnya berhasil. */
+    'simpan_rekon_bank'
   ]);
 
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
@@ -584,6 +587,9 @@ let _pernahJawab = false;
     periksaPembelian: (d) => panggil('periksa_pembelian', d, { timeout: 90000 }),
     simpanKas:       (d) => panggil('simpan_kas', d),
     transferBank:    (d) => panggil('transfer_bank', d),
+    dokumenKas:      (d) => panggil('dokumen_kas', d),
+    rekonBank:       (d) => panggil('rekon_bank', d, { timeout: 60000 }),
+    simpanRekonBank: (d) => panggil('simpan_rekon_bank', d, { timeout: 60000 }),
     daftarKas:       (d) => panggil('daftar_kas', d),
 
     laporanPenjualan:(d) => panggil('laporan_penjualan', d, { timeout: 60000 }),

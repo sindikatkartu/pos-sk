@@ -10665,19 +10665,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             `<option value="${esc(c)}" ${cabangKas === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
         </select></div>` : '';
 
-  /* Jenis transaksi yang dilayani meja ini. Dipilih lebih dulu, karena ia yang
-     menentukan kendali mana yang masuk akal sesudahnya — akun lawan sebuah
-     pemindahan adalah akun kas lain, sementara akun lawan sebuah pengeluaran
-     justru tidak boleh akun kas. */
-  const JENIS_KAS = [
-    ['KELUAR', 'Kas keluar — beban, gaji, reimburse'],
-    ['MASUK',  'Kas masuk — setoran modal, pendapatan lain'],
-    ['PRIVE',  'Prive — uang pemilik diambil'],
-    /* PINDAH antar akun kas DIPINDAH ke kartu Transfer bank (bagian 303,
-       pemilik: "pindahkan") — satu jalan untuk memindahkan uang, lengkap
-       dengan biaya transfer dan nomor TB. */
-    ['SETOR',  'Terima setoran shift toko']
-  ];
+  /* Form "Catat" (JENIS_KAS) DIBUANG di bagian 304: kas masuk/keluar kini
+     dokumen bernomor di tab Penerimaan (BKM) dan Pembayaran (BKK); pemindahan
+     di tab Transfer bank (bagian 303). */
+  const TAB_KAS = [['ringkasan', 'Ringkasan'], ['penerimaan', 'Penerimaan'], ['pembayaran', 'Pembayaran'],
+                   ['transfer', 'Transfer bank'], ['koran', 'Rekening koran'], ['rekon', 'Rekonsiliasi'],
+                   ['mutasi', 'Mutasi kas']];
+  let tabKas = 'ringkasan';
+  /* Rekening koran & Rekonsiliasi membaca buku besar — izinnya laporan keuangan. */
+  const tabKasBoleh = () => TAB_KAS.filter(([id]) =>
+    (id !== 'koran' && id !== 'rekon') || bolehIzin('laporan_keuangan', 'lihat'));
 
   let kasData = null;
 
@@ -11251,14 +11248,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#kasDari')) {
       w.innerHTML = `
         <div class="kartu">
+          <!-- Tab halaman (bagian 304): .tab-modal, bukan .seg — pola layar Pulsa. -->
+          <div class="tab-modal" id="tabKas" role="group" aria-label="Bagian kas & bank" style="margin-bottom:12px">
+            ${tabKasBoleh().map(([id, label]) =>
+              `<button type="button" data-tabkas="${id}" class="${id === tabKas ? 'aktif' : ''}">${label}</button>`).join('')}
+          </div>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeKas"></span>
             <span id="wadahCabangKas"></span>
           </div>
-          <p class="petunjuk">Seluruh pergerakan uang yang bukan penjualan: beban,
-             gaji, prive, setoran modal, pemindahan antar akun, dan serah terima
-             uang toko. Pembayaran utang supplier punya menunya sendiri di
-             <strong>Utang</strong>.</p>
+          <p class="petunjuk">Seluruh pergerakan uang yang bukan penjualan: penerimaan,
+             pembayaran, transfer antar akun, dan serah terima uang toko. Pembayaran
+             utang supplier punya menunya sendiri di <strong>Utang</strong>.</p>
         </div>
         <div id="hasilKas"></div>`;
       $('#wadahPeriodeKas').innerHTML = Periode.html(PERIODE_KAS);
@@ -11269,10 +11270,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         muatHasilKas();
       });
     }
+    tengahkanTabKas();
+    return muatHasilKas();
+  }
+
+  /* Tujuh tab tidak muat di HP/tablet; .tab-modal menggeser ke samping dengan
+     penggulung tersembunyi. Tab AKTIF digeser ke tengah bilah — diukur di HP:
+     Rekonsiliasi terbuka sementara bilahnya hanya memajang tiga tab pertama. */
+  function tengahkanTabKas() {
+    const bar = $('#tabKas'), b = bar && bar.querySelector('.aktif');
+    if (bar && b) bar.scrollLeft = Math.max(0, b.offsetLeft - bar.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2);
+  }
+  function pilihTabKas(id) {
+    if (!tabKasBoleh().some(([x]) => x === id)) return;
+    tabKas = id;
+    document.querySelectorAll('#tabKas [data-tabkas]').forEach((b) => b.classList.toggle('aktif', b.dataset.tabkas === id));
+    tengahkanTabKas();
     return muatHasilKas();
   }
 
   async function muatHasilKas() {
+    if (!tabKasBoleh().some(([x]) => x === tabKas)) tabKas = 'ringkasan';
+    if (tabKas === 'koran') return muatKoran();
+    if (tabKas === 'rekon') return muatRekon();
     memuat('#hasilKas');
     try {
       /* TIGA panggilan sekaligus, bukan berurutan. Tiap panggilan Apps Script
@@ -11309,6 +11329,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     const belum = (setor && setor.shift || []).filter((x) => !x.setoran);
 
+    if (tabKas === 'penerimaan' || tabKas === 'pembayaran') {
+      w.innerHTML = kartuDokumenKas(tabKas === 'penerimaan' ? 'BKM' : 'BKK', kas);
+      return;
+    }
+    if (tabKas === 'transfer') {
+      w.innerHTML = kartuTransferBank(kas);
+      isiPilihanTransfer();
+      $('#btnSimpanTransferBank')?.addEventListener('click', simpanTransferBank);
+      return;
+    }
+    if (tabKas === 'mutasi') {
+      w.innerHTML = `<div class="kartu laporan-uang">
+        <div class="bar-alat"><h3>Mutasi kas</h3><span class="satuan-uang">dalam Rupiah</span>
+          <div style="flex:1"></div>
+          ${menuEkspor('kas', { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') })}</div>
+        ${daftarMutasiKas(kas)}
+      </div>`;
+      return;
+    }
     w.innerHTML = `
       <div class="petak-mini petak-uang">
         ${saldo.map((x) => miniKons(x.nama, rp(x.jumlah), x.kode)).join('')}
@@ -11319,21 +11358,367 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          <strong>${cabangKas === '*' ? 'seluruh cabang' : esc(cabangKas)}</strong>.</p>
 
       ${kartuArusKas(arus)}
-      ${kartuSetoran(belum)}
-      ${kartuTransferBank(kas)}
-      ${kartuCatatKas()}
+      ${kartuSetoran(belum)}`;
+  }
 
-      <div class="kartu laporan-uang">
-        <div class="bar-alat"><h3>Mutasi kas</h3><span class="satuan-uang">dalam Rupiah</span>
-          <div style="flex:1"></div>
-          ${menuEkspor('kas', { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') })}</div>
-        ${daftarMutasiKas(kas)}
-      </div>`;
-    isiPilihanKas();
-    $('#kasJenis')?.addEventListener('change', isiPilihanKas);
-    $('#btnSimpanKas')?.addEventListener('click', simpanKasBaru);
-    isiPilihanTransfer();
-    $('#btnSimpanTransferBank')?.addEventListener('click', simpanTransferBank);
+  /* ==================== PENERIMAAN & PEMBAYARAN (bagian 304) ====================
+     Dokumen BKM/BKK bernomor, banyak baris, bertanggal (boleh mundur), dicetak
+     A4. Server: apiDokumenKas (07_Sales.gs). Satu dokumen = beberapa baris kas
+     ber-uuid "BKM-…-1", "-2" …; nomornya di awal keterangan. Catatan lama dari
+     form Catat (uuid "KAS-…", luar laci, bukan pemindahan) ikut tampil sebagai
+     dokumen satu baris tanpa nomor. */
+  const DOK_KAS = {
+    BKM: { label: 'Penerimaan', tipe: 'MASUK', judulCetak: 'BUKTI KAS MASUK', lawan: 'Diterima dari / untuk',
+           peran: ['Dibuat', 'Disetujui', 'Penyetor'], contoh: 'mis. setoran modal Oktober' },
+    BKK: { label: 'Pembayaran', tipe: 'KELUAR', judulCetak: 'BUKTI KAS KELUAR', lawan: 'Dibayar untuk',
+           peran: ['Dibuat', 'Disetujui', 'Penerima'], contoh: 'mis. listrik & air toko September' }
+  };
+  function dokKasDari(kas, jenis) {
+    const peta = new Map();
+    ((kas && kas.kas) || []).forEach((k) => {
+      const u = String(k.uuid || '');
+      let id = null;
+      if (u.indexOf(jenis + '-') === 0) id = u.replace(/-\d+$/, '');
+      else if (u.indexOf('KAS-') === 0 && k.luar_laci && !k.pindah_kas && k.tipe === DOK_KAS[jenis].tipe) id = u;
+      if (!id) return;
+      const ket = String(k.keterangan || ''), i = ket.indexOf(' · ');
+      if (!peta.has(id)) {
+        peta.set(id, { id, jenis, no: u.indexOf(jenis + '-') === 0 && i > 0 ? ket.slice(0, i) : '',
+                       tanggal: k.tanggal, kode_cabang: k.kode_cabang, akun_kas: k.akun_kas,
+                       nama_akun_kas: k.nama_akun_kas || k.akun_kas, baris: [], total: 0 });
+      }
+      const d = peta.get(id);
+      d.baris.push(Object.assign({}, k, { ket: i > 0 && d.no ? ket.slice(i + 3) : ket }));
+      d.total += Math.abs(+k.jumlah || 0);
+    });
+    return [...peta.values()].map((d) => {
+      d.baris.sort((a, b) => String(a.uuid).localeCompare(String(b.uuid), undefined, { numeric: true }));
+      return d;
+    });
+  }
+  function kartuDokumenKas(jenis, kas) {
+    const c = DOK_KAS[jenis], dok = dokKasDari(kas, jenis), banyakCabang = cabangKas === '*';
+    const id = jenis === 'BKM' ? 'btnBkm' : 'btnBkk';
+    return `<div class="kartu laporan-uang" id="kartuDok${jenis}">
+      <div class="bar-alat"><h3>${c.label}</h3><span class="satuan-uang">dalam Rupiah</span>
+        <div style="flex:1"></div>
+        ${bolehIzin('kas', 'buat') ? tombolTambah(id, c.label) : ''}</div>
+      ${dok.length ? `<div class="gulir-x"><table class="tabel">
+        <thead><tr><th>No.</th><th>Tanggal</th>${banyakCabang ? '<th>Cabang</th>' : ''}<th>Akun kas</th>
+          <th>Rincian</th><th class="kanan">Total</th></tr></thead>
+        <tbody>${dok.map((d) => `<tr class="baris-klik" data-dok-kas="${esc(d.id)}">
+          <td data-l="No.">${esc(d.no || '—')}</td>
+          <td data-l="Tanggal">${esc(tglTampil(d.tanggal))}</td>
+          ${banyakCabang ? `<td data-l="Cabang">${esc(d.kode_cabang || '')}</td>` : ''}
+          <td data-l="Akun kas">${esc(d.nama_akun_kas)}</td>
+          <td data-l="Rincian">${esc(d.baris.map((b) => b.nama_akun || b.kode_akun).join(', '))}
+            <span class="petunjuk">${esc(d.baris[0].ket || '')}</span></td>
+          <td class="kanan" data-l="Total">${rp(d.total)}</td></tr>`).join('')}</tbody>
+      </table></div>` : `<p class="petunjuk">Belum ada ${c.label.toLowerCase()} di periode ini.</p>`}
+      <p class="petunjuk">Klik barisnya untuk rincian, cetak, dan koreksi balik. Nomor ${jenis}/YYMM/NNNN
+         dibuat sistem menurut bulan tanggal dokumen.</p>
+    </div>`;
+  }
+
+  function dokKasCari(idDok) {
+    for (const j of ['BKM', 'BKK']) {
+      const d = dokKasDari(kasData && kasData.kas, j).find((x) => x.id === idDok);
+      if (d) return d;
+    }
+    return null;
+  }
+
+  function bukaDetailDokKas(idDok) {
+    const d = dokKasCari(idDok);
+    if (!d) return toast('Dokumen itu tidak ada lagi di daftar.', 'galat');
+    const c = DOK_KAS[d.jenis];
+    bukaModal(c.label + (d.no ? ' ' + d.no : ''), `
+      <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.kode_cabang || '')} · ${esc(d.nama_akun_kas)}</p>
+      <div class="gulir-x"><table class="tabel"><thead><tr><th>Akun</th><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
+        <tbody>${d.baris.map((b) => `<tr><td data-l="Akun">${esc(b.nama_akun || b.kode_akun)}</td>
+          <td data-l="Keterangan">${esc(b.ket || '')}</td><td class="kanan" data-l="Nominal">${rp(Math.abs(+b.jumlah || 0))}</td>
+          <td>${bolehIzin('kas', 'buat') ? tombolBaris('', 'Koreksi balik', IKON.balik, `data-balik-kas="${esc(b.uuid)}"`) : ''}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><th colspan="2">Total</th><th class="kanan">${rp(d.total)}</th><th></th></tr></tfoot>
+      </table></div>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
+       ${d.no ? `<button class="tombol utama" data-cetak-dok-kas="${esc(d.id)}">Cetak</button>` : ''}`);
+  }
+
+  function dokumenKasA4(d, konteks) {
+    const k = konteks || {}, s = k.setting || {}, c = DOK_KAS[d.jenis];
+    const info = (kiri, kanan) => `<tr><td class="k">${esc(kiri)}</td><td>${kanan}</td></tr>`;
+    return `<h1>${esc(String(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase())}</h1>` +
+      (s.alamat_usaha ? `<p class="sub">${esc(s.alamat_usaha)}</p>` : '') +
+      (s.telepon_usaha ? `<p class="sub">${esc(s.telepon_usaha)}</p>` : '') +
+      `<h2>${c.judulCetak}</h2>
+      <table class="info">
+        ${info('No dokumen', `<strong>${esc(d.no)}</strong>`)}
+        ${info('Tanggal', esc(tglTampil(d.tanggal)))}
+        ${info('Cabang', esc(d.kode_cabang || ''))}
+        ${info(d.jenis === 'BKM' ? 'Masuk ke' : 'Keluar dari', esc(d.nama_akun_kas))}
+      </table>
+      <table class="isi">
+        <thead><tr><th>No</th><th>${esc(c.lawan)}</th><th>Keterangan</th><th class="n">Nominal</th></tr></thead>
+        <tbody>${d.baris.map((b, i) => `<tr><td>${i + 1}</td><td>${esc(b.nama_akun || b.kode_akun)}</td>
+          <td>${esc(b.ket || '')}</td><td class="n">${esc(rpTeks(Math.abs(+b.jumlah || 0)))}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="3">Total</td><td class="n">${esc(rpTeks(d.total))}</td></tr></tfoot>
+      </table>
+      <p class="catatan">Terbilang: <em>${esc(terbilang(d.total))}</em></p>
+      <table class="ttd"><tr>${c.peran.map((p) => `<td><div class="peran">${esc(p)}</div><div class="garis"></div>
+        <div class="nama">${esc(p === 'Dibuat' ? (k.user || '') : '')}&nbsp;</div></td>`).join('')}</tr></table>
+      <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
+        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
+  }
+
+  function cetakDokKas(idDok) {
+    const d = dokKasCari(idDok);
+    if (!d || !d.no) return;
+    const kini = new Date();
+    const isi = dokumenKasA4(d, { setting: APP_STATE.setting || {}, user: (APP_STATE.user && APP_STATE.user.nama) || '',
+      versi: CONFIG.VERSI, waktu: tanggalLokal(kini) + 'T' + kini.toTimeString().substring(0, 8) });
+    try { Struk.cetakDokumen(DOK_KAS[d.jenis].label + ' ' + d.no, isi); }
+    catch (e) { toast(e.message); }
+  }
+
+  /* ---- Form dokumen (modal) ---- */
+  let _uuidDokKas = null, _jenisDokKas = 'BKM';
+  async function bukaFormDokKas(jenis) {
+    _jenisDokKas = jenis; _uuidDokKas = null;
+    const cfg = DOK_KAS[jenis];
+    const coa = (await DB.kvGet('coa', [])) || [];
+    const nama = {};
+    ((kasData && kasData.ner && kasData.ner.aset) || []).forEach((a) => { nama[String(a.kode)] = a.nama; });
+    coa.forEach((c) => { nama[String(c.kode)] = c.nama; });
+    const bisa = coa.filter((c) => (c.transaksi === true || String(c.transaksi) === 'true') &&
+      AKUN_KAS.indexOf(String(c.kode)) === -1 && (jenis === 'BKK' || String(c.kode) !== '3-1200'));
+    const opsiLawan = '<option value="">— pilih akun —</option>' +
+      bisa.map((c) => `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`).join('');
+    const banyakCabang = cabangKas === '*' && bolehCabangDash();
+    bukaModal(cfg.label + ' baru', `
+      <div class="saring-baris">
+        ${banyakCabang ? `<div class="kendali-tetap"><label>Cabang</label><select id="dokCabang" class="kendali-tetap">
+          ${daftarKodeCabang().map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></div>` : ''}
+        <div class="kendali-penuh"><label>${jenis === 'BKM' ? 'Masuk ke akun' : 'Keluar dari akun'}</label>
+          <select id="dokAkunKas">${AKUN_KAS.map((x) => `<option value="${x}" ${x === '1-1150' ? 'selected' : ''}>${esc(x)} — ${esc(nama[x] || x)}</option>`).join('')}</select></div>
+        <div class="kendali-tetap"><label>Tanggal</label>
+          <input type="date" id="dokTanggal" class="kendali-tetap" value="${esc(tanggalLokal())}" max="${esc(tanggalLokal())}"></div>
+      </div>
+      <div class="grup"><label>Keterangan dokumen</label>
+        <input type="text" id="dokKet" maxlength="120" placeholder="${esc(cfg.contoh)}"></div>
+      <div class="gulir-x"><table class="tabel" id="tabelDokKas">
+        <thead><tr><th>Akun</th><th>Keterangan baris</th><th class="kanan">Nominal</th><th></th></tr></thead>
+        <tbody></tbody>
+        <tfoot><tr><th colspan="2">Total</th><th class="kanan" id="dokTotal">${rp(0)}</th><th></th></tr></tfoot>
+      </table></div>
+      <div class="aksi"><button class="tombol" id="btnDokBaris" type="button">+ Baris</button></div>
+      <template id="tplDokBaris"><tr>
+        <td data-l="Akun"><select data-dok="akun">${opsiLawan}</select></td>
+        <td data-l="Keterangan"><input type="text" data-dok="ket" maxlength="100" placeholder="boleh kosong"></td>
+        <td data-l="Nominal"><input type="text" inputmode="numeric" class="uang" data-dok="jumlah" placeholder="0"></td>
+        <td><button class="tombol kecil" type="button" data-hapus-dok="1" title="Hapus baris">Hapus</button></td></tr></template>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanDok">${ikonAlat('simpan')}<span>Simpan ${cfg.label.toLowerCase()}</span></button>`);
+    tambahBarisDok();
+    $('#modalUmum').addEventListener('input', hitungTotalDok);
+  }
+  function tambahBarisDok() {
+    const tb = $('#tabelDokKas tbody'), tpl = $('#tplDokBaris');
+    if (!tb || !tpl) return;
+    tb.appendChild(tpl.content.firstElementChild.cloneNode(true));
+  }
+  function barisDokIsi() {
+    return [...document.querySelectorAll('#tabelDokKas tbody tr')].map((tr) => ({
+      kode_akun: tr.querySelector('[data-dok="akun"]').value,
+      keterangan: tr.querySelector('[data-dok="ket"]').value.trim(),
+      jumlah: angkaDari(tr.querySelector('[data-dok="jumlah"]').value)
+    }));
+  }
+  function hitungTotalDok() {
+    const el = $('#dokTotal');
+    if (el) el.innerHTML = rp(barisDokIsi().reduce((a, b) => a + (+b.jumlah || 0), 0));
+  }
+  async function simpanDokKas() {
+    const c = DOK_KAS[_jenisDokKas];
+    const baris = barisDokIsi().filter((b) => b.kode_akun || b.jumlah || b.keterangan);
+    const ket = nilai('dokKet').trim(), tgl = nilai('dokTanggal'), akunKas = nilai('dokAkunKas');
+    if (!tgl) return toast('Isi tanggal dokumennya.', 'galat');
+    if (tgl > tanggalLokal()) return toast('Tanggal dokumen tidak boleh sesudah hari ini.', 'galat');
+    if (ket.length < 3) return toast('Keterangan dokumen wajib diisi.', 'galat');
+    if (!baris.length) return toast('Isi minimal satu baris rincian.', 'galat');
+    const kurang = baris.findIndex((b) => !b.kode_akun || !(b.jumlah > 0));
+    if (kurang >= 0) return toast('Baris ' + (kurang + 1) + ': pilih akunnya dan isi nominalnya.', 'galat');
+    const total = baris.reduce((a, b) => a + b.jumlah, 0);
+    const cab = nilai('dokCabang') || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
+    const namaKas = (($('#dokAkunKas option[value="' + akunKas + '"]') || {}).textContent || akunKas);
+    if (!(await tanya('Simpan ' + c.label.toLowerCase() + ' ' + rpTeks(total) + '?',
+          `<p class="petunjuk">${baris.length} baris · ${esc(tglTampil(tgl))} · cabang ${esc(cab)} ·
+             ${_jenisDokKas === 'BKM' ? 'masuk ke' : 'keluar dari'} ${esc(namaKas)}.</p>
+           <p class="petunjuk">Nomor dibuat sistem. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
+             Koreksi balik per baris.</p>`,
+          { ya: 'Simpan ' + c.label.toLowerCase() }))) return;
+    const b = $('#btnSimpanDok');
+    if (b) { b.classList.add('sibuk'); b.disabled = true; }
+    try {
+      const r = await API.dokumenKas({ jenis: _jenisDokKas, cabang: cab, tanggal: tgl, akun_kas: akunKas, keterangan: ket,
+        uuid: _uuidDokKas || (_uuidDokKas = _jenisDokKas + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)), baris });
+      _uuidDokKas = null;
+      tutupModal();
+      toast(c.label + ' ' + (r.no || '') + ' tersimpan.');
+      await muatHasilKas();
+    } catch (e) { toast('Gagal menyimpan: ' + e.message, 'galat'); }
+    finally { if (b) { b.classList.remove('sibuk'); b.disabled = false; } }
+  }
+
+  /* ==================== REKENING KORAN (bagian 304) ====================
+     Mutasi satu akun kas/bank dengan saldo berjalan — dibaca dari buku besar
+     (apiBukuBesar), bukan dihitung ulang. Bulan = bulan "sampai" periode Kas. */
+  let akunKoran = '1-1201';
+  /* Label sumber jurnal = peta Buku Besar (app.js tampilkanBukuBesar) + sumber
+     yang sering menyentuh rekening bank. Kode di luar peta tampil apa adanya. */
+  const LABEL_SUMBER_KAS = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
+    RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer', PENYESUAIAN: 'Penyesuaian',
+    PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk', LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun',
+    PULSA: 'Pulsa', UTANG: 'Bayar utang', PIUTANG: 'Pelunasan piutang', GAJI: 'Gaji', VOID: 'Void',
+    SALDO_AWAL: 'Saldo awal', PEMBELIAN_BATAL: 'Pembelian batal' };
+  /* Nama akun kas/bank untuk dropdown: neraca yang sudah dimuat, lalu COA tersinkron. */
+  async function namaAkunKasBank() {
+    const nama = {};
+    (((kasData && kasData.ner && kasData.ner.aset) || [])).forEach((a) => { nama[String(a.kode)] = a.nama; });
+    ((await DB.kvGet('coa', [])) || []).forEach((c) => { nama[String(c.kode)] = c.nama; });
+    return nama;
+  }
+  async function muatKoran() {
+    const w = $('#hasilKas');
+    if (!w) return;
+    const periode = (nilai('kasSampai') || tanggalLokal()).substring(0, 7);
+    const nm = await namaAkunKasBank();
+    w.innerHTML = `<div class="kartu laporan-uang" id="kartuKoran">
+      <div class="bar-alat"><h3>Rekening koran</h3><span class="satuan-uang">dalam Rupiah</span>
+        <div style="flex:1"></div>
+        <select id="koranAkun" class="kendali-tetap" title="Akun">${AKUN_KAS.map((k) =>
+          `<option value="${k}" ${k === akunKoran ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
+      <div id="isiKoran"></div></div>`;
+    memuat('#isiKoran');
+    try {
+      const bb = await API.bukuBesar({ kode_akun: akunKoran, periode, cabang: cabangKas });
+      const baris = bb.baris || [];
+      $('#isiKoran').innerHTML = `<p class="petunjuk">${esc(bb.akun ? bb.akun.nama : akunKoran)} · ${esc(bulanTeks(periode))} ·
+          ${cabangKas === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(cabangKas)}</p>
+        <div class="gulir-x"><table class="tabel">
+        <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>${cabangKas === '*' ? '<th>Cabang</th>' : ''}
+          <th class="kanan">Masuk</th><th class="kanan">Keluar</th><th class="kanan">Saldo</th></tr></thead>
+        <tbody><tr><td colspan="${cabangKas === '*' ? 6 : 5}"><strong>Saldo awal</strong></td>
+            <td class="kanan"><strong>${rp(bb.saldo_awal)}</strong></td></tr>
+          ${baris.map((b) => `<tr><td data-l="Tanggal">${esc(tglTampil(b.tanggal))}<br><span class="petunjuk">${esc(b.no_jurnal || '')}</span></td>
+            <td data-l="Sumber">${esc(LABEL_SUMBER_KAS[b.sumber] || b.sumber || '')}</td>
+            <td data-l="Keterangan">${esc(b.keterangan || '')}</td>
+            ${cabangKas === '*' ? `<td data-l="Cabang">${esc(b.cabang || '')}</td>` : ''}
+            <td class="kanan" data-l="Masuk">${+b.debit ? rp(b.debit) : ''}</td>
+            <td class="kanan" data-l="Keluar">${+b.kredit ? rp(b.kredit) : ''}</td>
+            <td class="kanan" data-l="Saldo">${rp(b.saldo)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><th colspan="${cabangKas === '*' ? 4 : 3}">Saldo akhir · ${baris.length} mutasi</th>
+          <th class="kanan">${rp(bb.total_debit)}</th><th class="kanan">${rp(bb.total_kredit)}</th>
+          <th class="kanan">${rp(bb.saldo_akhir)}</th></tr></tfoot></table></div>`;
+    } catch (e) { galat('#isiKoran', e); }
+    $('#koranAkun')?.addEventListener('change', (e) => { akunKoran = e.target.value; muatKoran(); });
+  }
+
+  /* ==================== REKONSILIASI BANK (bagian 304) ====================
+     Server: apiRekonBank / apiSimpanRekonBank (08_Accounting.gs). Buku GABUNGAN
+     semua cabang; centang baris yang sudah muncul di mutasi bank; ketik saldo
+     akhir menurut bank. Kunci hanya bila selisih 0 — server menghitung ulang. */
+  const AKUN_REKON_LAYAR = ['1-1200', '1-1201', '1-1202', '1-1203', '1-1204', '1-1210'];
+  let akunRekon = '1-1201', rekonData = null;
+  async function muatRekon() {
+    const w = $('#hasilKas');
+    if (!w) return;
+    const periode = (nilai('kasSampai') || tanggalLokal()).substring(0, 7);
+    const nm = await namaAkunKasBank();
+    w.innerHTML = `<div class="kartu laporan-uang" id="kartuRekon">
+      <div class="bar-alat"><h3>Rekonsiliasi bank</h3><span class="satuan-uang">dalam Rupiah</span>
+        <div style="flex:1"></div>
+        <select id="rekonAkun" class="kendali-tetap" title="Akun bank">${AKUN_REKON_LAYAR.map((k) =>
+          `<option value="${k}" ${k === akunRekon ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
+      <div id="isiRekon"></div></div>`;
+    $('#rekonAkun').addEventListener('change', (e) => { akunRekon = e.target.value; muatRekon(); });
+    memuat('#isiRekon');
+    try {
+      rekonData = await API.rekonBank({ kode_akun: akunRekon, periode });
+      gambarRekon();
+    } catch (e) { galat('#isiRekon', e); }
+  }
+  function hitungRekonLayar() {
+    const d = rekonData, set = new Set([...document.querySelectorAll('#isiRekon [data-cocok]:checked')].map((x) => x.dataset.cocok));
+    let masuk = 0, keluar = 0;
+    (d.baris || []).forEach((b) => { if (!set.has(b.kunci)) { masuk += +b.debit || 0; keluar += +b.kredit || 0; } });
+    const bankEl = $('#rekonSaldoBank');
+    const adaBank = bankEl && String(bankEl.value).trim() !== '';
+    const seharusnya = (+d.saldo_buku || 0) - masuk + keluar;
+    const selisih = adaBank ? angkaDari(bankEl.value) - seharusnya : null;
+    return { set, masuk, keluar, seharusnya, selisih, adaBank };
+  }
+  function segarkanRekon() {
+    const h = hitungRekonLayar();
+    const isi = (id, v) => { const el = $('#' + id); if (el) el.innerHTML = v; };
+    isi('rekonMasukBelum', rp(h.masuk)); isi('rekonKeluarBelum', rp(h.keluar)); isi('rekonSeharusnya', rp(h.seharusnya));
+    isi('rekonSelisih', h.selisih === null ? '—' : rp(h.selisih));
+    const k = $('#btnRekonKunci');
+    if (k) k.disabled = !(h.selisih !== null && Math.abs(h.selisih) < 0.5);
+    const s = $('#rekonSelisih');
+    if (s) s.style.color = h.selisih === null ? '' : (Math.abs(h.selisih) < 0.5 ? 'var(--sukses)' : 'var(--bahaya)');
+  }
+  function gambarRekon() {
+    const d = rekonData, r = d.rekon, kunci = r && r.status === 'KUNCI';
+    const cocok = new Set((r && r.cocok) || []);
+    const boleh = bolehIzin('kas', 'ubah') && !kunci;
+    $('#isiRekon').innerHTML = `
+      <p class="petunjuk">${esc(d.akun ? d.akun.nama : d.kode_akun)} · ${esc(bulanTeks(d.periode))} · buku GABUNGAN semua cabang.
+        ${kunci ? `<strong>Dikunci</strong> ${esc(waktuTampil(r.waktu))} — tidak bisa diubah.` : (r ? 'Draf tersimpan.' : '')}
+        ${d.lalu_status && d.lalu_status !== 'KUNCI' ? '<br>Rekonsiliasi bulan lalu belum dikunci — baris tertundanya belum terbawa ke sini.' : ''}</p>
+      <div class="petak-mini petak-uang">
+        ${miniKons('Saldo buku', rp(d.saldo_buku), 'akhir bulan, semua cabang')}
+        ${miniKons('Belum cocok', '<span id="rekonMasukBelum"></span> / <span id="rekonKeluarBelum"></span>', 'masuk / keluar di buku, belum di bank')}
+        ${miniKons('Saldo bank seharusnya', '<span id="rekonSeharusnya"></span>', 'buku − masuk + keluar belum cocok')}
+        ${miniKons('Selisih', '<span id="rekonSelisih">—</span>', 'saldo bank − seharusnya')}
+      </div>
+      <div class="saring-baris">
+        <div class="kendali-tetap"><label>Saldo akhir menurut bank</label>
+          <input type="text" inputmode="numeric" class="uang kendali-tetap" id="rekonSaldoBank" placeholder="ketik dari mutasi"
+            value="${r ? esc(new Intl.NumberFormat(CONFIG.LOCALE).format(r.saldo_bank)) : ''}" ${boleh ? '' : 'disabled'}></div>
+      </div>
+      <div class="gulir-x"><table class="tabel">
+        <thead><tr><th>Cocok</th><th>Tanggal</th><th>Keterangan</th><th>Cabang</th>
+          <th class="kanan">Masuk</th><th class="kanan">Keluar</th></tr></thead>
+        <tbody>${(d.baris || []).map((b) => `<tr>
+          <td data-l="Cocok"><input type="checkbox" data-cocok="${esc(b.kunci)}" ${cocok.has(b.kunci) ? 'checked' : ''} ${boleh ? '' : 'disabled'}
+            aria-label="Cocok ${esc(b.no_jurnal || '')}"></td>
+          <td data-l="Tanggal">${esc(tglTampil(b.tanggal))}${b.lalu ? ' <span class="petunjuk">bulan lalu</span>' : ''}</td>
+          <td data-l="Keterangan">${esc(b.keterangan || '')} <span class="petunjuk">${esc(b.no_jurnal || '')}</span></td>
+          <td data-l="Cabang">${esc(b.cabang || '')}</td>
+          <td class="kanan" data-l="Masuk">${+b.debit ? rp(b.debit) : ''}</td>
+          <td class="kanan" data-l="Keluar">${+b.kredit ? rp(b.kredit) : ''}</td></tr>`).join('')
+          || '<tr><td colspan="6">Tidak ada mutasi di bulan ini.</td></tr>'}</tbody></table></div>
+      ${boleh ? `<div class="aksi">
+        <button class="tombol" id="btnRekonSimpan">Simpan draf</button>
+        <button class="tombol utama" id="btnRekonKunci" disabled>Kunci rekonsiliasi</button></div>
+      <p class="petunjuk">Centang baris yang SUDAH muncul di mutasi bank. Kunci aktif hanya bila selisihnya 0; baris yang
+         belum cocok terbawa ke bulan berikutnya.</p>` : ''}`;
+    $('#isiRekon').addEventListener('input', segarkanRekon);
+    $('#isiRekon').addEventListener('change', segarkanRekon);
+    segarkanRekon();
+  }
+  async function simpanRekon(kunci) {
+    const h = hitungRekonLayar();
+    if (!h.adaBank) { toast('Ketik dulu saldo akhir menurut mutasi bank.', 'galat'); return; }
+    if (kunci && !(await tanya('Kunci rekonsiliasi ' + akunRekon + ' ' + bulanTeks(rekonData.periode) + '?',
+          `<p class="petunjuk">Selisih 0. Sesudah dikunci tidak bisa diubah; ${(rekonData.baris || []).length - h.set.size} baris
+             yang belum cocok terbawa ke bulan berikutnya.</p>`, { ya: 'Kunci rekonsiliasi' }))) return;
+    try {
+      const r = await API.simpanRekonBank({ kode_akun: akunRekon, periode: rekonData.periode,
+        saldo_bank: angkaDari($('#rekonSaldoBank').value), cocok: [...h.set], kunci: !!kunci });
+      toast(kunci ? 'Rekonsiliasi dikunci.' : 'Draf rekonsiliasi tersimpan (selisih ' + rpTeks(r.selisih) + ').');
+      await muatRekon();
+    } catch (e) { toast(e.message, 'galat'); }
   }
 
   /* ==================== TRANSFER BANK (bagian 303) ====================
@@ -11577,42 +11962,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     </div>`;
   }
 
-  function kartuCatatKas() {
-    if (!bolehIzin('kas', 'buat')) return '';
-    return `<div class="kartu">
-      <h3>Catat</h3>
-      <div class="saring-baris">
-        <!-- Saat lingkupnya seluruh cabang, catatan baru harus menyebut
-             cabangnya: jurnal mendarat di buku SATU cabang, dan menebaknya
-             dari tempat adminnya login akan salah untuk setiap cabang lain. -->
-        ${cabangKas === '*' && bolehCabangDash() ? `<div class="kendali-tetap">
-          <label>Cabang tujuan</label>
-          <select id="kasCabangTujuan" class="kendali-tetap">
-            ${daftarKodeCabang().map((c) =>
-              `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
-          </select></div>` : ''}
-        
-        <div class="kendali-penuh"><label>Jenis</label>
-          <select id="kasJenis">
-            ${JENIS_KAS.map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join('')}
-          </select></div>
-        <div class="kendali-penuh"><label>Sumber kas</label>
-          <select id="kasSumber"></select></div>
-        <div class="kendali-penuh"><label id="labelKasLawan">Akun lawan</label>
-          <select id="kasAkun"></select></div>
-        <div class="kendali-tetap"><label>Nominal</label>
-          <input type="text" inputmode="numeric" class="uang kendali-tetap" id="kasJumlah" placeholder="0"></div>
-      </div>
-      <div class="grup"><label>Keterangan</label>
-        <input type="text" id="kasKeterangan" maxlength="120"
-               placeholder="mis. gaji September — 3 orang"></div>
-      <div class="aksi">
-        <button class="tombol utama" id="btnSimpanKas">Simpan catatan kas</button>
-      </div>
-      <p class="petunjuk" id="petunjukKas"></p>
-    </div>`;
-  }
-
   function daftarMutasiKas(kas) {
     const rows = (kas && kas.kas) || [];
     if (!rows.length) return '<p class="petunjuk">Belum ada mutasi kas di periode ini.</p>';
@@ -11647,96 +11996,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        tetap utuh. Jurnal yang sudah terbit tidak pernah ditulis ulang.</p>`;
   }
 
-  /* Isi kedua dropdown menurut jenis yang dipilih. Dipanggil ulang tiap kali
-     jenisnya berganti: akun lawan sebuah PEMINDAHAN adalah akun kas lain,
-     sementara akun lawan sebuah pengeluaran justru tidak boleh akun kas. */
-  async function isiPilihanKas() {
-    const selJenis = $('#kasJenis');
-    if (!selJenis) return;
-    const coa = await DB.kvGet('coa', []);
-    const bisa = (coa || []).filter((c) => c.transaksi === true || String(c.transaksi) === 'true');
-    const opsi = (arr) => arr.map((c) =>
-      `<option value="${esc(c.kode)}">${esc(c.kode)} — ${esc(c.nama)}</option>`).join('');
-
-    const jenis = selJenis.value;
-    const kasSaja = bisa.filter((c) => AKUN_KAS.indexOf(String(c.kode)) !== -1);
-    $('#kasSumber').innerHTML = opsi(kasSaja) ||
-      '<option value="">(daftar akun belum tersinkron — tarik master dulu)</option>';
-
-    let lawan, label, petunjuk;
-    if (jenis === 'PRIVE') {
-      lawan = bisa.filter((c) => String(c.kode) === '3-1200');
-      label = 'Akun prive';
-      petunjuk = 'Uang pemilik yang diambil dari usaha. Bukan beban — ia mengurangi ekuitas.';
-    } else if (jenis === 'SETOR') {
-      lawan = kasSaja; label = '—';
-      petunjuk = 'Pakai tombol Terima di kartu Setoran toko; jumlahnya diambil dari uang yang benar-benar dihitung saat tutup laci.';
-    } else {
-      lawan = bisa.filter((c) => AKUN_KAS.indexOf(String(c.kode)) === -1);
-      label = 'Akun lawan';
-      petunjuk = jenis === 'MASUK'
-        ? 'Uang masuk ke usaha: setoran modal (3-1100), pendapatan lain (7-1100).'
-        : 'Uang keluar dari usaha: gaji (6-1100), listrik, perlengkapan, reimburse uang talangan toko. Memindahkan uang antar kas/bank lewat kartu Transfer bank.';
-    }
-    $('#kasAkun').innerHTML = opsi(lawan) || '<option value="">(tidak ada)</option>';
-    $('#labelKasLawan').textContent = label;
-    $('#petunjukKas').textContent = petunjuk;
-    $('#kasAkun').disabled = jenis === 'SETOR';
-    $('#btnSimpanKas').disabled = jenis === 'SETOR';
-  }
-
-  /* uuid bertahan sampai catatannya BERHASIL tersimpan — bukan dibuat ulang
-     tiap penekanan tombol, supaya penjaga duplikat di server benar-benar
-     menyala kalau jawabannya hilang di jalan. */
-  let _uuidKas = null;
-  const uuidKas = () => (_uuidKas ||
-    (_uuidKas = 'KAS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)));
   /* SATU uuid bersama untuk tiga tombol (Catat, Terima setoran, Balik) membuat
      satu nomor terpakai di dua cabang, dan setoran kedua di cabang yang sama
      dijawab "duplikat, berhasil" tanpa ditulis (bagian 261). Setoran & Balik
      kini ber-uuid dari DOKUMENNYA sendiri: menekan dua kali = satu catatan. */
   const uuidSetoran = (cab, idShift) => 'SETOR-' + cab + '-' + idShift;
   const uuidBalik = (uuidAsli) => 'BALIK-' + uuidAsli;
-
-  async function simpanKasBaru() {
-    const jenis = nilai('kasJenis');
-    const akun = nilai('kasAkun');
-    const sumber = nilai('kasSumber');
-    const jumlah = angka('kasJumlah');
-    const ket = nilai('kasKeterangan').trim();
-    if (!akun) return toast('Pilih akun lawannya dulu.', 'galat');
-    if (!sumber) return toast('Pilih sumber kasnya dulu.', 'galat');
-    if (!(jumlah > 0)) return toast('Nominal harus lebih dari nol.', 'galat');
-    if (!ket) return toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang bergerak.', 'galat');
-
-    /* PRIVE juga KELUAR dari sumber kasnya; yang membedakan akun lawannya,
-       dan itu sudah dipilih dropdown di atas. */
-    const tipe = jenis === 'MASUK' ? 'MASUK' : 'KELUAR';
-    /* Konfirmasi (bagian 245): uang back office bergerak dan dijurnal. */
-    if (!(await tanya(tipe === 'MASUK' ? 'Catat kas masuk?' : 'Catat kas keluar?',
-          `<p class="petunjuk">${esc(rpTeks(jumlah))} — ${esc(ket)}. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan tombol Balik.</p>`,
-          { ya: 'Simpan catatan kas' }))) return;
-    const b = $('#btnSimpanKas');
-    b.classList.add('sibuk');
-    b.disabled = true;
-    try {
-      await API.simpanKas({
-        cabang: nilai('kasCabangTujuan') ||
-                (cabangKas !== '*' ? cabangKas : APP_STATE.cabang),
-        uuid: uuidKas(),
-        /* Meja ini tidak pernah berada di dalam shift. */
-        id_shift: '', luar_laci: true,
-        akun_kas: sumber, tipe, kode_akun: akun,
-        jumlah, keterangan: ket
-      });
-      _uuidKas = null;
-      $('#kasJumlah').value = '';
-      $('#kasKeterangan').value = '';
-      toast('Catatan kas tersimpan.');
-      await muatHasilKas();
-    } catch (e) { toast('Gagal menyimpan kas: ' + e.message, 'galat'); }
-    finally { b.classList.remove('sibuk'); b.disabled = false; }
-  }
 
   /* ==================== GAJI & KASBON (bagian 250) ====================
      Server: apps-script/28_Gaji.gs. Dua tab: Gaji (slip per bulan) dan
@@ -12247,7 +12512,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          `button` karena itu tidak boleh hilang dari sini: tanpa dia, menekan
          Batal berubah jadi membuka rincian dan pembatalannya tidak pernah
          jalan. */
-      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], [data-stiker-tambah]');
+      const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]');
       if (!t) return;
 
       /* ---- KUNCI KONTEKS TINDAKAN ----
@@ -13234,6 +13499,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      /* Kas & Bank (bagian 304): tab, dokumen BKM/BKK, rekonsiliasi. */
+      if (d.tabkas) return pilihTabKas(d.tabkas);
+      if (d.dokKas) return bukaDetailDokKas(d.dokKas);
+      if (d.cetakDokKas) return cetakDokKas(d.cetakDokKas);
+      if (t.id === 'btnBkm') return bukaFormDokKas('BKM');
+      if (t.id === 'btnBkk') return bukaFormDokKas('BKK');
+      if (t.id === 'btnDokBaris') return tambahBarisDok();
+      if (d.hapusDok) { const tr = t.closest('tr'); if (tr && $('#tabelDokKas tbody').children.length > 1) tr.remove(); return hitungTotalDok(); }
+      if (t.id === 'btnSimpanDok') return simpanDokKas();
+      if (t.id === 'btnRekonSimpan') return simpanRekon(false);
+      if (t.id === 'btnRekonKunci') return simpanRekon(true);
       if (d.balikKas) {
         const asli = ((kasData && kasData.kas && kasData.kas.kas) || [])
           .filter((x) => String(x.uuid) === d.balikKas)[0];
@@ -13258,6 +13534,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             id_shift: '', luar_laci: true
           });
           toast('Koreksi balik tercatat.');
+          tutupModal();
           await muatHasilKas();
         } catch (x) { toast(x.message, 'galat'); }
         return;
