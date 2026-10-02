@@ -1239,7 +1239,7 @@ const Admin = (() => {
     if (!butir.length) return '';
     const tautan = [];
     if (st.length && typeof bolehLayar === 'function' && bolehLayar('shift')) tautan.push('<a href="#/shift" data-layar="shift">Buka Shift →</a>');
-    if (m && m.perangkat_menunggu && typeof bolehLayar === 'function' && bolehLayar('pengguna')) tautan.push('<a href="#/pengguna" data-layar="pengguna">Pengguna →</a>');
+    if (m && m.perangkat_menunggu && typeof bolehLayar === 'function' && bolehLayar('perangkat')) tautan.push('<a href="#/perangkat" data-layar="perangkat">Perangkat Terdaftar →</a>');
     return `<div class="strip-dash" role="status">${ikonAlat('peringatan')}${butir.join('<span class="pisah">·</span>')}
       ${tautan.length ? `<span class="strip-tautan">${tautan.join(' · ')}</span>` : ''}</div>`;
   }
@@ -5613,35 +5613,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   /* Penggambar dipisah dari penarik supaya mode nonaktif tidak menembak server.
-     Kartu "Bobot peran" ikut digambar ulang — isinya dibaca dari APP_STATE yang
-     sama, jadi nilainya tidak bisa berbeda; memisahkannya hanya menambah satu
-     tempat lagi yang harus disamakan. */
+     Kartu "Bobot peran" pindah ke Pengaturan Sistem (bagian 306). */
   function gambarPetugas() {
     const w = $('#isiPetugas');
     if (!w) return;
     const rows = w._rows || [];
-    const b = bobotSekarang();
     w.innerHTML = `
-        <div class="kartu">
-          <h3>Bobot peran</h3>
-          <p class="petunjuk">Menentukan pembagian poin — dan pembagian omzet — antara
-             yang menjual dan yang memasang. Kasir tidak bisa mengubahnya; di layar
-             kasir ia hanya memilih orangnya, dan perannya mengikuti urutan
-             (yang pertama menjual, yang kedua memasang).</p>
-          <div class="baris2">
-            <div class="grup"><label>Penjual</label>
-              <input type="number" id="bobotPenjual" min="0" step="1" value="${b.PENJUAL}"
-                     ${bolehIzin('petugas', 'ubah') ? '' : 'disabled'}></div>
-            <div class="grup"><label>Pemasang</label>
-              <input type="number" id="bobotPemasang" min="0" step="1" value="${b.PEMASANG}"
-                     ${bolehIzin('petugas', 'ubah') ? '' : 'disabled'}></div>
-          </div>
-          <div class="pesan info" id="bobotContoh">${esc(contohBobot(b))}</div>
-          ${bolehIzin('petugas', 'ubah')
-            ? ('<button class="tombol utama" id="btnSimpanBobot">' + ikonAlat('simpan') + '<span>Simpan bobot</span></button>') : ''}
-          <div id="pesanBobot"></div>
-        </div>
-
         <div class="kartu">
           <div class="bar-alat"><h3>Petugas / pramuniaga</h3><div style="flex:1"></div>
             ${bolehIzin('petugas', 'buat') ? tombolTambah('btnPetugasBaru', 'Petugas') : ''}
@@ -6196,34 +6173,59 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return `${esc(nama)}<br><span class="meta-kecil">${esc(waktuTampil(r.login_terakhir))}</span>`;
   }
 
+  /* Bagian 306: Pengguna, Peran & Hak Akses, dan Perangkat Terdaftar jadi
+     tiga layar. Dulu satu layar menggambar ketiganya sekaligus, dan yang
+     mencari "siapa boleh apa" harus tahu dulu jawabannya ada di bawah daftar
+     orang. Tiap layar menarik HANYA yang digambarnya. */
   async function muatPengguna() {
     memuat('#isiPengguna');
     try {
-      const [user, peran, perangkat] = await Promise.all([
-        API.daftarUser(), API.daftarPeran(), API.daftarPerangkat()
-      ]);
+      /* Peran ikut ditarik: editor pengguna menawarkan daftar perannya. */
+      const [user, peran] = await Promise.all([API.daftarUser(), API.daftarPeran()]);
       cachePeran = peran.peran;
       cacheKamus = { modul: peran.modul, aksi: peran.aksi, flag: peran.flag };
       $('#isiPengguna')._user = user;
+      gambarPengguna();
+    } catch (e) { galat('#isiPengguna', e); }
+  }
+
+  async function muatPeran() {
+    memuat('#isiPeran');
+    try {
+      /* Pengguna ikut ditarik: dialog Simpan menyebut berapa orang berperan itu. */
+      const [peran, user] = await Promise.all([API.daftarPeran(), API.daftarUser()]);
+      cachePeran = peran.peran;
+      cacheKamus = { modul: peran.modul, aksi: peran.aksi, flag: peran.flag };
+      $('#isiPeran')._user = user;
+      gambarPeran();
+    } catch (e) { galat('#isiPeran', e); }
+  }
+
+  async function muatPerangkat() {
+    memuat('#isiPerangkat');
+    try {
+      /* Pengguna ikut ditarik: kolom Pemilik menyebut namanya, bukan id. */
+      const [perangkat, user] = await Promise.all([API.daftarPerangkat(), API.daftarUser()]);
       /* Disimpan supaya dialog konfirmasi Hapus bisa menyebut perangkat yang
          MANA — kode, nama, cabang — tanpa menembak server lagi hanya untuk
          mengulang data yang barusan digambar. */
-      $('#isiPengguna')._perangkat = perangkat;
-      gambarPengguna();
-    } catch (e) { galat('#isiPengguna', e); }
+      $('#isiPerangkat')._perangkat = perangkat;
+      $('#isiPerangkat')._user = user;
+      gambarPerangkat();
+    } catch (e) { galat('#isiPerangkat', e); }
   }
 
   function gambarPengguna() {
     const w = $('#isiPengguna');
     if (!w) return;
-    const user = w._user || [], perangkat = w._perangkat || [];
+    const user = w._user || [];
     w.innerHTML = `
         <div class="kartu">
           <div class="bar-alat"><div style="flex:1"></div>
             ${bolehIzin('user', 'buat') ? tombolTambah('btnUserBaru', 'Pengguna') : ''}
             ${menuTindakan({ id: 'menuUser', kunci: 'user', idTombol: 'btnMenuUser',
                 isi: butirNonaktif('user', hitungMati(user)) })}</div>
-          <p class="petunjuk">Akun untuk masuk ke aplikasi dan peran yang menentukan menu apa yang bisa dibuka. Perangkat yang dipakai masuk disetujui di kartu bawah.</p>
+          <p class="petunjuk">Akun untuk masuk ke aplikasi dan peran yang menentukan menu apa yang bisa dibuka. Perangkat yang dipakai masuk disetujui di menu Perangkat Terdaftar.</p>
           ${tabel([
             { judul: 'ID', kunci: 'id_user' },
             { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}
@@ -6245,10 +6247,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                     ? butirBaris('', 'Reset PIN', IKON.reset_pin, `data-reset-pin="${id}"`) : '') });
             } }
           ], user, { kosong: 'Belum ada pengguna', pisahNonaktif: true, kunci: 'user' })}
-        </div>
+        </div>`;
+  }
 
+  function gambarPeran() {
+    const w = $('#isiPeran');
+    if (!w) return;
+    /* Judul bukan "Peran & hak akses": kepala layar sudah menyebutnya, dan
+       judul yang mengulang nama menu dilarang (uji-bar bagian 9). */
+    w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Peran &amp; hak akses</h3><div style="flex:1"></div>
+          <div class="bar-alat"><h3>Daftar peran</h3><div style="flex:1"></div>
             ${bolehIzin('setting', 'ubah') ? tombolTambah('btnPeranBaru', 'Peran baru') : ''}</div>
           <p class="petunjuk">Peran menentukan menu apa yang muncul dan aksi apa yang diizinkan. Peran OWNER sengaja dikunci agar sistem tidak bisa terkunci dari dirinya sendiri.</p>
           ${tabel([
@@ -6266,10 +6275,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                   ? tombolIkon('', 'Atur hak akses', IKON.atur_akses, `data-edit-peran="${esc(r.kode_peran)}"`)
                   : '<span class="lencana">hanya pemegang Pengaturan</span>' }
           ], cachePeran)}
-        </div>
+        </div>`;
+  }
 
+  function gambarPerangkat() {
+    const w = $('#isiPerangkat');
+    if (!w) return;
+    const user = w._user || [], perangkat = w._perangkat || [];
+    w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Perangkat terdaftar</h3><div style="flex:1"></div>
+          <div class="bar-alat"><h3>Daftar perangkat</h3><div style="flex:1"></div>
             ${menuTindakan({ id: 'menuPerangkat', kunci: 'perangkat', idTombol: 'btnMenuPerangkat',
                 isi: butirNonaktif('perangkat', hitungMati(perangkat, r => r.status === 'DIBLOKIR')) })}</div>
           <p class="petunjuk">Perangkat baru wajib disetujui sebelum bisa transaksi — ini yang mencegah PIN kasir yang bocor dipakai dari HP pribadi.</p>
@@ -7400,8 +7415,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   ];
 
   /* ==================== MATRIKS PULSA (bagian 253) ====================
-     Kartu paling atas menu Pulsa, hanya pemegang laporan_pulsa (Owner & Head
-     Admin). Dimuat saat layar Pulsa DIBUKA, bukan tiap pindah tab. Sejak bagian 256
+     Kartu paling atas TAB LAPORAN Pulsa (bagian 306 — dulu di atas seluruh
+     layar, termasuk layar kerja petugas), hanya pemegang laporan_pulsa (Owner
+     & Head Admin). Dimuat saat tab Laporan PERTAMA dibuka, bukan tiap pindah tab. Sejak bagian 256
      berbentuk STRIP kotak per cabang + Total; rinciannya terbuka saat diklik. */
   const PERIODE_MATPULSA = { id: 'matpulsaPeriodePilih', dari: 'matpulsaBulan', bulanan: true,
                              nilai: 'bulan', label: '', judul: 'Periode' };
@@ -7480,9 +7496,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function muatPulsa(tab) {
     const w = $('#isiPulsa');
-    /* Matriks dimuat saat layar Pulsa dibuka (tanpa tab), tidak tiap pindah tab —
-       dan tidak ditunggu: tab Shift tidak boleh menunggu hitungan semua cabang. */
-    if (!tab) muatMatrikspulsa().catch(() => {});
     /* Tab Laporan hanya untuk yang memegang laporan_pulsa·lihat — Owner dan
        Head Admin (bagian 251). Akun petugas tidak melihat tabnya sama sekali,
        dan servernya menolak kalau dipanggil juga. */
@@ -7619,6 +7632,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           </div>
         </div>
         <div id="hasilLapulsa"></div>`;
+      /* Matriks per cabang di ATAS kartu laporan (bagian 306). Tidak ditunggu:
+         daftar shift tidak boleh menunggu hitungan semua cabang. */
+      w.insertAdjacentHTML('afterbegin', '<div id="isiMatrikspulsa"></div>');
+      muatMatrikspulsa().catch(() => {});
       $('#wadahPeriodeLapulsa').innerHTML = Periode.html(PERIODE_LAPULSA);
       Periode.pasang(PERIODE_LAPULSA, muatHasilLapulsa);
       $('#lapulsaCabang')?.addEventListener('change', () => API.tugas(muatHasilLapulsa, { baca: true }));
@@ -8818,10 +8835,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatSistem() {
     memuat('#isiSistem');
     try {
-      /* Bobot peran punya layarnya sendiri di menu Petugas — lengkap dengan
-         pratinjau pembagiannya. Membiarkannya juga muncul di sini sebagai JSON
-         mentah berarti dua tempat mengubah satu hal, dan yang terakhir menyimpan
-         menang tanpa ada yang tahu. */
+      /* Bobot peran punya KARTUNYA sendiri di layar ini (bagian 306, dulu di
+         menu Petugas) — lengkap dengan pratinjau pembagiannya. Ia tidak ikut
+         daftar isian setelan sebagai JSON mentah: dua tempat mengubah satu
+         hal berarti yang terakhir menyimpan menang tanpa ada yang tahu. */
+      const b = bobotSekarang();
       const rows = (await API.daftarSetting())
         .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
         .filter(r => !SETTING_DIBUANG.includes(r.kunci));
@@ -8842,6 +8860,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${k.isi.map(isianSetting).join('')}
           </div>
         </div>`).join('')}
+        <div class="kartu" id="kartuBobot">
+          ${/* Kepala yang sama dengan kelompok setelan di atasnya (bagian 306):
+                kartu yang berbentuk lain terbaca sebagai tempelan dari layar lain.
+                TANPA .set-grup: ia bukan kelompok setelan (tidak punya petak
+                isian [data-setting], dan disimpan tombolnya sendiri). */''}
+          ${kepalaGrupSetting({ ikon: 'petugas', judul: 'Bobot peran', ket: 'Pembagian poin dan omzet antara penjual dan pemasang.' })}
+          <p class="petunjuk">Menentukan pembagian poin — dan pembagian omzet — antara
+             yang menjual dan yang memasang. Kasir tidak bisa mengubahnya; di layar
+             kasir ia hanya memilih orangnya, dan perannya mengikuti urutan
+             (yang pertama menjual, yang kedua memasang).</p>
+          <div class="baris2">
+            <div class="grup"><label>Penjual</label>
+              <input type="number" id="bobotPenjual" min="0" step="1" value="${b.PENJUAL}"
+                     ${bolehIzin('setting', 'ubah') ? '' : 'disabled'}></div>
+            <div class="grup"><label>Pemasang</label>
+              <input type="number" id="bobotPemasang" min="0" step="1" value="${b.PEMASANG}"
+                     ${bolehIzin('setting', 'ubah') ? '' : 'disabled'}></div>
+          </div>
+          <div class="pesan info" id="bobotContoh">${esc(contohBobot(b))}</div>
+          ${bolehIzin('setting', 'ubah')
+            ? ('<button class="tombol utama" id="btnSimpanBobot">' + ikonAlat('simpan') + '<span>Simpan bobot</span></button>') : ''}
+          <div id="pesanBobot"></div>
+        </div>
+
         ${bolehIzin('setting', 'ubah') ? `<div class="set-kaki">
           <span class="set-jejak" id="jejakSetting">Belum ada perubahan.</span>
           <button class="tombol utama besar" id="btnSimpanSetting" disabled>Simpan pengaturan</button>
@@ -8985,44 +9027,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * ganjil adalah membuka nota satu per satu — yang berarti tidak akan pernah
    * dilakukan. Urutannya sengaja dari rupiah terbesar, bukan terbaru.
    */
-  const PERIODE_DISKON = { id: 'dskPeriode', dari: 'dskDari', sampai: 'dskSampai', nilai: 'bulan', judul: 'Periode diskon' };
-  async function muatDiskon() {
-    if (!$('#dskDari')) {
-      /* v1.182: dropdown periode (komponen Periode), bawaan Bulan ini, memuat
-         sendiri — tidak ada tombol Tampilkan. */
-      $('#isiDiskon').innerHTML = `
-        <div class="kartu">
-          <div class="bar-alat dua-kendali">
-            ${Periode.html(PERIODE_DISKON)}
-          </div>
-          <p class="petunjuk">Persentase dihitung dari total diskon (baris + nota) terhadap nilai bruto.
-            Kolom <strong>Disetujui</strong> berisi nama atasan yang menyetujui diskon di atas batas peran kasirnya.</p>
-        </div>
-        <div id="hasilDiskon"></div>`;
-      Periode.pasang(PERIODE_DISKON, gambarHasilDiskon);
-    }
-    gambarHasilDiskon();
-  }
-
-  async function gambarHasilDiskon() {
-    const w = $('#hasilDiskon');
-    if (!w) return;
-    /* Bentuk asli diingat (bagian 262); rangka di bawah untuk pembukaan pertama. */
-    Rangka.pasang(w, `<div class="petak petak-4" aria-busy="true" aria-label="Memuat diskon">
-        ${Array.from({ length: 4 }, () => `<div class="kartu statistik">
-          <div class="label"><span class="rangka" style="width:70px"></span></div>
-          <div class="nilai"><span class="rangka tinggi" style="width:100px"></span></div></div>`).join('')}
-      </div>
-      <div class="kartu" aria-busy="true">
-        ${rangkaBaris(6, ['86%', '68%', '78%', '62%'])}
-      </div>`, '#hasilDiskon');
-    try {
-      const par = { dari: $('#dskDari').value, sampai: $('#dskSampai').value };
-      gambarLapDiskon(w, await API.laporanDiskon(par), par);
-    } catch (e) { galat('#hasilDiskon', e); }
-  }
-
-  /** Isi laporan diskon — dipakai layar lama DAN tab Diskon di Laporan Penjualan (bagian 305). */
+  /** Isi tab Diskon di Laporan Penjualan (bagian 305). Layar Diskon lama dibuang di bagian 306. */
   function gambarLapDiskon(w, d, par) {
     par = par || {};
     {
@@ -9481,7 +9486,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         : jenis === 'diskon' ? '<p class="petunjuk">Kasir bisa langsung menyelesaikan notanya. Berlaku untuk nota itu saja, sekali pakai.</p>' : '';
       if (!(await tanya('Setujui ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + peringatan, { ya: 'Setujui' }))) return;
     } else if (jenis === 'perangkat') {
-      if (!(await tanya('Blokir perangkat ini?', ket + '<p class="petunjuk">Perangkat ini tidak bisa masuk sampai dibuka lagi di menu Pengguna.</p>',
+      if (!(await tanya('Blokir perangkat ini?', ket + '<p class="petunjuk">Perangkat ini tidak bisa masuk sampai dibuka lagi di menu Perangkat Terdaftar.</p>',
             { ya: 'Blokir', jenis: 'bahaya' }))) return;
     } else {
       const min = jenis === 'void' ? 5 : 3;
@@ -12410,10 +12415,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian', persetujuan: '#isiPersetujuan',
                       mitra: '#isiMitra', petugas: '#isiPetugas', poin: '#isiPoin',
                       piutang: '#isiPiutang', utang: '#isiUtang', pengguna: '#isiPengguna',
+                      peran: '#isiPeran', perangkat: '#isiPerangkat',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
                       dashboard: '#isiDashboard', transfer: '#isiTransfer', retur: '#isiRetur',
                       permintaan: '#isiPermintaan', pembatalan: '#isiPembatalan',
-                      diskon: '#isiDiskon',
                       pulsa: '#isiPulsa',
                       accurate: '#isiAccurate',
                       aset: '#isiAset',
@@ -12440,10 +12445,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'piutang':   return muatPiutang();
       case 'utang':     return muatUtang();
       case 'pengguna':  return muatPengguna();
+      case 'peran':     return muatPeran();
+      case 'perangkat': return muatPerangkat();
       case 'cabang':    return muatCabang();
       case 'sistem':    return muatSistem();
       case 'audit':     return muatAudit();
-      case 'diskon':    return muatDiskon();
       case 'transfer':  return muatTransfer();
       case 'permintaan': return muatPermintaan();
       case 'opname':    return muatOpname();
@@ -12484,7 +12490,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       supplier:  gambarMitra,
       petugas:   gambarPetugas,
       user:      gambarPengguna,
-      perangkat: gambarPengguna,
+      perangkat: gambarPerangkat,
       cabang:    gambarCabang,
       /* Kartu meja tinggal DI DALAM layar Cabang, jadi yang menggambarnya
          ulang pun gambarCabang() — ia yang memasang kedua kartunya. */
@@ -12761,7 +12767,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             // Bobot dipakai layar kasir untuk pratinjau, jadi perangkat ini perlu
             // menariknya ulang supaya angkanya tidak tertinggal.
             await Sync.tarikMaster(true);
-            await sukses('Bobot peran disimpan.', 'petugas');
+            await sukses('Bobot peran disimpan.', 'sistem');
           });
         } catch (e) { pesan('#pesanBobot', e.message, 'galat'); }
         return;
@@ -12994,7 +13000,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            dipakainya tiap hari, dan yang menekan tombolnya tidak melihat
            akibatnya dari layar ini. */
         const kodePeran = nilai('rKode').toUpperCase();
-        const nPemakai = ($('#isiPengguna')._user || [])
+        const nPemakai = ($('#isiPeran')._user || [])
           .filter(u => String(u.peran || '').toUpperCase() === kodePeran).length;
         if (!(await tanya('Simpan hak akses peran ' + kodePeran + '?',
               `<p class="petunjuk">Berlaku untuk <strong>${nPemakai} pengguna</strong> berperan ini,
@@ -13005,7 +13011,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             kode_peran: kodePeran, nama: nilai('rNama'),
             keterangan: nilai('rKet'), izin, flag
           });
-          await sukses('Hak akses tersimpan. Pengguna terkait perlu login ulang agar menunya menyesuaikan.', 'pengguna');
+          await sukses('Hak akses tersimpan. Pengguna terkait perlu login ulang agar menunya menyesuaikan.', 'peran');
         } catch (x) {
           $('#pesanPeran').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
         }
@@ -13028,7 +13034,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            Pertanyaannya MENYEBUT perangkat yang mana. "Blokir perangkat ini?"
            tidak bisa dijawab siapa pun yang baru menggeser daftar sepuluh
            baris — pelajaran yang sama dengan tombol Hapus di bawah. */
-        const r = ($('#isiPengguna')._perangkat || [])
+        const r = ($('#isiPerangkat')._perangkat || [])
           .find(x => String(x.id_perangkat) === String(d.perangkat));
         const memblokir = d.status === 'DIBLOKIR';
         const ket = r ? `${r.kode} · ${r.nama}\nCabang ${r.cabang || '—'} · status ${r.status}`
@@ -13041,14 +13047,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               { ya: memblokir ? 'Blokir perangkat' : 'Setujui perangkat',
                 jenis: memblokir ? 'bahaya' : undefined }))) return;
         try {
-          await API.setujuiPerangkat({ id_perangkat: d.perangkat, status: d.status, cabang: APP_STATE.cabang });
-          await muat('pengguna');
+          /* Cabang PERANGKATNYA, bukan cabang sesi penyetuju (bagian 306,
+             sama dengan layar Persetujuan bagian 305): menyetujui tablet SK03
+             dari sesi SK01 dulu memindahkannya diam-diam ke SK01. */
+          await API.setujuiPerangkat({ id_perangkat: d.perangkat, status: d.status, cabang: (r && r.cabang) || undefined });
+          await muat('perangkat');
           toast('Perangkat ' + d.status.toLowerCase() + '.');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
       if (d.namaPerangkat) {
-        const r = ($('#isiPengguna')._perangkat || [])
+        const r = ($('#isiPerangkat')._perangkat || [])
           .find(x => String(x.id_perangkat) === String(d.namaPerangkat));
         /* Nama lama dipakai sebagai PLACEHOLDER, bukan isian awal: `tanya`
            tidak punya nilai bawaan, dan menaruh nama lama di dalam kotak akan
@@ -13065,7 +13074,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!nama) return;
         try {
           await API.ubahPerangkat({ id_perangkat: d.namaPerangkat, nama });
-          await muat('pengguna');
+          await muat('perangkat');
           toast('Nama perangkat disimpan.');
         } catch (x) { toast(x.message, 'galat'); }
         return;
@@ -13077,7 +13086,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          divisi yang salah. Dan dialog ganti nama yang sudah teruji tidak perlu
          dibongkar untuk ini. */
       if (d.mejaPerangkat) {
-        const r = ($('#isiPengguna')._perangkat || [])
+        const r = ($('#isiPerangkat')._perangkat || [])
           .find(x => String(x.id_perangkat) === String(d.mejaPerangkat));
         const daftar = APP_STATE.daftarLini || [];
         if (!daftar.length) {
@@ -13108,7 +13117,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             /* `nama` ikut dikirim karena server menuntutnya terisi; yang berubah
                tetap hanya mejanya. */
             await API.ubahPerangkat({ id_perangkat: d.mejaPerangkat, nama: r?.nama || '', lini });
-            await muat('pengguna');
+            await muat('perangkat');
             toast(lini ? 'Meja perangkat disimpan.' : 'Perangkat dilepas dari meja.');
           } catch (x) { toast(x.message, 'galat'); }
         });
@@ -13116,7 +13125,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
 
       if (d.hapusPerangkat) {
-        const r = ($('#isiPengguna')._perangkat || [])
+        const r = ($('#isiPerangkat')._perangkat || [])
           .find(x => String(x.id_perangkat) === String(d.hapusPerangkat));
         /* Konfirmasinya menyebut perangkat yang MANA. "Hapus perangkat ini?"
            tidak bisa dijawab siapa pun yang baru saja menggeser daftar sepuluh
@@ -13124,7 +13133,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const ket = r
           ? `${r.kode} · ${r.nama}\nCabang ${r.cabang || '—'} · status ${r.status}` +
             `\nPemilik terakhir: ${String(r.user_terakhir || '') ? (
-                ($('#isiPengguna')._user || []).find(u => String(u.id_user) === String(r.user_terakhir))?.nama
+                ($('#isiPerangkat')._user || []).find(u => String(u.id_user) === String(r.user_terakhir))?.nama
                 || r.user_terakhir) : 'belum pernah dipakai'}`
           : d.hapusPerangkat;
         if (!(await tanya('Hapus perangkat ini dari daftar?',
@@ -13134,7 +13143,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               { ya: 'Hapus perangkat', jenis: 'bahaya' }))) return;
         try {
           const h = await API.hapusPerangkat({ id_perangkat: d.hapusPerangkat });
-          await muat('pengguna');
+          await muat('perangkat');
           toast('Perangkat ' + (h.kode || '') + ' dihapus' +
                 (h.sesi_dicabut ? ' — ' + h.sesi_dicabut + ' sesi ikut dicabut.' : '.'));
         } catch (x) { toast(x.message, 'galat'); }

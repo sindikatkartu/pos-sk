@@ -311,6 +311,9 @@ const MENU = [
      Namanya mengikuti apa yang sudah disebut kodenya sendiri: izinnya
      `laporan_penjualan`, dan judul kartunya dulu 'Laporan penjualan'. */
   { id: 'laporan',    label: 'Laporan Penjualan', grup: 'Laporan', izin: ['laporan_penjualan', 'lihat'] },
+  /* Grup Laporan sejak bagian 306 (dulu Keuangan): layarnya kini murni
+     laporan — jurnal dan tutup buku pindah ke grup Akuntansi. */
+  { id: 'keuangan',   label: 'Laporan Keuangan', grup: 'Laporan', izin: ['laporan_keuangan', 'lihat'] },
   /* Label 'Poin & Performa' sejak 9 Sep 2026 — dulu 'Poin', lalu 'Performa'.
      Dua kali berganti karena dua kali salah arah: "Poin" menyempitkan isinya
      (ada omzet, nota, peringkat cabang), sementara "Performa" menyembunyikan
@@ -320,20 +323,25 @@ const MENU = [
   // SENGAJA tidak ikut berganti: mengganti id memutus rute layar, dan
   // mengganti kunci izin mencabut akses semua peran yang punya.
   { id: 'poin',       label: 'Poin & Performa', grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
+  /* Akun Perkiraan (bagian 296): Owner menambah/mengubah, Akunting mengajukan,
+     peran lain dengan Laporan Keuangan·lihat hanya melihat. */
+  { id: 'coa',        label: 'Akun Perkiraan', grup: 'Akuntansi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  /* Jurnal & Tutup Buku (bagian 306): yang MENCATAT dan MENGUNCI pembukuan,
+     dipisah dari Laporan Keuangan yang hanya membaca. Izinnya tetap izin yang
+     dulu membuka tab Jurnal — tidak ada peran yang kehilangan atau mendapat
+     akses. Tutup buku tetap bergerbang flag `tutup_buku`. Layar app.js
+     (bukan admin.js), sama seperti Laporan Keuangan asalnya. */
+  { id: 'jurnal',     label: 'Jurnal & Tutup Buku', grup: 'Akuntansi', izin: ['laporan_keuangan', 'lihat'] },
   /* Aset Tetap menumpang izin `laporan_keuangan`, bukan modul izin sendiri:
      modul baru bertanda `sengaja-manual`, jadi instalasi yang sudah berjalan
      tidak ikut berubah dan tiap peran harus dicentang tangan. Yang mengurus
      aset tetap memang orang yang sama dengan yang menutup buku. */
-  { id: 'aset',       label: 'Aset Tetap', grup: 'Keuangan',   izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
-  /* Akun Perkiraan (bagian 296): Owner menambah/mengubah, Akunting mengajukan,
-     peran lain dengan Laporan Keuangan·lihat hanya melihat. */
-  { id: 'coa',        label: 'Akun Perkiraan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  { id: 'aset',       label: 'Aset Tetap', grup: 'Akuntansi',  izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   /* Gaji & kasbon (bagian 250). Modul izin SENDIRI, bukan menumpang
      laporan_keuangan seperti Aset: gaji orang per orang lebih sempit
      daripada laporan keuangan, dan Akunting yang memegang laporan belum
      tentu boleh melihat gaji rekan kerjanya. */
   { id: 'gaji',       label: 'Gaji',       grup: 'Keuangan',   izin: ['gaji', 'lihat'],              admin: true, backoffice: true },
-  { id: 'keuangan',   label: 'Laporan Keuangan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'] },
   /* Diskon jadi tab di Laporan Penjualan (bagian 305) — tidak lagi menu sendiri. */
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
      Isinya BARU SATU dan itu disengaja: Ringkasan Gabungan, Laporan Pulsa,
@@ -356,6 +364,12 @@ const MENU = [
   { id: 'accurate', label: 'Accurate', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true, modul: true },
   { id: 'konsolidasi', label: 'Ringkasan Gabungan', grup: 'Konsolidasi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   { id: 'pengguna',   label: 'Pengguna',   grup: 'Sistem',     izin: ['user', 'lihat'],              admin: true, backoffice: true },
+  /* Bagian 306: dua kartu yang dulu menumpang di bawah daftar Pengguna.
+     Izinnya izin yang sama dengan yang dulu membuka kartunya (daftarPeran &
+     daftarPerangkat = user·lihat); MENGUBAH peran tetap setting·ubah, dan
+     menyetujui perangkat tetap user·setujui. */
+  { id: 'peran',      label: 'Peran & Hak Akses', grup: 'Sistem', izin: ['user', 'lihat'],            admin: true, backoffice: true },
+  { id: 'perangkat',  label: 'Perangkat Terdaftar', grup: 'Sistem', izin: ['user', 'lihat'],          admin: true, backoffice: true },
   { id: 'cabang',     label: 'Cabang',     grup: 'Sistem',     izin: ['cabang', 'lihat'],            admin: true, backoffice: true },
   { id: 'sistem',     label: 'Pengaturan Sistem', grup: 'Sistem',     izin: ['setting', 'lihat'],           admin: true, backoffice: true },
   { id: 'audit',      label: 'Audit',      grup: 'Sistem',     izin: ['audit', 'lihat'],             admin: true, backoffice: true },
@@ -390,8 +404,11 @@ const MENU = [
    bawahnya. Keputusan pemilik 20 Sep 2026, sesudah menimbang tiga tempat —
    seluruh urusan uang admin back office dulu tersebar di dua grup yang
    namanya bukan tentang uang (bagian 211). */
+/* 'Akuntansi' (bagian 306) sesudah Keuangan: meja kerja pembukuan —
+   akun, jurnal penyesuaian, tutup buku, aset — yang hasilnya dibaca di
+   Laporan tepat di bawahnya. */
 const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Keuangan',
-                   'Laporan', 'Konsolidasi', 'Sistem', 'Akun'];
+                   'Akuntansi', 'Laporan', 'Konsolidasi', 'Sistem', 'Akun'];
 
 /**
  * IKON — digambar sebaris sebagai SVG, BUKAN diambil dari CDN ikon.
@@ -1703,6 +1720,9 @@ function bukaLayar(id) {
      pembukaan berikutnya membiarkan tab yang sedang dilihat, dan tidak
      menambah satu pun panggilan server. */
   if (id === 'keuangan' && !keuTerakhir) return pilihTabKeu('labarugi');
+  /* Alasan yang sama untuk Jurnal & Tutup Buku (bagian 306): dimuat sekali
+     saat pertama dibuka; berikutnya yang memuat ulang adalah periode/cabang. */
+  if (id === 'jurnal' && !jrnDimuat) { jrnDimuat = true; return tampilkanJurnalManual(); }
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
   if (id === 'shift') return periksaShift();
@@ -2138,7 +2158,7 @@ async function muatMaster() {
   catch (e) { APP_STATE.daftarPetugas = []; console.warn('Daftar petugas belum tersedia:', e.message); }
   gambarPilihanPetugas();
 
-  $('#keuCabang').innerHTML =
+  $('#keuCabang').innerHTML = $('#jrnCabang').innerHTML =
     (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
     APP_STATE.daftarCabang.slice().sort(urutNama).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 
@@ -4273,6 +4293,7 @@ async function laporkanKeluarPaksa() {
 const PERIODE_LAPORAN = { id: 'lapPeriode', dari: 'lapDari', sampai: 'lapSampai', kustom: 'lapKustom', nilai: 'hari', judul: 'Periode laporan' };
 const PERIODE_SHIFT   = { id: 'shiftPeriode', dari: 'shiftDari', sampai: 'shiftSampai', nilai: 'hari', judul: 'Periode shift' };
 const PERIODE_KEU     = { id: 'keuPeriodePilih', dari: 'keuPeriode', bulanan: true, nilai: 'bulan', label: 'Periode' };
+const PERIODE_JRN     = { id: 'jrnPeriodePilih', dari: 'jrnPeriode', bulanan: true, nilai: 'bulan', label: 'Periode' };
 
 /**
  * Terapkan pilihan periode: isi kedua tanggal (atau buka kolom kustom), lalu
@@ -4331,8 +4352,6 @@ const LAP_TARIK = {
   shift:   (par) => API.daftarShift({ ...par }),
   petugas: (par) => API.laporanPoin({ ...par }),
   void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' }),
-  /* Satu-satunya yang bukan satu panggilan — lihat tarikKerugian(). */
-  kerugian: (par) => tarikKerugian(par),
   /* Diskon pindah dari menu sendiri ke tab ini (bagian 305). */
   diskon:  (par) => API.laporanDiskon(par)
 };
@@ -4348,8 +4367,9 @@ const LAP_BAGIAN = [
      ikut: sebelum jadi tab ia tidak pernah ada di cetakan laporan, dan
      tercentang otomatis ia menambah satu panggilan + satu bagian ke SETIAP
      cetakan penjualan biasa. Tetap bisa dicentang di dialognya. */
-  { id: 'diskon',  judul: 'Diskon', cetakOtomatis: false },
-  { id: 'kerugian', judul: 'Kerugian persediaan', cetakOtomatis: false }
+  { id: 'diskon',  judul: 'Diskon', cetakOtomatis: false }
+  /* Kerugian persediaan pindah ke Laporan Keuangan (bagian 306): angkanya
+     rupiah kerugian, pembacanya pembaca laporan keuangan. */
 ];
 
 /**
@@ -4553,7 +4573,6 @@ async function gambarTabLaporan(tab) {
   }
   const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
                    petugas: gambarLapPetugas, void: gambarLapVoid,
-                   kerugian: gambarLapKerugian,
                    diskon: gambarLapDiskonTab }[tab];
   gambar(w, LAP.data[tab]);
 }
@@ -5076,7 +5095,7 @@ const bolehTabKerugian = () => !!APP_STATE.flag.lihat_harga_modal;
  * mengundang orang bertanya kenapa laporannya rusak.
  */
 function pasangTabKerugian() {
-  const b = $('#tabLaporan button[data-tab-lap="kerugian"]');
+  const b = $('#tabKeu button[data-tab-keu="kerugian"]');
   if (b) b.classList.toggle('sembunyi', !bolehTabKerugian());
 }
 
@@ -5418,8 +5437,10 @@ const CETAK_LAP_PILIH = new Set(
   LAP_BAGIAN.filter(b => b.cetakOtomatis !== false).map(b => b.id));
 
 /** Bagian yang boleh muncul di dialog cetak untuk peran yang sedang masuk. */
-const bagianLaporanBoleh = () =>
-  LAP_BAGIAN.filter(b => b.id !== 'kerugian' || bolehTabKerugian());
+/* Sejak bagian 306 tidak ada lagi bagian bergerbang harga modal di sini —
+   Kerugian persediaan pindah ke Laporan Keuangan. Fungsinya dipertahankan
+   supaya gerbang berikutnya punya tempat. */
+const bagianLaporanBoleh = () => LAP_BAGIAN.slice();
 
 /** Tabel dokumen cetak: kolom yang sama dengan `lapTabel`, gaya `table.isi`. */
 function tabelCetakLaporan(judul, kolom, baris, kosong) {
@@ -5464,10 +5485,13 @@ const CETAK_LAP_BAGIAN = {
   void: (d) => kotakCetakLaporan(angkaVoidLaporan(d)) +
     tabelCetakLaporan('Riwayat void', KOLOM_LAP.void(), d.nota || [], 'Tidak ada nota yang dibatalkan pada rentang ini.') +
     tabelCetakLaporan('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(d.nota || []), 'Tidak ada rincian barang.'),
-  /* Catatan risiko IKUT ke kertas. Halaman yang memuat daftar stok mati
-     tanpa kalimat "ini belum kerugian" adalah halaman yang bisa dibaca
-     sebagai tagihan kerugian oleh siapa pun yang menerimanya. */
-  kerugian: (d) => kotakCetakLaporan(angkaKerugianLaporan(d)) +
+};
+
+/* Isi cetak Kerugian persediaan (bagian 306: dicetak dari tab Laporan
+   Keuangan). Catatan risiko IKUT ke kertas. Halaman yang memuat daftar stok
+   mati tanpa kalimat "ini belum kerugian" adalah halaman yang bisa dibaca
+   sebagai tagihan kerugian oleh siapa pun yang menerimanya. */
+const isiCetakKerugian = (d) => kotakCetakLaporan(angkaKerugianLaporan(d)) +
     tabelCetakLaporan('Susut opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
                       d.opname || [], 'Tidak ada opname yang diposting pada rentang ini.') +
     tabelCetakLaporan('Barang rusak dari retur · akun 5-1300 Barang Rusak / Hilang', KOLOM_LAP.rusak(),
@@ -5477,8 +5501,7 @@ const CETAK_LAP_BAGIAN = {
       ? tabelCetakLaporan('Stok yang tidak terjual pada periode ini', KOLOM_LAP.diamStok(d),
                           (d.diam || []).slice(0, KR_BATAS_DIAM),
                           'Seluruh stok bergerak pada periode ini.')
-      : '')
-};
+      : '');
 
 /**
  * Dokumen lengkap. `bagian` = daftar id yang ikut, urutannya mengikuti
@@ -5568,6 +5591,8 @@ const tombolUnduh = (jenis, par) => `<div class="kartu"><div class="bar-alat">
  * membacanya untuk tahu layar ini sudah pernah dimuat atau belum.
  */
 let keuTerakhir = null;
+/** Layar Jurnal & Tutup Buku sudah pernah dimuat (bagian 306). */
+let jrnDimuat = false;
 
 /**
  * Pindah tab Keuangan. `tab` null berarti yang tampil BUKAN salah satu tab
@@ -5576,7 +5601,7 @@ let keuTerakhir = null;
  */
 function pilihTabKeu(tab) {
   const peta = { labarugi: tampilkanLabaRugi, neraca: tampilkanNeraca,
-                 jurnal: tampilkanJurnalManual, bukubesar: tampilkanBukuBesar };
+                 bukubesar: tampilkanBukuBesar, kerugian: tampilkanKerugianKeu };
   $$('#tabKeu button').forEach(b => b.classList.toggle('aktif', b.dataset.tabKeu === tab));
   if (!tab) return;
   keuTerakhir = peta[tab] || tampilkanLabaRugi;
@@ -5636,19 +5661,19 @@ function hitungSelisihJurnal() {
 }
 
 async function tampilkanJurnalManual() {
-  const w = $('#hasilKeuangan');
+  const w = $('#hasilJurnal');
   /* Kerangka, bukan kata "Memuat…" — ia menempati ruang yang persis akan
      diisi, jadi layarnya tidak melompat saat datanya tiba (ada penjaganya). */
   Rangka.pasang(w, rangkaLaporan());   // bagian 262
   try {
-    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+    const par = { periode: $('#jrnPeriode').value, cabang: $('#jrnCabang').value };
     const d = await API.daftarJurnalManual(par);
     _jurnalAkun = d.akun || [];
     _jurnalUuid = crypto.randomUUID ? crypto.randomUUID()
                 : Date.now() + '-' + Math.random().toString(36).slice(2);
     const bolehUbah = bolehIzin('laporan_keuangan', 'ubah');
-    const cabangBorang = $('#keuCabang').value && $('#keuCabang').value !== '*'
-      ? $('#keuCabang').value : APP_STATE.cabang;
+    const cabangBorang = $('#jrnCabang').value && $('#jrnCabang').value !== '*'
+      ? $('#jrnCabang').value : APP_STATE.cabang;
 
     const borang = bolehUbah ? `
       <div class="kartu">
@@ -5842,10 +5867,12 @@ async function tampilkanNeraca() {
 }
 
 async function tampilkanUji() {
-  const w = $('#hasilKeuangan');
-  w.innerHTML = '<div class="kartu">Memeriksa…</div>';
+  /* Bagian 306: di layar Jurnal & Tutup Buku, di wadahnya sendiri di atas
+     daftar jurnal — pemeriksaan sebelum mengunci, bukan pengganti isinya. */
+  const w = $('#hasilUji');
+  Rangka.pasang(w, rangkaLaporan());
   try {
-    const d = await API.ujiKebenaran({ periode: $('#keuPeriode').value });
+    const d = await API.ujiKebenaran({ periode: $('#jrnPeriode').value });
     w.innerHTML = `<div class="kartu"><h3>Uji kebenaran pembukuan — ${esc(d.periode)}</h3>
       <div class="gulir-x"><table><tr><th>Pemeriksaan</th><th>Nilai</th><th>Hasil</th></tr>
       ${/* TIGA keadaan. `lulus === null` berarti pemeriksaannya TIDAK BISA
@@ -5857,6 +5884,72 @@ async function tampilkanUji() {
           h.lulus === null ? 'TIDAK BISA DIPERIKSA' : h.lulus ? 'LULUS' : 'GAGAL'}</td></tr>`).join('')}
       </table></div></div>`;
   } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+}
+
+/* ==================== KERUGIAN PERSEDIAAN DI LAPORAN KEUANGAN (bagian 306) ====================
+ * Dulu tab Laporan Penjualan. Rentangnya kini SATU BULAN dari periode
+ * Keuangan (tanggal 1 s.d. akhir bulan), cabangnya dari #keuCabang. Penarik
+ * dan penggambarnya tetap yang lama (tarikKerugian, gambarLapKerugian):
+ * memindahkan tempat tidak boleh mengubah hitungannya.
+ *
+ * Unduhannya CETAK DOKUMEN, bukan ekspor server: laporan ini disusun klien
+ * dari empat sumber, dan menghitungnya ulang di server berarti dua kode untuk
+ * angka yang sama — yang menyimpang di laporan kerugian adalah angka yang
+ * dibawa orang ke luar (CLAUDE.md, "Hitungan kedua atas hal yang sama").
+ */
+let _keuKerugian = null;
+
+function rentangBulanKeu(periode) {
+  const [y, m] = String(periode || '').split('-').map(Number);
+  if (!y || !m) return null;
+  const akhir = new Date(y, m, 0).getDate();
+  return { dari: periode + '-01', sampai: periode + '-' + String(akhir).padStart(2, '0') };
+}
+
+async function tampilkanKerugianKeu() {
+  const w = $('#hasilKeuangan');
+  const r = rentangBulanKeu($('#keuPeriode').value);
+  if (!r) { w.innerHTML = '<div class="kartu"><p class="petunjuk">Pilih bulan dulu.</p></div>'; return; }
+  const par = { dari: r.dari, sampai: r.sampai, cabang: $('#keuCabang').value };
+  Rangka.pasang(w, rangkaLaporan());
+  try {
+    const d = await tarikKerugian(par);
+    /* Balapan: tab atau periode sudah berganti selama menunggu. */
+    if (keuTerakhir !== tampilkanKerugianKeu || $('#keuPeriode').value !== par.dari.slice(0, 7)) return;
+    _keuKerugian = { d, par };
+    gambarLapKerugian(w, d);
+    if (bolehTabKerugian()) w.insertAdjacentHTML('afterbegin', `<div class="kartu tanpa-cetak"><div class="bar-alat">
+      <strong>Cetak laporan ini</strong><div style="flex:1"></div>
+      <button type="button" class="tombol" id="btnCetakKerugian">${ikonAksi('cetak')}<span>Cetak A4</span></button>
+    </div></div>`);
+  } catch (e) {
+    w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+  }
+}
+
+/** Dokumen A4 Kerugian persediaan — isinya penyusun cetak yang sama dengan dulu. */
+function cetakKerugianKeu() {
+  if (!_keuKerugian) return;
+  const { d, par } = _keuKerugian;
+  const s = APP_STATE.setting || {};
+  const t = new Date();
+  const info = (k, v) => `<tr><td class="k">${esc(k)}</td><td>${v}</td></tr>`;
+  const cab = par.cabang && par.cabang !== '*' ? par.cabang : 'Semua cabang';
+  let jendela;
+  try { jendela = Struk.bukaJendelaDokumen('Kerugian persediaan'); }
+  catch (e) { return Admin.toast(e.message, 'galat'); }
+  const html = `<h1>${esc(String(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase())}</h1>` +
+    (s.alamat_usaha ? `<p class="sub">${esc(s.alamat_usaha)}</p>` : '') +
+    `<h2 class="judul-dok">Kerugian Persediaan</h2>
+    <table class="info">
+      ${info('Periode', esc(tglTampil(par.dari)) + ' – ' + esc(tglTampil(par.sampai)))}
+      ${info('Cabang', esc(cab))}
+      ${info('Dicetak', esc(tglTampil(tanggalLokal(t))) + ' ' + esc(String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0')) +
+              ' oleh ' + esc(APP_STATE.user?.nama || '—'))}
+    </table>
+    <section class="bagian">${isiCetakKerugian(d)}</section>
+    <div class="kaki">POS ${esc(String(s.nama_usaha || 'Sindikat Kartu'))} · v${esc(CONFIG.VERSI)} · ${esc(tglTampil(par.dari))} – ${esc(tglTampil(par.sampai))}</div>`;
+  Struk.isiJendelaDokumen(jendela, 'Kerugian persediaan ' + par.dari + ' – ' + par.sampai, html);
 }
 
 /**
@@ -7227,13 +7320,23 @@ function pasangEvent() {
      tiga tombolnya memilih laporan mana, bukan "tampilkan". */
   $('#wadahPeriodeKeu').innerHTML = Periode.html(PERIODE_KEU);
   Periode.pasang(PERIODE_KEU, () => { if (keuTerakhir) keuTerakhir(); });
+  /* Jurnal & Tutup Buku (bagian 306): bulan/cabang berganti → daftar jurnal
+     dimuat ulang, dan hasil uji bulan sebelumnya dibuang — hasil uji yang
+     tertinggal di bawah bulan lain terbaca sebagai milik bulan itu. */
+  $('#wadahPeriodeJrn').innerHTML = Periode.html(PERIODE_JRN);
+  const muatUlangJurnal = () => { $('#hasilUji').innerHTML = ''; jrnDimuat = true; return tampilkanJurnalManual(); };
+  Periode.pasang(PERIODE_JRN, muatUlangJurnal);
+  $('#jrnCabang').addEventListener('change', muatUlangJurnal);
+  $('#hasilKeuangan').addEventListener('click', e => {
+    if (e.target.closest('#btnCetakKerugian') && !document.body.classList.contains('tunggu')) cetakKerugianKeu();
+  });
   $('#tabKeu').addEventListener('click', e => {
     const t = e.target.closest('[data-tab-keu]');
     if (t) pilihTabKeu(t.dataset.tabKeu);
   });
   /* Borang jurnal penyesuaian (bagian 220): satu pendengar untuk seluruh
      kartunya, karena barisnya lahir dan hilang selama diisi. */
-  $('#hasilKeuangan').addEventListener('click', async e => {
+  $('#hasilJurnal').addEventListener('click', async e => {
     const t = e.target.closest('button');
     if (!t || document.body.classList.contains('tunggu')) return;
     if (t.id === 'btnBarisJurnal') {
@@ -7261,21 +7364,20 @@ function pasangEvent() {
       catch (x) { Admin.toast(x.message, 'galat'); t.disabled = false; }
     }
   });
-  $('#hasilKeuangan').addEventListener('input', e => {
+  $('#hasilJurnal').addEventListener('input', e => {
     if (e.target.closest('#tabelJurnal') || e.target.id === 'jmKet') hitungSelisihJurnal();
   });
   $('#hasilKeuangan').addEventListener('change', e => {
     if (e.target.id === 'bbAkun') { _bbAkun = e.target.value; tampilkanBukuBesar(); }
   });
-  /* Uji kebenaran melepas sorotan tab: hasilnya menggantikan isi layar, dan
-     tab yang masih tersorot akan menunjuk laporan yang sudah tidak terlihat. */
+  /* Uji kebenaran (bagian 306: di layar Jurnal & Tutup Buku). Hasilnya di
+     wadah sendiri di atas daftar jurnal. */
   $('#btnUji').addEventListener('click', () => {
-    pilihTabKeu(null);
-    keuTerakhir = tampilkanUji;
+    if (document.body.classList.contains('tunggu')) return;
     tampilkanUji();
   });
   $('#btnTutupBuku').addEventListener('click', async () => {
-    const periode = $('#keuPeriode').value;
+    const periode = $('#jrnPeriode').value;
     if (!(await Admin.tanya(`Kunci periode ${periode}?`,
           '<p class="petunjuk">Setelah dikunci, tidak ada transaksi baru yang bisa masuk'
           + ' ke periode itu — koreksi harus lewat periode berjalan.</p>',
@@ -7284,7 +7386,7 @@ function pasangEvent() {
       await API.tutupBuku({ periode });
       Admin.toast('Periode ' + periode + ' dikunci.');
     } catch (e) {
-      $('#hasilKeuangan').innerHTML = `<div class="pesan galat">${esc(e.message)}
+      $('#hasilUji').innerHTML = `<div class="pesan galat">${esc(e.message)}
         ${e.detail ? `<ul style="margin:8px 0 0 16px">${e.detail.map(h =>
           `<li>${esc(h.uji)} — ${esc(h.nilai)}</li>`).join('')}</ul>` : ''}</div>`;
     }

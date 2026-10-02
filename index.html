@@ -396,10 +396,11 @@
     <section class="layar" id="layarPiutang"><div id="isiPiutang"></div></section>
     <section class="layar" id="layarUtang"><div id="isiUtang"></div></section>
     <section class="layar" id="layarPengguna"><div id="isiPengguna"></div></section>
+    <section class="layar" id="layarPeran"><div id="isiPeran"></div></section>
+    <section class="layar" id="layarPerangkat"><div id="isiPerangkat"></div></section>
     <section class="layar" id="layarCabang"><div id="isiCabang"></div></section>
     <section class="layar" id="layarSistem"><div id="isiSistem"></div></section>
     <section class="layar" id="layarAudit"><div id="isiAudit"></div></section>
-    <section class="layar" id="layarDiskon"><div id="isiDiskon"></div></section>
 
     <!-- ---------- LAPORAN ---------- -->
     <section class="layar" id="layarLaporan">
@@ -444,7 +445,6 @@
           <button data-tab-lap="petugas">Per petugas</button>
           <button data-tab-lap="void">Void</button>
           <button data-tab-lap="diskon">Diskon</button>
-          <button data-tab-lap="kerugian" class="sembunyi">Kerugian persediaan</button>
         </div>
       </div>
 
@@ -457,12 +457,8 @@
         <div class="saring-baris">
           <span class="wadah-periode" id="wadahPeriodeKeu"></span>
           <div class="kendali-tetap"><label>Cabang</label><select id="keuCabang"></select></div>
-          <div class="aksi">
-          <button class="tombol" id="btnUji"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><span>Uji kebenaran</span></button>
-          <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
-          </div>
         </div>
-        <p class="petunjuk">Laba rugi, neraca, jurnal, dan buku besar. Angkanya berasal dari nota, pembelian, dan kas yang sudah dicatat — bukan diketik di sini. Pilih bulan dan cabang, lalu tab-nya.</p>
+        <p class="petunjuk">Buku besar, laba rugi, neraca, dan kerugian persediaan. Angkanya berasal dari nota, pembelian, dan kas yang sudah dicatat — bukan diketik di sini. Pilih bulan dan cabang, lalu tab-nya. Jurnal penyesuaian dan tutup buku ada di grup Akuntansi.</p>
         <!-- TAB, bukan tombol. Diminta pemilik 21 Sep 2026: "tidak bisa
              meniru cara seperti menu laporan penjualan menggunakan tab?"
 
@@ -474,7 +470,11 @@
              Uji kebenaran dan Tutup buku SENGAJA tetap tombol: yang satu
              pemeriksaan yang dijalankan, yang satu mengunci periode dan tidak
              bisa dibatalkan. Menaruh tindakan yang tidak bisa dibatalkan di
-             deretan tab membuatnya satu ketukan meleset dari sekadar melihat. -->
+             deretan tab membuatnya satu ketukan meleset dari sekadar melihat.
+
+             Bagian 306: keduanya ikut tab Jurnal pindah ke menu Jurnal & Tutup
+             Buku (grup Akuntansi). Layar ini kini murni LAPORAN — dibaca, tidak
+             mencatat dan tidak mengunci apa pun. -->
         <div class="tab-modal tanpa-cetak" id="tabKeu" style="margin-top:4px;margin-bottom:0">
           <!-- Urutannya SIKLUS AKUNTANSI (pemilik, 22 Sep 2026, bagian 227):
                dicatat dulu (jurnal), direkap per akun (buku besar), baru
@@ -483,14 +483,36 @@
                (class aktif + bukaLayar di app.js): paling sering dibaca, dan
                tab jurnal berisi borang input. Jurnal (bagian 220) muncul untuk
                siapa pun berizin laporan_keuangan·lihat; borangnya hanya
-               digambar untuk yang punya ·ubah. -->
-          <button data-tab-keu="jurnal">Jurnal penyesuaian</button>
+               digambar untuk yang punya ·ubah.
+               Bagian 306: Jurnal pindah ke menunya sendiri (grup Akuntansi);
+               Kerugian persediaan masuk sebagai tab terakhir, hanya untuk yang
+               boleh melihat harga modal (pasangTabKerugian). -->
           <button data-tab-keu="bukubesar">Buku besar</button>
           <button data-tab-keu="labarugi" class="aktif">Laba Rugi</button>
           <button data-tab-keu="neraca">Neraca</button>
+          <button data-tab-keu="kerugian" class="sembunyi">Kerugian persediaan</button>
         </div>
       </div>
       <div id="hasilKeuangan"></div>
+    </section>
+
+    <!-- ---------- JURNAL & TUTUP BUKU (bagian 306, grup Akuntansi) ----------
+         Yang MENCATAT dan MENGUNCI pembukuan, dipisah dari yang membacanya.
+         Urutannya urutan kerja penutupan: catat penyesuaian, periksa, kunci. -->
+    <section class="layar" id="layarJurnal">
+      <div class="kartu">
+        <div class="saring-baris">
+          <span class="wadah-periode" id="wadahPeriodeJrn"></span>
+          <div class="kendali-tetap"><label>Cabang</label><select id="jrnCabang"></select></div>
+          <div class="aksi">
+          <button class="tombol" id="btnUji"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><span>Uji kebenaran</span></button>
+          <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
+          </div>
+        </div>
+        <p class="petunjuk">Jurnal penyesuaian untuk membetulkan catatan yang bukan uang tunai, lalu penutupan periode. Jalankan Uji kebenaran dulu sebelum Tutup buku — periode yang dikunci tidak menerima transaksi baru.</p>
+      </div>
+      <div id="hasilUji"></div>
+      <div id="hasilJurnal"></div>
     </section>
 
     <!-- ---------- KONSOLIDASI: master sumber saldo pulsa ---------- -->
@@ -507,9 +529,6 @@
     </section>
 
     <section class="layar" id="layarPulsa">
-      <!-- Matriks per cabang (bagian 253), hanya Owner & Head Admin. Di LUAR
-           #isiPulsa: wadah itu digambar ulang tiap pindah tab, matriksnya tidak. -->
-      <div id="isiMatrikspulsa"></div>
       <div id="isiPulsa"></div>
       <div id="isiShiftpulsa"></div>
       <div id="isiSumberpulsa" hidden></div>
@@ -597,14 +616,6 @@
            di sini; sekarang kendalinya ikut berubah menurut jenis transaksi,
            jadi ia lahir dari kode. -->
       <div id="isiKas"></div>
-
-      <!-- Alasannya sama dengan kartu "Laporan shift": isinya tabel, jadi ia
-           tidak boleh dibatasi 460px. -->
-      <div class="kartu laporan-uang">
-        <div class="bar-alat"><h3>Tercatat di shift ini</h3><span class="satuan-uang">dalam Rupiah</span></div>
-        <div id="ringkasKas" class="petunjuk"></div>
-        <div id="daftarKas"></div>
-      </div>
     </section>
 
     <!-- ---------- AKUN SAYA ---------- -->
@@ -716,7 +727,7 @@
             <li>Tombolnya bertuliskan <strong>+ Pemasang</strong> selagi kosong, dan berubah jadi <strong>Tim</strong> begitu terisi.</li>
             <li><strong>Tidak pernah wajib dan tidak pernah menahan pembayaran.</strong> Tidak ada yang perlu dicentang di master produk — cukup produknya punya poin.</li>
             <li>Pada tombol baris: satu orang dipilih berarti dialah yang <strong>memasang</strong>; dua orang berarti yang pertama Penjual, yang kedua Pemasang.</li>
-            <li>Maksimal dua orang per pekerjaan. Poin, omzet, dan laba dibagi otomatis menurut bobot peran di menu Petugas — kasir tidak mengetik angka apa pun.</li>
+            <li>Maksimal dua orang per pekerjaan. Poin, omzet, dan laba dibagi otomatis menurut bobot peran di menu Pengaturan Sistem — kasir tidak mengetik angka apa pun.</li>
           </ul>
           <p class="petunjuk">Nama Penjual &amp; Pemasang (bila ada) ikut tercetak di struk.</p>
         </div>
@@ -943,10 +954,11 @@
           <h3>B8. Laporan Penjualan, Poin &amp; Performa, Laporan Keuangan, Aset Tetap, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Dashboard</strong> — nota &amp; omzet, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis. Dropdown <strong>periode</strong> (Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> — paling panjang 92 hari) dan, untuk akun lintas cabang, dropdown <strong>cabang</strong> (Semua cabang atau satu cabang — stok menipis pun ikut cabang itu). Keterangan di sebelahnya, mis. <code>10-09 · vs 09-09 (2026)</code>, adalah rentang yang ditampilkan dan periode pembanding yang sama panjang tepat sebelumnya (tahun disebut sekali di ujung; bila lintas tahun, tiap rentang menulis tahunnya).</li>
-            <li><strong>Laporan Penjualan</strong> — satu rentang tanggal, <strong>tujuh tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya), dan <strong>Diskon</strong> (diskon per kasir dan nota berdiskon — dulu menu sendiri). Tab ketujuh <strong>Kerugian persediaan</strong> hanya muncul bagi akun yang berhak melihat harga modal — lihat B8b. Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
+            <li><strong>Laporan Penjualan</strong> — satu rentang tanggal, <strong>enam tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya), dan <strong>Diskon</strong> (diskon per kasir dan nota berdiskon — dulu menu sendiri). Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
             <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti periode, tanggal, atau cabang <strong>langsung memuat ulang</strong> — tidak ada tombol Tampilkan.</li>
             <li><strong>Poin &amp; Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
-            <li><strong>Laporan Keuangan</strong> — empat tab menurut urutan pembukuan: <strong>Jurnal penyesuaian</strong> · <strong>Buku besar</strong> · <strong>Laba Rugi</strong> · <strong>Neraca</strong>; yang terbuka pertama Laba Rugi. Di atasnya dua tombol: <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis) dan Tutup buku.</li>
+            <li><strong>Laporan Keuangan</strong> — tab menurut urutan pembukuan: <strong>Buku besar</strong> · <strong>Laba Rugi</strong> · <strong>Neraca</strong>, ditambah <strong>Kerugian persediaan</strong> bagi akun yang berhak melihat harga modal (lihat B8b); yang terbuka pertama Laba Rugi.</li>
+            <li><strong>Jurnal &amp; Tutup Buku</strong> (grup Akuntansi) — jurnal penyesuaian, <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis), dan Tutup buku, untuk bulan dan cabang yang dipilih.</li>
             <li><strong>Aset Tetap</strong> — etalase, rak, komputer, dan kendaraan yang dipakai bertahun-tahun. Penyusutannya dihitung garis lurus tiap bulan, lewat tombol <strong>Hitung penyusutan</strong> atau sendiri saat tutup buku. Tanpa daftar ini laba tercatat lebih besar daripada yang sebenarnya.</li>
             <li><strong>Diskon</strong> — berapa banyak diskon diberikan, oleh kasir siapa, dan mana yang lewat batas sehingga butuh persetujuan.</li>
           </ul>
@@ -956,7 +968,7 @@
 
         <div class="kartu">
           <h3>B8b. Kerugian persediaan</h3>
-          <p>Tab keenam di menu <strong>Laporan</strong>, mengikuti periode dan cabang yang sama. Hanya muncul untuk akun yang berhak <strong>melihat harga modal</strong>: seluruh isinya nilai persediaan.</p>
+          <p>Tab terakhir di menu <strong>Laporan Keuangan</strong>, mengikuti bulan dan cabang yang dipilih di sana. Hanya muncul untuk akun yang berhak <strong>melihat harga modal</strong>: seluruh isinya nilai persediaan.</p>
           <p><strong>Bagian 1 — kerugian terbukti.</strong> Dua sumber, dan keduanya sudah masuk jurnal:</p>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Susut opname</strong> — dari dokumen opname yang sudah <strong>diposting</strong> (DRAFT dan REVIEW tidak ikut, karena belum menyentuh pembukuan). Masuk akun <strong>5-1200 Selisih Persediaan</strong>. Kolom <em>Bersih</em> adalah kurang dikurangi lebih — barang yang ketemu mengurangi barang yang hilang.</li>
@@ -984,7 +996,7 @@
             <li><strong>Audit</strong> — jejak kejadian terakhir beserta pelakunya. Tidak bisa dihapus dari dalam aplikasi. Kartu <strong>Galat aplikasi</strong> menyebut perangkat asal tiap galat, supaya perangkat yang belum dimuat ulang cepat ketahuan.</li>
             <li><strong>Arsip</strong> — kapasitas berkas dan rotasi tahunan. Data lama <strong>dipindah, bukan dihapus</strong>, dan uji coba wajib dijalankan lebih dulu.</li>
           </ul>
-          <p class="petunjuk">Bobot peran sengaja tidak ada di Setting — tempatnya di menu Petugas. Satu hal yang bisa diubah dari dua tempat berarti yang terakhir menyimpan menang tanpa ada yang tahu.</p>
+          <p class="petunjuk">Bobot peran punya kartunya sendiri di layar ini, lengkap dengan contoh pembagiannya — tidak ada di daftar setelan lain, dan tidak ada di tempat lain. Satu hal yang bisa diubah dari dua tempat berarti yang terakhir menyimpan menang tanpa ada yang tahu.</p>
         </div>
 
         <div class="kartu">
