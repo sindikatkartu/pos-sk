@@ -5036,7 +5036,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>
             ${bolehIzin('pembelian', 'buat') ? tombolTambah('btnPembelianBaru', 'Pembelian baru') : ''}
           </div>
-          <p class="petunjuk">Staf gudang mencatat barang yang diterima dari supplier — stok dan utangnya langsung tercatat. Head Admin memeriksa dokumennya terhadap faktur; yang sudah diperiksa dibayar lewat menu Utang.</p>
+          <p class="petunjuk">Staf gudang mencatat barang yang diterima dari supplier — stok dan utangnya langsung tercatat. Head Admin atau Akunting memeriksa dokumennya terhadap faktur; yang sudah diperiksa dibayar lewat menu Utang.</p>
         </div>
         <div class="kartu">
           <!-- "rata-rata bergerak" — keterangan yang salah sejak awal dan diperbaiki
@@ -5367,7 +5367,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     /* Konfirmasi (bagian 245): stok masuk dan utang supplier tercatat sekarang. */
     if (!(await tanya('Simpan pembelian?',
           `<p class="petunjuk">${item.length} jenis barang, ${item.reduce((a, i) => a + (Number(i.qty) || 0), 0)} pcs masuk stok sekarang dan
-             tercatat sebagai utang ke supplier, menunggu diperiksa Head Admin.</p>`,
+             tercatat sebagai utang ke supplier, menunggu diperiksa Head Admin atau Akunting.</p>`,
           { ya: 'Simpan pembelian' }))) return;
     const btn = $('#btnSimpanPembelian');
     btn.disabled = true;
@@ -5992,7 +5992,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3><span class="satuan-uang">dalam Rupiah</span>
             <div style="flex:1"></div>${menuEkspor('utang')}</div>
           <p class="petunjuk">Setiap pembelian yang dicatat gudang masuk ke sini sebagai utang. Yang pembeliannya
-             <strong>belum diperiksa Head Admin</strong> belum bisa dibayar — periksa dulu di menu Pembelian.</p>
+             <strong>belum diperiksa Head Admin atau Akunting</strong> belum bisa dibayar — periksa dulu di menu Pembelian.</p>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Supplier', kunci: 'nama_supplier' },
