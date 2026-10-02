@@ -233,10 +233,20 @@ async function konfirmasiJamShift(kini) {
  */
 const MENU = [
   { id: 'dashboard',  label: 'Dashboard',  grup: 'Ringkasan',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
+  /* PERSETUJUAN (bagian 305): satu kotak untuk semua keputusan yang menunggu —
+     diskon, void, perangkat, akun baru, pembelian. Terbuka bagi pemegang salah
+     satu hak putusnya; Owner (`*`) selalu. */
+  { id: 'persetujuan', label: 'Persetujuan', grup: 'Ringkasan', izin: ['void', 'setujui'],
+    izinAtau: [['void', 'setujui'], ['user', 'setujui'], ['setting', 'ubah'], ['pembelian', 'setujui']], admin: true, backoffice: true },
   /* `lihatSaja`: peran mode lihat cukup punya kasir·lihat (Head Admin, bagian 257). */
   { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'], lihatSaja: ['kasir', 'lihat'] },
-  { id: 'riwayat',    label: 'Riwayat',    grup: 'Penjualan',  izin: ['penjualan', 'lihat'] },
+  /* "Nota Shift Ini", bukan "Riwayat": isinya hanya nota shift berjalan — riwayat
+     lengkap ada di Laporan Penjualan (bagian 305). */
+  { id: 'riwayat',    label: 'Nota Shift Ini', grup: 'Penjualan', izin: ['penjualan', 'lihat'] },
   { id: 'shift',      label: 'Shift',      grup: 'Penjualan',  izin: ['shift', 'lihat'] },
+  /* Pulsa = meja kerja petugas, bukan konsolidasi — pindah dari grup Konsolidasi
+     ke Penjualan, tepat di bawah Shift (bagian 305). */
+  { id: 'pulsa', label: 'Pulsa', grup: 'Penjualan', izin: ['pulsa', 'lihat'], admin: true, backoffice: true, modul: true },
   /* Kas PINDAH ke back office di v1.217 (bagian 208).
 
      Diputuskan pemilik 20 Sep 2026: "petugas yang ada di toko tidak ada
@@ -269,7 +279,8 @@ const MENU = [
   { id: 'pembatalan', label: 'Pembatalan', grup: 'Penjualan',  izin: ['void', 'lihat'],              admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
-  { id: 'transfer',   label: 'Transfer',   grup: 'Persediaan', izin: ['transfer', 'lihat'],          admin: true, backoffice: true },
+  /* "Transfer Barang": bertabrakan dengan tab "Transfer bank" (uang) di Kas & Bank. */
+  { id: 'transfer',   label: 'Transfer Barang', grup: 'Persediaan', izin: ['transfer', 'lihat'],     admin: true, backoffice: true },
   // Permintaan digantung pada `permintaan.lihat`, bukan `.buat`: admin gudang
   // MEMPROSES permintaan tanpa pernah boleh membuatnya, dan menu yang digantung
   // pada `.buat` akan menyembunyikan seluruh daftar pekerjaannya.
@@ -323,7 +334,7 @@ const MENU = [
      tentu boleh melihat gaji rekan kerjanya. */
   { id: 'gaji',       label: 'Gaji',       grup: 'Keuangan',   izin: ['gaji', 'lihat'],              admin: true, backoffice: true },
   { id: 'keuangan',   label: 'Laporan Keuangan', grup: 'Keuangan', izin: ['laporan_keuangan', 'lihat'] },
-  { id: 'diskon',     label: 'Diskon',     grup: 'Laporan',    izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
+  /* Diskon jadi tab di Laporan Penjualan (bagian 305) — tidak lagi menu sendiri. */
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
      Isinya BARU SATU dan itu disengaja: Ringkasan Gabungan, Laporan Pulsa,
      dan Accurate menyusul bersama layarnya masing-masing. Menu untuk layar
@@ -333,7 +344,7 @@ const MENU = [
      "pulsa ya semua terkait dengan pulsa kumpul disatu menu". Shift, master
      sumber saldo, dan laporannya jadi tab di dalam satu layar, bukan tiga
      baris di sidebar yang isinya sudah tidak muat di layar mana pun. */
-  { id: 'pulsa', label: 'Pulsa', grup: 'Konsolidasi', izin: ['pulsa', 'lihat'], admin: true, backoffice: true, modul: true },
+  /* (Pulsa dipindah ke grup Penjualan — lihat di atas, bagian 305.) */
   /* Accurate punya menunya sendiri sejak 19 Sep 2026. Sampai v1.205.0 ia cuma
      kartu di dalam Ringkasan — alasannya waktu itu benar (belum tersambung,
      dan menu yang selalu berbunyi "belum ada apa-apa" cuma memanjangkan
@@ -1322,6 +1333,7 @@ async function mulaiGantiCabang(kode, tombol) {
  *  yang sedang dibuka kembali ke layar awal. */
 function gambarLencanaNav() {
   const peta = APP_STATE.lencanaNav || {};
+  gambarLonceng(Number(peta.persetujuan) || 0);
   $$('#navSisi [data-lencana]').forEach(el => {
     const n = Number(peta[el.dataset.lencana]) || 0;
     el.hidden = !n;
@@ -1501,7 +1513,51 @@ function mulaiLencanaNav() {
      timer yang menumpuk melipatgandakan permintaan tanpa satu pun tanda. */
   if (timerLencana) clearInterval(timerLencana);
   tarikLencanaNav(false);
-  timerLencana = setInterval(() => tarikLencanaNav(true), CONFIG.LENCANA_POLL_MS);
+  /* PENYETUJU diperiksa tiap 60 detik SELAMA layarnya terlihat (bagian 305):
+     kasir yang menunggu persetujuan diskon berdiri di depan pembeli, dan 5
+     menit terlalu lama. Yang lain tetap 5 menit. Tab tersembunyi = tidak ada
+     panggilan — ongkos server hanya untuk perangkat yang sedang dipakai. */
+  let n = 0;
+  timerLencana = setInterval(() => {
+    n++;
+    const penyetuju = bolehLayar('persetujuan');
+    if (penyetuju ? document.visibilityState === 'visible' : n % Math.round(CONFIG.LENCANA_POLL_MS / 60000) === 0) tarikLencanaNav(true);
+  }, 60000);
+}
+
+/* ==================== LONCENG (bagian 305) ====================
+   Angka keputusan yang menunggu, di kepala SEMUA layar — hanya untuk akun yang
+   boleh menyetujui sesuatu. Diklik: daftar ringkas dari kotak_persetujuan;
+   keputusannya diambil di layar Persetujuan (satu tempat, satu cara). */
+function gambarLonceng(n) {
+  const b = $('#btnLonceng');
+  if (!b) return;
+  b.hidden = !bolehLayar('persetujuan');
+  const a = $('#loncengAngka');
+  if (a) { a.hidden = !n; a.textContent = n > 99 ? '99+' : String(n); }
+  b.setAttribute('aria-label', n ? n + ' menunggu persetujuan' : 'Tidak ada yang menunggu persetujuan');
+}
+function tutupPopoverLonceng() {
+  const p = $('#popoverLonceng');
+  if (p && !p.hidden) { p.hidden = true; $('#btnLonceng')?.setAttribute('aria-expanded', 'false'); }
+}
+async function bukaPopoverLonceng() {
+  const p = $('#popoverLonceng'), b = $('#btnLonceng');
+  if (!p || !b) return;
+  if (!p.hidden) return tutupPopoverLonceng();
+  p.hidden = false; b.setAttribute('aria-expanded', 'true');
+  p.innerHTML = '<div aria-busy="true" style="padding:8px">' + Array.from({ length: 3 }, () =>
+    '<div class="rangka-baris"><span class="rangka" style="width:82%"></span></div>').join('') + '</div>';
+  const NAMA = { diskon: 'Diskon', void: 'Void', perangkat: 'Perangkat', coa: 'Akun baru', pembelian: 'Pembelian' };
+  try {
+    const butir = ((await API.kotakPersetujuan()) || {}).butir || [];
+    p.innerHTML = `<div class="lonceng-kepala">Menunggu keputusan Anda <strong>${butir.length}</strong></div>` +
+      (butir.length ? butir.slice(0, 8).map((x) => `<button type="button" class="lonceng-butir" data-lonceng-buka="1">
+        <span class="lencana">${esc(NAMA[x.jenis] || x.jenis)}</span>
+        <span class="lonceng-teks">${esc(x.judul)}<span class="meta-kecil">${esc(x.peminta || '')}${x.cabang ? ' · ' + esc(x.cabang) : ''} · ${esc(waktuTampil(x.waktu))}</span></span></button>`).join('')
+        : '<p class="petunjuk" style="margin:8px">Tidak ada yang menunggu.</p>') +
+      `<button type="button" class="tombol lonceng-semua" data-lonceng-buka="1">Buka Persetujuan${butir.length > 8 ? ' (' + butir.length + ')' : ''}</button>`;
+  } catch (e) { p.innerHTML = `<div class="pesan galat" style="margin:8px">${esc(e.message)}</div>`; }
 }
 
 /**
@@ -4276,7 +4332,9 @@ const LAP_TARIK = {
   petugas: (par) => API.laporanPoin({ ...par }),
   void:    (par) => API.laporanNota({ ...par, status: 'DIBATALKAN' }),
   /* Satu-satunya yang bukan satu panggilan — lihat tarikKerugian(). */
-  kerugian: (par) => tarikKerugian(par)
+  kerugian: (par) => tarikKerugian(par),
+  /* Diskon pindah dari menu sendiri ke tab ini (bagian 305). */
+  diskon:  (par) => API.laporanDiskon(par)
 };
 
 /* Urutan dan judul bagian — dipakai tab di layar DAN dokumen cetak. */
@@ -4286,7 +4344,11 @@ const LAP_BAGIAN = [
   { id: 'shift',   judul: 'Per shift' },
   { id: 'petugas', judul: 'Per petugas' },
   { id: 'void',    judul: 'Void' },
-  /* `cetakOtomatis: false` — lihat CETAK_LAP_PILIH. */
+  /* `cetakOtomatis: false` — lihat CETAK_LAP_PILIH. Diskon (bagian 305)
+     ikut: sebelum jadi tab ia tidak pernah ada di cetakan laporan, dan
+     tercentang otomatis ia menambah satu panggilan + satu bagian ke SETIAP
+     cetakan penjualan biasa. Tetap bisa dicentang di dialognya. */
+  { id: 'diskon',  judul: 'Diskon', cetakOtomatis: false },
   { id: 'kerugian', judul: 'Kerugian persediaan', cetakOtomatis: false }
 ];
 
@@ -4466,6 +4528,9 @@ async function tarikTabLaporan(tab) {
   return LAP.data[tab];
 }
 
+/* Tab Diskon (bagian 305): isinya digambar penggambar laporan diskon di admin.js. */
+function gambarLapDiskonTab(w, d) { Admin.gambarLapDiskon(w, d, { dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang }); }
+
 async function gambarTabLaporan(tab) {
   if (!LAP_TARIK[tab]) return;
   LAP.tab = tab;
@@ -4488,7 +4553,8 @@ async function gambarTabLaporan(tab) {
   }
   const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
                    petugas: gambarLapPetugas, void: gambarLapVoid,
-                   kerugian: gambarLapKerugian }[tab];
+                   kerugian: gambarLapKerugian,
+                   diskon: gambarLapDiskonTab }[tab];
   gambar(w, LAP.data[tab]);
 }
 
@@ -4520,6 +4586,23 @@ const KOLOM_LAP = {
     { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
     { judul: 'Nota', angka: true, render: x => x.nota },
     { judul: 'Omzet', angka: true, render: x => rp(x.total) }
+  ],
+  /* Tab Diskon (bagian 305) — kertas; layarnya digambar admin.js gambarLapDiskon. */
+  diskonKasir: () => [
+    { judul: 'Kasir', render: x => esc(x.nama) },
+    { judul: 'Nota berdiskon', angka: true, render: x => esc(x.nota_diskon + ' / ' + x.nota) },
+    { judul: 'Total diskon', angka: true, render: x => rp(x.diskon) },
+    { judul: 'Rata-rata', angka: true, render: x => esc(x.persen_rata + '%') },
+    { judul: 'Disetujui atasan', angka: true, render: x => esc(x.disetujui || '—') }
+  ],
+  diskonNota: () => [
+    { judul: 'Tanggal', render: x => esc(tglTampil(x.tanggal)) },
+    { judul: 'Nota', render: x => esc(x.no_nota) },
+    { judul: 'Kasir', render: x => esc(x.kasir) },
+    { judul: 'Bruto', angka: true, render: x => rp(x.subtotal) },
+    { judul: 'Diskon', angka: true, render: x => rp(x.diskon) },
+    { judul: '%', angka: true, render: x => esc(x.persen + '%') },
+    { judul: 'Disetujui', render: x => esc(x.penyetuju || '—') }
   ],
   perKasir: () => [
     { judul: 'Kasir', render: x => kasirTampil(x) },
@@ -5354,6 +5437,8 @@ const kotakCetakLaporan = (daftar) => `<div class="kpi">${daftar.map(a =>
 
 /* Penyusun tiap bagian: (data) -> html. */
 const CETAK_LAP_BAGIAN = {
+  diskon: (d) => tabelCetakLaporan('Diskon per kasir', KOLOM_LAP.diskonKasir(), (d && d.kasir) || [], 'Tidak ada diskon pada rentang ini.') +
+    tabelCetakLaporan('Nota berdiskon', KOLOM_LAP.diskonNota(), (d && d.nota) || [], 'Tidak ada nota berdiskon pada rentang ini.'),
   ringkas: (d) => {
     const pi = d.piutang || { total: 0, sisa: 0, daftar: [] };
     return kotakCetakLaporan(angkaRingkasLaporan(d)) +
@@ -7397,6 +7482,19 @@ function pantauVersiBaru() {
      tanpa memanggil fungsi app.js. Arahnya sengaja cuma satu — app.js
      tidak pernah memanggil apa pun milik admin.js. */
   document.addEventListener('possk:segarkan-lencana', () => tarikLencanaNav(true));
+  /* Lonceng (bagian 305): ikon dari IKON (bukan jalur ketik), toggle, tutup di
+     luar & Escape — perilaku sama dengan popover akun. */
+  const lonceng = $('#btnLonceng');
+  if (lonceng) {
+    lonceng.innerHTML = svgIkon('lonceng') + '<span class="lonceng-angka" id="loncengAngka" hidden></span>';
+    lonceng.addEventListener('click', (e) => { e.stopPropagation(); bukaPopoverLonceng(); });
+    $('#popoverLonceng').addEventListener('click', (e) => {
+      if (e.target.closest('[data-lonceng-buka]')) { tutupPopoverLonceng(); bukaLayar('persetujuan'); }
+    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('#popoverLonceng, #btnLonceng')) tutupPopoverLonceng(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') tutupPopoverLonceng(); });
+    gambarLonceng(Number((APP_STATE.lencanaNav || {}).persetujuan) || 0);
+  }
   setInterval(periksaVersiServer, CONFIG.VERSI_POLL_MS);
   /* Tahapnya maju sendiri walau tidak ada permintaan baru, dan kuncinya
      menunggu keranjang kosong — keduanya butuh jam yang berdetak. */

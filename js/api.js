@@ -179,7 +179,7 @@ const API = (() => {
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
-    'daftar_aset', 'daftar_coa', 'rekon_bank',
+    'daftar_aset', 'daftar_coa', 'rekon_bank', 'kotak_persetujuan',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian',
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
@@ -605,6 +605,7 @@ let _pernahJawab = false;
     batalDiskon:       (d) => panggil('batal_diskon', d),
     daftarDiskonMinta: (d) => panggil('daftar_diskon_minta', d || {}, { latar: true }),
     putusDiskon:       (d) => panggil('putus_diskon', d),
+    kotakPersetujuan:  () => panggil('kotak_persetujuan', {}, { latar: true }),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa

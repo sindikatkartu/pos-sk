@@ -1464,6 +1464,19 @@ input[type=number], input.uang, td .angka { font-variant-numeric: tabular-nums; 
    diratakan kanan supaya kelompok ribuannya berbaris lurus antar baris —
    itulah gunanya titik itu dipasang. */
 input.uang { text-align: right; }
+/* Lonceng persetujuan (bagian 305). Angkanya lencana NOTIFIKASI — memang itu artinya. */
+.lonceng { position: relative; }
+.lonceng-angka { position: absolute; top: 2px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--bahaya-tombol); color: #fff; font-size: 10px; line-height: 16px; font-weight: 700; text-align: center; }
+.popover-lonceng { position: fixed; top: calc(var(--tinggi-kepala) - 4px); right: 12px; z-index: 60; width: min(360px, calc(100vw - 24px));
+  max-height: 70vh; overflow: auto; background: var(--panel); border: 1px solid var(--garis); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.16); padding: 6px; }
+.lonceng-kepala { padding: 8px 10px; font-size: var(--fs-12); color: var(--teks-redup); }
+.lonceng-butir { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; padding: 8px 10px; border: 0;
+  background: none; border-radius: 8px; cursor: pointer; color: var(--teks); }
+.lonceng-butir:hover { background: var(--panel-2); }
+.lonceng-teks { display: flex; flex-direction: column; min-width: 0; font-size: var(--fs-13, 13px); }
+.lonceng-semua { width: 100%; margin-top: 6px; }
 /* Kotak angka yang wajib diketik tapi masih kosong (bagian 299). */
 input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bahaya); background: var(--bahaya-lembut); }
 input[aria-invalid="true"]::placeholder { color: var(--bahaya); opacity: .8; }

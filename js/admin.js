@@ -9017,7 +9017,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${rangkaBaris(6, ['86%', '68%', '78%', '62%'])}
       </div>`, '#hasilDiskon');
     try {
-      const d = await API.laporanDiskon({ dari: $('#dskDari').value, sampai: $('#dskSampai').value });
+      const par = { dari: $('#dskDari').value, sampai: $('#dskSampai').value };
+      gambarLapDiskon(w, await API.laporanDiskon(par), par);
+    } catch (e) { galat('#hasilDiskon', e); }
+  }
+
+  /** Isi laporan diskon — dipakai layar lama DAN tab Diskon di Laporan Penjualan (bagian 305). */
+  function gambarLapDiskon(w, d, par) {
+    par = par || {};
+    {
       const r = d.ringkas;
       w.innerHTML = `
         <div class="petak petak-uang">
@@ -9034,7 +9042,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
         <div class="kartu">
           <div class="bar-alat"><h3>Per kasir</h3>
-            <div style="flex:1"></div>${menuEkspor('diskon_kasir', { dari: $('#dskDari').value, sampai: $('#dskSampai').value })}</div>
+            <div style="flex:1"></div>${menuEkspor('diskon_kasir', { dari: par.dari, sampai: par.sampai, cabang: par.cabang })}</div>
           ${tabel([
             { judul: 'Kasir', kunci: 'nama' },
             { judul: 'Nota', render: x => `${x.nota_diskon} / ${x.nota}`, kanan: true },
@@ -9058,7 +9066,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Disetujui', render: x => x.penyetuju ? esc(x.penyetuju) : '<span class="meta-kecil">—</span>' }
           ], d.nota, { kosong: 'Tidak ada nota berdiskon pada rentang ini' })}
         </div>`;
-    } catch (e) { galat('#hasilDiskon', e); }
+    }
   }
 
   /* ==================== TRANSFER ANTAR CABANG ==================== */
@@ -9380,10 +9388,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">Untuk barang yang <strong>benar terjual lalu dikembalikan</strong>, pakai
             <strong>Retur</strong>, bukan pembatalan. Pembatalan hanya untuk nota yang memang salah dibuat.</p>
         </div>
-        ${/* Pengajuan diskon Owner (bagian 288): SESUDAH kartu pembuka, bukan di
-             atasnya — kartu pertama tiap layar wajib berkalimat pembuka, dan
-             kartu ini kosong untuk yang bukan Owner. */ ''}
-        <div id="kartuDiskonMinta"></div>
+        ${/* Pengajuan diskon Owner pindah ke layar Persetujuan (bagian 305). */ ''}
 
         ${bolehPutus ? `<div class="kartu">
           <h3>Menunggu keputusan</h3>
@@ -9416,58 +9421,84 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
           ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan pembatalan' })}
         </div>`;
-      await gambarDiskonMinta();
     } catch (e) { galat('#isiPembatalan', e); }
   }
 
-  /**
-   * PENGAJUAN DISKON YANG MENUNGGU OWNER (bagian 288).
-   *
-   * Kasir mengajukan dari layar bayar; Owner memutuskan dari mana pun —
-   * "tidak harus setujui didalam toko". Kartu ini hanya untuk OWNER (server
-   * menjawab daftar kosong untuk yang lain). Digambar ulang sendiri tiap 20
-   * detik SELAMA layar Pembatalan terbuka, supaya pengajuan baru muncul tanpa
-   * Owner menyentuh apa pun — pembeli sedang menunggu di kasir.
-   */
-  let _timerDiskonMinta = null;
-  async function gambarDiskonMinta() {
-    const w = $('#kartuDiskonMinta');
+  /* ==================== PERSETUJUAN (bagian 305) ====================
+     Satu kotak untuk semua keputusan yang menunggu akun ini — diskon (Owner),
+     void, perangkat, akun baru, pembelian. Pemilik: "kenapa dimenu pembatalan
+     sih" — persetujuan diskon dulu tinggal di layar Pembatalan (bagian 288).
+     Server: apiKotakPersetujuan (11_Admin.gs) — syaratnya sama dengan pintu
+     putus tiap jenis. Keputusan lewat pintu LAMA (putus_diskon, putus_minta_void,
+     setujui_perangkat, putus_coa); pembelian dibuka di layarnya karena
+     pemeriksaannya per barang. Berdetak tiap 20 detik selama layarnya terbuka. */
+  const JENIS_PS = { diskon: ['Diskon', 'kuning'], void: ['Void', 'merah'], perangkat: ['Perangkat', 'biru'],
+                     coa: ['Akun baru', ''], pembelian: ['Pembelian', 'hijau'] };
+  let _butirPs = [], _timerPs = null;
+  async function muatPersetujuan() {
+    const w = $('#isiPersetujuan');
     if (!w) return;
-    if (String(APP_STATE.user?.peran) !== 'OWNER') { w.innerHTML = ''; return; }
-    let rows;
-    try { rows = await API.daftarDiskonMinta(); }
-    catch (e) { w.innerHTML = `<div class="kartu"><h3>Diskon menunggu persetujuan</h3><div class="pesan galat">Pengajuan diskon gagal dimuat: ${esc(e.message)}</div></div>`; return; }
-    w.innerHTML = rows.length ? `
-      <div class="kartu">
-        <div class="bar-alat"><h3>Diskon menunggu persetujuan</h3>
-          <span class="lencana kuning">${rows.length} menunggu</span></div>
-        <p class="petunjuk">Kasir menunggu di layar bayar. Begitu Anda menyetujui, notanya bisa langsung diselesaikan
-          — persis seperti persetujuan PIN di toko. Persetujuan hanya berlaku untuk nota itu, sekali pakai.</p>
-        ${tabel([
-          { judul: 'Cabang', render: r => `<span class="lencana">${esc(r.cabang)}</span>` },
-          { judul: 'Kasir', render: r => `${esc(r.nama_peminta)}<div class="meta-kecil">${esc(waktuTampil(r.waktu))}</div>` },
-          { judul: 'Nilai nota', angka: true, render: r => rp(r.subtotal) },
-          { judul: 'Diskon', angka: true, render: r => `${rp(r.nilai)}<div class="meta-kecil">${esc(String(r.persen))}%</div>` },
-          { judul: 'Alasan', kunci: 'alasan' },
-          { judul: '', kelas: 'sel-menu', render: r => menuTindakan({
-              id: 'menuDiskon' + idAman(r.id), idTombol: 'btnDiskon' + idAman(r.id), kunci: 'baris-diskon', baris: true,
-              isi: butirBaris('', 'Setujui', IKON.setujui, `data-setujui-diskon="${esc(r.id)}"`) +
-                   butirBaris('bahaya', 'Tolak', IKON.batal, `data-tolak-diskon="${esc(r.id)}"`) }) }
-        ], rows, { kosong: 'Tidak ada pengajuan' })}
-      </div>` : '';
-    detakDiskonMinta();
+    if (!w.innerHTML) memuat('#isiPersetujuan');
+    /* `kunci` = jenis + id: id perangkat & id pengajuan bisa saja sama rupanya. */
+    try { _butirPs = (((await API.kotakPersetujuan()) || {}).butir || []).map((b) => Object.assign({ kunci: b.jenis + '-' + b.id }, b)); }
+    catch (e) { galat('#isiPersetujuan', e); return; }
+    w.innerHTML = `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Menunggu keputusan Anda</h3><span class="satuan-uang">dalam Rupiah</span>
+        ${_butirPs.length ? `<span class="lencana kuning">${_butirPs.length} menunggu</span>` : ''}</div>
+      <p class="petunjuk">Semua yang menunggu keputusan Anda di satu tempat — diskon, void, perangkat, akun baru,
+        dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
+      ${tabel([
+        { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>` },
+        { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}` },
+        { judul: 'Cabang', render: (b) => b.cabang ? `<span class="lencana">${esc(b.cabang)}</span>` : '—' },
+        { judul: 'Oleh', render: (b) => `${esc(b.peminta || '—')}<div class="meta-kecil">${esc(waktuTampil(b.waktu))}</div>` },
+        { judul: 'Nilai', angka: true, render: (b) => b.nilai === null || b.nilai === undefined ? '—' : rp(b.nilai) },
+        { judul: '', kelas: 'sel-menu', render: (b) => b.jenis === 'pembelian'
+            ? tombolBaris('', 'Periksa', IKON.setujui, `data-ps-buka="pembelian"`)
+            : menuTindakan({ id: 'menuPs' + idAman(b.kunci), idTombol: 'btnPs' + idAman(b.kunci), kunci: 'baris-ps', baris: true,
+                isi: butirBaris('', 'Setujui', IKON.setujui, `data-ps-setuju="${esc(b.id)}" data-ps-jenis="${esc(b.jenis)}" data-ps-cabang="${esc(b.cabang)}"`) +
+                     butirBaris('bahaya', b.jenis === 'perangkat' ? 'Blokir' : 'Tolak', IKON.batal, `data-ps-tolak="${esc(b.id)}" data-ps-jenis="${esc(b.jenis)}"`) }) }
+      ], _butirPs, { kosong: 'Tidak ada yang menunggu keputusan Anda.' })}
+    </div>`;
+    detakPersetujuan();
   }
-  /* Berdetak hanya selama layar Pembatalan terbuka. Selagi dialog atau menu ⋮
-     baris sedang terbuka, gambar ulang DITUNDA ke detak berikutnya — menggambar
-     ulang kartu menutup menu yang sedang dipakai Owner. */
-  function detakDiskonMinta() {
-    clearTimeout(_timerDiskonMinta);
-    _timerDiskonMinta = setTimeout(() => {
-      if (!document.querySelector('#layarPembatalan.aktif')) return;
-      const sibuk = document.querySelector('.tirai.tampil') ||
-                    document.querySelector('#kartuDiskonMinta [aria-expanded="true"]');
-      if (sibuk) detakDiskonMinta(); else gambarDiskonMinta();
+  function detakPersetujuan() {
+    clearTimeout(_timerPs);
+    _timerPs = setTimeout(() => {
+      if (!document.querySelector('#layarPersetujuan.aktif')) return;
+      const sibuk = document.querySelector('.tirai.tampil') || document.querySelector('#isiPersetujuan [aria-expanded="true"]');
+      if (sibuk) detakPersetujuan(); else muatPersetujuan();
     }, 20000);
+  }
+  /* Satu pintu untuk semua keputusan — tiap jenis memanggil pintu putusnya sendiri. */
+  async function putusPersetujuan(jenis, id, setuju, cabang) {
+    const b = _butirPs.find((x) => x.jenis === jenis && x.id === id) || { judul: id };
+    const ket = `<p class="petunjuk">${esc(b.judul)}${b.rincian ? ' · ' + esc(b.rincian) : ''}${b.peminta ? ' · diminta ' + esc(b.peminta) : ''}${b.cabang ? ' · ' + esc(b.cabang) : ''}</p>`;
+    let alasan = '';
+    if (setuju) {
+      const peringatan = jenis === 'void'
+        ? '<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali, jurnal dibalik penuh, piutang dan klaim petugasnya ikut dibatalkan.</div>'
+        : jenis === 'diskon' ? '<p class="petunjuk">Kasir bisa langsung menyelesaikan notanya. Berlaku untuk nota itu saja, sekali pakai.</p>' : '';
+      if (!(await tanya('Setujui ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + peringatan, { ya: 'Setujui' }))) return;
+    } else if (jenis === 'perangkat') {
+      if (!(await tanya('Blokir perangkat ini?', ket + '<p class="petunjuk">Perangkat ini tidak bisa masuk sampai dibuka lagi di menu Pengguna.</p>',
+            { ya: 'Blokir', jenis: 'bahaya' }))) return;
+    } else {
+      const min = jenis === 'void' ? 5 : 3;
+      alasan = await tanya('Tolak ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + '<p class="petunjuk">Alasannya terbaca oleh yang meminta.</p>',
+        { isian: 'Alasan penolakan (minimal ' + min + ' karakter)', minimal: min, ya: 'Tolak', jenis: 'bahaya' });
+      if (!alasan) return;
+    }
+    try {
+      if (jenis === 'diskon') await API.putusDiskon({ id, setuju, alasan });
+      else if (jenis === 'void') { await API.putusMintaVoid({ uuid: id, setuju, alasan_tolak: alasan }); if (setuju) await Sync.tarikStok(); }
+      /* Cabang PERANGKATNYA, bukan cabang sesi penyetuju. */
+      else if (jenis === 'perangkat') await API.setujuiPerangkat({ id_perangkat: id, status: setuju ? 'DISETUJUI' : 'DIBLOKIR', cabang: cabang || undefined });
+      else if (jenis === 'coa') await API.putusCoa({ id, setuju, alasan });
+      toast(setuju ? 'Disetujui.' : (jenis === 'perangkat' ? 'Perangkat diblokir.' : 'Ditolak.'));
+    } catch (x) { toast(x.message, 'galat'); }
+    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));   // pendengarnya di document (app.js)
+    await muatPersetujuan();
   }
 
   /* Pencari nota untuk pengajuan. Bentuknya sengaja sama dengan formVoid() —
@@ -9509,7 +9540,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">Daftar barang yang diminta cabang ke gudang. Gudang yang menyiapkan; stok baru berpindah saat kirimannya dicatat. Ini <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi:
             membuatnya tidak menggerakkan stok dan tidak membuat jurnal. Saat gudang menekan <strong>Siapkan</strong>,
             jumlah yang benar-benar disiapkan langsung menjadi dokumen <strong>Transfer</strong> — lengkap dengan FIFO
-            dan jurnalnya — dan cabang tujuan tetap harus mengonfirmasi penerimaan di menu Transfer.
+            dan jurnalnya — dan cabang tujuan tetap harus mengonfirmasi penerimaan di menu Transfer Barang.
             Sisanya boleh disiapkan menyusul; statusnya menjadi <em>Sebagian</em> sampai seluruh baris terpenuhi.</p>
         </div>
 
@@ -10668,7 +10699,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* Form "Catat" (JENIS_KAS) DIBUANG di bagian 304: kas masuk/keluar kini
      dokumen bernomor di tab Penerimaan (BKM) dan Pembayaran (BKK); pemindahan
      di tab Transfer bank (bagian 303). */
-  const TAB_KAS = [['ringkasan', 'Ringkasan'], ['penerimaan', 'Penerimaan'], ['pembayaran', 'Pembayaran'],
+  const TAB_KAS = [['ringkasan', 'Ringkasan'], ['setoran', 'Setoran'], ['penerimaan', 'Penerimaan'], ['pembayaran', 'Pembayaran'],
                    ['transfer', 'Transfer bank'], ['koran', 'Rekening koran'], ['rekon', 'Rekonsiliasi'],
                    ['mutasi', 'Mutasi kas']];
   let tabKas = 'ringkasan';
@@ -11333,6 +11364,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       w.innerHTML = kartuDokumenKas(tabKas === 'penerimaan' ? 'BKM' : 'BKK', kas);
       return;
     }
+    /* Setoran toko jadi tab sendiri (bagian 305) — dulu terselip di bawah Ringkasan. */
+    if (tabKas === 'setoran') { w.innerHTML = kartuSetoran(belum); return; }
     if (tabKas === 'transfer') {
       w.innerHTML = kartuTransferBank(kas);
       isiPilihanTransfer();
@@ -11357,8 +11390,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          bergerak lewat penjualan dan pembelian. Lingkupnya
          <strong>${cabangKas === '*' ? 'seluruh cabang' : esc(cabangKas)}</strong>.</p>
 
-      ${kartuArusKas(arus)}
-      ${kartuSetoran(belum)}`;
+      ${kartuArusKas(arus)}`;
   }
 
   /* ==================== PENERIMAAN & PEMBAYARAN (bagian 304) ====================
@@ -12375,7 +12407,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function _muat(layar) {
     if (!API.online) {
-      const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian',
+      const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian', persetujuan: '#isiPersetujuan',
                       mitra: '#isiMitra', petugas: '#isiPetugas', poin: '#isiPoin',
                       piutang: '#isiPiutang', utang: '#isiUtang', pengguna: '#isiPengguna',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
@@ -12426,6 +12458,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
+      case 'persetujuan': return muatPersetujuan();
     }
   }
 
@@ -14013,27 +14046,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
-      /* Keputusan pengajuan diskon (bagian 288). */
-      if (d.setujuiDiskon) {
-        try {
-          await API.putusDiskon({ id: d.setujuiDiskon, setuju: true });
-          toast('Diskon disetujui — kasir bisa menyelesaikan notanya.');
-        } catch (x) { toast(x.message, 'galat'); }
-        await gambarDiskonMinta();
-        return;
-      }
-      if (d.tolakDiskon) {
-        const alasan = await tanya('Tolak pengajuan diskon ini?',
-          '<p class="petunjuk">Alasannya langsung terbaca di layar kasir — sebutkan berapa yang boleh.</p>',
-          { isian: 'Alasan penolakan (minimal 3 karakter)', minimal: 3, ya: 'Tolak', jenis: 'bahaya' });
-        if (!alasan) return;
-        try {
-          await API.putusDiskon({ id: d.tolakDiskon, setuju: false, alasan });
-          toast('Pengajuan diskon ditolak.');
-        } catch (x) { toast(x.message, 'galat'); }
-        await gambarDiskonMinta();
-        return;
-      }
+      /* Persetujuan (bagian 305) — diskon kini diputus di sini, bukan di Pembatalan. */
+      if (d.psSetuju) return putusPersetujuan(d.psJenis, d.psSetuju, true, d.psCabang);
+      if (d.psTolak) return putusPersetujuan(d.psJenis, d.psTolak, false);
+      if (d.psBuka) return bukaLayar(d.psBuka);
       if (d.setujuiVoid) {
         const ya = await tanya('Setujui pembatalan nota ini?',
           `<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali
@@ -14511,5 +14527,5 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   // tombolEkspor ikut diekspor supaya app.js memakai komponen yang SAMA,
   // bukan menyalin bentuk tombolnya sendiri.
-  return { muat, pasang, toast, modal: bukaModal, tutupModal, tanya, tabel, tombolEkspor, menuEkspor };
+  return { muat, pasang, toast, modal: bukaModal, tutupModal, tanya, tabel, gambarLapDiskon, tombolEkspor, menuEkspor };
 })();

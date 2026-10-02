@@ -211,6 +211,11 @@
       <span class="lencana" id="lncSync">Memeriksa…</span>
       <span class="lencana polos sembunyi" id="lncUser">—</span>
     </div>
+    <!-- Lonceng persetujuan (bagian 305) — DI LUAR .lencana-grup: grup itu hanya
+         tiga lencana kabar. Isinya digambar app.js dari IKON. -->
+    <button type="button" class="tombol-ikon lonceng" id="btnLonceng" hidden aria-haspopup="menu" aria-expanded="false"
+            aria-controls="popoverLonceng" aria-label="Persetujuan"></button>
+    <div class="popover-lonceng" id="popoverLonceng" role="menu" hidden></div>
   </header>
 
   <main>
@@ -354,7 +359,9 @@
          audit. -->
     <section class="layar" id="layarRiwayat">
       <div class="kartu">
-        <h3>Nota shift ini</h3>
+        <!-- Bukan "Nota shift ini": menunya kini bernama itu (bagian 305), dan judul
+             yang mengulang nama menu dilarang (uji-bar bagian 9). -->
+        <h3>Nota sejak laci dibuka</h3>
         <p class="petunjuk">Nota yang dibuat sejak laci dibuka. Untuk nota hari lain, cari lewat nomor notanya di bawah.</p>
         <div id="isiRiwayat"></div>
       </div>
@@ -374,6 +381,7 @@
     <!-- ---------- BACK OFFICE (diisi admin.js) ---------- -->
     <section class="layar" id="layarRetur"><div id="isiRetur"></div></section>
     <section class="layar" id="layarPembatalan"><div id="isiPembatalan"></div></section>
+    <section class="layar" id="layarPersetujuan"><div id="isiPersetujuan"></div></section>
     <section class="layar" id="layarProduk"><div id="isiProduk"></div></section>
     <section class="layar" id="layarStok"><div id="isiStok"></div></section>
     <section class="layar" id="layarTransfer"><div id="isiTransfer"></div></section>
@@ -435,6 +443,7 @@
           <button data-tab-lap="shift">Per shift</button>
           <button data-tab-lap="petugas">Per petugas</button>
           <button data-tab-lap="void">Void</button>
+          <button data-tab-lap="diskon">Diskon</button>
           <button data-tab-lap="kerugian" class="sembunyi">Kerugian persediaan</button>
         </div>
       </div>
@@ -887,10 +896,10 @@
         <div class="kartu">
           <h3>B4. Permintaan barang ke gudang</h3>
           <p>Menu <strong>Permintaan</strong> adalah <strong>daftar pekerjaan untuk gudang</strong>, bukan transaksi. Pemilik, manajer, atau kepala cabang menekan <strong>Minta barang</strong>, memilih <strong>gudang asal</strong> dan <strong>cabang tujuan</strong>, lalu menuliskan barang yang dibutuhkan. Membuatnya <strong>tidak</strong> menggerakkan stok dan tidak membuat jurnal apa pun.</p>
-          <p>Admin gudang membuka menu yang sama dan melihat kartu <strong>Menunggu disiapkan gudang Anda</strong>. Tombol <strong>Siapkan</strong> membuka daftar barangnya beserta kolom <strong>Sisa</strong>; isi jumlah yang <em>benar-benar disiapkan</em> — boleh kurang dari yang diminta. Menekan <strong>Siapkan &amp; kirim</strong> langsung membuat dokumen <strong>Transfer</strong> (B3), lengkap dengan FIFO dan jurnalnya, dan cabang tujuan tetap harus menekan <strong>Terima barang</strong> di menu Transfer.</p>
+          <p>Admin gudang membuka menu yang sama dan melihat kartu <strong>Menunggu disiapkan gudang Anda</strong>. Tombol <strong>Siapkan</strong> membuka daftar barangnya beserta kolom <strong>Sisa</strong>; isi jumlah yang <em>benar-benar disiapkan</em> — boleh kurang dari yang diminta. Menekan <strong>Siapkan &amp; kirim</strong> langsung membuat dokumen <strong>Transfer</strong> (B3), lengkap dengan FIFO dan jurnalnya, dan cabang tujuan tetap harus menekan <strong>Terima barang</strong> di menu Transfer Barang.</p>
           <p><strong>Memantau pekerjaannya.</strong> Kolom <strong>Kemajuan</strong> menulis "sudah / diminta" dalam pcs, dan statusnya salah satu dari: <strong>MENUNGGU</strong> (gudang belum menyiapkan apa pun), <strong>SEBAGIAN</strong> (sudah dikirim sebagian, sisanya masih ditunggu), <strong>SELESAI</strong> (setiap baris sudah terpenuhi), <strong>DIBATALKAN</strong>. Tombol <strong>Detail</strong> menunjukkan dokumen transfer mana saja yang memenuhinya.</p>
           <p class="petunjuk">Statusnya <strong>dihitung dari dokumen transfernya</strong>, bukan disimpan. Karena itu transfer yang dibatalkan membuat permintaannya kembali menunggu dengan sendirinya — barangnya memang kembali ke gudang. Konsekuensi lain: <strong>SELESAI</strong> menuntut SETIAP baris terpenuhi; kelebihan pada satu barang tidak menutupi barang lain yang belum dikirim.</p>
-          <p class="petunjuk">Permintaan hanya bisa <strong>dibatalkan selagi belum disentuh gudang</strong>. Begitu satu transfer dibuat, stoknya sudah bergerak — yang perlu dibatalkan adalah dokumen transfernya, di menu Transfer. Satu SKU cukup satu baris per permintaan; qty yang sama ditulis dua baris akan ditolak.</p>
+          <p class="petunjuk">Permintaan hanya bisa <strong>dibatalkan selagi belum disentuh gudang</strong>. Begitu satu transfer dibuat, stoknya sudah bergerak — yang perlu dibatalkan adalah dokumen transfernya, di menu Transfer Barang. Satu SKU cukup satu baris per permintaan; qty yang sama ditulis dua baris akan ditolak.</p>
           <p class="petunjuk">Yang <strong>meminta</strong> dan yang <strong>menyiapkan</strong> sengaja dipisah: Staf Gudang bisa memproses tapi tidak bisa membuat permintaan, dan Kepala Cabang sebaliknya. Kalau menu ini tidak muncul untuk peran selain Owner, izin modul <strong>permintaan</strong> belum ditambahkan ke peran itu di menu Pengguna → Peran.</p>
         </div>
         <div class="kartu">
@@ -934,7 +943,7 @@
           <h3>B8. Laporan Penjualan, Poin &amp; Performa, Laporan Keuangan, Aset Tetap, Diskon</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Dashboard</strong> — nota &amp; omzet, piutang beredar, shift yang masih terbuka, tren penjualan, dan stok menipis. Dropdown <strong>periode</strong> (Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> — paling panjang 92 hari) dan, untuk akun lintas cabang, dropdown <strong>cabang</strong> (Semua cabang atau satu cabang — stok menipis pun ikut cabang itu). Keterangan di sebelahnya, mis. <code>10-09 · vs 09-09 (2026)</code>, adalah rentang yang ditampilkan dan periode pembanding yang sama panjang tepat sebelumnya (tahun disebut sekali di ujung; bila lintas tahun, tiap rentang menulis tahunnya).</li>
-            <li><strong>Laporan Penjualan</strong> — satu rentang tanggal, <strong>enam tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, dan <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya). Tab keenam <strong>Kerugian persediaan</strong> hanya muncul bagi akun yang berhak melihat harga modal — lihat B8b. Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
+            <li><strong>Laporan Penjualan</strong> — satu rentang tanggal, <strong>tujuh tab</strong>: <strong>Ringkasan</strong> (per metode bayar termasuk biaya MDR, per cabang, produk terlaris), <strong>Riwayat transaksi</strong> (nota satu per satu, bisa disaring per shift dan per kasir), <strong>Per shift</strong>, <strong>Per petugas</strong>, <strong>Void</strong> (nota yang dibatalkan beserta alasan &amp; pelakunya), dan <strong>Diskon</strong> (diskon per kasir dan nota berdiskon — dulu menu sendiri). Tab ketujuh <strong>Kerugian persediaan</strong> hanya muncul bagi akun yang berhak melihat harga modal — lihat B8b. Periodenya dipilih dari <strong>dropdown periode</strong> — Hari ini, Kemarin, 7 hari, 30 hari, Bulan ini, Bulan lalu, atau <strong>Kustom</strong> yang membuka dua kolom tanggal. Membuka layar ini langsung memuat Hari ini.</li>
             <li>Tiap tab <strong>menarik datanya sendiri saat pertama dibuka</strong>, bukan semuanya sekaligus. Yang sudah pernah dibuka tidak ditarik ulang selama rentangnya tidak diganti; mengganti periode, tanggal, atau cabang <strong>langsung memuat ulang</strong> — tidak ada tombol Tampilkan.</li>
             <li><strong>Poin &amp; Performa</strong> — peringkat cabang menurut omzet, dan peringkat petugas menurut poin atau omzet, tertinggi atau terendah. Bawaannya bulan berjalan.</li>
             <li><strong>Laporan Keuangan</strong> — empat tab menurut urutan pembukuan: <strong>Jurnal penyesuaian</strong> · <strong>Buku besar</strong> · <strong>Laba Rugi</strong> · <strong>Neraca</strong>; yang terbuka pertama Laba Rugi. Di atasnya dua tombol: <strong>Uji kebenaran</strong> (pemeriksaan pembukuan otomatis) dan Tutup buku.</li>
