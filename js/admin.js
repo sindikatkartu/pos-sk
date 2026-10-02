@@ -7775,6 +7775,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td class="kanan" data-l="Penjualan">${isian('penjualan', b.penjualan, 'Penjualan ' + b.kode_sumber)}</td>
           <td class="kanan" data-l="Reward">${isian('reward', b.reward, 'Reward ' + b.kode_sumber)}</td></tr>`).join('')}</tbody>
       </table></div>
+      ${saldo.filter((b) => (+b.deposit || 0) > 0).map((b) => `<div class="grup" style="max-width:320px">
+        <label>Topup ${esc(nama[b.kode_sumber] || String(b.kode_sumber))} ${rp(b.deposit)} — dibayar dari</label>
+        ${pilihAkunTopup(`data-koreksi-akun="${esc(String(b.kode_sumber))}"`, String(b.akun_deposit || '') || AKUN_LACI,
+                         'Topup ' + b.kode_sumber + ' dibayar dari', false)}</div>`).join('')}
       <div class="grup" style="max-width:320px"><label>Kas fisik (uang di laci)</label>${isian('kas_fisik', s.kas_fisik, 'Kas fisik')}</div>
       <div class="grup"><label>Alasan koreksi *</label>
         <input type="text" id="alasanKoreksi" maxlength="200" placeholder="mis. salah ketik penjualan BOS PULSA, seharusnya 1.056.000"></div>
@@ -7793,7 +7797,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const pakai = (+tr.dataset.awal || 0) + (+tr.dataset.deposit || 0) +
           angkaDari(tr.querySelector('[data-koreksi="reward"]').value) - akhir;
         tr.querySelector('[data-modal]').innerHTML = rp(pakai);
-        modal += pakai; dep += +tr.dataset.deposit || 0;
+        modal += pakai;
+        /* Hanya topup dari laci yang mengurangi kas (bagian 309). */
+        const akunEl = m.querySelector(`[data-koreksi-akun="${tr.dataset.sumber}"]`);
+        if (topupDariLaci(tr.dataset.deposit, akunEl ? akunEl.value : '')) dep += +tr.dataset.deposit || 0;
       });
       const keluar = +s.total_keluar || 0;
       const kasSistem = (+s.kas_awal || 0) + jual - dep - keluar;
@@ -7807,6 +7814,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${baris('Margin', s.margin, jual - modal - keluar)}</tbody></table>`;
     };
     m.addEventListener('input', (e) => { if (e.target.closest('[data-koreksi]')) hitung(); });
+    m.addEventListener('change', (e) => { if (e.target.closest('[data-koreksi-akun]')) hitung(); });
     hitung();
   }
 
@@ -7822,6 +7830,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Dikirim hanya dari shift terakhir — server menolaknya di tempat lain. */
       const akhir = tr.querySelector('[data-koreksi="saldo_akhir"]');
       if (akhir) o.saldo_akhir = angkaDari(akhir.value);
+      const akun = m.querySelector(`[data-koreksi-akun="${tr.dataset.sumber}"]`);
+      if (akun) o.akun_deposit = akun.value;
       return o;
     });
     const kas_fisik = angkaDari(m.querySelector('[data-koreksi="kas_fisik"]').value);
@@ -7910,8 +7920,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ? ` · jurnal <code>${esc(x.no_jurnal)}</code>` : ''}</p>
         <p class="petunjuk" style="margin:0 0 6px">Alasan: ${esc(x.alasan || '—')}</p>
         <div class="gulir-x"><table class="tabel"><thead><tr><th>Angka</th><th class="kanan">Sebelum</th><th class="kanan">Sesudah</th></tr></thead>
-          <tbody>${x.ubah.map((u) => `<tr><td data-l="Angka">${esc(u.label)}</td><td class="kanan" data-l="Sebelum">${u.lama === null ? '—' : rp(u.lama)}</td>
-            <td class="kanan" data-l="Sesudah">${rp(u.baru)}</td></tr>`).join('')}</tbody></table></div>
+          <tbody>${x.ubah.map((u) => `<tr><td data-l="Angka">${esc(u.label)}</td><td class="kanan" data-l="Sebelum">${u.lama === null ? '—' : u.teks ? esc(u.lama) : rp(u.lama)}</td>
+            <td class="kanan" data-l="Sesudah">${u.teks ? esc(u.baru) : rp(u.baru)}</td></tr>`).join('')}</tbody></table></div>
       </div>`).join('') : '<p class="pesan">Belum ada riwayat koreksi.</p>');
   }
 
@@ -7942,6 +7952,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const m = $('#modalUmum');
     m._susulan = null;
     $('#susCabang').addEventListener('change', () => API.tugas(muatSumberSusulan, { baca: true }));
+    m.addEventListener('change', (e) => {
+      const el = e.target.closest('[data-sus-akun]');
+      if (!el) return;
+      if (el.value) el.removeAttribute('aria-invalid'); else el.setAttribute('aria-invalid', 'true');
+      hitungSusulan();
+    });
     m.addEventListener('input', (e) => {
       if (!e.target.closest('[data-sus]')) return;
       /* Kas fisik TIDAK lagi diisi otomatis dari kas sistem (bagian 299):
@@ -7976,7 +7992,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <tbody>${sumber.map((s) => `<tr data-sumber="${esc(String(s.kode_sumber))}" data-awal="${+s.saldo_awal || 0}">
           <td data-l="Sumber">${esc(s.nama || String(s.kode_sumber))} <span class="petunjuk">${esc(String(s.kode_sumber))}</span></td>
           <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}</td>
-          <td class="kanan" data-l="Deposit">${isian('deposit', 'Deposit ' + s.kode_sumber)}</td>
+          <td class="kanan" data-l="Deposit">${isian('deposit', 'Deposit ' + s.kode_sumber)}${
+            pilihAkunTopup('data-sus-akun hidden style="margin-top:6px"', '', 'Deposit ' + s.kode_sumber + ' dibayar dari', true)}</td>
           <td class="kanan" data-l="Saldo akhir">${isian('saldo_akhir', 'Saldo akhir ' + s.kode_sumber)}</td>
           <td class="kanan" data-l="Modal" data-modal>${rp(0)}</td>
           <td class="kanan" data-l="Penjualan">${isian('penjualan', 'Penjualan ' + s.kode_sumber)}</td>
@@ -7994,15 +8011,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function hitungSusulan() {
     const m = $('#modalUmum');
     if (!m._susulan) return;
-    let jual = 0, modal = 0, dep = 0;
+    let jual = 0, modal = 0, laci = 0;
     m.querySelectorAll('#tabelSusulan tbody tr').forEach((tr) => {
       const v = (k) => angkaDari(tr.querySelector(`[data-sus="${k}"]`).value);
       const pakai = (+tr.dataset.awal || 0) + v('deposit') + v('reward') - v('saldo_akhir');
       tr.querySelector('[data-modal]').innerHTML = rp(pakai);
-      modal += pakai; jual += v('penjualan'); dep += v('deposit');
+      modal += pakai; jual += v('penjualan');
+      /* "Dibayar dari" hanya tampil bila ada topup; hanya yang dari laci
+         mengurangi kas (bagian 309). */
+      const akun = tr.querySelector('[data-sus-akun]');
+      akun.hidden = !(v('deposit') > 0);
+      if (topupDariLaci(v('deposit'), akun.value)) laci += v('deposit');
     });
     const kasEl = m.querySelector('[data-sus="kas_fisik"]');
-    const kasSistem = jual - dep;
+    const kasSistem = jual - laci;
     const kas = angkaDari(kasEl.value);
     const baris = (l, v) => `<tr><td>${l}</td><td class="kanan">${rp(v)}</td></tr>`;
     $('#pratinjauSusulan').innerHTML = `<table class="tabel"><thead><tr><th>Hasil</th><th class="kanan">Angka</th></tr></thead><tbody>
@@ -8018,10 +8040,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const tanggal = $('#susTanggal').value, jenis_shift = $('#susJenis').value;
     if (!tanggal) { toast('Isi tanggal shiftnya.', 'galat'); return; }
     if (!wajibDiketik([...m.querySelectorAll('[data-sus]')])) return;
+    const akunKosong = [...m.querySelectorAll('[data-sus-akun]')].find((el) => !el.hidden && !el.value);
+    if (akunKosong) {
+      toast('Pilih dulu topupnya dibayar dari mana — laci shift, atau rekening yang dipakai mentransfer.', 'galat');
+      akunKosong.focus();
+      return;
+    }
     const sumber = [...m.querySelectorAll('#tabelSusulan tbody tr')].map((tr) => {
       const v = (x) => angkaDari(tr.querySelector(`[data-sus="${x}"]`).value);
       return { kode_sumber: tr.dataset.sumber, deposit: v('deposit'), saldo_akhir: v('saldo_akhir'),
-               penjualan: v('penjualan'), reward: v('reward') };
+               penjualan: v('penjualan'), reward: v('reward'),
+               akun_deposit: v('deposit') > 0 ? tr.querySelector('[data-sus-akun]').value : '' };
     });
     const kas_fisik = angkaDari(m.querySelector('[data-sus="kas_fisik"]').value);
     if (!(await tanya(`Simpan shift ${jenis_shift} ${k.cabang} tanggal ${tanggal}?`,
@@ -8073,16 +8102,31 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return false;
   }
 
+  /* TOPUP DIBAYAR DARI MANA (bagian 309). Daftar yang SAMA dengan
+     AKUN_TOPUP_PULSA di 00_Config.gs — dikunci satu penjaga di uji.js.
+     '1-1100' = laci shift pulsa ini; hanya topup dari laci yang mengurangi kas
+     shift. Akun kosong pada baris LAMA berarti laci (begitulah ia dibukukan). */
+  const AKUN_LACI = '1-1100';
+  const AKUN_TOPUP = [[AKUN_LACI, 'Laci shift ini'], ['1-1150', 'Kas Admin'], ['1-1201', 'Bank BCA'],
+                      ['1-1202', 'Bank BNI'], ['1-1203', 'Bank BRI'], ['1-1204', 'Bank Mandiri']];
+  const topupDariLaci = (deposit, akun) => (+deposit || 0) > 0 && (akun || AKUN_LACI) === AKUN_LACI;
+  const pilihAkunTopup = (atribut, terpilih, label, wajib) =>
+    `<select ${atribut} aria-label="${esc(label)}"${wajib && !terpilih ? ' aria-invalid="true"' : ''}>` +
+    (wajib ? '<option value="">— dibayar dari —</option>' : '') +
+    AKUN_TOPUP.map(([k, n]) => `<option value="${k}"${k === terpilih ? ' selected' : ''}>${esc(n)}</option>`).join('') + '</select>';
+
   /** Hitungan yang SAMA dengan _hitungShiftPulsa di server. */
   function hitungShiftpulsa(st, keluar) {
-    let modal = 0, jual = 0, deposit = 0, reward = 0;
+    let modal = 0, jual = 0, deposit = 0, reward = 0, laci = 0;
     (st.sumber || []).forEach(s => {
       /* Reward = yang di-redeem ke saldo utama (bagian 266) — rumus server. */
       modal += (+s.saldo_awal || 0) + (+s.deposit || 0) + (+s.reward || 0) - (+s.saldo_akhir || 0);
       jual += (+s.penjualan || 0); deposit += (+s.deposit || 0); reward += (+s.reward || 0);
+      if (topupDariLaci(s.deposit, s.akun_deposit)) laci += (+s.deposit || 0);
     });
-    const kasSistem = (+st.kas_awal || 0) + jual - deposit - (+keluar || 0);
-    return { modal, jual, deposit, reward, kasSistem, margin: jual - modal - (+keluar || 0) };
+    /* Hanya topup yang dibayar dari laci mengurangi kas shift (bagian 309). */
+    const kasSistem = (+st.kas_awal || 0) + jual - laci - (+keluar || 0);
+    return { modal, jual, deposit, laci, reward, kasSistem, margin: jual - modal - (+keluar || 0) };
   }
 
   function gambarShiftpulsa() {
@@ -8201,6 +8245,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const k = f + ':' + s.kode_sumber;
       s[f] = k in kt ? kt[k] : 0;
     }));
+    /* "Dibayar dari" tiap topup — keadaan layar, sama seperti angkanya (bagian 309). */
+    (st.sumber || []).forEach((s) => { s.akun_deposit = kt['akun_deposit:' + s.kode_sumber] || ''; });
     w._kasFisik = 'kas_fisik' in kt ? kt.kas_fisik : 0;
     const isiSp = (f, s, i, label) => {
       const ada = (f + ':' + s.kode_sumber) in kt;
@@ -8237,7 +8283,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <tbody>${(st.sumber || []).map((s, i) => `<tr>
               <td data-l="Sumber">${esc(s.nama)}<br><span class="petunjuk">${esc(s.kode_sumber)}</span></td>
               <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}<br><span class="petunjuk">terkunci</span></td>
-              <td data-l="Deposit masuk">${isiSp('deposit', s, i, 'Deposit')}</td>
+              <td data-l="Deposit masuk">${isiSp('deposit', s, i, 'Deposit')}${(+s.deposit || 0) > 0
+                ? pilihAkunTopup(`class="spsAkun" data-i="${i}" style="margin-top:6px"`, s.akun_deposit, 'Deposit ' + s.kode_sumber + ' dibayar dari', true) : ''}</td>
               <td data-l="Saldo akhir">${isiSp('saldo_akhir', s, i, 'Saldo akhir')}</td>
               <td class="kanan" data-l="Konsumsi (modal)"><strong>${rp((+s.saldo_awal || 0) + (+s.deposit || 0) + (+s.reward || 0) - (+s.saldo_akhir || 0))}</strong></td>
               <td data-l="Penjualan">${isiSp('penjualan', s, i, 'Penjualan')}</td>
@@ -8245,8 +8292,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             </tr>`).join('')}</tbody>
           </table>
         </div>
-        <p class="petunjuk">Reward tidak dijurnal terpisah: ia sudah menambah saldo akhir, jadi
-           sudah ikut mengecilkan konsumsi. Menghitungnya dua kali membesarkan untung yang sama.</p>
+        <p class="petunjuk">Kalau ada deposit (topup) masuk, pilih <strong>dibayar dari mana</strong>: laci shift ini,
+           atau rekening yang dipakai mentransfer. Hanya topup dari laci yang mengurangi kas shift.</p>
       </div>
       <div class="kartu">
         <h3>Kas</h3>
@@ -8318,6 +8365,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        tempatnya di tengah angka. */
     w.querySelectorAll('.spsAngka').forEach(el => {
       el.addEventListener('change', () => { ubahAngkaShiftpulsa(el); gambarShiftpulsa(); });
+    });
+    w.querySelectorAll('.spsAkun').forEach(el => {
+      el.addEventListener('change', () => {
+        const s = (w._st.sumber || [])[+el.dataset.i];
+        if (!s) return;
+        const k = 'akun_deposit:' + s.kode_sumber;
+        if (el.value) w._ketik.nilai[k] = el.value; else delete w._ketik.nilai[k];
+        gambarShiftpulsa();
+      });
     });
     w.querySelectorAll('.spsKel').forEach(el => {
       el.addEventListener('change', () => {
@@ -13301,6 +13357,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnTutupShiftPulsa') {
         const stM = ($('#isiShiftpulsa') || {})._st || {};
         if (!wajibDiketik([...document.querySelectorAll('#isiShiftpulsa .spsAngka')])) return;
+        /* Topup tanpa "dibayar dari" ditahan di sini — server menolak hal yang sama (bagian 309). */
+        const akunKosong = [...document.querySelectorAll('#isiShiftpulsa .spsAkun')].find((el) => !el.value);
+        if (akunKosong) {
+          toast('Pilih dulu topupnya dibayar dari mana — laci shift ini, atau rekening yang dipakai mentransfer.', 'galat');
+          akunKosong.focus();
+          return;
+        }
         const modalM = shiftMustahil(stM);
         if (modalM) {
           $('#spsMustahil').innerHTML = `<div class="pesan galat">Shift ini tidak bisa ditutup: semua saldo
@@ -13333,7 +13396,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             sumber: (st.sumber || []).map(s => ({
               kode_sumber: s.kode_sumber, deposit: +s.deposit || 0,
               saldo_akhir: +s.saldo_akhir || 0, penjualan: +s.penjualan || 0,
-              reward: +s.reward || 0
+              reward: +s.reward || 0,
+              akun_deposit: (+s.deposit || 0) > 0 ? (s.akun_deposit || '') : ''
             }))
           });
           await muat('pulsa');
