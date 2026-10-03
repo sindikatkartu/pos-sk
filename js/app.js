@@ -255,6 +255,12 @@ const wilayahLayar = (id) => WILAYAH.kantor.includes(id) ? 'kantor' : (WILAYAH.t
    judul layar — 360 px: 9 → 15 judul terpotong; 412 px: 2 → 8. Dua-duanya
    ditulis, CSS yang memilih; pembaca layar selalu mendapat "Back Office". */
 const TEKS_KANTOR = 'Back Office';
+/** Kode cabang pusat dari setelan yang turun ke perangkat; '' bila belum dipakai.
+    Polanya sama dengan cabangPusat() di server (dicocokkan penjaga bagian 329). */
+const kodeCabangPusat = () => {
+  const s = String((APP_STATE.setting || {}).cabang_pusat || '').trim();
+  return /^[A-Z][A-Z0-9]{1,9}$/.test(s) ? s : '';
+};
 const TEKS_KANTOR_PENDEK = 'BO';
 let cabangLencana = '—';
 /** Lencana cabang di bilah atas: cabang login, atau "Back Office" di layar kantor. */
@@ -2202,9 +2208,15 @@ async function muatMaster() {
   catch (e) { APP_STATE.daftarPetugas = []; console.warn('Daftar petugas belum tersedia:', e.message); }
   gambarPilihanPetugas();
 
-  $('#keuCabang').innerHTML = $('#jrnCabang').innerHTML =
-    (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
+  const opsiCabangBuku = (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
     APP_STATE.daftarCabang.slice().sort(urutNama).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  $('#jrnCabang').innerHTML = opsiCabangBuku;
+  /* Laporan Keuangan saja yang mendapat pilihan "Back Office" (bagian 330):
+     buku pusat — bank, Kas Admin, R/K, beban kantor — bisa dilihat sendirian.
+     Jurnal manual sengaja TIDAK: borangnya memakai pilihan ini sebagai cabang
+     jurnal baru. Hanya akun lintas cabang; servernya menolak yang lain. */
+  $('#keuCabang').innerHTML = opsiCabangBuku + (APP_STATE.flag.akses_lintas_cabang && kodeCabangPusat()
+    ? `<option value="${esc(kodeCabangPusat())}">${TEKS_KANTOR}</option>` : '');
 
   $('#lncJumlahProduk').textContent = (await DB.jumlah('produk')) + ' produk';
 }
@@ -5976,6 +5988,11 @@ async function tampilkanKerugianKeu() {
   const r = rentangBulanKeu($('#keuPeriode').value);
   if (!r) { w.innerHTML = '<div class="kartu"><p class="petunjuk">Pilih bulan dulu.</p></div>'; return; }
   const par = { dari: r.dari, sampai: r.sampai, cabang: $('#keuCabang').value };
+  /* Back Office tidak punya stok, kasir, atau sheet cabang — tidak ada yang ditarik. */
+  if (par.cabang && par.cabang === kodeCabangPusat()) {
+    w.innerHTML = '<div class="kartu"><p class="petunjuk">Back Office tidak punya persediaan. Pilih salah satu toko atau Semua cabang.</p></div>';
+    return;
+  }
   Rangka.pasang(w, rangkaLaporan());
   try {
     const d = await tarikKerugian(par);

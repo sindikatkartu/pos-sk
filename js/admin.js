@@ -11227,7 +11227,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <input type="text" id="asKategori" value="${esc(k.kategori || '')}" placeholder="Perabot, Elektronik, Kendaraan">
       <label>Cabang</label>
       <select id="asCabang">${daftarKodeCabang().map((c) =>
-        `<option value="${esc(c)}" ${k.kode_cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+        `<option value="${esc(c)}" ${k.kode_cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}${
+        /* Aset milik kantor (bagian 330): perolehan dan penyusutannya dibukukan ke pusat. */
+        (bolehCabangDash() && kodeCabangPusat()) || (kodeCabangPusat() && k.kode_cabang === kodeCabangPusat())
+          ? `<option value="${esc(kodeCabangPusat())}" ${k.kode_cabang === kodeCabangPusat() ? 'selected' : ''}>Back Office</option>` : ''}</select>
       <label>Tanggal perolehan</label>
       <input type="date" id="asTanggal" value="${esc(k.tanggal_perolehan || '')}" ${mati}>
       <label>Harga perolehan</label>
@@ -11490,7 +11493,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* TIGA panggilan sekaligus, bukan berurutan. Tiap panggilan Apps Script
          membayar ~0,8 detik memuat proyek; berurutan berarti menunggu tiga
          kali lipat untuk data yang tidak saling bergantung. */
-      const [kas, setor, ner, arus] = await Promise.all([
+      const [kas, setor, ner, arus, pusat5] = await Promise.all([
         API.daftarKas({ cabang: cabangKas,
                         dari: nilai('kasDari'), sampai: nilai('kasSampai') }),
         API.shiftBelumSetor({ cabang: cabangKas }),
@@ -11498,9 +11501,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            cabang akan terbaca sebagai saldo cabang itu. */
         API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7),
                      cabang: cabangKas }),
-        API.arusKas({ cabang: cabangKas, bulan: 6 })
+        API.arusKas({ cabang: cabangKas, bulan: 6 }),
+        /* Kas Admin & bank itu rekening PUSAT: saldonya dibaca dari cabang
+           pusat, apa pun toko yang dipilih (bagian 330). Diukur 4 Okt 2026:
+           memilih satu toko membuat kartunya NOL padahal rekeningnya berisi.
+           "Semua cabang" sudah memuat pusat, jadi tidak ada panggilan kedua. */
+        (cabangKas !== '*' && bolehCabangDash() && kodeCabangPusat())
+          ? API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7), cabang: kodeCabangPusat() })
+          : null
       ]);
-      kasData = { kas, setor, ner, arus };
+      kasData = { kas, setor, ner, arus, nerPusat: pusat5 };
       gambarKas();
     } catch (e) { galat('#hasilKas', e); }
   }
@@ -11508,15 +11518,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function gambarKas() {
     const w = $('#hasilKas');
     if (!w || !kasData) return;
-    const { kas, setor, ner, arus } = kasData;
+    const { kas, setor, ner, arus, nerPusat } = kasData;
 
     /* SALDO dari NERACA, bukan dijumlahkan dari daftar di bawahnya. Kas juga
        bergerak lewat penjualan, pembelian, dan piutang — menjumlahkan daftar
        ini saja akan memajang angka yang tidak pernah cocok dengan buku. */
     const aset = (ner && ner.aset) || [];
+    const asetPusat = (nerPusat && nerPusat.aset) || null;
     const saldo = AKUN_KAS.map((k) => {
-      const a = aset.filter((x) => String(x.kode) === k)[0];
-      return { kode: k, nama: (a && a.nama) || k, jumlah: a ? a.jumlah : 0 };
+      const sumber = (asetPusat && !akunKasToko(k)) ? asetPusat : aset;
+      const a = sumber.filter((x) => String(x.kode) === k)[0];
+      const n = aset.filter((x) => String(x.kode) === k)[0];
+      return { kode: k, nama: (a && a.nama) || (n && n.nama) || k, jumlah: a ? a.jumlah : 0 };
     });
 
     const belum = (setor && setor.shift || []).filter((x) => !x.setoran);
@@ -11549,7 +11562,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">Saldo di atas dibaca dari buku besar yang sudah dijurnal
          (neraca akhir periode), bukan dijumlahkan dari daftar di bawah — kas juga
          bergerak lewat penjualan dan pembelian. Lingkupnya
-         <strong>${cabangKas === '*' ? 'seluruh cabang' : esc(cabangKas)}</strong>.</p>
+         <strong>${cabangKas === '*' ? 'seluruh cabang' : esc(cabangKas)}</strong>.${asetPusat
+           ? ' Kas Admin dan bank adalah rekening back office: saldonya utuh, tidak ikut saringan cabang.' : ''}</p>
 
       ${kartuArusKas(arus)}`;
   }
@@ -11689,8 +11703,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const banyakCabang = cabangKas === '*' && bolehCabangDash();
     bukaModal(cfg.label + ' baru', `
       <div class="saring-baris">
-        ${banyakCabang ? `<div class="kendali-tetap"><label>Cabang</label><select id="dokCabang" class="kendali-tetap">
-          ${daftarKodeCabang().map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></div>` : ''}
+        ${bolehCabangDash() ? `<div class="kendali-tetap"><label>Ditanggung oleh</label><select id="dokCabang" class="kendali-tetap">
+          ${daftarKodeCabang().map((x) => `<option value="${esc(x)}" ${x === (cabangKas !== '*' ? cabangKas : APP_STATE.cabang) ? 'selected' : ''}>${esc(x)}</option>`).join('')}
+          ${kodeCabangPusat() ? `<option value="${esc(kodeCabangPusat())}">Back Office</option>` : ''}</select></div>` : ''}
         <div class="kendali-penuh"><label>${jenis === 'BKM' ? 'Masuk ke akun' : 'Keluar dari akun'}</label>
           <select id="dokAkunKas">${akunKasAktif().map((x) => `<option value="${x}" ${x === '1-1150' ? 'selected' : ''}>${esc(x)} — ${esc(nama[x] || x)}</option>`).join('')}</select></div>
         <div class="kendali-tetap"><label>Tanggal</label>
@@ -11741,10 +11756,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kurang = baris.findIndex((b) => !b.kode_akun || !(b.jumlah > 0));
     if (kurang >= 0) return toast('Baris ' + (kurang + 1) + ': pilih akunnya dan isi nominalnya.', 'galat');
     const total = baris.reduce((a, b) => a + b.jumlah, 0);
-    const cab = nilai('dokCabang') || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
+    /* "Ditanggung oleh Back Office" (bagian 330): dokumennya tetap disimpan
+       dan dinomori di sheet kas toko (server butuh satu cabang untuk itu);
+       yang pindah ke pusat baris beban/pendapatannya. */
+    const pilihTanggung = nilai('dokCabang');
+    const kePusat = !!kodeCabangPusat() && pilihTanggung === kodeCabangPusat();
+    const cab = (!kePusat && pilihTanggung) || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
     const namaKas = (($('#dokAkunKas option[value="' + akunKas + '"]') || {}).textContent || akunKas);
     if (!(await tanya('Simpan ' + c.label.toLowerCase() + ' ' + rpTeks(total) + '?',
-          `<p class="petunjuk">${baris.length} baris · ${esc(tglTampil(tgl))} · cabang ${esc(cab)} ·
+          `<p class="petunjuk">${baris.length} baris · ${esc(tglTampil(tgl))} · ${kePusat ? 'ditanggung Back Office' : 'ditanggung ' + esc(cab)} ·
              ${_jenisDokKas === 'BKM' ? 'masuk ke' : 'keluar dari'} ${esc(namaKas)}.</p>
            <p class="petunjuk">Nomor dibuat sistem. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
              Koreksi balik per baris.</p>`,
@@ -11752,7 +11772,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const b = $('#btnSimpanDok');
     if (b) { b.classList.add('sibuk'); b.disabled = true; }
     try {
-      const r = await API.dokumenKas({ jenis: _jenisDokKas, cabang: cab, tanggal: tgl, akun_kas: akunKas, keterangan: ket,
+      const r = await API.dokumenKas({ jenis: _jenisDokKas, cabang: cab, ditanggung_pusat: kePusat, tanggal: tgl, akun_kas: akunKas, keterangan: ket,
         uuid: _uuidDokKas || (_uuidDokKas = _jenisDokKas + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)), baris });
       _uuidDokKas = null;
       tutupModal();
