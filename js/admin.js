@@ -8184,7 +8184,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <h3>${st.bisa_ketik_saldo_awal ? 'Saldo awal aplikasi' : 'Saldo awal yang diwarisi'}</h3>
         <p class="petunjuk">${st.bisa_ketik_saldo_awal
           ? 'Belum ada shift di cabang ini. Isi saldo yang SEKARANG ada di tiap aplikasi — diisi sekali saja, dan dicatat ke buku besar sebagai saldo pembukaan (Modal Pemilik). Mulai shift berikutnya, saldo awal diwarisi dari shift sebelumnya.'
-          : 'Angka ini saldo akhir shift sebelumnya. Lihat dulu sebelum menekan Buka — sesudah shift berjalan, saldo awalnya tidak bisa diubah.'}</p>
+          : 'Angka ini saldo akhir shift sebelumnya. Cocokkan dengan tiap aplikasi sebelum menekan Mulai hitungan. Kalau tidak sesuai, JANGAN lanjut — segera hubungi admin untuk dikoreksi. Sesudah shift berjalan, saldo awalnya tidak bisa diubah.'}</p>
         <div class="gulir-x">
           <table class="tabel">
             <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th></tr></thead>
@@ -8269,8 +8269,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <p class="petunjuk">${esc(st.kode_cabang)} · ${esc(st.jenis_shift)} · dibuka
            ${esc(waktuTampil(st.buka))} · id <code>${esc(st.id_shift)}</code></p>
         ${bolehBatalShift(st) ? `<p class="petunjuk">Salah buka shift? Tekan <strong>Batalkan shift</strong>
-           selagi belum mengisi apa pun — shiftnya dihapus dan tidak ada yang tercatat. Jangan
-           ditutup dengan saldo 0.</p>` : ''}
+           selagi belum mengisi apa pun — shiftnya dihapus dan tidak ada yang tercatat. Kalau
+           sudah terlanjur mengunggah foto, hapus dulu fotonya di bawah. Jangan ditutup dengan
+           saldo 0.</p>` : ''}
       </div>
       <div class="kartu">
         <h3>Saldo per sumber</h3>
@@ -8327,17 +8328,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              padahal seluruh gunanya foto buku catatan adalah dibaca waktu
              angkanya dipertanyakan. Lewat server, bukan tautan Drive:
              foldernya tidak dibagikan, dan Head Admin tidak punya akun
-             Google di sana. */''}
+             Google di sana.
+             HAPUS (bagian 311) ditawarkan hanya kepada yang juga boleh
+             membatalkan shiftnya; server memakai aturan yang sama. */''}
         ${foto.length ? `<ul class="daftar-rapat">${foto.map(f =>
           `<li><button class="tombol kecil" data-fotopulsa="${esc(f.file_id)}">Lihat</button>
-             <span>${esc(f.nama_file)}</span>
-             <span class="petunjuk">${Math.round((+f.ukuran || 0) / 1024)} KB · ${esc(waktuTampil(f.waktu_unggah))}</span></li>`).join('')}</ul>`
+             <span class="dua-baris"><span>${esc(f.nama_file)}</span>
+               <span class="petunjuk">${Math.round((+f.ukuran || 0) / 1024)} KB · ${esc(waktuTampil(f.waktu_unggah))}</span></span>${bolehBatalShift(st)
+               ? `<button class="tombol kecil bahaya" data-hapusfotopulsa="${esc(f.file_id)}" data-nama="${esc(f.nama_file)}">Hapus</button>` : ''}</li>`).join('')}</ul>`
           : '<p class="pesan">Belum ada foto.</p>'}
         <input type="file" accept="image/*" capture="environment" id="spsFoto" class="sembunyi">
         <div class="aksi"><button class="tombol" id="btnFotoPulsa">Ambil / pilih foto</button></div>
         <p class="petunjuk">Foto dikecilkan dulu di perangkat sebelum dikirim, jadi tidak
            menghabiskan kuota. Hanya bisa diunggah selama shift berjalan — foto yang masuk
-           sesudah shift ditutup tidak bisa dibedakan dari yang membetulkan cerita.</p>
+           sesudah shift ditutup tidak bisa dibedakan dari yang membetulkan cerita.${bolehBatalShift(st) && foto.length
+             ? ' Salah ambil foto, atau salah pilih dari galeri? Tekan <strong>Hapus</strong> di barisnya.' : ''}</p>
       </div>
       <div class="kartu">
         <h3>Hasil hitung</h3>
@@ -8412,6 +8417,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       await muat('pulsa');
       toast('Foto tersimpan.');
     } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  /* Hapus foto shift yang masih berjalan (bagian 311). Dua keperluan, kata
+     pemilik: foto yang salah ambil / salah pilih dari galeri, dan shift salah
+     buka yang terlanjur difoto — server menolak membatalkan shift berfoto.
+     Ditanya dulu: fotonya hilang dari shift itu, dan yang menekan sering kali
+     sedang memegang HP dengan satu tangan. */
+  async function hapusFotoPulsa(t) {
+    if (!(await tanya('Hapus foto ini?',
+          `<p><strong>${esc(t.dataset.nama || '')}</strong> dikeluarkan dari shift ini.</p>
+           <p class="petunjuk">Untuk foto yang salah ambil atau salah pilih dari galeri. Sesudah
+             dihapus, ambil foto yang benar — atau, kalau shiftnya salah dibuka, tekan Batalkan shift.</p>`,
+          { ya: 'Hapus foto', jenis: 'bahaya' }))) return;
+    t.disabled = true;
+    try {
+      await API.hapusFotoPulsa({ file_id: t.dataset.hapusfotopulsa });
+      await muat('pulsa');
+      toast('Foto dihapus.');
+    } catch (e) { toast(e.message, 'galat'); t.disabled = false; }
   }
 
   function kecilkanGambar(file, maksSisi, mutu) {
@@ -13268,6 +13292,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          kegagalannya lahir dari satu panggilan yang sama. */
       if (d.ulangkons) return muatHasilKons();
       if (d.fotopulsa) return bukaFotoPulsa(d.fotopulsa);
+      if (d.hapusfotopulsa) return hapusFotoPulsa(t);
       if (d.simpanacc) return simpanBerkasAcc();
       if (d.unggahacc) {
         /* Jenisnya dititipkan di kolom berkasnya, bukan dibaca ulang dari DOM
@@ -13311,7 +13336,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              baru ketahuan saat tutup — sesudah satu shift penuh dihitung di
              atasnya (bagian 297, 301). Satu dialog saja: konfirmasi Modal
              Pemilik shift pertama (bagian 245) digabung ke sini, bukan dua
-             dialog berturut-turut yang melatih orang menekan Ya tanpa membaca. */
+             dialog berturut-turut yang melatih orang menekan Ya tanpa membaca.
+             Bagian 311 (pemilik 3 Okt 2026: "jika saldo awal tdk sesuai. jangan
+             lanjut. hubungi admin segera untuk koreksi"): dialognya MENYEBUT apa
+             yang harus dilakukan kalau angkanya tidak cocok, dan tombol batalnya
+             bernama — "Batal" saja tidak memberi tahu bahwa itulah jalan yang
+             benar. Saldo yang diketik sendiri (shift pertama) dibetulkan di
+             tempat; yang diwarisi hanya bisa dikoreksi admin. */
           const stB = ($('#isiShiftpulsa') || {})._st || {};
           const daftarAwal = (stB.sumber || []).map(s => [s.nama || s.kode_sumber,
             saldoAwal ? (+saldoAwal[s.kode_sumber] || 0) : (+s.saldo_awal || 0)]);
@@ -13322,9 +13353,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                  <table class="tabel"><thead><tr><th>Aplikasi</th><th class="kanan">Saldo awal</th></tr></thead><tbody>
                    ${daftarAwal.map(([n, v]) => `<tr><td>${esc(n)}</td><td class="kanan">${rp(v)}</td></tr>`).join('')}
                  </tbody></table>
+                 <div class="pesan peringatan" id="awasSaldoAwal"><strong>Ada saldo yang TIDAK SESUAI? JANGAN LANJUT.</strong>
+                   Tekan <strong>Tidak sesuai</strong>, lalu ${saldoAwal ? 'betulkan angka yang diketik'
+                     : 'segera hubungi admin untuk dikoreksi'}.</div>
                  ${totalAwal > 0 ? `<p class="petunjuk">Saldo awal aplikasi ${esc(rpTeks(totalAwal))} dicatat ke buku besar sebagai
                    Modal Pemilik. Sesudah shift ini ditutup, angkanya tidak bisa diketik lagi.</p>` : ''}`,
-                { ya: 'Yakin, lanjut' }))) { t.disabled = false; return; }
+                { ya: 'Yakin, lanjut', batal: 'Tidak sesuai' }))) { t.disabled = false; return; }
           const h = await API.bukaShiftPulsa({
             jenis_shift: $('#spsJenis') ? $('#spsJenis').value : 'PAGI',
             ...(saldoAwal ? { saldo_awal: saldoAwal } : {})

@@ -247,7 +247,7 @@ const API = (() => {
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
     'tandai_butuh_pasang', 'tetapkan_cabang_produk', 'template_impor',
     'siapkan_gaji', 'simpan_gaji', 'bayar_gaji', 'beri_kasbon', 'terima_transfer', 'tutup_buku',
-    'tutup_shift', 'tutup_shift_pulsa', 'unggah_accurate', 'unggah_foto_pulsa',
+    'tutup_shift', 'tutup_shift_pulsa', 'unggah_accurate', 'unggah_foto_pulsa', 'hapus_foto_pulsa',
     'void_penjualan',
     /* Migrasi kode pelanggan (bagian 287): idempoten, tapi tiap panggilan
        menulis satu baris log_audit — ulangan otomatis mengotori jejaknya. */
@@ -695,6 +695,7 @@ let _pernahJawab = false;
        selonggar mengunggah: yang turun sudah dikecilkan di perangkat waktu
        diunggah dulu. */
     fotoPulsa:         (d) => panggil('foto_pulsa', d, { timeout: 60000 }),
+    hapusFotoPulsa:    (d) => panggil('hapus_foto_pulsa', d, { timeout: 60000 }),
     simpanLini:        (d) => panggil('simpan_lini', d),
     tambahCabang:      (d) => panggil('tambah_cabang', d, { timeout: 120000 }),
     simpanCabang:      (d) => panggil('simpan_cabang', d),

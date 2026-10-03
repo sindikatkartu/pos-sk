@@ -2587,6 +2587,12 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
   padding: 7px 0; border-bottom: 1px solid var(--garis-halus);
 }
 .daftar-rapat > li:last-child { border-bottom: 0; }
+/* Nama di atas, keterangannya di bawah (bagian 311). Nama berkas foto shift
+   itu panjang (id shift + "-buku.jpg"); berdampingan dengan keterangannya dan
+   dua tombol, di HP ia patah jadi empat baris. Kolom ini mengambil sisa
+   lebarnya, jadi tombol sesudahnya terdorong ke tepi kanan tanpa margin. */
+.daftar-rapat .dua-baris { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.daftar-rapat .dua-baris .petunjuk { margin: 0; }
 /* Pemeriksaan yang TIDAK BISA dijalankan: bukan hijau, bukan merah. Dua
    warna untuk tiga keadaan memaksa salah satunya berbohong. */
 .uji-tak { color: var(--peringatan); font-weight: 700; }
