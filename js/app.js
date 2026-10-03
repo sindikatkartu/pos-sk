@@ -3442,11 +3442,14 @@ function bukaBayar() {
   }, 60);
 }
 
-/* Pecahan rupiah yang beredar. Dipakai sebagai tombol tambah-cepat pada
-   pembayaran tunai: kasir menekan pecahan yang diterima, bukan mengetik. */
-const PECAHAN = [500, 1000, 2000, 5000, 10000, 20000, 50000, 75000, 100000];
+/* Pecahan tambah-cepat pada pembayaran tunai: kasir menekan pecahan yang
+   diterima, bukan mengetik. Tinggal EMPAT (pemilik, 4 Okt 2026, bagian 318:
+   "uang 500 1k 2k 5k sama 75k hapus aja") — pecahan kecil dan uang
+   peringatan 75 ribu nyaris tidak pernah dipakai membayar, dan sembilan tombol
+   memakan dua baris di HP. Kembalian/uang kecil tetap bisa diketik. */
+const PECAHAN = [10000, 20000, 50000, 100000];
 /**
- * Label tombol pecahan: "500", "1k", "75k", "100k".
+ * Label tombol pecahan: "10k", "20k", "50k", "100k" (di bawah seribu akan ditulis penuh).
  *
  * SEBELUM v1.173 ditulis penuh ("100.000") dengan alasan yang masuk akal saat
  * itu: angkanya sama persis dengan yang tercetak di uangnya, jadi tidak perlu
@@ -3476,19 +3479,23 @@ const labelPecahan = (n) => n >= 1000
    tiap transfer menyebut banknya, supaya jurnalnya jatuh ke 1-1201…1-1204,
    bukan ke 1-1200 yang tidak bisa dicocokkan dengan rekening mana pun.
    Kodenya = kunci AKUN_BAYAR di 00_Config.gs. */
-const METODE_KASIR = ['tunai', 'transfer_bca', 'transfer_bni', 'transfer_bri', 'transfer_mandiri',
-                      'qris', 'debit', 'kredit', 'piutang'];
-/* Cabang ECER hanya menerima tunai dan QRIS (pemilik, 3 Okt 2026, bagian 312):
-   "cabang ecer sebetulnya hanya menerima metode cash dan qris saja tanpa
-   transfer. yang grosir yang lengkap". Mana yang grosir dibaca dari setelan
-   toko_grosir (bagian 286) lewat jenisToko(); setelan KOSONG = tidak ada yang
-   disembunyikan — daftar kosong bukan berarti semua toko ecer. Diukur 3 Okt
-   2026: cabang ecer belum pernah memakai debit/kredit/piutang, dan "transfer"
-   di sana hanya 3 nota salah pilih. Server tidak menolak metode: perangkat
-   yang belum memuat ulang tidak boleh gagal menjual. */
+/* Katalog metode kasir. Debit, kredit, dan piutang DIBUANG (pemilik, 4 Okt
+   2026, bagian 317): "adanya metode secara tunai & qris saja tidak ada piutang"
+   — piutang terbuka 0 di semua cabang saat diukur. Nota lama bermetode itu
+   tetap terbaca; hanya tidak bisa dipilih lagi. */
+const METODE_KASIR = ['tunai', 'transfer_bca', 'transfer_bni', 'transfer_bri', 'transfer_mandiri', 'qris'];
+/* Yang DITAWARKAN per toko (bagian 312 → 317). Cabang ecer: tunai & QRIS saja
+   ("cabang ecer sebetulnya hanya menerima metode cash dan qris"). Cabang
+   grosir (setelan toko_grosir, bagian 286): tunai, transfer ke bank yang AKTIF
+   (setelan bank_aktif — rekeningnya milik back office, kasir hanya mencatat
+   uangnya masuk ke mana), QRIS. Setelan toko_grosir kosong = tidak ada toko
+   grosir = semua tunai & QRIS. Server tidak menolak metode: perangkat yang
+   belum memuat ulang tidak boleh gagal menjual. */
 const METODE_ECER = ['tunai', 'qris'];
 function metodeKasirTersedia() {
-  return jenisToko(APP_STATE.cabang, APP_STATE.setting) === 'eceran' ? METODE_ECER : METODE_KASIR;
+  if (jenisToko(APP_STATE.cabang, APP_STATE.setting) !== 'grosir') return METODE_ECER;
+  const bank = metodeBankAktif(APP_STATE.setting);
+  return METODE_KASIR.filter(m => !/^transfer_/.test(m) || bank.includes(m));
 }
 function gambarMetode() {
   const tersedia = metodeKasirTersedia();

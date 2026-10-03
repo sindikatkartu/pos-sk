@@ -5145,7 +5145,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="saring-baris">
             <div class="kendali-tetap"><label>Tanggal dibayar</label><input type="date" id="pbDimukaTgl" value="${esc(String(d.tanggal || '').substring(0, 10))}"></div>
           </div>
-          ${htmlBagianBayar('pbDimukaBagian', BANK_BAYAR.concat([['kas_admin', 'Kas Admin']]), d.total)}
+          ${htmlBagianBayar('pbDimukaBagian', bankBayarAktif().concat([['kas_admin', 'Kas Admin']]), d.total)}
           <p class="petunjuk">Tanggal saat uangnya diserahkan ke supplier. Utangnya langsung lunas pada tanggal itu;
              kalau jumlahnya kurang dari total, sisanya tetap utang dan dibayar di menu Utang.</p>
         </div>
@@ -5954,10 +5954,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Nominal bayar</label><input type="text" inputmode="numeric" class="uang" id="bpJumlah" value="${ribuan(p.sisa)}"></div>
       </div>
       <div class="baris2">
-        <div class="grup"><label>Metode</label><select id="bpMetode">
-          <option value="tunai">Tunai</option><option value="transfer_bca">TRF BCA</option><option value="transfer_bni">TRF BNI</option>
-          <option value="transfer_bri">TRF BRI</option><option value="transfer_mandiri">TRF Mandiri</option>
-          <option value="qris">QRIS</option></select></div>
+        <div class="grup"><label>Metode</label><select id="bpMetode">${opsiMetodeUang(true)}</select></div>
         <div class="grup"><label>Referensi</label><input type="text" id="bpRef"></div>
       </div>
       <div id="pesanBayarPiutang"></div>`,
@@ -6022,6 +6019,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * Kode metode = kunci AKUN_BAYAR di 00_Config.gs (dijaga uji statis).
    */
   const BANK_BAYAR = [['transfer_bca', 'BCA'], ['transfer_bni', 'BNI'], ['transfer_bri', 'BRI'], ['transfer_mandiri', 'Mandiri']];
+  /* Yang ditawarkan untuk dokumen BARU: bank aktif saja (bagian 317). */
+  const bankBayarAktif = () => BANK_BAYAR.filter(([m]) => metodeBankAktif(APP_STATE.setting).includes(m));
+  const opsiMetodeUang = (qris) => '<option value="tunai">Tunai</option>' +
+    bankAktif(APP_STATE.setting).map((b) => `<option value="${b[1]}">TRF ${esc(b[2])}</option>`).join('') +
+    (qris ? '<option value="qris">QRIS</option>' : '');
   const LABEL_METODE_BAYAR = Object.assign(Object.fromEntries(BANK_BAYAR),
     { kas_admin: 'Kas Admin', tunai: 'Tunai', qris: 'QRIS', transfer: 'Transfer' });
   const barisBagianBayar = (opsi, jumlah, bolehHapus) => `
@@ -6051,7 +6053,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Tanggal</label><input type="date" id="buTanggal" value="${tanggalLokal()}"></div>
         <div class="grup"><label>Referensi / no. bukti transfer</label><input type="text" id="buRef"></div>
       </div>
-      ${htmlBagianBayar('buBagian', BANK_BAYAR.concat([['tunai', 'Tunai'], ['qris', 'QRIS']]), u.sisa)}
+      ${htmlBagianBayar('buBagian', bankBayarAktif().concat([['tunai', 'Tunai'], ['qris', 'QRIS']]), u.sisa)}
       <div id="pesanBayarUtang"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarUtang"
@@ -8172,10 +8174,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const AKUN_TOPUP = [[AKUN_LACI, 'Laci shift ini'], ['1-1150', 'Kas Admin'], ['1-1201', 'Bank BCA'],
                       ['1-1202', 'Bank BNI'], ['1-1203', 'Bank BRI'], ['1-1204', 'Bank Mandiri']];
   const topupDariLaci = (deposit, akun) => (+deposit || 0) > 0 && (akun || AKUN_LACI) === AKUN_LACI;
+  /* Hanya bank yang AKTIF ditawarkan (bagian 317); akun yang sudah terpilih di
+     baris lama (mis. Mandiri sebelum dinonaktifkan) tetap tampil supaya
+     pilihannya tidak diam-diam berubah. */
+  const akunTopupAktif = (terpilih) => AKUN_TOPUP.filter(([k]) => k === terpilih || saringBankAktif([k], APP_STATE.setting).length);
   const pilihAkunTopup = (atribut, terpilih, label, wajib) =>
     `<select ${atribut} aria-label="${esc(label)}"${wajib && !terpilih ? ' aria-invalid="true"' : ''}>` +
     (wajib ? '<option value="">— dibayar dari —</option>' : '') +
-    AKUN_TOPUP.map(([k, n]) => `<option value="${k}"${k === terpilih ? ' selected' : ''}>${esc(n)}</option>`).join('') + '</select>';
+    akunTopupAktif(terpilih).map(([k, n]) => `<option value="${k}"${k === terpilih ? ' selected' : ''}>${esc(n)}</option>`).join('') + '</select>';
 
   /** Hitungan yang SAMA dengan _hitungShiftPulsa di server. */
   function hitungShiftpulsa(st, keluar) {
@@ -8744,7 +8750,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     footer_struk: 'Baris penutup struk', lebar_struk: 'Lebar kertas struk',
     mdr_qris: 'Potongan QRIS', auto_jurnal: 'Posting jurnal otomatis',
     klaim_petugas_wajib: 'Wajib klaim petugas',
-    toko_grosir: 'Toko grosir'
+    toko_grosir: 'Toko grosir',
+    bank_aktif: 'Rekening bank aktif'
   };
 
   /* Keterangan sebaris di bawah kotak isian. */
@@ -8758,7 +8765,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     lebar_struk: '58 atau 80.',
     mdr_qris: 'Dicatat sebagai beban di jurnal.',
     tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
-    toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir; toko lain hanya pelanggan eceran. Kosong = tidak dipisah.'
+    toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir dan boleh menerima transfer; toko lain hanya pelanggan eceran, tunai & QRIS. Kosong = tidak dipisah.',
+    bank_aktif: 'Kode akun bank yang dipakai, pisahkan dengan koma: 1-1201 BCA, 1-1202 BNI, 1-1203 BRI, 1-1204 Mandiri. Hanya rekening ini yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Kosong = BCA & BRI.'
   };
 
   /* Baris kedua di dalam kartu sakelar: apa yang terjadi kalau ia dinyalakan. */
@@ -8777,7 +8785,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      memberi tahu bentuk isian yang diharapkan. */
   const CONTOH_SETTING = {
     alamat_usaha: 'Jl. …', telepon_usaha: '08…', npwp: '00.000.000.0-000.000',
-    toko_grosir: 'SKG01'
+    toko_grosir: 'SKG01', bank_aktif: '1-1201,1-1203'
   };
 
   /* `klaim_petugas_wajib` ikut di sini sejak v1.132.0. Sebelumnya ia tidak
@@ -8834,7 +8842,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       kunci: ['footer_struk', 'lebar_struk'] },
     { judul: 'Penjualan & stok', ikon: 'stok',
       ket: 'Aturan yang dipakai kasir saat melayani.',
-      kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris', 'toko_grosir'] },
+      kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris', 'toko_grosir', 'bank_aktif'] },
     { judul: 'Tampilan', ikon: 'tampilan',
       ket: 'Berlaku untuk semua perangkat yang masuk.',
       kunci: ['tema'] }
@@ -10422,10 +10430,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="baris2" style="margin-top:14px">
         <div class="grup"><label>Alasan retur *</label>
           <input type="text" id="returAlasan" placeholder="mis. kabel putus dalam 3 hari"></div>
-        <div class="grup"><label>Metode selisih uang</label><select id="returMetode">
-          <option value="tunai">Tunai</option><option value="transfer_bca">TRF BCA</option><option value="transfer_bni">TRF BNI</option>
-          <option value="transfer_bri">TRF BRI</option><option value="transfer_mandiri">TRF Mandiri</option>
-          <option value="qris">QRIS</option></select></div>
+        <div class="grup"><label>Metode selisih uang</label><select id="returMetode">${opsiMetodeUang(true)}</select></div>
       </div>
 
       <div class="kartu" style="background:var(--bg);margin-top:10px">
@@ -10639,10 +10644,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <option value="POTONG_UTANG">Potong utang ke supplier</option>
           <option value="UANG_KEMBALI">Uang dikembalikan</option>
         </select></div>
-        <div class="grup"><label>Metode (bila uang kembali)</label><select id="rbMetode">
-          <option value="tunai">Tunai</option><option value="transfer_bca">TRF BCA</option><option value="transfer_bni">TRF BNI</option>
-          <option value="transfer_bri">TRF BRI</option><option value="transfer_mandiri">TRF Mandiri</option>
-        </select></div>
+        <div class="grup"><label>Metode (bila uang kembali)</label><select id="rbMetode">${opsiMetodeUang(false)}</select></div>
       </div>
       <div class="grup"><label>Alasan retur *</label>
         <input type="text" id="rbAlasan" placeholder="mis. 12 pcs cacat produksi, disepakati diganti"></div>
@@ -10818,6 +10820,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   /* + rekening per bank 1-1201..1-1204 (bagian 289). */
   const AKUN_KAS = ['1-1100', '1-1150', '1-1200', '1-1210', '1-1201', '1-1202', '1-1203', '1-1204'];
+  /* Yang ditawarkan di layar: bank aktif saja (bagian 317). AKUN_KAS tetap
+     katalog penuh — dokumen lama berakun BNI/Mandiri tetap terbaca. */
+  const akunKasAktif = () => saringBankAktif(AKUN_KAS, APP_STATE.setting);
 
   const PERIODE_KAS = { id: 'kasPeriodePilih', dari: 'kasDari', sampai: 'kasSampai',
                         nilai: 'bulan', label: 'Periode' };
@@ -11310,7 +11315,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const jenis = sel.value;
     let daftar, label, petunjuk;
     if (jenis === 'KAS') {
-      daftar = bisa.filter((c) => AKUN_KAS.indexOf(String(c.kode)) !== -1);
+      daftar = bisa.filter((c) => akunKasAktif().indexOf(String(c.kode)) !== -1);
       label = 'Dibayar dari';
       petunjuk = 'Dr aset, Cr kas/bank. Pilih ini kalau uangnya baru keluar sekarang dan ' +
                  'BELUM dicatat di meja Kas & Bank.';
@@ -11375,7 +11380,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const coa = await DB.kvGet('coa', []);
     const kas = (coa || []).filter((c) =>
       (c.transaksi === true || String(c.transaksi) === 'true') &&
-      AKUN_KAS.indexOf(String(c.kode)) !== -1);
+      akunKasAktif().indexOf(String(c.kode)) !== -1);
     const sel = $('#lpAkun');
     if (sel) {
       sel.innerHTML = kas.map((c) =>
@@ -11674,7 +11679,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${banyakCabang ? `<div class="kendali-tetap"><label>Cabang</label><select id="dokCabang" class="kendali-tetap">
           ${daftarKodeCabang().map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select></div>` : ''}
         <div class="kendali-penuh"><label>${jenis === 'BKM' ? 'Masuk ke akun' : 'Keluar dari akun'}</label>
-          <select id="dokAkunKas">${AKUN_KAS.map((x) => `<option value="${x}" ${x === '1-1150' ? 'selected' : ''}>${esc(x)} — ${esc(nama[x] || x)}</option>`).join('')}</select></div>
+          <select id="dokAkunKas">${akunKasAktif().map((x) => `<option value="${x}" ${x === '1-1150' ? 'selected' : ''}>${esc(x)} — ${esc(nama[x] || x)}</option>`).join('')}</select></div>
         <div class="kendali-tetap"><label>Tanggal</label>
           <input type="date" id="dokTanggal" class="kendali-tetap" value="${esc(tanggalLokal())}" max="${esc(tanggalLokal())}"></div>
       </div>
@@ -11770,7 +11775,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuKoran">
       <div class="bar-alat"><h3>Rekening koran</h3><span class="satuan-uang">dalam Rupiah</span>
         <div style="flex:1"></div>
-        <select id="koranAkun" class="kendali-tetap" title="Akun">${AKUN_KAS.map((k) =>
+        <select id="koranAkun" class="kendali-tetap" title="Akun">${akunKasAktif().map((k) =>
           `<option value="${k}" ${k === akunKoran ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
       <div id="isiKoran"></div></div>`;
     memuat('#isiKoran');
@@ -11812,7 +11817,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuRekon">
       <div class="bar-alat"><h3>Rekonsiliasi bank</h3><span class="satuan-uang">dalam Rupiah</span>
         <div style="flex:1"></div>
-        <select id="rekonAkun" class="kendali-tetap" title="Akun bank">${AKUN_REKON_LAYAR.map((k) =>
+        <select id="rekonAkun" class="kendali-tetap" title="Akun bank">${saringBankAktif(AKUN_REKON_LAYAR, APP_STATE.setting).map((k) =>
           `<option value="${k}" ${k === akunRekon ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
       <div id="isiRekon"></div></div>`;
     $('#rekonAkun').addEventListener('change', (e) => { akunRekon = e.target.value; muatRekon(); });
@@ -11902,7 +11907,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      apiTransferBank (07_Sales.gs). Barisnya baris kas biasa ber-uuid "TB-…"
      — saldo, Mutasi kas, ekspor, dan Koreksi balik ikut dengan sendirinya.
      Laci toko (1-1100) tidak ditawarkan: uang laci keluar lewat Terima setoran. */
-  const AKUN_TRANSFER = AKUN_KAS.filter((k) => k !== '1-1100');
+  const akunTransfer = () => akunKasAktif().filter((k) => k !== '1-1100');
   function kartuTransferBank(kas) {
     const rows = (kas && kas.kas) || [];
     const biaya = {};
@@ -11953,7 +11958,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        tersegarkan tetap memajang "Bank BCA", bukan kode telanjang. */
     (((kasData && kasData.ner && kasData.ner.aset) || [])).forEach((a) => { nama[String(a.kode)] = a.nama; });
     (coa || []).forEach((c) => { nama[String(c.kode)] = c.nama; });
-    const opsi = AKUN_TRANSFER.map((k) => `<option value="${k}">${esc(k)} — ${esc(nama[k] || k)}</option>`).join('');
+    const opsi = akunTransfer().map((k) => `<option value="${k}">${esc(k)} — ${esc(nama[k] || k)}</option>`).join('');
     $('#tbDari').innerHTML = opsi;
     $('#tbKe').innerHTML = opsi;
     /* Bawaan: Kas Admin → bank pertama — kejadian paling sering. */
@@ -12218,7 +12223,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const coa = await DB.kvGet('coa', []);
     const peta = {};
     (coa || []).forEach((c) => { peta[String(c.kode)] = c.nama; });
-    return AKUN_KAS.map((k) => [k, k + ' — ' + (peta[k] || k)]);
+    return akunKasAktif().map((k) => [k, k + ' — ' + (peta[k] || k)]);
   };
 
   async function muatGaji() {

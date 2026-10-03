@@ -1657,6 +1657,28 @@ function jenisToko(kode, setting) {
   return d.includes(String(kode || '').trim().toUpperCase()) ? 'grosir' : 'eceran';
 }
 
+/**
+ * REKENING BANK AKTIF (bagian 317) — cermin bankAktif() di 01_Util.gs, dari
+ * setelan `bank_aktif` (kode akun dipisah koma). Pemilik, 4 Okt 2026: untuk
+ * sementara hanya BCA dan BRI; BNI & Mandiri menyusul tinggal mengisi
+ * setelannya. Kosong/salah tulis = BCA & BRI, sama seperti server.
+ * Tiap baris: [kode akun, metode kasir, singkatan, nama akun].
+ */
+const BANK_SEMUA = [['1-1201', 'transfer_bca', 'BCA', 'Bank BCA'], ['1-1202', 'transfer_bni', 'BNI', 'Bank BNI'],
+                    ['1-1203', 'transfer_bri', 'BRI', 'Bank BRI'], ['1-1204', 'transfer_mandiri', 'Mandiri', 'Bank Mandiri']];
+function bankAktif(setting) {
+  const minta = String((setting && setting.bank_aktif) || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+  const aktif = BANK_SEMUA.filter(b => minta.includes(b[0]));
+  return aktif.length ? aktif : BANK_SEMUA.filter(b => b[0] === '1-1201' || b[0] === '1-1203');
+}
+const akunBankAktif = (setting) => bankAktif(setting).map(b => b[0]);
+const metodeBankAktif = (setting) => bankAktif(setting).map(b => b[1]);
+/* Akun bank yang BUKAN aktif disaring dari daftar kode akun apa pun; akun bukan-bank lolos. */
+const saringBankAktif = (daftarKode, setting) => {
+  const aktif = akunBankAktif(setting);
+  return daftarKode.filter(k => !BANK_SEMUA.some(b => b[0] === k) || aktif.includes(k));
+};
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, tglCetak, keTanggalCetak, waktuTampil, jamTampil,
@@ -1665,5 +1687,6 @@ if (typeof module !== 'undefined' && module.exports) {
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
                      labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
-                     angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku };
+                     angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
+                     BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif };
 }

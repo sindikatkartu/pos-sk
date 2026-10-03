@@ -171,14 +171,9 @@
      akan berteriak lebih keras daripada tombol Selesaikan di sebelahnya. Yang
      dibawa cukup untuk DIKENALI SEBELUM DIBACA, tidak sampai merebut perhatian.
      Rp500 keperakan karena ia koin, bukan kertas. */
-  --uang-500-bg: #eceff1; --uang-500-garis: #b9c2c7; --uang-500-teks: #37474f;
-  --uang-1000-bg: #e3f2ef; --uang-1000-garis: #9dc8bf; --uang-1000-teks: #1f5c50;
-  --uang-2000-bg: #eceaf3; --uang-2000-garis: #bdb5cf; --uang-2000-teks: #4a3f6b;
-  --uang-5000-bg: #f3e9df; --uang-5000-garis: #cdb49a; --uang-5000-teks: #6b4a26;
   --uang-10000-bg: #ece4f2; --uang-10000-garis: #bfa6cf; --uang-10000-teks: #573a6b;
   --uang-20000-bg: #e6f1e2; --uang-20000-garis: #a9cca0; --uang-20000-teks: #33602a;
   --uang-50000-bg: #e3edf7; --uang-50000-garis: #a3c2de; --uang-50000-teks: #1d4d78;
-  --uang-75000-bg: #fdeff0; --uang-75000-garis: #e0a3a8; --uang-75000-teks: #8e2b33;
   --uang-100000-bg: #fbe9e7; --uang-100000-garis: #e0a99f; --uang-100000-teks: #8a3323;
 }
 
@@ -273,14 +268,9 @@ html[data-tema="gelap"] {
   /* Pasangan gelapnya ditulis sendiri, BUKAN hasil meredupkan yang terang.
      Meredupkan seragam mengubah sembilan warna jadi sembilan abu-abu — dan
      kasir kehilangan persis hal yang membuat tombol ini berguna. */
-  --uang-500-bg: #3a3f42; --uang-500-garis: #5b6469; --uang-500-teks: #dfe6ea;
-  --uang-1000-bg: #1f3c37; --uang-1000-garis: #35635a; --uang-1000-teks: #b9e5da;
-  --uang-2000-bg: #332e42; --uang-2000-garis: #544b6b; --uang-2000-teks: #cfc4ec;
-  --uang-5000-bg: #3d3128; --uang-5000-garis: #65503c; --uang-5000-teks: #e8cdae;
   --uang-10000-bg: #352a42; --uang-10000-garis: #57436b; --uang-10000-teks: #d9c2ec;
   --uang-20000-bg: #27391f; --uang-20000-garis: #425f35; --uang-20000-teks: #c3e6b4;
   --uang-50000-bg: #22364a; --uang-50000-garis: #3a5c7c; --uang-50000-teks: #b6d6f2;
-  --uang-75000-bg: #42272b; --uang-75000-garis: #6e4148; --uang-75000-teks: #f2b9bf;
   --uang-100000-bg: #43281f; --uang-100000-garis: #714236; --uang-100000-teks: #f2bfae;
 }
 
@@ -969,17 +959,9 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 
 /* Warna tiap pecahan. Nama warnanya = warna lembaran Rupiah yang beredar.
    Rp500 satu-satunya KOIN, jadi ia keperakan — bukan meniru kertas. */
-.pecahan .cip.u-500 { background: var(--uang-500-bg); border-color: var(--uang-500-garis); color: var(--uang-500-teks); }
-.pecahan .cip.u-1000 { background: var(--uang-1000-bg); border-color: var(--uang-1000-garis); color: var(--uang-1000-teks); }
-.pecahan .cip.u-2000 { background: var(--uang-2000-bg); border-color: var(--uang-2000-garis); color: var(--uang-2000-teks); }
-.pecahan .cip.u-5000 { background: var(--uang-5000-bg); border-color: var(--uang-5000-garis); color: var(--uang-5000-teks); }
 .pecahan .cip.u-10000 { background: var(--uang-10000-bg); border-color: var(--uang-10000-garis); color: var(--uang-10000-teks); }
 .pecahan .cip.u-20000 { background: var(--uang-20000-bg); border-color: var(--uang-20000-garis); color: var(--uang-20000-teks); }
 .pecahan .cip.u-50000 { background: var(--uang-50000-bg); border-color: var(--uang-50000-garis); color: var(--uang-50000-teks); }
-/* Rp75.000 — Uang Peringatan Kemerdekaan 75 Tahun RI, terbit 17 Agu 2020 dan
-   alat pembayaran sah. Merah-putih, jadi dibedakan dengan tepi merah di atas
-   latar terang alih-alih satu warna penuh. */
-.pecahan .cip.u-75000 { background: var(--uang-75000-bg); border-color: var(--uang-75000-garis); color: var(--uang-75000-teks); }
 .pecahan .cip.u-100000 { background: var(--uang-100000-bg); border-color: var(--uang-100000-garis); color: var(--uang-100000-teks); }
 
 /* Tema gelap: latar diturunkan, hurufnya yang dicerahkan. Latar terang yang
