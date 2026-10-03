@@ -8734,7 +8734,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * Setting yang sudah punya layar khususnya sendiri, jadi tidak ikut ditampilkan
    * sebagai kolom mentah di layar Sistem.
    */
-  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim'];
+  /* `cabang_pusat` (bagian 322) tidak punya layar, tapi sengaja tidak digambar:
+     ia diisi rutin migrasi bersama jurnal reklasnya. Diubah tangan, saldo bank
+     terbelah antara cabang lama dan pusat. */
+  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim', 'cabang_pusat'];
 
   /* LABEL. Dipendekkan sampai jadi NAMA setelan saja. Penjelasannya pindah ke
      `.set-bantu` di bawah kotak dan `<em>` di dalam kartu centang: label yang
@@ -11783,7 +11786,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const bb = await API.bukuBesar({ kode_akun: akunKoran, periode, cabang: cabangKas });
       const baris = bb.baris || [];
       $('#isiKoran').innerHTML = `<p class="petunjuk">${esc(bb.akun ? bb.akun.nama : akunKoran)} · ${esc(bulanTeks(periode))} ·
-          ${cabangKas === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(cabangKas)}</p>
+          ${(bb.cabang || cabangKas) === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(bb.cabang || cabangKas)}</p>
         <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>${cabangKas === '*' ? '<th>Cabang</th>' : ''}
           <th class="kanan">Masuk</th><th class="kanan">Keluar</th><th class="kanan">Saldo</th></tr></thead>
