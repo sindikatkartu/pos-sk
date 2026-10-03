@@ -10826,6 +10826,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* Yang ditawarkan di layar: bank aktif saja (bagian 317). AKUN_KAS tetap
      katalog penuh — dokumen lama berakun BNI/Mandiri tetap terbaca. */
   const akunKasAktif = () => saringBankAktif(AKUN_KAS, APP_STATE.setting);
+  /* Akun kas milik TOKO (laci, dana QRIS/EDC) lawan milik PUSAT (Kas Admin,
+     bank) — bagian 322. Dipakai hanya untuk memutuskan apakah form perlu
+     bertanya "cabang mana"; yang membukukan tetap server. Aturannya wajib sama
+     dengan `_akunPusat` di 08_Accounting.gs — dicocokkan penjaga di uji.js. */
+  const akunKasToko = (k) => !(String(k) === '1-1150' || /^1-120\d$/.test(String(k)));
+  const pusatDipakai = () => /^[A-Z][A-Z0-9]{1,9}$/.test(String((APP_STATE.setting || {}).cabang_pusat || '').trim());
 
   const PERIODE_KAS = { id: 'kasPeriodePilih', dari: 'kasDari', sampai: 'kasSampai',
                         nilai: 'bulan', label: 'Periode' };
@@ -11474,7 +11480,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatHasilKas() {
     if (!tabKasBoleh().some(([x]) => x === tabKas)) tabKas = 'ringkasan';
     /* Pemilih cabang hanya disembunyikan di rekening koran akun pusat (lihat muatKoran). */
-    if (tabKas !== 'koran') $('#wadahCabangKas')?.classList.remove('sembunyi');
+    /* Rekonsiliasi tidak mengirim cabang sama sekali (rekening bank itu satu)
+       — pemilihnya disembunyikan di tab itu juga (bagian 329). */
+    if (tabKas !== 'koran') $('#wadahCabangKas')?.classList.toggle('sembunyi', tabKas === 'rekon');
     if (tabKas === 'koran') return muatKoran();
     if (tabKas === 'rekon') return muatRekon();
     memuat('#hasilKas');
@@ -11928,7 +11936,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const banyakCabang = cabangKas === '*';
     const form = bolehIzin('kas', 'buat') ? `
       <div class="saring-baris">
-        ${banyakCabang && bolehCabangDash() ? `<div class="kendali-tetap"><label>Cabang</label>
+        ${banyakCabang && bolehCabangDash() ? `<div class="kendali-tetap" id="wadahTbCabang"><label>Cabang</label>
           <select id="tbCabang" class="kendali-tetap">${daftarKodeCabang().map((c) =>
             `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>` : ''}
         <div class="kendali-penuh"><label>Dari akun</label><select id="tbDari"></select></div>
@@ -11976,6 +11984,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     /* Bawaan: Kas Admin → bank pertama — kejadian paling sering. */
     $('#tbDari').value = '1-1150';
     $('#tbKe').value = '1-1201';
+    $('#tbDari').addEventListener('change', aturCabangTransfer);
+    $('#tbKe').addEventListener('change', aturCabangTransfer);
+    aturCabangTransfer();
+  }
+
+  /* Transfer antar akun PUSAT (bank ↔ bank, Kas Admin ↔ bank) dibukukan di
+     Back Office seluruhnya — "cabang mana" tidak mengubah apa pun, jadi tidak
+     ditanyakan (bagian 329). Begitu salah satu sisinya laci toko atau dana
+     QRIS, pertanyaannya kembali: laci toko MANA. */
+  const cabangTransferPerlu = () => !pusatDipakai() || akunKasToko(nilai('tbDari')) || akunKasToko(nilai('tbKe'));
+  function aturCabangTransfer() {
+    $('#wadahTbCabang')?.classList.toggle('sembunyi', !cabangTransferPerlu());
   }
 
   /* uuid bertahan sampai BERHASIL — jawaban yang hilang di jalan lalu tombolnya
@@ -11990,7 +12010,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!(jumlah > 0)) return toast('Nilai transfer harus lebih dari nol.', 'galat');
     if (!(biaya >= 0)) return toast('Biaya transfer tidak boleh minus.', 'galat');
     if (ket.length < 3) return toast('Keterangan wajib diisi — inilah satu-satunya penjelasan uang yang berpindah.', 'galat');
-    const cab = nilai('tbCabang') || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
+    const cab = (cabangTransferPerlu() && nilai('tbCabang')) || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
     const namaAkun = (k) => (($('#tbDari option[value="' + k + '"]') || {}).textContent || k);
     const baris = (l, v) => `<tr><td>${esc(l)}</td><td class="kanan">${v}</td></tr>`;
     if (!(await tanya('Simpan transfer bank?',
@@ -11998,7 +12018,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              ${baris('Dari', esc(namaAkun(dari)))}${baris('Ke', esc(namaAkun(ke)))}
              ${baris('Nilai', rp(jumlah))}${baris('Biaya transfer', rp(biaya))}
              ${baris('Total keluar dari asal', rp(jumlah + biaya))}</tbody></table>
-           <p class="petunjuk">Cabang ${esc(cab)}. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
+           <p class="petunjuk">${cabangTransferPerlu() ? 'Cabang ' + esc(cab) : 'Antar akun back office'}. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
              Koreksi balik di Mutasi kas.</p>`,
           { ya: 'Simpan transfer' }))) return;
     const b = $('#btnSimpanTransferBank');
@@ -12498,10 +12518,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const aktif = petugasGaji.filter((p) => p.aktif).sort((a, b) => urutNama(a.nama, b.nama));
     bukaModal('Beri kasbon', `<div class="baris-form">
       <label>Petugas</label>
-      <select id="kbPetugas">${aktif.map((p) => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.cabang || '*')})</option>`).join('')}</select>
+      <select id="kbPetugas">${aktif.map((p) => `<option value="${esc(p.kode)}" data-keliling="${petugasKeliling(p) ? '1' : ''}">${esc(p.nama)} (${esc(p.cabang || '*')})</option>`).join('')}</select>
       <label>Nominal</label>
       <input type="text" inputmode="numeric" class="uang" id="kbJumlah" value="0">
-      <label>Cabang yang mengeluarkan (untuk petugas keliling)</label>
+      <label id="kbCabangLabel">Cabang yang mengeluarkan (untuk petugas keliling)</label>
       <select id="kbCabang"><option value="">— cabang petugasnya —</option>${daftarKodeCabang().map((c) =>
         `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
       <label>Dibayar dari</label>
@@ -12513,7 +12533,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     </div>`,
     `<button class="tombol" data-tutup="1">Batal</button>
      <button class="tombol utama" id="btnSimpanKasbon" data-uuid="${esc(crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2))}">Simpan</button>`);
+    /* Petugas bercabang tetap: server memakai cabangnya sendiri dan mengabaikan
+       pilihan ini — jadi tidak ditanyakan (bagian 329). */
+    const aturCabangKasbon = () => {
+      const o = $('#kbPetugas') && $('#kbPetugas').selectedOptions[0];
+      const perlu = !!(o && o.dataset.keliling === '1');
+      $('#kbCabangLabel')?.classList.toggle('sembunyi', !perlu);
+      $('#kbCabang')?.classList.toggle('sembunyi', !perlu);
+      if (!perlu && $('#kbCabang')) $('#kbCabang').value = '';
+    };
+    $('#kbPetugas')?.addEventListener('change', aturCabangKasbon);
+    aturCabangKasbon();
   }
+  /* Sama dengan `_cabangTunggal` di 28_Gaji.gs: kosong, '*', atau daftar = keliling. */
+  const petugasKeliling = (p) => { const c = String((p && p.cabang) == null ? '' : p.cabang).trim(); return !c || c === '*' || c.indexOf(',') !== -1; };
 
   async function simpanKasbonLayar(uuidKb) {
     const jml = angka('kbJumlah');

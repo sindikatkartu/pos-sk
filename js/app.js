@@ -7385,6 +7385,11 @@ function pasangEvent() {
      tiga tombolnya memilih laporan mana, bukan "tampilkan". */
   $('#wadahPeriodeKeu').innerHTML = Periode.html(PERIODE_KEU);
   Periode.pasang(PERIODE_KEU, () => { if (keuTerakhir) keuTerakhir(); });
+  /* Cabang berganti → laporan yang sedang dibuka dihitung ulang, sama seperti
+     periode (bagian 329). Sampai v1.295.0 pemilih cabang ini TIDAK punya
+     pendengar: nilainya baru terbaca saat tab diklik lagi, dan pemilik
+     membacanya sebagai "dropdown-nya tidak berfungsi" (4 Okt 2026). */
+  $('#keuCabang').addEventListener('change', () => { if (keuTerakhir) keuTerakhir(); });
   /* Jurnal & Tutup Buku (bagian 306): bulan/cabang berganti → daftar jurnal
      dimuat ulang, dan hasil uji bulan sebelumnya dibuang — hasil uji yang
      tertinggal di bawah bulan lain terbaca sebagai milik bulan itu. */
