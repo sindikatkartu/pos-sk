@@ -231,6 +231,48 @@ async function konfirmasiJamShift(kini) {
  * `grup`       : hanya untuk tampilan — mengelompokkan menu di laci (☰) supaya
  *                daftar 20 menu milik Owner tetap terbaca. Tidak memengaruhi hak akses.
  */
+/* WILAYAH LAYAR (bagian 328, keputusan pemilik 3 Okt 2026). Tiap layar milik
+   TOKO (dikerjakan petugas di toko, per cabang), KANTOR (back office: admin &
+   pemilik), atau NETRAL (dibuka semua peran). Di layar kantor lencana cabang
+   di bilah atas bertulisan "Back Office" — warna latarnya TIDAK berubah
+   (pemilik: "tanpa merubah warna latar").
+
+   Tiga daftar tersurat, bukan satu daftar + "sisanya": menu baru yang lupa
+   didaftarkan ditolak penjaga di uji.js, bukan diam-diam jatuh ke salah satu
+   wilayah. Ini BUKAN bendera `backoffice` di MENU — yang itu soal modul mana
+   yang menggambar layarnya, bukan soal siapa yang mengerjakannya (Pulsa dan
+   Stok berbendera backoffice, tetapi wilayahnya toko). */
+const WILAYAH = {
+  toko:   ['kasir', 'riwayat', 'shift', 'pulsa', 'retur', 'pembatalan', 'stok', 'transfer', 'permintaan', 'opname'],
+  kantor: ['produk', 'pembelian', 'returbeli', 'kas', 'piutang', 'utang', 'gaji', 'mitra', 'petugas',
+           'laporan', 'keuangan', 'poin', 'coa', 'jurnal', 'aset', 'accurate', 'konsolidasi',
+           'pengguna', 'peran', 'perangkat', 'cabang', 'sistem', 'audit', 'arsip'],
+  netral: ['dashboard', 'persetujuan', 'akun', 'tentang', 'bantuan', 'pengaturan']
+};
+const wilayahLayar = (id) => WILAYAH.kantor.includes(id) ? 'kantor' : (WILAYAH.toko.includes(id) ? 'toko' : 'netral');
+/* Di HP (≤ 620 px) lencananya "BO" (pemilik 3 Okt 2026, dari ukuran): "Back
+   Office" 36 px lebih lebar daripada kode cabang, dan di HP itu memotong
+   judul layar — 360 px: 9 → 15 judul terpotong; 412 px: 2 → 8. Dua-duanya
+   ditulis, CSS yang memilih; pembaca layar selalu mendapat "Back Office". */
+const TEKS_KANTOR = 'Back Office';
+const TEKS_KANTOR_PENDEK = 'BO';
+let cabangLencana = '—';
+/** Lencana cabang di bilah atas: cabang login, atau "Back Office" di layar kantor. */
+function gambarLencanaCabang(id) {
+  const l = $('#lncCabang');
+  if (!l) return;
+  const kantor = wilayahLayar(id) === 'kantor';
+  if (kantor) {
+    l.innerHTML = '<span class="lnc-panjang">' + TEKS_KANTOR + '</span><span class="lnc-pendek">' + TEKS_KANTOR_PENDEK + '</span>';
+    l.setAttribute('aria-label', TEKS_KANTOR);
+  } else {
+    l.textContent = cabangLencana;
+    l.removeAttribute('aria-label');
+  }
+  l.title = kantor ? 'Wilayah back office · cabang login ' + cabangLencana : 'Cabang login';
+  document.body.dataset.wilayah = wilayahLayar(id);
+}
+
 const MENU = [
   { id: 'dashboard',  label: 'Dashboard',  grup: 'Ringkasan',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   /* PERSETUJUAN (bagian 305): satu kotak untuk semua keputusan yang menunggu —
@@ -1702,6 +1744,7 @@ function bukaLayar(id) {
 
   const m = MENU.find(x => x.id === id);
   $('#judulLayar').textContent = m ? m.label : '';
+  gambarLencanaCabang(id);
   tutupLaci();
   /* Fokusnya TIDAK dikembalikan ke kartu pengguna: layar sudah berganti, dan
      melompatkan kursor kembali ke kaki sidebar sesudahnya tidak menolong
@@ -1974,7 +2017,8 @@ async function mulaiSesi(d) {
   $('#peranUser').textContent  = d.user.nama_peran;
   $('#namaUser').title         = d.user.nama;
   $('#lncUser').textContent    = d.user.nama + ' · ' + d.user.nama_peran;
-  $('#lncCabang').textContent  = d.cabang;
+  cabangLencana = d.cabang;
+  gambarLencanaCabang(layarKini);
   /* Di bawah nama toko: NOMOR VERSI, bukan kode cabang.
      Kode cabangnya tidak hilang — ia ada di lencana header (#lncCabang) dan di
      kartu "Cabang aktif" di layar Perangkat, dua tempat yang memang dilihat

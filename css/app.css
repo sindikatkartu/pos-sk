@@ -3731,3 +3731,14 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
   gap: 8px; margin-top: 16px; }
 .set-jejak { font-size: var(--fs-13); color: var(--teks-redup); }
 .set-jejak.ada { color: var(--peringatan); font-weight: 600; }
+
+/* ==================== Lencana wilayah (bagian 328) ====================
+   Di layar back office lencana cabang bertulisan "Back Office"; di HP "BO".
+   Hanya TULISANNYA yang berganti — rupa lencana dan warna latar bilah atas
+   tidak disentuh (keputusan pemilik). Blok 620px sendiri, sengaja di ujung
+   berkas: tidak bergantung pada urutan blok HP mana pun. */
+.lnc-pendek { display: none; }
+@media (max-width: 620px) {
+  .lnc-panjang { display: none; }
+  .lnc-pendek { display: inline; }
+}

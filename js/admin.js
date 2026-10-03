@@ -11473,6 +11473,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function muatHasilKas() {
     if (!tabKasBoleh().some(([x]) => x === tabKas)) tabKas = 'ringkasan';
+    /* Pemilih cabang hanya disembunyikan di rekening koran akun pusat (lihat muatKoran). */
+    if (tabKas !== 'koran') $('#wadahCabangKas')?.classList.remove('sembunyi');
     if (tabKas === 'koran') return muatKoran();
     if (tabKas === 'rekon') return muatRekon();
     memuat('#hasilKas');
@@ -11784,6 +11786,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     memuat('#isiKoran');
     try {
       const bb = await API.bukuBesar({ kode_akun: akunKoran, periode, cabang: cabangKas });
+      /* Bank & Kas Admin dibaca server sebagai SATU rekening, apa pun cabang
+         yang dipilih (bagian 322) — pemilih cabangnya disembunyikan supaya
+         tidak menjanjikan saringan yang tidak ada (bagian 328). SERVER yang
+         memutuskan (`satu_rekening`); klien tidak menyalin aturan akun pusat.
+         Pilihan cabangnya sendiri tidak diubah: kembali berlaku di akun kas
+         toko dan di tab lain. */
+      $('#wadahCabangKas')?.classList.toggle('sembunyi', !!bb.satu_rekening);
       const baris = bb.baris || [];
       $('#isiKoran').innerHTML = `<p class="petunjuk">${esc(bb.akun ? bb.akun.nama : akunKoran)} · ${esc(bulanTeks(periode))} ·
           ${(bb.cabang || cabangKas) === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(bb.cabang || cabangKas)}</p>
