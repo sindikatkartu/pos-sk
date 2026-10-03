@@ -3478,16 +3478,30 @@ const labelPecahan = (n) => n >= 1000
    Kodenya = kunci AKUN_BAYAR di 00_Config.gs. */
 const METODE_KASIR = ['tunai', 'transfer_bca', 'transfer_bni', 'transfer_bri', 'transfer_mandiri',
                       'qris', 'debit', 'kredit', 'piutang'];
+/* Cabang ECER hanya menerima tunai dan QRIS (pemilik, 3 Okt 2026, bagian 312):
+   "cabang ecer sebetulnya hanya menerima metode cash dan qris saja tanpa
+   transfer. yang grosir yang lengkap". Mana yang grosir dibaca dari setelan
+   toko_grosir (bagian 286) lewat jenisToko(); setelan KOSONG = tidak ada yang
+   disembunyikan — daftar kosong bukan berarti semua toko ecer. Diukur 3 Okt
+   2026: cabang ecer belum pernah memakai debit/kredit/piutang, dan "transfer"
+   di sana hanya 3 nota salah pilih. Server tidak menolak metode: perangkat
+   yang belum memuat ulang tidak boleh gagal menjual. */
+const METODE_ECER = ['tunai', 'qris'];
+function metodeKasirTersedia() {
+  return jenisToko(APP_STATE.cabang, APP_STATE.setting) === 'eceran' ? METODE_ECER : METODE_KASIR;
+}
 function gambarMetode() {
-  /* Metode di luar daftar (mis. "transfer" dari nota yang dipulihkan) = belum dipilih. */
-  APP_STATE.metodeBayar.forEach((m) => { if (METODE_KASIR.indexOf(m.metode) === -1) m.metode = ''; });
+  const tersedia = metodeKasirTersedia();
+  /* Metode di luar daftar (mis. "transfer" dari nota yang dipulihkan, atau
+     transfer di cabang ecer) = belum dipilih. */
+  APP_STATE.metodeBayar.forEach((m) => { if (tersedia.indexOf(m.metode) === -1) m.metode = ''; });
   $('#byrDaftarMetode').innerHTML = APP_STATE.metodeBayar.map((m, i) => `
     <div class="baris2" style="margin-bottom:8px;align-items:end">
       <div>
         <label>Metode ${i + 1}</label>
         <select data-i="${i}" data-f="metode"${m.metode ? '' : ' aria-invalid="true"'}>
           ${m.metode ? '' : '<option value="" selected disabled>— pilih —</option>'}
-          ${METODE_KASIR.map(x =>
+          ${tersedia.map(x =>
             `<option value="${x}" ${m.metode === x ? 'selected' : ''}>${labelMetode(x)}</option>`).join('')}
         </select>
       </div>

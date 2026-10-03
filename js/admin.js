@@ -7599,7 +7599,69 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ${kolom.map(k => `<th class="angka">${rp(totalKolom(k))}</th>`).join('')}
               <th class="angka">${rp(d.total)}</th><th></th><th></th></tr></tfoot>` : ''}
           </table></div>` : '<p class="petunjuk">Belum ada cabang yang bisa ditampilkan.</p>'}
+      </div>${kartuCatatTopup(cabang)}`;
+    const tc = w.querySelector('#topupCabang');
+    if (tc) tc.addEventListener('change', () => { w._topup = { cabang: tc.value }; gambarSaldopulsa(); });
+  }
+
+  /* CATAT TOPUP SALDO APLIKASI (bagian 312). Pemilik, 3 Okt 2026: topup
+     dikerjakan Owner dan back office — Owner menentukan nominalnya, Head Admin
+     yang membayar — jadi petugas toko tidak mengetiknya. Nominalnya masuk ke
+     baris saldo shift yang SEDANG BERJALAN di cabang itu; jurnalnya lahir saat
+     shift ditutup. Gerbang kas·buat, sama seperti servernya. Daftar cabang dan
+     aplikasinya dari muatan tab Saldo yang sudah ada — tanpa panggilan baru. */
+  function kartuCatatTopup(cabang) {
+    if (!bolehIzin('kas', 'buat')) return '';
+    const w = $('#isiSaldopulsa');
+    const pilih = (w && w._topup) || {};
+    const c = cabang.find(x => x.kode_cabang === pilih.cabang) || cabang[0] || { kode_cabang: '', sumber: [] };
+    return `
+      <div class="kartu" id="kartuCatatTopup">
+        <div class="bar-alat"><h3>Catat topup saldo aplikasi</h3></div>
+        <p class="petunjuk">Diisi Head Admin atau Owner — petugas toko tidak mengetik topup. Nominalnya masuk ke shift
+           yang sedang berjalan di cabang itu, dan dibukukan saat shift ditutup. Angka unik dari penyedia
+           ikut ditulis apa adanya.</p>
+        <div class="saring-baris">
+          <div class="kendali-tetap"><label>Cabang</label>
+            <select id="topupCabang" class="kendali-tetap">${cabang.map(x =>
+              `<option value="${esc(x.kode_cabang)}"${x.kode_cabang === c.kode_cabang ? ' selected' : ''}>${esc(x.kode_cabang)}${x.shift_buka ? '' : ' (tidak ada shift)'}</option>`).join('')}</select></div>
+          <div class="kendali-tetap"><label>Aplikasi</label>
+            <select id="topupSumber" class="kendali-tetap">${(c.sumber || []).map(x =>
+              `<option value="${esc(x.kode_sumber)}">${esc(x.nama)}</option>`).join('')}</select></div>
+          <div class="kendali-tetap"><label>Nominal</label>
+            <input type="text" inputmode="numeric" class="uang kendali-tetap" id="topupNominal" placeholder="wajib diisi" aria-label="Nominal topup"></div>
+          <div class="kendali-tetap"><label>Dibayar dari</label>
+            ${pilihAkunTopup('id="topupAkun" class="kendali-tetap"', '', 'Topup dibayar dari', true)}</div>
+        </div>
+        ${c.shift_buka ? '' : `<p class="pesan peringatan">Cabang ${esc(c.kode_cabang)} tidak punya shift pulsa yang sedang berjalan —
+           topup hanya bisa dicatat saat shiftnya berjalan. Minta petugas membuka shift dulu.</p>`}
+        <div class="aksi"><button class="tombol utama" id="btnCatatTopup"${c.shift_buka ? '' : ' disabled'}>Catat topup</button></div>
       </div>`;
+  }
+
+  async function catatTopupPulsa(t) {
+    const w = $('#isiSaldopulsa');
+    const cabang = $('#topupCabang').value, sumberEl = $('#topupSumber'), akun = $('#topupAkun');
+    const kode = sumberEl.value, nominal = angkaDari($('#topupNominal').value);
+    const namaSumber = (sumberEl.selectedOptions[0] || {}).textContent || kode;
+    if (!(nominal > 0)) { toast('Isi nominal topupnya.', 'galat'); $('#topupNominal').focus(); return; }
+    if (!akun.value) { toast('Pilih dibayar dari mana.', 'galat'); akun.focus(); return; }
+    const namaAkun = (akun.selectedOptions[0] || {}).textContent || akun.value;
+    if (!(await tanya('Catat topup ' + cabang + '?',
+          `<table class="tabel"><tbody>
+             <tr><td>Aplikasi</td><td class="kanan">${esc(namaSumber)}</td></tr>
+             <tr><td>Nominal</td><td class="kanan">${rp(nominal)}</td></tr>
+             <tr><td>Dibayar dari</td><td class="kanan">${esc(namaAkun)}</td></tr></tbody></table>
+           <p class="petunjuk">Masuk ke shift yang sedang berjalan di ${esc(cabang)}. Salah catat dibetulkan lewat
+             Koreksi di tab Laporan sesudah shiftnya ditutup.</p>`,
+          { ya: 'Catat topup' }))) return;
+    t.disabled = true;
+    try {
+      const h = await API.catatTopupPulsa({ cabang, kode_sumber: kode, nominal, akun_deposit: akun.value });
+      toast('Topup ' + rpTeks(nominal) + ' ' + namaSumber + ' dicatat ke shift ' + h.id_shift + '.');
+      if (w) w._topup = { cabang };
+      await muatSaldopulsa();
+    } catch (e) { toast(e.message, 'galat'); t.disabled = false; }
   }
 
   /* ---------- Tab laporan ---------- */
@@ -8245,8 +8307,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const k = f + ':' + s.kode_sumber;
       s[f] = k in kt ? kt[k] : 0;
     }));
-    /* "Dibayar dari" tiap topup — keadaan layar, sama seperti angkanya (bagian 309). */
-    (st.sumber || []).forEach((s) => { s.akun_deposit = kt['akun_deposit:' + s.kode_sumber] || ''; });
+    /* Deposit dan "dibayar dari" bukan keadaan layar lagi (bagian 312): keduanya
+       datang dari server, dicatat back office. */
     w._kasFisik = 'kas_fisik' in kt ? kt.kas_fisik : 0;
     const isiSp = (f, s, i, label) => {
       const ada = (f + ':' + s.kode_sumber) in kt;
@@ -8284,8 +8346,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <tbody>${(st.sumber || []).map((s, i) => `<tr>
               <td data-l="Sumber">${esc(s.nama)}<br><span class="petunjuk">${esc(s.kode_sumber)}</span></td>
               <td class="kanan" data-l="Saldo awal">${rp(s.saldo_awal)}<br><span class="petunjuk">terkunci</span></td>
-              <td data-l="Deposit masuk">${isiSp('deposit', s, i, 'Deposit')}${(+s.deposit || 0) > 0
-                ? pilihAkunTopup(`class="spsAkun" data-i="${i}" style="margin-top:6px"`, s.akun_deposit, 'Deposit ' + s.kode_sumber + ' dibayar dari', true) : ''}</td>
+              <td class="kanan" data-l="Deposit masuk">${(+s.deposit || 0) > 0
+                ? `${rp(s.deposit)}<br><span class="petunjuk">dari ${esc(s.nama_akun_deposit || s.akun_deposit || 'laci shift')}</span>`
+                : `<span class="teks-redup">—</span><br><span class="petunjuk">belum ada</span>`}</td>
               <td data-l="Saldo akhir">${isiSp('saldo_akhir', s, i, 'Saldo akhir')}</td>
               <td class="kanan" data-l="Konsumsi (modal)"><strong>${rp((+s.saldo_awal || 0) + (+s.deposit || 0) + (+s.reward || 0) - (+s.saldo_akhir || 0))}</strong></td>
               <td data-l="Penjualan">${isiSp('penjualan', s, i, 'Penjualan')}</td>
@@ -8293,8 +8356,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             </tr>`).join('')}</tbody>
           </table>
         </div>
-        <p class="petunjuk">Kalau ada deposit (topup) masuk, pilih <strong>dibayar dari mana</strong>: laci shift ini,
-           atau rekening yang dipakai mentransfer. Hanya topup dari laci yang mengurangi kas shift.</p>
+        <p class="petunjuk">Saldo masuk (topup) dicatat Head Admin atau Owner di Pulsa → Saldo → <strong>Catat topup</strong>,
+           bersama rekening pembayarnya — bukan diketik di sini. <strong>Ada saldo masuk yang belum tercatat?
+           Hubungi admin sebelum Kunci hitungan.</strong></p>
       </div>
       <div class="kartu">
         <h3>Kas</h3>
@@ -8371,15 +8435,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.querySelectorAll('.spsAngka').forEach(el => {
       el.addEventListener('change', () => { ubahAngkaShiftpulsa(el); gambarShiftpulsa(); });
     });
-    w.querySelectorAll('.spsAkun').forEach(el => {
-      el.addEventListener('change', () => {
-        const s = (w._st.sumber || [])[+el.dataset.i];
-        if (!s) return;
-        const k = 'akun_deposit:' + s.kode_sumber;
-        if (el.value) w._ketik.nilai[k] = el.value; else delete w._ketik.nilai[k];
-        gambarShiftpulsa();
-      });
-    });
+
     w.querySelectorAll('.spsKel').forEach(el => {
       el.addEventListener('change', () => {
         const b = w._keluar[+el.dataset.i];
@@ -8484,7 +8540,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (kosong) delete kt[sp + ':' + s.kode_sumber]; else kt[sp + ':' + s.kode_sumber] = v;
     }
   }
-  const KOLOM_SP = ['deposit', 'saldo_akhir', 'penjualan', 'reward'];
+  /* Deposit bukan lagi kotak ketik (bagian 312): nilainya dari server, dicatat
+     back office lewat Catat topup. */
+  const KOLOM_SP = ['saldo_akhir', 'penjualan', 'reward'];
 
   /* ==================== SUMBER SALDO PULSA ====================
      Master sumber saldo — aplikasi multi payment dan provider resmi tempat
@@ -13293,6 +13351,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.ulangkons) return muatHasilKons();
       if (d.fotopulsa) return bukaFotoPulsa(d.fotopulsa);
       if (d.hapusfotopulsa) return hapusFotoPulsa(t);
+      if (t.id === 'btnCatatTopup') return catatTopupPulsa(t);
       if (d.simpanacc) return simpanBerkasAcc();
       if (d.unggahacc) {
         /* Jenisnya dititipkan di kolom berkasnya, bukan dibaca ulang dari DOM
@@ -13391,13 +13450,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnTutupShiftPulsa') {
         const stM = ($('#isiShiftpulsa') || {})._st || {};
         if (!wajibDiketik([...document.querySelectorAll('#isiShiftpulsa .spsAngka')])) return;
-        /* Topup tanpa "dibayar dari" ditahan di sini — server menolak hal yang sama (bagian 309). */
-        const akunKosong = [...document.querySelectorAll('#isiShiftpulsa .spsAkun')].find((el) => !el.value);
-        if (akunKosong) {
-          toast('Pilih dulu topupnya dibayar dari mana — laci shift ini, atau rekening yang dipakai mentransfer.', 'galat');
-          akunKosong.focus();
-          return;
-        }
+
         const modalM = shiftMustahil(stM);
         if (modalM) {
           $('#spsMustahil').innerHTML = `<div class="pesan galat">Shift ini tidak bisa ditutup: semua saldo
@@ -13428,10 +13481,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                satu kolom yang lupa dibaca mengirim nol tanpa tanda apa pun, dan
                nol di kolom saldo akhir melonjakkan modal. */
             sumber: (st.sumber || []).map(s => ({
-              kode_sumber: s.kode_sumber, deposit: +s.deposit || 0,
+              /* Deposit & rekeningnya TIDAK dikirim (bagian 312): server membaca yang dicatat back office. */
+              kode_sumber: s.kode_sumber,
               saldo_akhir: +s.saldo_akhir || 0, penjualan: +s.penjualan || 0,
-              reward: +s.reward || 0,
-              akun_deposit: (+s.deposit || 0) > 0 ? (s.akun_deposit || '') : ''
+              reward: +s.reward || 0
             }))
           });
           await muat('pulsa');
