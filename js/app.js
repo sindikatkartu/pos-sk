@@ -2210,13 +2210,17 @@ async function muatMaster() {
 
   const opsiCabangBuku = (APP_STATE.flag.akses_lintas_cabang ? '<option value="*">Semua cabang</option>' : '') +
     APP_STATE.daftarCabang.slice().sort(urutNama).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  $('#jrnCabang').innerHTML = opsiCabangBuku;
-  /* Laporan Keuangan saja yang mendapat pilihan "Back Office" (bagian 330):
-     buku pusat — bank, Kas Admin, R/K, beban kantor — bisa dilihat sendirian.
-     Jurnal manual sengaja TIDAK: borangnya memakai pilihan ini sebagai cabang
-     jurnal baru. Hanya akun lintas cabang; servernya menolak yang lain. */
-  $('#keuCabang').innerHTML = opsiCabangBuku + (APP_STATE.flag.akses_lintas_cabang && kodeCabangPusat()
-    ? `<option value="${esc(kodeCabangPusat())}">${TEKS_KANTOR}</option>` : '');
+  /* Pilihan "Back Office" (bagian 330): buku pusat — bank, Kas Admin, R/K,
+     beban kantor — bisa dilihat sendirian. Hanya akun lintas cabang; servernya
+     menolak yang lain.
+     Jurnal & Tutup Buku ikut mendapatkannya sejak bagian 331 (pemilik 4 Okt
+     2026: "1.1 perlu"): borang jurnal manual memakai pilihan ini sebagai
+     cabang jurnal baru, jadi penyesuaian beban kantor bisa dijurnal langsung
+     ke pusat. Servernya (apiJurnalManual) memang sudah menerima cabang itu. */
+  const opsiPusat = (APP_STATE.flag.akses_lintas_cabang && kodeCabangPusat())
+    ? `<option value="${esc(kodeCabangPusat())}">${TEKS_KANTOR}</option>` : '';
+  $('#jrnCabang').innerHTML = opsiCabangBuku + opsiPusat;
+  $('#keuCabang').innerHTML = opsiCabangBuku + opsiPusat;
 
   $('#lncJumlahProduk').textContent = (await DB.jumlah('produk')) + ' produk';
 }

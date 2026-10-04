@@ -3741,4 +3741,13 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 @media (max-width: 620px) {
   .lnc-panjang { display: none; }
   .lnc-pendek { display: inline; }
+  /* Judul layar boleh DUA BARIS di HP (bagian 331). Diukur 4 Okt 2026 di 40
+     layar: satu baris memotong 10 judul di 360 px dan 3 di 390 px ("Jurnal &
+     Tutup …", "Laporan Keua…"); mengecilkan huruf saja masih menyisakan 8 di
+     360 px. Dua baris: nol terpotong, tinggi bilah tetap. Judul pendek tetap
+     satu baris. */
+  .bar-atas h1 {
+    white-space: normal; font-size: var(--fs-13); line-height: 1.15;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  }
 }
