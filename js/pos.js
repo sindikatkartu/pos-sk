@@ -1673,6 +1673,21 @@ function bankAktif(setting) {
 }
 const akunBankAktif = (setting) => bankAktif(setting).map(b => b[0]);
 const metodeBankAktif = (setting) => bankAktif(setting).map(b => b[1]);
+/**
+ * Kode cabang pusat (Back Office) dari setelan yang turun ke perangkat; ''
+ * bila belum dipakai. Polanya sama dengan cabangPusat() di server.
+ *
+ * Di pos.js, bukan app.js (bagian 333): admin.js memakainya di form Aset,
+ * Pembayaran, dan Ringkasan Kas, dan panggung uji yang hanya memuat pos.js +
+ * admin.js akan melempar ReferenceError begitu form itu dibuka. Sempat
+ * ditaruh di app.js pada v1.297.0 dan lolos hanya karena jalurnya kebetulan
+ * tidak tersentuh panggung itu.
+ */
+function kodeCabangPusat() {
+  const st = (typeof APP_STATE !== 'undefined' && APP_STATE && APP_STATE.setting) || {};
+  const s = String(st.cabang_pusat || '').trim();
+  return /^[A-Z][A-Z0-9]{1,9}$/.test(s) ? s : '';
+}
 /* Akun bank yang BUKAN aktif disaring dari daftar kode akun apa pun; akun bukan-bank lolos. */
 const saringBankAktif = (daftarKode, setting) => {
   const aktif = akunBankAktif(setting);

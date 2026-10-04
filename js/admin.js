@@ -2959,7 +2959,20 @@ const Admin = (() => {
    * Konsekuensinya tetap jujur: katalognya sesegar tarikan master terakhir,
    * jadi produk yang dibuat menit ini belum ada sampai master ditarik lagi.
    */
-  const katalogStiker = () => DB.all('produk');
+  /* Yang dicari kotak "Tambah produk" di Keranjang stiker (bagian 333).
+     Sampai v1.299.0 ini `DB.all('produk')` — katalog KASIR, yang disaring server
+     dua kali sebelum turun: hanya produk aktif, dan hanya yang boleh dijual di
+     cabang tempat masuk — lihat apiTarikMaster. Akibatnya kotak cari terkunci
+     di cabang itu, padahal tombol "Label" di baris produk — yang membaca daftar layar
+     Produk — bisa menambahkan produk cabang mana pun. Pemilik, 4 Okt 2026:
+     "search box di keranjang label masih kekunci di cabang ecer."
+     Sekarang sumbernya daftar layar Produk yang sama (semua cabang); yang
+     nonaktif tidak ditawarkan. Katalog kasir tinggal cadangan bila daftar itu
+     belum termuat. */
+  const katalogStiker = async () => {
+    const luas = (cacheProduk || []).filter((p) => p && p.aktif !== false && String(p.aktif).toLowerCase() !== 'false');
+    return luas.length ? luas : DB.all('produk');
+  };
 
   /** Satu baris keranjang dari sebuah produk, atau null kalau tak punya kode. */
   function barisStikerDari(p) {

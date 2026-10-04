@@ -255,12 +255,6 @@ const wilayahLayar = (id) => WILAYAH.kantor.includes(id) ? 'kantor' : (WILAYAH.t
    judul layar — 360 px: 9 → 15 judul terpotong; 412 px: 2 → 8. Dua-duanya
    ditulis, CSS yang memilih; pembaca layar selalu mendapat "Back Office". */
 const TEKS_KANTOR = 'Back Office';
-/** Kode cabang pusat dari setelan yang turun ke perangkat; '' bila belum dipakai.
-    Polanya sama dengan cabangPusat() di server (dicocokkan penjaga bagian 329). */
-const kodeCabangPusat = () => {
-  const s = String((APP_STATE.setting || {}).cabang_pusat || '').trim();
-  return /^[A-Z][A-Z0-9]{1,9}$/.test(s) ? s : '';
-};
 const TEKS_KANTOR_PENDEK = 'BO';
 let cabangLencana = '—';
 /** Lencana cabang di bilah atas: cabang login, atau "Back Office" di layar kantor. */
