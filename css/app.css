@@ -2088,7 +2088,7 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .jh + .jh { margin-top: 6px; }
 .jh-nama { display: flex; flex-direction: column; justify-content: flex-end; line-height: 1.2; padding-bottom: 2px; font-size: var(--fs-12); }
 .jh-nama span { color: var(--teks-redup); font-size: var(--fs-11); font-variant-numeric: tabular-nums; }
-.jh-baris { display: block; width: 100%; border-bottom: 1px solid var(--garis); }
+.jh-baris { display: block; width: 100%; height: 34px; border-bottom: 1px solid var(--garis); }
 .jh-sumbu { margin-top: 4px; }
 .jh-sumbu .jh-nama { color: var(--teks-redup); font-size: var(--fs-11); font-weight: 600; justify-content: center; padding-bottom: 0; }
 .jh-jam { display: grid; font-size: var(--fs-11); color: var(--teks-redup); text-align: center; font-variant-numeric: tabular-nums; }
@@ -2098,6 +2098,46 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .bar100-cab .isi span { height: 100%; }
 .bar100-cab .nil { text-align: right; color: var(--teks-redup); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bar100-total { border-top: 1px solid var(--garis); margin-top: 6px; }
+/* Legenda Kas masuk (bagian 336): satu metode satu baris — nama, persen, lalu
+   nominalnya di bawah. Dulu "Tunai 67%" dua kata berhimpit di samping donat. */
+/* Lebar legenda 170 px itu PALING LEBAR, bukan tetap: di HP 320 px isi kartu
+   266 px dan donat 120 + celah 16 menyisakan 130 — legenda yang kaku meluber. */
+.kas-donat .leg-cab { gap: 10px; flex: 0 1 170px; min-width: 0; }
+.kas-donat .leg-cab > span { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; column-gap: 8px; width: 100%; color: var(--teks); }
+.kas-donat .leg-cab > span .nm { display: block; }
+.kas-donat .leg-cab > span b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.kas-donat .leg-cab > span small { grid-column: 2 / 4; color: var(--teks-redup); font-size: var(--fs-11); font-variant-numeric: tabular-nums; }
+/* JAM RAMAI & KAS MASUK MENGISI TINGGI KARTUNYA (bagian 336) — PC & tablet saja.
+   Ketiga kartu sebaris sama tinggi (grid stretch) dan yang menentukan tingginya
+   kartu Tren (dua grafik: Ecer, Grosir). Isi dua kartu lain dulu berhenti di
+   tengah dan sisanya kosong; kini baris-barisnya membagi rata tinggi itu. */
+@media (min-width: 621px) {
+  #cabJam .isi-cab, #cabKas .isi-cab { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  #cabJam .jh:not(.jh-sumbu) { flex: 1 1 0; min-height: 34px; align-items: stretch; }
+  #cabJam .jh-baris { height: 100%; }
+  #cabJam .ket-cab { margin-top: 8px; }
+  #cabKas .kas-donat .leg-cab { font-size: var(--fs-13); }
+  #cabKas .bar100-cab { grid-template-columns: 58px minmax(0, 1fr) 62px; gap: 10px; font-size: var(--fs-13); }
+  #cabKas .bar100-cab .isi { height: 16px; border-radius: 8px; }
+}
+/* Tiga kolom: kartu Kas sempit dan tinggi — donat membesar, tiap baris batang
+   mengambil bagian tinggi yang sama. */
+@media (min-width: 1101px) {
+  #cabKas .kas-donat { flex: 1.5 1 0; min-height: 150px; gap: 22px; margin: 0; align-items: center; }
+  #cabKas .kas-donat svg { height: 100%; max-height: 230px; width: auto; flex: none; }
+  #cabKas .isi-cab > .bar100-cab, #cabKas .bar100-total { flex: 1 1 0; margin-top: 0; min-height: 30px; }
+  #cabKas .bar100-total { display: flex; flex-direction: column; justify-content: center; }
+  #cabKas .bar100-total .bar100-cab { margin-top: 0; }
+}
+/* Dua kolom: kartu Kas selebar layar di baris sendiri — donat kiri, batang kanan. */
+@media (min-width: 621px) and (max-width: 1100px) {
+  /* Kolom kiri minimal 344 px = donat 150 + celah 20 + legenda 170 + 4: lebih
+     sempit dari itu isinya (rata tengah) menjulur ke KIRI keluar kartu. */
+  #cabKas .isi-cab { display: grid; grid-template-columns: minmax(344px, 38%) minmax(0, 1fr); column-gap: 24px; align-content: center; }
+  #cabKas .kas-donat { grid-column: 1; grid-row: 1 / span 6; margin: 0; gap: 20px; }
+  #cabKas .kas-donat svg { width: 150px; height: 150px; flex: none; }
+  #cabKas .isi-cab > .bar100-cab, #cabKas .bar100-total { grid-column: 2; margin-top: 10px; }
+}
 .petak-piutang { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(0, 1fr)); font-size: var(--fs-12); font-variant-numeric: tabular-nums; }
 .petak-piutang > span { padding: 6px 4px; border-bottom: 1px solid var(--garis-halus); text-align: right; white-space: nowrap; }
 .petak-piutang .kepala { color: var(--teks-redup); font-weight: 600; font-size: var(--fs-11); }

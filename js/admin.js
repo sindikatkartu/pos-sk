@@ -1606,14 +1606,24 @@ const Admin = (() => {
       </div>`).join('')}</div>`);
   }
 
+  /** Jam buka toko, diukur dari nota 30 hari semua cabang (rutin 336, 5 Okt
+      2026): penjualan pertama jam 08, terakhir jam 22. Bukan setelan — jam
+      buka tidak tercatat di mana pun, dan sumbunya melebar sendiri bila ada
+      penjualan di luar rentang ini. */
+  const JAM_BUKA_DASH = [8, 22];
   function kartuJamCab() {
     const pc = cabDash.pc.filter(c => Array.isArray(c.jam) && c.jam.length === 24);
     if (!pc.length) return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', kosongCab('Belum tersedia — menunggu server terbaru'));
     const ada = [];
     for (let j = 0; j < 24; j++) if (pc.some(c => Number(c.jam[j]) > 0)) ada.push(j);
     if (!ada.length) return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', kosongCab('Belum ada penjualan'));
+    /* Sumbu = JAM BUKA, tetap (bagian 336, pemilik): dulu rentangnya jam
+       pertama..terakhir yang ada penjualan, jadi pagi-pagi — baru satu-dua
+       jam — tiap batang melebar selebar kartu. Rentang tetap membuat batang
+       jam 14 selalu di tempat yang sama, sepagi apa pun dasbornya dibuka.
+       Penjualan di LUAR jam buka melebarkan sumbunya — tidak pernah dibuang. */
     const J = [];
-    for (let j = ada[0]; j <= ada[ada.length - 1]; j++) J.push(j);
+    for (let j = Math.min(JAM_BUKA_DASH[0], ada[0]); j <= Math.max(JAM_BUKA_DASH[1], ada[ada.length - 1]); j++) J.push(j);
     const jj = (j) => String(j).padStart(2, '0');
     /* HISTOGRAM (bagian 293, contoh dari pemilik): satu batang PENUH per jam,
        celah tipis 2 satuan, ujung rata. Sumbu "Jam" baris SENDIRI di bawah
@@ -1621,17 +1631,20 @@ const Admin = (() => {
        saja. Nama cabang + jam puncak di kolom kiri; nilai omzet hanya lewat
        sentuh/sorot (title), keputusan pemilik. Garis bantu tipis per jam
        menembus tiap baris supaya batang sejajar dengan labelnya. */
-    const W = 320, lebar = W / J.length, CELAH = 2, H = 34;
+    /* H = 100 satuan dan TANPA atribut height: tingginya milik CSS — 34 px di
+       HP, setinggi barisnya di PC/tablet. MIN 9 satuan: nominal kecil di
+       sebelah jam puncak tetap terlihat sebagai batang, bukan garis. */
+    const W = 480, lebar = W / J.length, CELAH = 2, H = 100, MIN = 9;
     const bantu = J.map((_, i) => i ? `<line x1="${(i * lebar).toFixed(1)}" x2="${(i * lebar).toFixed(1)}" y1="0" y2="${H}" stroke="var(--garis-halus)" stroke-width="0.6" vector-effect="non-scaling-stroke"/>` : '').join('');
     return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', pc.map(c => {
       const d = J.map(j => Number(c.jam[j]) || 0), mx = Math.max(...d), pk = d.indexOf(mx), w = cabDash.warna(c.cabang);
       return `<div class="jh" data-jam-cab="${esc(c.cabang)}"><div class="jh-nama"><strong>${esc(c.cabang)}</strong><span>${mx > 0 ? jj(J[pk]) + ':00' : '—'}</span></div>
-        <svg class="jh-baris" viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${bantu}${d.map((v, i) => {
-          const t = v > 0 ? Math.max((H - 2) * v / mx, 1.5) : 0;
+        <svg class="jh-baris" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${bantu}${d.map((v, i) => {
+          const t = v > 0 ? Math.max((H - 2) * v / mx, MIN) : 0;
           return t ? `<rect x="${(i * lebar + CELAH / 2).toFixed(2)}" y="${(H - t).toFixed(1)}" width="${(lebar - CELAH).toFixed(2)}" height="${t.toFixed(1)}" fill="${w}"><title>${esc(c.cabang)} ${jj(J[i])}:00 · ${esc(rpTeks(v))}</title></rect>` : '';
         }).join('')}</svg></div>`;
     }).join('') + `<div class="jh jh-sumbu"><div class="jh-nama">Jam</div><div class="jh-jam" style="grid-template-columns:repeat(${J.length}, minmax(0, 1fr))">${J.map(j => `<span>${jj(j)}</span>`).join('')}</div></div>
-      <p class="ket-cab">Satu batang = satu jam · di bawah nama: jam puncak · sentuh batang untuk omzetnya · tiap cabang berskala sendiri.</p>`);
+      <p class="ket-cab">Satu batang = satu jam, ${jj(J[0])}–${jj(J[J.length - 1])} · di bawah nama: jam puncak · sentuh batang untuk omzetnya · tiap cabang berskala sendiri.</p>`);
   }
 
   /** Metode bayar → kelompok tetap: transfer_bca dst. ikut "transfer". */
@@ -1656,7 +1669,7 @@ const Admin = (() => {
       : '<span class="kosong"></span>'}</div><span class="nil">${esc(jtDash(tot))}</span></div>`;
     return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', `
       <div class="kas-donat">${donatCab(urut.map(k => ({ l: labelMetodeDash(k) + ' ' + rpTeks(total[k]), v: total[k], c: warna(k) })), jtDash(semua), 'kas masuk', 120)}
-        <div class="leg-cab">${urut.map(k => `<span><i style="background:${warna(k)}"></i>${esc(labelMetodeDash(k))} ${Math.round(total[k] / semua * 100)}%</span>`).join('')}</div></div>
+        <div class="leg-cab">${urut.map(k => `<span><i style="background:${warna(k)}"></i><span class="nm">${esc(labelMetodeDash(k))}</span><b>${Math.round(total[k] / semua * 100)}%</b><small>${esc(rpTeks(total[k]))}</small></span>`).join('')}</div></div>
       ${per.map(x => batang(x.cabang, x.o, x.tot)).join('')}
       <div class="bar100-total">${batang('Total', total, semua)}</div>`);
   }
@@ -10995,8 +11008,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${d.boleh_ajukan ? `<button class="tombol utama" id="btnCoaAjukan">${ikonAlat('kirim')}<span>Ajukan akun</span></button>` : ''}
         </div>
         <div class="saring-baris">
-          <label>Cari<input type="search" id="coaCari" class="kendali-tetap" placeholder="Kode atau nama…" value="${esc(saringCoa.q)}"></label>
-          <label>Tipe<select id="coaTipe" class="kendali-tetap">${tipeOpsi}</select></label>
+          <div class="kendali-tetap"><label for="coaCari">Cari</label><input type="search" id="coaCari" placeholder="Kode atau nama…" value="${esc(saringCoa.q)}"></div>
+          <div class="kendali-tetap"><label for="coaTipe">Tipe</label><select id="coaTipe">${tipeOpsi}</select></div>
         </div>
         ${tabel([
           { judul: 'Kode', kunci: 'kode', kelas: 'kode-akun' },
