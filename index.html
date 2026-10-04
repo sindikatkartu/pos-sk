@@ -1139,9 +1139,29 @@
           <!-- Ukuran tulisan & tinggi barcode. Sengaja dipisah dari empat kolom di
                atas: yang di atas HARUS sama dengan kertas di driver printer, yang
                di sini urusan keterbacaan dan boleh dicoba-coba. -->
-          <div class="petak-mini" style="margin-top:12px">
+          <!-- PROFIL ISI STIKER (bagian 332). Yang disimpan sebagai profil hanya
+               empat setelan ISI di bawahnya; ukuran kertas di atas tetap satu set
+               per perangkat. Dua kendali setengah lebar: pilih profil, dan
+               tindakannya — nama tindakannya terbaca tanpa menebak. Keranjang
+               stiker di menu Produk hanya MEMILIH profil. -->
+          <div class="saring-baris" style="margin-top:14px">
+            <div class="kendali-tetap"><label for="setLabelProfil">Profil isi stiker</label>
+              <select id="setLabelProfil" class="kendali-tetap"></select></div>
+            <div class="kendali-tetap"><label for="setLabelProfilAksi">Tindakan profil</label>
+              <select id="setLabelProfilAksi" class="kendali-tetap">
+                <option value="">Pilih tindakan…</option>
+                <option value="simpan">Simpan ke profil ini</option>
+                <option value="baru">Simpan sebagai profil baru…</option>
+                <option value="bawaan">Jadikan bawaan</option>
+                <option value="nama">Ganti nama…</option>
+                <option value="hapus">Hapus profil ini</option>
+              </select></div>
+          </div>
+          <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0" id="infoLabelProfil"></p>
+
+          <div class="petak-mini" style="margin-top:8px">
             <div class="grup" style="margin:0">
-              <label>Huruf kode (mm)</label>
+              <label>Huruf nomor (mm)</label>
               <input type="number" id="setLabelHurufKode" min="1.2" max="8" step="0.1">
             </div>
             <div class="grup" style="margin:0">
@@ -1152,11 +1172,20 @@
               <label>Tinggi barcode (mm)</label>
               <input type="number" id="setLabelTinggiBar" min="0" max="60" step="0.5">
             </div>
+            <div class="grup" style="margin:0">
+              <label>Baris nama</label>
+              <select id="setLabelBarisNama">
+                <option value="1">1 baris</option>
+                <option value="2">2 baris</option>
+                <option value="3">3 baris</option>
+              </select>
+            </div>
           </div>
           <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0">
             Tinggi barcode <strong>0</strong> berarti otomatis — batangnya mengambil
-            seluruh sisa ruang sesudah tulisan. Ketiganya berebut tinggi stiker yang
-            sama: huruf yang dibesarkan memendekkan barcodenya. Lihat akibatnya pada
+            seluruh sisa ruang sesudah tulisan. Semuanya berebut tinggi stiker yang
+            sama: huruf yang dibesarkan dan baris nama yang ditambah memendekkan
+            barcodenya. Nama yang pendek tetap satu baris. Lihat akibatnya pada
             contoh di bawah sebelum mencetak seratus lembar.</p>
 
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">

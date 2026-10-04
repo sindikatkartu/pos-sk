@@ -6200,6 +6200,25 @@ async function perbaruiInfoData() {
  * v1.81.0, dan tanpa penjagaan itu seluruh layar Perangkat melempar pada muat
  * pertama setelah terbit.
  */
+/**
+ * Dropdown profil isi stiker di kartu Kertas label (bagian 332).
+ * Dijaga terhadap label.js lama yang belum punya profil — alasannya sama
+ * dengan penjagaan di perbaruiInfoLabel.
+ */
+async function gambarProfilLabel() {
+  const sel = $('#setLabelProfil');
+  if (!sel || typeof Label === 'undefined' || typeof Label.profil !== 'function') return;
+  const p = await Label.profil();
+  sel.innerHTML = p.daftar.map(x =>
+    `<option value="${esc(x.id)}" ${x.id === p.aktif ? 'selected' : ''}>${esc(x.nama)}${x.id === p.bawaan ? ' · bawaan' : ''}</option>`).join('');
+  const info = $('#infoLabelProfil');
+  if (info) {
+    info.textContent = (await Label.profilBerubah())
+      ? 'Setelan di bawah sudah diubah dan BELUM disimpan ke profil ini — pilih "Simpan ke profil ini" atau "Simpan sebagai profil baru…".'
+      : 'Profil menyimpan empat setelan di bawah ini. Ukuran kertas di atas tidak ikut profil. Keranjang stiker memakai profil bawaan, dan bisa memilih profil lain.';
+  }
+}
+
 async function perbaruiInfoLabel() {
   if (typeof Label === 'undefined' || !$('#setLabelLebar')) return;
   const u = await Label.ukuran();
@@ -6210,6 +6229,8 @@ async function perbaruiInfoLabel() {
   if ($('#setLabelHurufKode')) $('#setLabelHurufKode').value = u.huruf_kode_mm;
   if ($('#setLabelHurufNama')) $('#setLabelHurufNama').value = u.huruf_nama_mm;
   if ($('#setLabelTinggiBar')) $('#setLabelTinggiBar').value = u.tinggi_bar_mm;
+  if ($('#setLabelBarisNama')) $('#setLabelBarisNama').value = String(u.baris_nama || 1);
+  await gambarProfilLabel();
   /* Contoh hasil cetak digambar dari fungsi yang SAMA dengan yang mencetak.
      Pratinjau yang punya penggambar sendiri adalah pratinjau yang suatu hari
      akan berbeda dari kertasnya, dan hari itu tidak akan ada yang tahu mana
@@ -7309,7 +7330,8 @@ function pasangEvent() {
       kolom: Number($('#setLabelKolom')?.value),
       huruf_kode_mm: Number($('#setLabelHurufKode')?.value),
       huruf_nama_mm: Number($('#setLabelHurufNama')?.value),
-      tinggi_bar_mm: Number($('#setLabelTinggiBar')?.value)
+      tinggi_bar_mm: Number($('#setLabelTinggiBar')?.value),
+      baris_nama: Number($('#setLabelBarisNama')?.value) || 1
     });
     await perbaruiInfoLabel();
     /* Angka yang dilaporkan dibaca dari HASIL penjepitan, bukan dari kolomnya.
@@ -7317,11 +7339,58 @@ function pasangEvent() {
        mengulang "40" akan membuatnya mengira setelannya masuk. */
     Admin.toast(`Kertas label: ${u.lebar_mm} × ${u.tinggi_mm} mm, ${u.kolom} per baris. ` +
                 `Huruf ${u.huruf_kode_mm}/${u.huruf_nama_mm} mm, barcode ` +
-                (u.tinggi_bar_mm > 0 ? `${u.tinggi_bar_mm} mm.` : 'otomatis.'), 'sukses');
+                (u.tinggi_bar_mm > 0 ? `${u.tinggi_bar_mm} mm` : 'otomatis') + `, nama ${u.baris_nama} baris.`, 'sukses');
   };
   ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak', '#setLabelKolom',
-   '#setLabelHurufKode', '#setLabelHurufNama', '#setLabelTinggiBar']
+   '#setLabelHurufKode', '#setLabelHurufNama', '#setLabelTinggiBar', '#setLabelBarisNama']
     .forEach(id => $(id)?.addEventListener('change', simpanUkuranLabel));
+
+  /* Profil isi stiker (bagian 332). Memilih profil memasang isinya ke setelan
+     perangkat ini; tindakannya lewat dropdown kedua, yang selalu kembali ke
+     "Pilih tindakan…" supaya tindakan yang sama bisa dipilih lagi. */
+  $('#setLabelProfil')?.addEventListener('change', async (e) => {
+    try {
+      await Label.pilihProfil(e.target.value);
+      await perbaruiInfoLabel();
+      Admin.toast('Profil dipasang: ' + (e.target.selectedOptions[0]?.textContent || ''), 'sukses');
+    } catch (x) { Admin.toast(x.message, 'galat'); await perbaruiInfoLabel(); }
+  });
+  $('#setLabelProfilAksi')?.addEventListener('change', async (e) => {
+    const aksi = e.target.value;
+    e.target.value = '';
+    if (!aksi) return;
+    try {
+      const p = await Label.profil();
+      const kini = p.daftar.find(x => x.id === p.aktif);
+      if (aksi === 'simpan') {
+        await Label.simpanProfil(p.aktif);
+        Admin.toast('Tersimpan ke profil "' + kini.nama + '".', 'sukses');
+      } else if (aksi === 'baru') {
+        const nama = await Admin.tanya('Simpan sebagai profil baru',
+          '<p class="petunjuk">Setelan isi stiker yang sedang terpasang disimpan dengan nama ini.</p>',
+          { isian: 'Nama profil, mis. Nama dua baris', ya: 'Simpan' });
+        if (nama === null) return;
+        await Label.profilBaru(nama);
+        Admin.toast('Profil baru tersimpan.', 'sukses');
+      } else if (aksi === 'bawaan') {
+        await Label.jadikanBawaan(p.aktif);
+        Admin.toast('"' + kini.nama + '" jadi profil bawaan — itu yang dipakai Keranjang stiker saat dibuka.', 'sukses');
+      } else if (aksi === 'nama') {
+        const nama = await Admin.tanya('Ganti nama profil "' + kini.nama + '"', '', { isian: 'Nama baru', ya: 'Ganti' });
+        if (nama === null) return;
+        await Label.gantiNamaProfil(p.aktif, nama);
+        Admin.toast('Nama profil diganti.', 'sukses');
+      } else if (aksi === 'hapus') {
+        if (!(await Admin.tanya('Hapus profil "' + kini.nama + '"?',
+              '<p class="petunjuk">Setelannya hilang dari perangkat ini. Stiker yang sudah tercetak tidak terpengaruh.</p>',
+              { ya: 'Hapus', jenis: 'bahaya' }))) return;
+        await Label.hapusProfil(p.aktif);
+        await Label.pilihProfil((await Label.profil()).aktif);
+        Admin.toast('Profil dihapus.', 'sukses');
+      }
+    } catch (x) { Admin.toast(x.message, 'galat'); }
+    await perbaruiInfoLabel();
+  });
 
   $('#btnUjiCetak').addEventListener('click', () => {
     Struk.cetak({

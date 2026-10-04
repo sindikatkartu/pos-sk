@@ -72,7 +72,14 @@ const Label = (() => {
        menggambar contohnya dari fungsi yang sama dengan yang mencetak. */
     huruf_kode_mm: 2.6,
     huruf_nama_mm: 2.0,
-    tinggi_bar_mm: 0
+    tinggi_bar_mm: 0,
+    /* Berapa BARIS nama paling banyak (bagian 332, pemilik 4 Okt 2026: "supaya
+       baris nama sku bertambah, supaya jika namanya panjang tetap bisa
+       masuk"). Bawaannya SATU — persis seperti sebelum setelan ini ada, dengan
+       alasan yang sama dengan tiga angka di atas. Nama pendek tetap memakai
+       satu baris walau batasnya 2 atau 3; barcode otomatis memendek hanya
+       sebanyak baris yang benar-benar terpakai. */
+    baris_nama: 1
   };
 
   /* Tinggi huruf, dalam mm. Monospace dipakai supaya lebar teks bisa DIHITUNG
@@ -241,6 +248,34 @@ const Label = (() => {
    * @param {{kode:string, nama?:string}} isi
    * @param {object} opsi ukuran label & lebar bar
    */
+  /**
+   * Pecah nama jadi paling banyak `maks` baris berisi `per` huruf.
+   *
+   * Baris yang BUKAN terakhir dipatahkan di batas kata; satu kata yang lebih
+   * panjang dari barisnya dipenggal. Baris TERAKHIR yang diizinkan mengambil
+   * sisanya dan dipotong keras di `per` huruf — persis perilaku satu-baris
+   * yang lama, jadi `maks = 1` menghasilkan stiker yang identik dengan
+   * sebelum bagian 332.
+   */
+  function pecahNama(nama, per, maks) {
+    const baris = [];
+    let sisa = String(nama == null ? '' : nama).trim();
+    per = Math.max(1, Math.floor(Number(per) || 1));
+    maks = Math.max(1, Math.floor(Number(maks) || 1));
+    while (sisa && baris.length < maks) {
+      if (baris.length === maks - 1 || sisa.length <= per) { baris.push(sisa.slice(0, per)); break; }
+      let potong = sisa.lastIndexOf(' ', per);
+      if (potong <= 0) potong = per;
+      baris.push(sisa.slice(0, potong).trim());
+      sisa = sisa.slice(potong).trim();
+    }
+    return baris.filter((b) => b !== '');
+  }
+  /** Jarak antar baris nama, dalam kelipatan tinggi hurufnya. */
+  const JARAK_BARIS_NAMA = 1.15;
+  /** Jumlah baris nama yang diminta setelan: 1–3, selain itu 1. */
+  const batasBarisNama = (o) => Math.max(1, Math.min(3, Math.round(Number(o && o.baris_nama) || 1)));
+
   function svg(isi, opsi = {}) {
     const o = Object.assign({}, BAWAAN, opsi);
     const kode = aman(isi.kode);
@@ -266,8 +301,12 @@ const Label = (() => {
     /* Tinggi dibagi dari atas ke bawah, sisanya jadi tinggi batang. Dihitung,
        bukan dihafal: label 15mm dan label 25mm memakai rumus yang sama. */
     const atas = 1, selaKode = 0.6, selaNama = 0.4, bawah = 0.8;
+    /* Nama dipecah LEBIH DULU: tinggi batang bergantung pada berapa baris yang
+       benar-benar terpakai, bukan pada batasnya. */
+    const hurufPerBaris = Math.floor((W - 2 * o.margin_mm) / (hNama * RASIO_HURUF));
+    const barisNama = nama ? pecahNama(nama, hurufPerBaris, batasBarisNama(o)) : [];
     let sisa = H - atas - selaKode - hKode - bawah;
-    if (nama) sisa -= selaNama + hNama;
+    if (barisNama.length) sisa -= selaNama + hNama + (barisNama.length - 1) * hNama * JARAK_BARIS_NAMA;
 
     /* Tinggi batang yang DIMINTA orang dipakai apa adanya; sisanya dibiarkan
        kosong. Ditolak kalau tidak muat, dan penolakannya menyebut ANGKANYA —
@@ -302,16 +341,14 @@ const Label = (() => {
     bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yKode)}" font-size="${hKode}"` +
                 ` text-anchor="middle" font-family="monospace">${esc(kode)}</text>`);
 
-    if (nama) {
-      /* Berapa huruf yang muat ikut menyusut saat hurufnya dibesarkan — kalau
-         tidak, nama yang tadinya pas akan menjulur keluar stiker begitu
-         ukurannya dinaikkan, dan yang tercetak terpotong di tengah kata. */
-      const tersediaHuruf = Math.floor((W - 2 * o.margin_mm) / (hNama * RASIO_HURUF));
-      const potong = nama.length > tersediaHuruf ? nama.slice(0, tersediaHuruf) : nama;
-      const yNama = yKode + selaNama + hNama;
+    /* Berapa huruf yang muat ikut menyusut saat hurufnya dibesarkan — kalau
+       tidak, nama yang tadinya pas akan menjulur keluar stiker begitu ukurannya
+       dinaikkan. Pemecahannya di pecahNama() di atas. */
+    barisNama.forEach((teks, i) => {
+      const yNama = yKode + selaNama + hNama + i * hNama * JARAK_BARIS_NAMA;
       bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yNama)}" font-size="${hNama}"` +
-                  ` text-anchor="middle" font-family="monospace">${esc(potong)}</text>`);
-    }
+                  ` text-anchor="middle" font-family="monospace">${esc(teks)}</text>`);
+    });
 
     return `<svg xmlns="http://www.w3.org/2000/svg" class="label"` +
            ` width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}"` +
@@ -506,7 +543,24 @@ const Label = (() => {
   /** Bulatkan ke satu angka di belakang koma — lihat simpanUkuran(). */
   const _satuDesimal = (n) => Math.round(n * 10) / 10;
 
+  /** Isi stiker (bukan ukuran kertas) — inilah yang disimpan sebagai PROFIL. */
+  const KUNCI_ISI = ['huruf_kode_mm', 'huruf_nama_mm', 'tinggi_bar_mm', 'baris_nama'];
+  function jepitIsi(u) {
+    u = u || {};
+    return {
+      huruf_kode_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_kode_mm) || BAWAAN.huruf_kode_mm))),
+      huruf_nama_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm))),
+      tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))),
+      baris_nama: batasBarisNama(u)
+    };
+  }
+
   async function simpanUkuran(u) {
+    /* Pemanggil lama tidak mengirim `baris_nama`; yang tidak dikirim memakai
+       yang tersimpan, bukan diam-diam kembali ke satu baris. */
+    if (u.baris_nama === undefined) u = Object.assign({}, u, { baris_nama: (await ukuran()).baris_nama });
+    /* Profil pertama dipotret SEBELUM setelannya berubah (lihat profil()). */
+    try { await profil(); } catch (e) { /* profil bukan syarat menyimpan ukuran */ }
     const bersih = {
       lebar_mm: Math.max(10, Math.min(100, Number(u.lebar_mm) || BAWAAN.lebar_mm)),
       tinggi_mm: Math.max(10, Math.min(100, Number(u.tinggi_mm) || BAWAAN.tinggi_mm)),
@@ -524,10 +578,105 @@ const Label = (() => {
       huruf_kode_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_kode_mm) || BAWAAN.huruf_kode_mm))),
       huruf_nama_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm))),
       /* Nol DIPERTAHANKAN — ia berarti "otomatis", bukan "kosong". */
-      tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0)))
+      tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))),
+      baris_nama: batasBarisNama(u)
     };
     await DB.kvSet('label_ukuran', bersih);
     return bersih;
+  }
+
+  /* ---------- Profil isi stiker (bagian 332) ----------
+   * Pemilik, 4 Okt 2026: "sediakan penyimpanan profile setingan … yang bisa
+   * disave dan ada set default", lalu "di sini tidak membahas ukuran kertas,
+   * saya hanya memikirkan adjust isi kontennya". Jadi profil memuat ISI saja
+   * (KUNCI_ISI); ukuran kertas tetap satu set per perangkat di label_ukuran.
+   *
+   * Bentuk simpanan (kv 'label_profil', per perangkat):
+   *   { daftar: [{ id, nama, isi }], bawaan: id, aktif: id }
+   * `bawaan` = yang dipilih Keranjang stiker saat dibuka. `aktif` = yang sedang
+   * dibuka di kartu Kertas label; isinya disalin ke label_ukuran saat dipilih.
+   * Perangkat yang belum punya profil mendapat satu, "Bawaan", berisi setelan
+   * yang sedang terpasang — tidak ada stiker yang berubah bentuk.
+   */
+  const NAMA_PROFIL_MAKS = 30;
+  async function profil() {
+    let p = null;
+    try { p = await DB.kvGet('label_profil', null); } catch (e) { p = null; }
+    if (!p || !Array.isArray(p.daftar) || !p.daftar.length) {
+      /* DITULIS saat pertama kali dibuat. Profil yang hanya dirakit di ingatan
+         ikut berubah tiap kali setelannya diubah: isi aslinya hilang dan tanda
+         "belum disimpan" tidak pernah muncul — ditangkap uji-profil-label,
+         4 Okt 2026. Potretnya harus diambil SEKALI, sebelum perubahan apa pun. */
+      p = { daftar: [{ id: 'bawaan', nama: 'Bawaan', isi: jepitIsi(await ukuran()) }], bawaan: 'bawaan', aktif: 'bawaan' };
+      try { await DB.kvSet('label_profil', p); } catch (e) { /* tanpa simpanan: tetap bisa dipakai sesi ini */ }
+    }
+    p.daftar = p.daftar.map((x) => ({ id: String(x.id), nama: String(x.nama || ''), isi: jepitIsi(x.isi) }));
+    if (!p.daftar.some((x) => x.id === p.bawaan)) p.bawaan = p.daftar[0].id;
+    if (!p.daftar.some((x) => x.id === p.aktif)) p.aktif = p.bawaan;
+    return p;
+  }
+  const _tulisProfil = async (p) => { await DB.kvSet('label_profil', p); return p; };
+  function _namaProfilSah(p, nama, kecualiId) {
+    const n = String(nama == null ? '' : nama).replace(/\s+/g, ' ').trim();
+    if (!n) throw new Error('Nama profil wajib diisi.');
+    if (n.length > NAMA_PROFIL_MAKS) throw new Error('Nama profil paling panjang ' + NAMA_PROFIL_MAKS + ' huruf.');
+    if (p.daftar.some((x) => x.id !== kecualiId && x.nama.toLowerCase() === n.toLowerCase())) throw new Error('Sudah ada profil bernama "' + n + '".');
+    return n;
+  }
+  const _cariProfil = (p, id) => { const x = p.daftar.filter((y) => y.id === String(id))[0]; if (!x) throw new Error('Profil tidak ditemukan.'); return x; };
+
+  /** Tulis setelan isi yang sedang terpasang ke profil `id`. */
+  async function simpanProfil(id) {
+    const p = await profil();
+    _cariProfil(p, id).isi = jepitIsi(await ukuran());
+    return _tulisProfil(p);
+  }
+  /** Profil baru dari setelan isi yang sedang terpasang; langsung jadi yang aktif. */
+  async function profilBaru(nama) {
+    const p = await profil();
+    const n = _namaProfilSah(p, nama, null);
+    const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    p.daftar.push({ id, nama: n, isi: jepitIsi(await ukuran()) });
+    p.aktif = id;
+    return _tulisProfil(p);
+  }
+  async function gantiNamaProfil(id, nama) {
+    const p = await profil();
+    const x = _cariProfil(p, id);
+    x.nama = _namaProfilSah(p, nama, x.id);
+    return _tulisProfil(p);
+  }
+  async function hapusProfil(id) {
+    const p = await profil();
+    const x = _cariProfil(p, id);
+    if (p.daftar.length === 1) throw new Error('Profil terakhir tidak bisa dihapus.');
+    if (x.id === p.bawaan) throw new Error('Profil bawaan tidak bisa dihapus — jadikan profil lain bawaan dulu.');
+    p.daftar = p.daftar.filter((y) => y.id !== x.id);
+    if (p.aktif === x.id) p.aktif = p.bawaan;
+    return _tulisProfil(p);
+  }
+  async function jadikanBawaan(id) {
+    const p = await profil();
+    p.bawaan = _cariProfil(p, id).id;
+    return _tulisProfil(p);
+  }
+  /** Buka profil `id` di kartu: isinya dipasang ke label_ukuran (ukuran kertas tidak disentuh). */
+  async function pilihProfil(id) {
+    const p = await profil();
+    const x = _cariProfil(p, id);
+    p.aktif = x.id;
+    await _tulisProfil(p);
+    return simpanUkuran(Object.assign(await ukuran(), x.isi));
+  }
+  /** Ukuran kertas perangkat ini + isi profil `id` — untuk Keranjang stiker. Tidak menyimpan apa pun. */
+  async function ukuranProfil(id) {
+    const p = await profil();
+    return Object.assign(await ukuran(), _cariProfil(p, id).isi);
+  }
+  /** Apakah setelan isi yang terpasang berbeda dari profil aktifnya (belum disimpan)? */
+  async function profilBerubah() {
+    const p = await profil();
+    return JSON.stringify(jepitIsi(await ukuran())) !== JSON.stringify(_cariProfil(p, p.aktif).isi);
   }
 
   /**
@@ -578,7 +727,9 @@ const Label = (() => {
 
   return { sandi128, pola, lebarMm, muat, svg, halaman, sebar, kodeProduk,
            ukuran, simpanUkuran, cetak, barisPratinjau, pratinjauSemua, jumlahBarisCetak,
-           slotDipakai, jumlahKolom,
+           slotDipakai, jumlahKolom, pecahNama, jepitIsi, KUNCI_ISI,
+           profil, simpanProfil, profilBaru, gantiNamaProfil, hapusProfil, jadikanBawaan,
+           pilihProfil, ukuranProfil, profilBerubah,
            BAWAAN, HURUF, POLA, TITIK_PER_MM, mmKeTitik };
 })();
 

@@ -3001,12 +3001,23 @@ const Admin = (() => {
     if (typeof Label === 'undefined') {
       return toast('Muat ulang aplikasi sekali lagi supaya modul label ikut terpasang.', 'galat');
     }
-    const u = await Label.ukuran();
+    /* Profil isi stiker (bagian 332): keranjang hanya MEMILIH — penyetelannya
+       di Perangkat & Printer. Yang terpilih saat dibuka: profil bawaan.
+       Memilih di sini tidak menyimpan apa pun. */
+    const profilLabel = typeof Label.profil === 'function' ? await Label.profil() : null;
+    const u = profilLabel ? await Label.ukuranProfil(profilLabel.bawaan) : await Label.ukuran();
     u.kolom = Label.jumlahKolom(u);
     const lebarHalaman = u.lebar_mm * u.kolom + (u.kolom - 1) * u.jarak_mm;
 
     bukaModal('Keranjang stiker', `
       <div class="petak-tunggal" style="max-width:none">
+        ${profilLabel ? `<div class="grup">
+          <label for="labProfil">Profil isi stiker</label>
+          <select id="labProfil" class="kendali-tetap">${profilLabel.daftar.map(x =>
+            `<option value="${esc(x.id)}" ${x.id === profilLabel.bawaan ? 'selected' : ''}>${esc(x.nama)}${x.id === profilLabel.bawaan ? ' · bawaan' : ''}</option>`).join('')}</select>
+          <p class="petunjuk" style="margin:4px 0 0">Ukuran huruf, baris nama, dan tinggi barcode disetel di
+            Perangkat &amp; Printer › Kertas label.</p>
+        </div>` : ''}
         <div class="grup">
           <label for="labCari">Tambah produk</label>
           <input type="text" class="input-cari" id="labCari" placeholder="Cari SKU, nama, merek, tipe HP…" autocomplete="off">
@@ -3042,6 +3053,16 @@ const Admin = (() => {
        <button class="tombol utama" id="btnCetakLabel">${ikonAlat('cetak')}<span>Cetak</span></button>`);
 
     $('#modalUmum')._label = { ukuran: u };
+    $('#labProfil')?.addEventListener('change', async (e) => {
+      const d = $('#modalUmum') && $('#modalUmum')._label;
+      if (!d) return;
+      try {
+        const baru = await Label.ukuranProfil(e.target.value);
+        baru.kolom = Label.jumlahKolom(baru);
+        d.ukuran = baru;
+      } catch (x) { toast(x.message, 'galat'); }
+      await gambarKeranjangLabel();
+    });
     await gambarKeranjangLabel();
 
     $('#labNama').addEventListener('change', gambarKeranjangLabel);
@@ -3187,7 +3208,10 @@ const Admin = (() => {
     const slot = slotLabelTerpilih();
     const jumlah = k.reduce((a, x) => a + (Number(x.lembar) || 1), 0);
     try {
-      await Label.cetak(isiCetakDari(k), { slot });
+      /* Isi stiker dari profil yang DIPILIH di keranjang; ukuran kertasnya tetap milik perangkat. */
+      const isiProfil = {};
+      (Label.KUNCI_ISI || []).forEach((kunci) => { if (d.ukuran[kunci] !== undefined) isiProfil[kunci] = d.ukuran[kunci]; });
+      await Label.cetak(isiCetakDari(k), Object.assign({ slot }, isiProfil));
       /* Dikosongkan SESUDAH cetak berhasil, bukan sebelum. Kalau jendela
          cetaknya gagal dibuka (pemblokir popup), keranjangnya harus masih utuh
          — mengumpulkan ulang sepuluh SKU karena satu popup terblokir adalah
