@@ -11860,7 +11860,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       $('#wadahCabangKas')?.classList.toggle('sembunyi', !!bb.satu_rekening);
       const baris = bb.baris || [];
       $('#isiKoran').innerHTML = `<p class="petunjuk">${esc(bb.akun ? bb.akun.nama : akunKoran)} · ${esc(bulanTeks(periode))} ·
-          ${(bb.cabang || cabangKas) === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(bb.cabang || cabangKas)}</p>
+          ${(bb.cabang || cabangKas) === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(bb.cabang || cabangKas)}${
+            bb.reklas_tersembunyi ? ' · ' + esc(String(bb.reklas_tersembunyi)) + ' baris reklas pembukaan Back Office tidak ditampilkan (saling menghapus)' : ''}</p>
         <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>${cabangKas === '*' ? '<th>Cabang</th>' : ''}
           <th class="kanan">Masuk</th><th class="kanan">Keluar</th><th class="kanan">Saldo</th></tr></thead>
@@ -13831,6 +13832,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             akun_kas: asli.akun_kas, kode_akun: asli.kode_akun,
             jumlah: asli.jumlah,
             keterangan: 'Koreksi balik ' + asli.uuid + ' — ' + alasan,
+            /* Baris yang bebannya ditanggung Back Office dibalik DI Back Office
+               juga (bagian 334) — tandanya akhiran keterangan yang ditulis server. */
+            ditanggung_pusat: /\[Back Office\]\s*$/.test(String(asli.keterangan || '')),
             id_shift: '', luar_laci: true
           });
           toast('Koreksi balik tercatat.');
