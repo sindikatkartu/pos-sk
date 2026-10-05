@@ -1838,7 +1838,13 @@ const Admin = (() => {
           ${ss.map(s => `<path d="${s.d.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ')}" fill="none" stroke="${s.c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><title>${esc(s.k)}</title></path>
             <circle cx="${x(n - 1).toFixed(1)}" cy="${y(s.d[n - 1]).toFixed(1)}" r="3.5" fill="${s.c}" stroke="var(--panel)" stroke-width="2"/>`).join('')}
           ${uj.map(u => `<text x="${(x(n - 1) + 7).toFixed(1)}" y="${(u.yy + 4).toFixed(1)}" class="label-seri">${esc(u.s.k)}</text><text x="${W - 2}" y="${(u.yy + 4).toFixed(1)}" text-anchor="end">${esc(fmt(u.s.d[n - 1]))}</text>`).join('')}
-          ${tgl.map((t, i) => (i % langkah === 0 && i < n - langkah / 2) || i === n - 1
+          ${/* Label tanggal biasa duduk di TENGAH titiknya, yang terakhir rata
+               KANAN di ujung; masing-masing ±31 satuan (5 huruf, 11 px). Jaraknya
+               ke ujung harus muat setengah label + satu label + celah = 54. Dulu
+               syaratnya "kurang dari setengah langkah sebelum ujung": pada 30 hari
+               itu 5 hari = 41 satuan, dan "30-09" menempel pada "05-10" (bagian
+               340, terlihat di data toko 5 Okt 2026). */ ''}
+          ${tgl.map((t, i) => (i % langkah === 0 && x(n - 1) - x(i) >= 54) || i === n - 1
             ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(t).substring(8, 10) + '-' + String(t).substring(5, 7))}</text>` : '').join('')}
         </svg></div>`;
     };

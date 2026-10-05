@@ -6205,11 +6205,20 @@ async function gambarProfilLabel() {
   const p = await Label.profil();
   sel.innerHTML = p.daftar.map(x =>
     `<option value="${esc(x.id)}" ${x.id === p.aktif ? 'selected' : ''}>${esc(x.nama)}${x.id === p.bawaan ? ' · bawaan' : ''}</option>`).join('');
+  /* Daftar profil milik server dan hanya Owner yang mengubahnya (bagian 340).
+     Yang lain tetap MEMILIH profil dan boleh mencoba setelan di perangkatnya;
+     dropdown tindakannya disembunyikan, bukan dimatikan diam-diam. */
+  const boleh = typeof Label.bolehUbahProfil !== 'function' || Label.bolehUbahProfil();
+  $('#setLabelProfilAksi')?.closest('.kendali-tetap')?.classList.toggle('sembunyi', !boleh);
   const info = $('#infoLabelProfil');
   if (info) {
-    info.textContent = (await Label.profilBerubah())
-      ? 'Setelan di bawah sudah diubah dan BELUM disimpan ke profil ini — pilih "Simpan ke profil ini" atau "Simpan sebagai profil baru…".'
-      : 'Profil menyimpan empat setelan di bawah ini. Ukuran kertas di atas tidak ikut profil. Keranjang stiker memakai profil bawaan, dan bisa memilih profil lain.';
+    const berubah = await Label.profilBerubah();
+    info.textContent = !boleh
+      ? (berubah ? 'Setelan di bawah sudah diubah — berlaku di perangkat ini saja. ' : '') +
+        'Profil diatur Owner dan berlaku di semua perangkat; di sini Anda memilih profilnya.'
+      : berubah
+        ? 'Setelan di bawah sudah diubah dan BELUM disimpan ke profil ini — pilih "Simpan ke profil ini" atau "Simpan sebagai profil baru…".'
+        : 'Profil menyimpan empat setelan di bawah ini dan berlaku di semua perangkat. Ukuran kertas di atas tidak ikut profil. Keranjang stiker memakai profil bawaan, dan bisa memilih profil lain.';
   }
 }
 
@@ -7376,7 +7385,7 @@ function pasangEvent() {
         Admin.toast('Nama profil diganti.', 'sukses');
       } else if (aksi === 'hapus') {
         if (!(await Admin.tanya('Hapus profil "' + kini.nama + '"?',
-              '<p class="petunjuk">Setelannya hilang dari perangkat ini. Stiker yang sudah tercetak tidak terpengaruh.</p>',
+              '<p class="petunjuk">Profilnya hilang dari semua perangkat. Stiker yang sudah tercetak tidak terpengaruh.</p>',
               { ya: 'Hapus', jenis: 'bahaya' }))) return;
         await Label.hapusProfil(p.aktif);
         await Label.pilihProfil((await Label.profil()).aktif);
@@ -7421,6 +7430,9 @@ function pasangEvent() {
     /* Pemilih cabang Laporan digambar sekali saat mulai, jadi ia TIDAK ikut
        tersegarkan oleh APP_STATE saja — opsinya sudah terlanjur jadi HTML. */
     pasangPilihCabangLaporan();
+    /* Profil label diubah Owner di perangkat lain (bagian 340): kartu yang
+       sedang terbuka ikut diperbarui — SESUDAH setelannya dibaca ulang. */
+    if ($('#setLabelProfil')) gambarProfilLabel().catch(() => {});
   });
 
   $('#btnGantiPin').addEventListener('click', async () => {

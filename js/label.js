@@ -585,37 +585,84 @@ const Label = (() => {
     return bersih;
   }
 
-  /* ---------- Profil isi stiker (bagian 332) ----------
+  /* ---------- Profil isi stiker (bagian 332; di SERVER sejak bagian 340) ----------
    * Pemilik, 4 Okt 2026: "sediakan penyimpanan profile setingan … yang bisa
    * disave dan ada set default", lalu "di sini tidak membahas ukuran kertas,
    * saya hanya memikirkan adjust isi kontennya". Jadi profil memuat ISI saja
    * (KUNCI_ISI); ukuran kertas tetap satu set per perangkat di label_ukuran.
    *
-   * Bentuk simpanan (kv 'label_profil', per perangkat):
-   *   { daftar: [{ id, nama, isi }], bawaan: id, aktif: id }
-   * `bawaan` = yang dipilih Keranjang stiker saat dibuka. `aktif` = yang sedang
-   * dibuka di kartu Kertas label; isinya disalin ke label_ukuran saat dipilih.
-   * Perangkat yang belum punya profil mendapat satu, "Bawaan", berisi setelan
-   * yang sedang terpasang — tidak ada stiker yang berubah bentuk.
+   * DI SERVER (bagian 340). Pemilik, 5 Okt 2026: "profile label berlaku server
+   * bukan lokal", dan yang boleh mengubahnya hanya Owner. Daftar profil dan
+   * profil bawaannya disimpan di setelan `label_profil` (sheet setting, satu
+   * baris JSON — tanpa sheet baru) dan turun ke semua perangkat lewat tarik
+   * master, jadi tetap terbaca saat offline:
+   *   setelan `label_profil`  : { daftar: [{ id, nama, isi }], bawaan: id }
+   *   kv `label_profil_aktif` : id yang sedang dibuka di kartu — PER PERANGKAT;
+   *                             memilihnya tidak butuh izin maupun internet.
+   * Selama server belum punya profil, perangkat memakai daftar lokalnya (kv
+   * `label_profil`, bentuk bagian 332). Saat Owner pertama kali mengubah
+   * profil, daftar lokal perangkat itulah yang naik ke server.
    */
   const NAMA_PROFIL_MAKS = 30;
+  const _setelanApp = () => (typeof APP_STATE !== 'undefined' && APP_STATE && APP_STATE.setting) || null;
+  function _profilServer() {
+    const s = _setelanApp();
+    const t = s && s.label_profil;
+    if (!t) return null;
+    /* Setelan rusak jatuh ke daftar lokal, bukan ke kartu kosong. */
+    try {
+      const j = typeof t === 'string' ? JSON.parse(t) : t;
+      return j && Array.isArray(j.daftar) && j.daftar.length ? j : null;
+    } catch (e) { return null; }
+  }
+  /** Boleh mengubah daftar profil: hanya pemegang setting·ubah (Owner). Server memeriksa ulang. */
+  function bolehUbahProfil() {
+    return typeof bolehIzin === 'function' && !!bolehIzin('setting', 'ubah');
+  }
   async function profil() {
+    const srv = _profilServer();
+    let aktif = null;
+    try { aktif = await DB.kvGet('label_profil_aktif', null); } catch (e) { aktif = null; }
     let p = null;
-    try { p = await DB.kvGet('label_profil', null); } catch (e) { p = null; }
-    if (!p || !Array.isArray(p.daftar) || !p.daftar.length) {
-      /* DITULIS saat pertama kali dibuat. Profil yang hanya dirakit di ingatan
-         ikut berubah tiap kali setelannya diubah: isi aslinya hilang dan tanda
-         "belum disimpan" tidak pernah muncul — ditangkap uji-profil-label,
-         4 Okt 2026. Potretnya harus diambil SEKALI, sebelum perubahan apa pun. */
-      p = { daftar: [{ id: 'bawaan', nama: 'Bawaan', isi: jepitIsi(await ukuran()) }], bawaan: 'bawaan', aktif: 'bawaan' };
-      try { await DB.kvSet('label_profil', p); } catch (e) { /* tanpa simpanan: tetap bisa dipakai sesi ini */ }
+    if (srv) p = { daftar: srv.daftar, bawaan: srv.bawaan, aktif: aktif };
+    else {
+      try { p = await DB.kvGet('label_profil', null); } catch (e) { p = null; }
+      if (!p || !Array.isArray(p.daftar) || !p.daftar.length) {
+        /* DITULIS saat pertama kali dibuat. Profil yang hanya dirakit di ingatan
+           ikut berubah tiap kali setelannya diubah: isi aslinya hilang dan tanda
+           "belum disimpan" tidak pernah muncul — ditangkap uji-profil-label,
+           4 Okt 2026. Potretnya harus diambil SEKALI, sebelum perubahan apa pun. */
+        p = { daftar: [{ id: 'bawaan', nama: 'Bawaan', isi: jepitIsi(await ukuran()) }], bawaan: 'bawaan', aktif: 'bawaan' };
+        try { await DB.kvSet('label_profil', p); } catch (e) { /* tanpa simpanan: tetap bisa dipakai sesi ini */ }
+      }
+      p = { daftar: p.daftar, bawaan: p.bawaan, aktif: aktif || p.aktif };
     }
+    p.server = !!srv;
     p.daftar = p.daftar.map((x) => ({ id: String(x.id), nama: String(x.nama || ''), isi: jepitIsi(x.isi) }));
     if (!p.daftar.some((x) => x.id === p.bawaan)) p.bawaan = p.daftar[0].id;
     if (!p.daftar.some((x) => x.id === p.aktif)) p.aktif = p.bawaan;
     return p;
   }
-  const _tulisProfil = async (p) => { await DB.kvSet('label_profil', p); return p; };
+  /** Profil yang sedang dibuka: milik PERANGKAT — tanpa izin, tanpa internet. */
+  async function _tulisAktif(p, id) {
+    p.aktif = id;
+    try { await DB.kvSet('label_profil_aktif', id); } catch (e) { /* cukup untuk sesi ini */ }
+    if (!p.server) { try { await DB.kvSet('label_profil', { daftar: p.daftar, bawaan: p.bawaan, aktif: id }); } catch (e) { /* idem */ } }
+    return p;
+  }
+  /** Daftar & bawaan: milik SERVER — hanya Owner, dan butuh internet. Gagal = tidak ada yang berubah. */
+  async function _tulisDaftar(p) {
+    if (!bolehUbahProfil()) throw new Error('Profil label hanya bisa diubah Owner. Memilih profil tetap boleh.');
+    const nilai = JSON.stringify({ daftar: p.daftar.map((x) => ({ id: x.id, nama: x.nama, isi: jepitIsi(x.isi) })), bawaan: p.bawaan });
+    await API.simpanSetting({ setting: { label_profil: nilai } });
+    const s = _setelanApp();
+    if (s) {
+      s.label_profil = nilai;
+      try { await DB.kvSet('setting', s); } catch (e) { /* tarik master berikutnya membawanya */ }
+    }
+    p.server = true;
+    return _tulisAktif(p, p.aktif);
+  }
   function _namaProfilSah(p, nama, kecualiId) {
     const n = String(nama == null ? '' : nama).replace(/\s+/g, ' ').trim();
     if (!n) throw new Error('Nama profil wajib diisi.');
@@ -629,7 +676,7 @@ const Label = (() => {
   async function simpanProfil(id) {
     const p = await profil();
     _cariProfil(p, id).isi = jepitIsi(await ukuran());
-    return _tulisProfil(p);
+    return _tulisDaftar(p);
   }
   /** Profil baru dari setelan isi yang sedang terpasang; langsung jadi yang aktif. */
   async function profilBaru(nama) {
@@ -638,13 +685,13 @@ const Label = (() => {
     const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     p.daftar.push({ id, nama: n, isi: jepitIsi(await ukuran()) });
     p.aktif = id;
-    return _tulisProfil(p);
+    return _tulisDaftar(p);
   }
   async function gantiNamaProfil(id, nama) {
     const p = await profil();
     const x = _cariProfil(p, id);
     x.nama = _namaProfilSah(p, nama, x.id);
-    return _tulisProfil(p);
+    return _tulisDaftar(p);
   }
   async function hapusProfil(id) {
     const p = await profil();
@@ -653,19 +700,18 @@ const Label = (() => {
     if (x.id === p.bawaan) throw new Error('Profil bawaan tidak bisa dihapus — jadikan profil lain bawaan dulu.');
     p.daftar = p.daftar.filter((y) => y.id !== x.id);
     if (p.aktif === x.id) p.aktif = p.bawaan;
-    return _tulisProfil(p);
+    return _tulisDaftar(p);
   }
   async function jadikanBawaan(id) {
     const p = await profil();
     p.bawaan = _cariProfil(p, id).id;
-    return _tulisProfil(p);
+    return _tulisDaftar(p);
   }
   /** Buka profil `id` di kartu: isinya dipasang ke label_ukuran (ukuran kertas tidak disentuh). */
   async function pilihProfil(id) {
     const p = await profil();
     const x = _cariProfil(p, id);
-    p.aktif = x.id;
-    await _tulisProfil(p);
+    await _tulisAktif(p, x.id);
     return simpanUkuran(Object.assign(await ukuran(), x.isi));
   }
   /** Ukuran kertas perangkat ini + isi profil `id` — untuk Keranjang stiker. Tidak menyimpan apa pun. */
@@ -729,7 +775,7 @@ const Label = (() => {
            ukuran, simpanUkuran, cetak, barisPratinjau, pratinjauSemua, jumlahBarisCetak,
            slotDipakai, jumlahKolom, pecahNama, jepitIsi, KUNCI_ISI,
            profil, simpanProfil, profilBaru, gantiNamaProfil, hapusProfil, jadikanBawaan,
-           pilihProfil, ukuranProfil, profilBerubah,
+           pilihProfil, ukuranProfil, profilBerubah, bolehUbahProfil,
            BAWAAN, HURUF, POLA, TITIK_PER_MM, mmKeTitik };
 })();
 
