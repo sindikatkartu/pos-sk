@@ -21,46 +21,9 @@ const Struk = (() => {
 
   const rupiah = (n) => new Intl.NumberFormat(CONFIG.LOCALE).format(Math.round(Number(n) || 0));
 
-  /**
-   * Pembayaran seperti yang dilihat PELANGGAN: uang yang benar-benar diserahkan.
-   *
-   * `nota.bayar` BUKAN itu, dan memang tidak boleh jadi itu. app.js sengaja
-   * memotong kembalian dari baris tunai sebelum menyimpan, karena yang dijurnal
-   * adalah kas bersih: nota 5.000 yang dibayar 20.000 masuk pembukuan sebagai
-   * tunai 5.000, dan itu benar — kalau 20.000 yang dijurnal, kas dan neraca
-   * ikut salah. Yang keliru adalah mencetak angka pembukuan itu di kertas
-   * pelanggan. Struk SK01-SLW/2609/00071 (4 Sep 2026) berbunyi
-   * "TUNAI 5.000 / KEMBALI 15.000" — kembalian lebih besar daripada uang yang
-   * katanya diterima, dan tidak ada satu pun angka di kertas itu yang
-   * menjelaskannya.
-   *
-   * Sumber utamanya `_diterima`, disimpan app.js di ARSIP LOKAL apa adanya.
-   * Nota yang tersimpan SEBELUM perbaikan ini tidak punya — dan nota itulah
-   * yang paling mungkin dicetak ulang minggu ini. Untuk mereka kembaliannya
-   * dikembalikan ke baris tunai: kebalikan persis dari pemotongannya, bukan
-   * tebakan. HANYA baris tunai — metode lain tidak pernah dipotong, dan
-   * menambahinya akan mencetak setoran EDC yang tidak pernah terjadi.
-   */
-  function barisBayar(nota) {
-    const rapikan = (d) => (d || [])
-      .map(b => ({ metode: b.metode, jumlah: Math.round(Number(b.jumlah) || 0) }))
-      .filter(b => b.jumlah > 0);
-
-    const diterima = rapikan(nota && nota._diterima);
-    if (diterima.length) return diterima;
-
-    const out = rapikan(nota && nota.bayar);
-    const kembali = Math.round(Number(nota && nota._kembali) || 0);
-    if (kembali <= 0) return out;
-
-    const i = out.findIndex(b => String(b.metode).toLowerCase() === 'tunai');
-    /* Tidak ada baris tunai sama sekali padahal ada kembalian: barisnya jatuh
-       ke nol saat dipotong lalu dibuang `filter(m => m.jumlah > 0)`. Uangnya
-       tetap pernah berpindah tangan, jadi barisnya dimunculkan kembali. */
-    if (i === -1) out.push({ metode: 'tunai', jumlah: kembali });
-    else out[i] = { metode: out[i].metode, jumlah: out[i].jumlah + kembali };
-    return out;
-  }
+  /* barisBayar() PINDAH ke pos.js (bagian 344): struk WhatsApp kasir grosir
+     memakai baris pembayaran yang SAMA dengan kertas, dan modul cetak bukan
+     tempat yang bisa diandalkan pesan — di panggung uji ia diganti tiruan. */
 
   /** Susun baris teks struk (dipakai kedua jalur cetak). */
   function baris(nota, opsi = {}) {
@@ -502,7 +465,7 @@ const Struk = (() => {
 
   return { cetak, cetakHtml, cetakDokumen, bukaJendelaDokumen, isiJendelaDokumen, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
            pastikanTersambung, lepasPrinter,
-           baris, rupiah,
+           baris, rupiah, barisBayar,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };
 })();
 

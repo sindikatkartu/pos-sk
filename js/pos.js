@@ -882,6 +882,47 @@ function labelMetode(m) {
   return String(m || '').replace(/^transfer_/, 'trf_').replace(/_/g, ' ').toUpperCase();
 }
 
+/**
+ * Pembayaran seperti yang dilihat PELANGGAN: uang yang benar-benar diserahkan.
+ *
+ * `nota.bayar` BUKAN itu, dan memang tidak boleh jadi itu. app.js sengaja
+ * memotong kembalian dari baris tunai sebelum menyimpan, karena yang dijurnal
+ * adalah kas bersih: nota 5.000 yang dibayar 20.000 masuk pembukuan sebagai
+ * tunai 5.000, dan itu benar — kalau 20.000 yang dijurnal, kas dan neraca
+ * ikut salah. Yang keliru adalah mencetak angka pembukuan itu di kertas
+ * pelanggan. Struk SK01-SLW/2609/00071 (4 Sep 2026) berbunyi
+ * "TUNAI 5.000 / KEMBALI 15.000" — kembalian lebih besar daripada uang yang
+ * katanya diterima, dan tidak ada satu pun angka di kertas itu yang
+ * menjelaskannya.
+ *
+ * Sumber utamanya `_diterima`, disimpan app.js di ARSIP LOKAL apa adanya.
+ * Nota yang tersimpan SEBELUM perbaikan ini tidak punya — dan nota itulah
+ * yang paling mungkin dicetak ulang minggu ini. Untuk mereka kembaliannya
+ * dikembalikan ke baris tunai: kebalikan persis dari pemotongannya, bukan
+ * tebakan. HANYA baris tunai — metode lain tidak pernah dipotong, dan
+ * menambahinya akan mencetak setoran EDC yang tidak pernah terjadi.
+ */
+function barisBayar(nota) {
+  const rapikan = (d) => (d || [])
+    .map(b => ({ metode: b.metode, jumlah: Math.round(Number(b.jumlah) || 0) }))
+    .filter(b => b.jumlah > 0);
+
+  const diterima = rapikan(nota && nota._diterima);
+  if (diterima.length) return diterima;
+
+  const out = rapikan(nota && nota.bayar);
+  const kembali = Math.round(Number(nota && nota._kembali) || 0);
+  if (kembali <= 0) return out;
+
+  const i = out.findIndex(b => String(b.metode).toLowerCase() === 'tunai');
+  /* Tidak ada baris tunai sama sekali padahal ada kembalian: barisnya jatuh
+     ke nol saat dipotong lalu dibuang `filter(m => m.jumlah > 0)`. Uangnya
+     tetap pernah berpindah tangan, jadi barisnya dimunculkan kembali. */
+  if (i === -1) out.push({ metode: 'tunai', jumlah: kembali });
+  else out[i] = { metode: out[i].metode, jumlah: out[i].jumlah + kembali };
+  return out;
+}
+
 function ribuan(n) {
   const x = angkaDari(n);
   return (x < 0 ? '-' : '') + String(Math.abs(x)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -1311,6 +1352,8 @@ var IKON_SUMBER = {
   peran     : 'shield-user',
   perangkat : 'tablet-smartphone',
   lonceng   : 'bell',
+  /* pesan WhatsApp (bagian 344) */
+  pesan     : 'message-circle',
   kasir     : 'shopping-cart',
   riwayat   : 'history',
   shift     : 'clock',
@@ -1421,6 +1464,7 @@ var IKON = {
   perangkat : '<rect width="10" height="14" x="3" y="8" rx="2"/><path d="M5 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-2.4"/><path d="M8 18h.01"/>',
   persetujuan: '<path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13"/><path d="M20 15.5a2.5 2.5 0 0 0-2.5-2.5h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1z"/><path d="M5 22h14"/>',
   lonceng   : '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
+  pesan     : '<path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/>',
   kasir     : '<path d="m2.05 2.05 1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18"/><path d="M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25"/><circle cx="18" cy="20" r="2"/><circle cx="8" cy="20" r="2"/>',
   riwayat   : '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   /* Shift = jam kerja kasir. `history` di atas punya panah di luar

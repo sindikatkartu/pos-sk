@@ -8808,6 +8808,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     izinkan_stok_minus: 'Boleh menjual saat stok 0',
     tema: 'Tema tampilan', metode_hpp: 'Metode HPP',
     footer_struk: 'Baris penutup struk', lebar_struk: 'Lebar kertas struk',
+    wa_draft_kepala: 'Kepala pesan', wa_draft_kaki: 'Kaki pesan',
     mdr_qris: 'Potongan QRIS', auto_jurnal: 'Posting jurnal otomatis',
     klaim_petugas_wajib: 'Wajib klaim petugas',
     toko_grosir: 'Toko grosir',
@@ -8822,6 +8823,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     npwp: 'Hanya dipakai bila PKP menyala.',
     tarif_ppn: 'Hanya dipakai bila PKP menyala.',
     footer_struk: 'Baris terakhir sebelum kertas terpotong.',
+    wa_draft_kepala: 'Bisa memakai {usaha}, {cabang}, {tanggal}, {jam}, {pelanggan}. *tebal* dan _miring_ mengikuti WhatsApp. Kosong = tanpa kepala.',
+    wa_draft_kaki: 'Ditaruh sesudah Total. Isian dan format sama dengan kepala. Kosong = tanpa kaki.',
     lebar_struk: '58 atau 80.',
     mdr_qris: 'Dicatat sebagai beban di jurnal.',
     tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
@@ -8854,6 +8857,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      dengan `String(x) === 'true'`, sehingga apa pun yang diketik selain kata
      itu berarti mati, tanpa satu pun galat. */
   const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'auto_jurnal', 'klaim_petugas_wajib'];
+
+  /* SETELAN BERTEKS PANJANG (bagian 344): kepala & kaki pesan WhatsApp draft
+     grosir boleh beberapa baris — kotak satu baris membuang baris barunya. */
+  const SETTING_PANJANG = ['wa_draft_kepala', 'wa_draft_kaki'];
 
   /* SETELAN YANG DIBUANG. Membuangnya dari benih di 00_Config.gs saja tidak
      cukup: barisnya SUDAH ada di sheet toko yang berjalan sejak Agustus, dan
@@ -8900,6 +8907,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     { judul: 'Struk & cetak', ikon: 'struk',
       ket: 'Bentuk kertas yang keluar dari printer kasir.',
       kunci: ['footer_struk', 'lebar_struk'] },
+    { judul: 'Pesan WhatsApp draft grosir', ikon: 'pesan',
+      ket: 'Kepala & kaki pesan yang dikirim kasir grosir lewat tombol WhatsApp.',
+      kunci: ['wa_draft_kepala', 'wa_draft_kaki'] },
     { judul: 'Penjualan & stok', ikon: 'stok',
       ket: 'Aturan yang dipakai kasir saat melayani.',
       kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris', 'toko_grosir', 'bank_aktif'] },
@@ -8989,6 +8999,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <input type="text" inputmode="decimal" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
           <span>${esc(SATUAN_SETTING[r.kunci])}</span>
         </div>${bantu}</div>`;
+    }
+    if (SETTING_PANJANG.includes(r.kunci)) {
+      return `<div class="grup set-panjang"><label>${esc(label)}</label>
+        <textarea rows="3" data-setting="${esc(r.kunci)}">${esc(r.nilai)}</textarea>${bantu}</div>`;
     }
     return `<div class="grup"><label>${esc(label)}</label>
       <input type="text" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}" placeholder="${esc(CONTOH_SETTING[r.kunci] || '')}">${bantu}</div>`;

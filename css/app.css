@@ -3757,6 +3757,17 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
   box-shadow: var(--bayang-1); }
 .segmen button:focus-visible { outline: none; box-shadow: var(--cincin); }
 .segmen .ikon-svg { width: 16px; height: 16px; }
+/* Pilihan struk di layar Bayar (bagian 344): label dan segmen sebaris, segmen
+   mengisi sisanya dengan tiga tombol sama lebar. */
+.byr-struk { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
+.byr-struk-label { font-size: var(--fs-13); color: var(--teks-redup); flex: none; }
+.byr-struk .segmen { flex: 1; width: auto; }
+.byr-struk .segmen button { flex: 1; justify-content: center; padding: 10px 8px; }
+#btnKirimWa, #btnKirimWaSukses { display: flex; align-items: center; justify-content: center; gap: 8px; }
+#btnKirimWa.sembunyi, #btnKirimWaSukses.sembunyi { display: none; }
+/* Kepala & kaki pesan WhatsApp di Pengaturan Sistem: selebar kelompoknya. */
+.set-panjang { grid-column: 1 / -1; }
+.set-panjang textarea { width: 100%; min-height: 72px; resize: vertical; }
 
 /* Setelan yang tidak berlaku saat induknya mati DIREDUPKAN, bukan dikosongkan:
    nilainya harus tetap utuh saat induknya dinyalakan lagi. */

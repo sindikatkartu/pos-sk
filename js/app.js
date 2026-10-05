@@ -218,9 +218,11 @@ async function konfirmasiJamShift(kini) {
  * `admin`      : layarnya digambar oleh admin.js (butuh internet), bukan penanda pembatasan.
  * `backoffice` : benar-benar menu pengelolaan yang tidak boleh dilihat kasir.
  *
- * Dua penanda itu sengaja dipisah karena ada satu pengecualian penting: **Retur** digambar
+ * Dua penanda itu sengaja dipisah karena ada pengecualian penting: **Retur** digambar
  * admin.js tapi justru dikerjakan kasir di depan pelanggan. Menyamakan keduanya akan
- * menutup akses kasir ke pekerjaannya sendiri.
+ * menutup akses kasir ke pekerjaannya sendiri. **Transfer Barang** sama sejak bagian
+ * 337: kasir MENERIMA kiriman di cabangnya (transfer lihat + setujui), jadi menunya
+ * bukan lagi milik back office saja (bagian 343).
  *
  * Hasilnya untuk peran bawaan:
  *   Kasir          → Kasir, Riwayat, Retur, Perangkat
@@ -322,7 +324,7 @@ const MENU = [
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
   /* "Transfer Barang": bertabrakan dengan tab "Transfer bank" (uang) di Kas & Bank. */
-  { id: 'transfer',   label: 'Transfer Barang', grup: 'Persediaan', izin: ['transfer', 'lihat'],     admin: true, backoffice: true },
+  { id: 'transfer',   label: 'Transfer Barang', grup: 'Persediaan', izin: ['transfer', 'lihat'],     admin: true },
   // Permintaan digantung pada `permintaan.lihat`, bukan `.buat`: admin gudang
   // MEMPROSES permintaan tanpa pernah boleh membuatnya, dan menu yang digantung
   // pada `.buat` akan menyembunyikan seluruh daftar pekerjaannya.
@@ -2578,12 +2580,185 @@ async function tambahKeKeranjang(produk, qty = 1, satuan = null) {
  * Paling banyak TAHANAN_MAKS per perangkat: daftar yang bisa tumbuh tanpa
  * batas berubah jadi tempat sampah, dan yang ke-11 hampir pasti sudah pergi.
  */
+/* ==================== KIRIM KE WHATSAPP (bagian 344) ====================
+ * Kasir grosir lewat pemilik, 5 Okt 2026: draft / keranjang grosir "bisa
+ * dishare melalui whatsapp langsung dari tablet kasir", dan sesudah bayar ada
+ * pilihan "cetak struk atau kirim struk ke whatsapp atau dua duanya".
+ * Keputusan pemilik (kuesioner): TOKO GROSIR SAJA; langsung ke nomor
+ * pelanggan bila ada (tanpa nomor: kasir memilih kontak di WhatsApp); isi
+ * rincian harga + total; draft di daftar Tahanan juga bisa dikirim; pilihan
+ * struk di layar Bayar, diingat per tablet; kepala & kaki STRUK sama dengan
+ * kertas, kepala & kaki DRAFT diatur di Pengaturan Sistem.
+ *
+ * Pesannya disusun di perangkat dari data yang sudah ada di sini — tanpa
+ * server, jadi tetap jalan saat internet putus (WhatsApp yang mengirimkannya
+ * nanti). Tidak ada yang tersimpan atau berubah di mana pun.
+ *
+ * Tanggal: DRAFT memakai bentuk layar (DD/MM/YY) — pesan yang dibaca hari itu;
+ * STRUK memakai bentuk kertas (DD/MM/YYYY) — bukti yang disimpan pelanggan.
+ */
+const tokoGrosirIni = () => jenisToko(APP_STATE.cabang, APP_STATE.setting) === 'grosir';
+const KirimWa = (() => {
+  /* Bawaan = benih `wa_draft_kepala` / `wa_draft_kaki` di 00_Config.gs (ada
+     uji yang menjaga keduanya sama). Dipakai hanya bila setelannya belum turun
+     ke perangkat; setelan yang SENGAJA dikosongkan pemilik berarti tanpa. */
+  const KEPALA_BAWAAN = '*{usaha} — {cabang}*\n*DRAFT PESANAN — bukan struk*';
+  const KAKI_BAWAAN = '_Belum dibayar. Harga sesuai tanggal draft ({tanggal}); bila pesanan dikonfirmasi di hari lain, harga mengikuti hari konfirmasi._';
+  const angka = (n) => ribuan(Math.round(Number(n) || 0));
+
+  /** Nomor WhatsApp internasional tanpa tanda: 0812… / +62 812… / 812… → 62812…; selain itu ''. */
+  function nomor(tel) {
+    let d = String(tel || '').replace(/\D/g, '');
+    if (d.startsWith('0')) d = '62' + d.slice(1);
+    else if (d.startsWith('8')) d = '62' + d;
+    return /^62\d{8,13}$/.test(d) ? d : '';
+  }
+  /** {usaha} {cabang} {tanggal} {jam} {pelanggan} — kata lain dibiarkan apa adanya. */
+  function isi(templat, nilai) {
+    return String(templat == null ? '' : templat)
+      .replace(/\{(usaha|cabang|tanggal|jam|pelanggan)\}/g, (m, k) => String(nilai[k] == null ? '' : nilai[k]));
+  }
+  /** Blok dipisah satu baris kosong; baris kosong DI DALAM blok dibuang. */
+  const gabung = (blok) => blok
+    .map((b) => b.map((x) => String(x == null ? '' : x).replace(/\s+$/, '')).filter((x) => x.trim()).join('\n'))
+    .filter(Boolean).join('\n\n');
+
+  function barisBarang(baris) {
+    const out = [];
+    (baris || []).forEach((b, i) => {
+      const q = Number(b.qty) || 0, h = Number(b.harga_satuan) || 0;
+      out.push((i + 1) + '. ' + (b.nama || b.sku || ''));
+      out.push('    ' + q + ' ' + (b.satuan || '') + ' × ' + angka(h) + ' = ' + angka(q * h));
+      if (Number(b.diskon) > 0) out.push('    Diskon −' + angka(b.diskon));
+    });
+    return out;
+  }
+
+  /** Draft dari keranjang yang sedang terbuka. */
+  function dataKeranjang() {
+    const t = Keranjang.total(), kini = new Date();
+    return { tanggal: tanggalLokal(kini), jam: kini.toTimeString().slice(0, 5), pelanggan: (Keranjang.pelanggan && Keranjang.pelanggan.nama) || '',
+             baris: Keranjang.baris.map((b) => ({ nama: b.nama, sku: b.sku, qty: b.qty, satuan: b.satuan, harga_satuan: b.harga_satuan, diskon: b.diskon || 0 })),
+             bruto: t.bruto, diskon: (t.diskon_item || 0) + (t.diskon_nota || 0), ppn: t.ppn || 0, total: t.total };
+  }
+  /** Draft dari sebuah tahanan — harga YANG DITAHAN, bukan katalog sekarang. */
+  function dataTahanan(t) {
+    const baris = t.baris || [];
+    const bruto = baris.reduce((a, b) => a + (Number(b.qty) || 0) * (Number(b.harga_satuan) || 0), 0);
+    const diskon = baris.reduce((a, b) => a + (Number(b.diskon) || 0), 0) + (Number(t.diskon_nota) || 0);
+    const total = Number(t.total) || 0;
+    return { tanggal: t.tanggal, jam: t.jam, pelanggan: (t.pelanggan && t.pelanggan.nama) || '', baris,
+             bruto, diskon, ppn: Math.max(0, Math.round(total - (bruto - diskon))), total };
+  }
+
+  function teksDraft(d) {
+    const s = APP_STATE.setting || {};
+    const nilai = { usaha: s.nama_usaha || 'SINDIKAT KARTU', cabang: APP_STATE.namaCabang || APP_STATE.cabang || '',
+                    tanggal: tglTampil(d.tanggal), jam: d.jam || '', pelanggan: d.pelanggan || '' };
+    const kepala = isi(s.wa_draft_kepala === undefined ? KEPALA_BAWAAN : s.wa_draft_kepala, nilai);
+    const kaki = isi(s.wa_draft_kaki === undefined ? KAKI_BAWAAN : s.wa_draft_kaki, nilai);
+    return gabung([
+      [kepala, (nilai.tanggal + ' ' + nilai.jam).trim(), d.pelanggan ? 'Pelanggan: ' + d.pelanggan : ''],
+      barisBarang(d.baris),
+      ['Subtotal: Rp ' + angka(d.bruto), d.diskon > 0 ? 'Diskon: Rp ' + angka(d.diskon) : '',
+       d.ppn > 0 ? 'PPN: Rp ' + angka(d.ppn) : '', '*Total: Rp ' + angka(d.total) + '*'],
+      [kaki]
+    ]);
+  }
+
+  /** Struk sesudah bayar — kepala & kaki SAMA dengan struk kertas (print.js). */
+  function teksStruk(n) {
+    const s = APP_STATE.setting || {};
+    const t = n._total || {};
+    const pkp = String(s.pkp).toLowerCase() === 'true';
+    const bayar = barisBayar(n)
+      .map((b) => labelMetode(b.metode) + ': Rp ' + angka(b.jumlah));
+    if (Number(n._kembali) > 0) bayar.push('Kembali: Rp ' + angka(n._kembali));
+    if (n.jatuh_tempo) bayar.push('Jatuh tempo: ' + tglCetak(n.jatuh_tempo));
+    if (Number(n.garansi_hari) > 0) bayar.push('Garansi ' + n.garansi_hari + ' hari (s.d. ' + tglCetak(n.garansi_sampai) + ')');
+    return gabung([
+      ['*' + String(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase() + '*',
+       [s.alamat_usaha, s.telepon_usaha].map((x) => String(x || '').trim()).filter(Boolean).join(' · '),
+       pkp && String(s.npwp || '').trim() ? 'NPWP ' + String(s.npwp).trim() : '',
+       APP_STATE.namaCabang || APP_STATE.cabang || ''],
+      ['*STRUK* ' + (n.no_nota || ''),
+       tglCetak(n.tanggal) + ' ' + String(n.jam || '').slice(0, 5) + ' · Kasir: ' + ((APP_STATE.user && APP_STATE.user.nama) || ''),
+       n.kode_pelanggan && n.kode_pelanggan !== 'C001' ? 'Pelanggan: ' + (n._nama_pelanggan || n.kode_pelanggan) : ''],
+      barisBarang(n.item),
+      ['Subtotal: Rp ' + angka(t.bruto), Number(t.diskon_item) > 0 ? 'Diskon item: Rp ' + angka(t.diskon_item) : '',
+       Number(n.diskon_nota) > 0 ? 'Diskon nota: Rp ' + angka(n.diskon_nota) : '',
+       Number(n.ppn) > 0 ? 'PPN: Rp ' + angka(n.ppn) : '', '*Total: Rp ' + angka(n.total) + '*'],
+      bayar,
+      /* Cadangan SAMA dengan kertas (print.js): footer kosong tetap 'Terima kasih'. */
+      ['_' + (String(s.footer_struk || '').trim() || 'Terima kasih') + '_']
+    ]);
+  }
+
+  /** Nomor pelanggan: dari objeknya, atau dicari di daftar pelanggan perangkat menurut kodenya. */
+  async function teleponPelanggan(p) {
+    if (!p) return '';
+    if (p.telepon) return String(p.telepon);
+    if (!p.kode) return '';
+    /* Urutan cari sama dengan Lanjutkan: kode apa adanya, lalu kode barunya
+       (tahanan dari sebelum migrasi bagian 287) — lalu daftar lengkapnya. */
+    try {
+      const r = (await DB.get('pelanggan', p.kode)) || (await DB.get('pelanggan', kodePelangganBaku(p.kode))) ||
+                (await DB.all('pelanggan')).find((x) => String(x.kode) === String(p.kode));
+      return r && r.telepon ? String(r.telepon) : '';
+    } catch (e) { return ''; }
+  }
+
+  /** Buka WhatsApp: ke nomor itu bila sah, kalau tidak WhatsApp yang menanyakan kontaknya. */
+  function buka(teks, tel) {
+    const n = nomor(tel);
+    const url = 'https://wa.me/' + n + '?text=' + encodeURIComponent(teks);
+    let w = null;
+    try { w = window.open(url, '_blank'); } catch (e) { w = null; }
+    if (w) { try { w.opener = null; } catch (e) { /* jendela lintas asal */ } }
+    return { url, nomor: n, terbuka: !!w };
+  }
+  function kirim(teks, tel) {
+    const r = buka(teks, tel);
+    if (!r.terbuka) Admin.toast('WhatsApp tidak terbuka — izinkan pop-up untuk POS ini, lalu coba lagi.', 'galat');
+    return r;
+  }
+
+  return { nomor, isi, teksDraft, teksStruk, dataKeranjang, dataTahanan, teleponPelanggan, buka, kirim, KEPALA_BAWAAN, KAKI_BAWAAN };
+})();
+
+/* Pilihan struk di layar Bayar (bagian 344) — toko grosir saja, diingat per tablet. */
+const PILIHAN_STRUK = { cetak: 'Selesaikan & Cetak', wa: 'Selesaikan & Kirim', keduanya: 'Selesaikan, Cetak & Kirim' };
+async function aturPilihanStruk(pilih) {
+  const grosir = tokoGrosirIni();
+  $('#grupStrukKirim')?.classList.toggle('sembunyi', !grosir);
+  let p = 'cetak';
+  if (grosir) {
+    try { p = pilih || (await DB.kvGet('struk_kirim', 'cetak')); } catch (e) { p = pilih || 'cetak'; }
+    if (!PILIHAN_STRUK[p]) p = 'cetak';
+    if (pilih) { try { await DB.kvSet('struk_kirim', p); } catch (e) { /* cukup untuk sesi ini */ } }
+  }
+  APP_STATE.strukKirim = p;
+  $$('#segStrukKirim [data-struk-kirim]').forEach((b) => b.classList.toggle('pas', b.dataset.strukKirim === p));
+  const btn = $('#btnSelesaikan');
+  if (btn) btn.textContent = PILIHAN_STRUK[p];
+}
+
 const TAHANAN_MAKS = 10;
 const Tahanan = (() => {
   const KUNCI = 'nota_tahan';
+  /* TOKO GROSIR (bagian 344, pemilik 5 Okt 2026): draft pesanan WhatsApp
+     bertahan lewat tutup shift — pelanggan bisa baru membalas di shift malam —
+     tetapi HANYA di hari yang sama, "karena hari berikutnya bisa saja berganti
+     harga". Yang dari hari sebelumnya dibuang di sini, satu pintu untuk semua
+     pembaca daftar. Toko ecer tidak berubah: dibuang saat tutup shift. */
   const daftar = async () => {
     const d = await DB.kvGet(KUNCI, []);
-    return Array.isArray(d) ? d : [];
+    const semua = Array.isArray(d) ? d : [];
+    if (!tokoGrosirIni()) return semua;
+    const hari = tanggalLokal(new Date());
+    const kini = semua.filter((t) => t.tanggal === hari);
+    if (kini.length !== semua.length) await simpan(kini);
+    return kini;
   };
   const simpan = (d) => DB.kvSet(KUNCI, d);
 
@@ -2704,6 +2879,14 @@ const Tahanan = (() => {
     gambarLencana(0);
   }
 
+  /** Tutup shift: ecer membuang semuanya; grosir menyimpan draft hari ini (bagian 344). */
+  async function bersihkanTutupShift() {
+    if (!tokoGrosirIni()) { await buangSemua(); return 0; }
+    const d = await daftar();
+    gambarLencana(d.length);
+    return d.length;
+  }
+
   async function jumlah() { return (await daftar()).length; }
 
   /** Lencana "Tahanan · n" di bar alat kasir; disembunyikan bila nol. */
@@ -2720,6 +2903,7 @@ const Tahanan = (() => {
   /** Daftar tahanan di modal umum: Lanjutkan / Buang per baris. */
   async function bukaDaftar() {
     const d = await daftar();
+    const grosir = tokoGrosirIni();
     const hariIni = tanggalLokal(new Date());
     const isi = d.length ? `<div class="daftar-tahanan">${d.map(t => `
       <div class="tahanan ${t.tanggal !== hariIni ? 'lewat' : ''}" data-id="${esc(t.id)}">
@@ -2730,17 +2914,18 @@ const Tahanan = (() => {
             ${t.pelanggan?.nama && t.label ? ' · ' + esc(t.pelanggan.nama) : ''}</div>
         </div>
         <div class="tahanan-aksi">
+          ${grosir ? `<button class="tombol kecil" data-tahan-wa="${esc(t.id)}"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.pesan}</svg><span>WhatsApp</span></button>` : ''}
           <button class="tombol kecil" data-tahan-buang="${esc(t.id)}">Buang</button>
           <button class="tombol kecil utama" data-tahan-lanjut="${esc(t.id)}">Lanjutkan</button>
         </div>
       </div>`).join('')}</div>`
       : '<p class="petunjuk" style="text-align:center;padding:20px 0">Tidak ada nota yang ditahan.</p>';
     Admin.modal('Nota ditahan',
-      `<p class="petunjuk" style="margin-top:0">Tersimpan di perangkat ini saja dan dibuang saat shift ditutup.
+      `<p class="petunjuk" style="margin-top:0">Tersimpan di perangkat ini saja dan ${grosir ? 'tetap ada lewat tutup shift sampai ganti hari' : 'dibuang saat shift ditutup'}.
          Harga dihitung ulang dari katalog saat dilanjutkan.</p>${isi}`);
   }
 
-  return { daftar, tahan, lanjutkan, buang, buangSemua, jumlah, gambarLencana, segarkanLencana, bukaDaftar, kosongkanLayarKeranjang };
+  return { daftar, tahan, lanjutkan, buang, buangSemua, bersihkanTutupShift, jumlah, gambarLencana, segarkanLencana, bukaDaftar, kosongkanLayarKeranjang };
 })();
 
 /* ==================== KERANJANG ==================== */
@@ -2856,6 +3041,7 @@ function gambarKeranjang() {
   $('#pegHitung').textContent = t.jumlah_item + ' item';
   $('#pegTotal').innerHTML = rp(t.total);
   $('#btnBayar').disabled = b.length === 0;
+  $('#btnKirimWa')?.classList.toggle('sembunyi', !tokoGrosirIni());
 }
 
 /* ==================== KLAIM PETUGAS ====================
@@ -3406,6 +3592,7 @@ function segarkanLipatanOpsional() {
 
 function bukaBayar() {
   if (Keranjang.kosong) return;
+  aturPilihanStruk().catch(() => {});
   if (modeLihat()) { Admin.toast(TEKS_MODE_LIHAT, 'info'); return; }
   if (!APP_STATE.idShift) {
     /* Dulu di sini hanya ada alert yang menunjuk nama menu lama. Menunya sudah
@@ -3824,6 +4011,10 @@ async function selesaikanTransaksi() {
   btn.classList.add('sibuk');
   try {
     const t = Keranjang.total();
+    /* Pilihan struk dan nomor pelanggan dibaca SEKARANG (bagian 344): sesudah
+       nota tersimpan keranjangnya dikosongkan dan pelanggannya ikut hilang. */
+    const kirimStruk = tokoGrosirIni() ? (APP_STATE.strukKirim || 'cetak') : 'cetak';
+    const telWa = kirimStruk !== 'cetak' ? await KirimWa.teleponPelanggan(Keranjang.pelanggan) : '';
     const uid = APP_STATE.uuidNota || (crypto.randomUUID ? crypto.randomUUID()
               : 'X' + Date.now() + Math.random().toString(36).slice(2));
     // Cadangan bila daftar cabang belum tersinkron: pakai kode cabang apa adanya.
@@ -3893,6 +4084,15 @@ async function selesaikanTransaksi() {
        sementara pencetakan bisa makan waktu dan bisa gagal. */
     bukaLayarSukses(arsip);
 
+    /* WhatsApp dibuka SEGERA sesudah layar sukses, SEBELUM stok dan printer
+       (bagian 344): peramban hanya mengizinkan membuka aplikasi lain beberapa
+       detik sesudah ketukan, dan printer bisa makan waktu lebih lama. Kalau
+       tetap tertolak, tombol "Kirim struk ke WhatsApp" di layar sukses ada. */
+    if (kirimStruk !== 'cetak') {
+      const r = KirimWa.buka(KirimWa.teksStruk(arsip), telWa);
+      if (!r.terbuka) pesan('#skPesan', 'WhatsApp belum terbuka — tekan "Kirim struk ke WhatsApp".', 'peringatan');
+    }
+
     /* Urutannya penting: stok lokal dikurangi DULU, baru daftarnya digambar.
        Kalau dibalik, kartu produk masih memperlihatkan stok sebelum penjualan —
        barang terakhir tetap tertulis "stok 1" sampai ada yang memicu gambar ulang. */
@@ -3900,7 +4100,8 @@ async function selesaikanTransaksi() {
     catch (e) { console.warn('Stok lokal gagal dikurangi:', e.message); }
     await gambarProduk('');
 
-    try { await Struk.cetak({ ...arsip, _offline: !API.online }); }
+    /* "WhatsApp" saja = tidak ada kertas yang keluar (bagian 344). */
+    if (kirimStruk !== 'wa') try { await Struk.cetak({ ...arsip, _offline: !API.online }); }
     catch (e) {
       // Dulu hanya console.warn: kasir mengira struk tercetak padahal tidak.
       /* Masuk ke layar sukses yang SEDANG terbuka, bukan toast: toast hilang
@@ -3926,6 +4127,7 @@ const SUKSES_DETIK = 30;
 
 let _timerSukses = null;
 let _uuidSukses  = '';
+let _arsipSukses = null;   // untuk "Kirim struk ke WhatsApp" (bagian 344)
 
 function hentikanTimerSukses() {
   if (_timerSukses) { clearInterval(_timerSukses); _timerSukses = null; }
@@ -3945,6 +4147,8 @@ function hentikanTimerSukses() {
  */
 function bukaLayarSukses(arsip) {
   _uuidSukses = arsip.uuid || '';
+  _arsipSukses = arsip;
+  $('#btnKirimWaSukses')?.classList.toggle('sembunyi', !tokoGrosirIni());
   const kembali  = Number(arsip._kembali || 0);
   const adaTunai = (arsip._diterima || []).some(m => m.metode === 'tunai');
 
@@ -6970,6 +7174,24 @@ function pasangEvent() {
     Admin.toast(`Nota ditahan (${t.jumlah_item} item, ${rpTeks(t.total)}).`, 'sukses');
   };
   $('#btnTahan').addEventListener('click', () => (modeLihat() ? Admin.toast(TEKS_MODE_LIHAT, 'info') : tahanSekarang()));
+  /* Kirim draft keranjang ke WhatsApp (bagian 344). Tidak menyimpan apa pun,
+     jadi mode lihat pun boleh. */
+  $('#btnKirimWa')?.addEventListener('click', async () => {
+    if (Keranjang.kosong) { Admin.toast('Keranjang kosong — belum ada yang bisa dikirim.', 'galat'); return; }
+    const tel = await KirimWa.teleponPelanggan(Keranjang.pelanggan);
+    KirimWa.kirim(KirimWa.teksDraft(KirimWa.dataKeranjang()), tel);
+  });
+  $('#btnKirimWaSukses')?.addEventListener('click', async () => {
+    if (!_arsipSukses) return;
+    hentikanTimerSukses();
+    $('#btnSelesaiSukses').textContent = 'Selesai';
+    const tel = await KirimWa.teleponPelanggan({ kode: _arsipSukses.kode_pelanggan });
+    KirimWa.kirim(KirimWa.teksStruk(_arsipSukses), tel);
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-struk-kirim]');
+    if (b) aturPilihanStruk(b.dataset.strukKirim).catch(() => {});
+  });
   $('#lncTahanan').addEventListener('click', () => Tahanan.bukaDaftar());
   $('#lncTahanan').addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); Tahanan.bukaDaftar(); }
@@ -6977,6 +7199,15 @@ function pasangEvent() {
   document.addEventListener('click', async e => {
     const lanjut = e.target.closest('[data-tahan-lanjut]');
     const buang = e.target.closest('[data-tahan-buang]');
+    const wa = e.target.closest('[data-tahan-wa]');
+    if (wa) {
+      /* Draft yang ditahan dikirim apa adanya — harga saat ditahan (bagian 344). */
+      const t = (await Tahanan.daftar()).find((x) => x.id === wa.dataset.tahanWa);
+      if (!t) { Admin.toast('Nota tahanan itu sudah tidak ada.', 'galat'); return; }
+      const tel = await KirimWa.teleponPelanggan(t.pelanggan);
+      KirimWa.kirim(KirimWa.teksDraft(KirimWa.dataTahanan(t)), tel);
+      return;
+    }
     if (!lanjut && !buang) return;
     if (buang) {
       if (!(await Admin.tanya('Buang nota tahanan ini?',
@@ -7174,7 +7405,9 @@ function pasangEvent() {
     }
     /* Nota yang DITAHAN ikut dibuang bersama shift (keputusan pemilik 10 Sep
        2026) — dan itu disebut SEBELUM menutup, bukan sesudahnya. */
-    const ditahan = await Tahanan.jumlah();
+    /* Toko grosir menyimpan draft hari ini lewat tutup shift (bagian 344) —
+       tidak ada yang hilang, jadi tidak ada yang perlu ditanyakan. */
+    const ditahan = tokoGrosirIni() ? 0 : await Tahanan.jumlah();
     if (ditahan > 0) {
       if (!(await Admin.tanya('Tutup shift sekarang?',
             `<div class="pesan peringatan">Masih ada ${ditahan} nota ditahan di perangkat ini.
@@ -7193,7 +7426,7 @@ function pasangEvent() {
         kas_fisik: angkaDari($('#tsKasFisik').value), catatan: $('#tsCatatan').value });
       APP_STATE.idShift = null;
       await DB.kvSet('id_shift', null);
-      await Tahanan.buangSemua();
+      await Tahanan.bersihkanTutupShift();
       /* Hasilnya dipindah ke layar Shift, lalu modalnya ditutup.
          Membiarkan modal terbuka setelah berhasil membuat orang mengira prosesnya
          belum selesai — dan menutupnya begitu saja akan membuang angka selisih,

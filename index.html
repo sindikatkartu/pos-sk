@@ -343,6 +343,11 @@
             </div>
             <button class="tombol peringatan penuh" id="btnBukaShiftKasir">Buka shift sekarang</button>
           </div>
+          <!-- Kirim draft ke WhatsApp (bagian 344): TOKO GROSIR saja — app.js
+               menyembunyikannya di cabang ecer. Selebar panel di atas BAYAR, bukan
+               di kepala keranjang: di tablet mendatar kepala keranjang hanya ±320 px
+               dan tombol ketiga memotong "Kosongkan". -->
+          <button class="tombol penuh sembunyi" id="btnKirimWa" style="margin-top:12px"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></svg><span>Kirim ke WhatsApp</span></button>
           <button class="tombol sukses besar" id="btnBayar" style="margin-top:12px">BAYAR  (F12)</button>
         </div>
       </aside>
@@ -762,7 +767,8 @@
             <li><strong>Lanjutkan</strong> mengembalikan seluruh baris, pelanggan, level harga, diskon, dan pramuniaga. Kalau keranjang sedang berisi, isinya ikut ditahan otomatis (tukar) — tidak ada yang hilang.</li>
             <li>Harga dihitung ulang dari katalog saat dilanjutkan; produk yang sudah nonaktif atau tidak dijual di cabang ini dilepas dan disebutkan.</li>
             <li>Tahanan <strong>bukan nota</strong>: tidak ada nomor nota, poin, stok, atau HPP yang tersentuh sampai Bayar. Stok tidak dipesan.</li>
-            <li>Tersimpan <strong>di perangkat ini saja</strong> (tetap ada walau aplikasi ditutup, tetap bekerja tanpa internet), paling banyak 10. Semuanya <strong>dibuang saat Tutup shift</strong> — jumlahnya disebutkan sebelum shift ditutup.</li>
+            <li>Tersimpan <strong>di perangkat ini saja</strong> (tetap ada walau aplikasi ditutup, tetap bekerja tanpa internet), paling banyak 10. Semuanya <strong>dibuang saat Tutup shift</strong> — jumlahnya disebutkan sebelum shift ditutup. <strong>Toko grosir</strong>: draft hari ini tetap ada lewat Tutup shift (pesanan WhatsApp bisa dibalas di shift berikutnya) dan baru dibuang saat ganti hari.</li>
+            <li><strong>Toko grosir</strong>: tombol <strong>Kirim ke WhatsApp</strong> di atas BAYAR (dan di tiap draft di daftar Tahanan) membuka chat pelanggan berisi rincian draft. Pelanggan tanpa nomor: pilih kontaknya di WhatsApp. Di layar Bayar, <strong>Struk</strong> bisa dicetak, dikirim ke WhatsApp, atau keduanya.</li>
           </ul>
         </div>
 
@@ -1285,6 +1291,16 @@
     <div class="byr-kaki">
       <div class="total-baris"><span>Dibayar</span><span id="byrDibayar">Rp 0</span></div>
       <div class="total-baris besar byr-sisa"><span id="byrLabelSisa">Kembali</span><span id="byrSisa">Rp 0</span></div>
+      <!-- Struk dikirim ke mana (bagian 344): toko grosir saja, diingat per tablet.
+           Sebaris dengan labelnya supaya bagian bawah modal hanya bertambah satu baris. -->
+      <div class="byr-struk sembunyi" id="grupStrukKirim">
+        <span class="byr-struk-label">Struk</span>
+        <div class="segmen" id="segStrukKirim" role="group" aria-label="Struk dikirim ke">
+          <button type="button" data-struk-kirim="cetak">Cetak</button>
+          <button type="button" data-struk-kirim="wa">WhatsApp</button>
+          <button type="button" data-struk-kirim="keduanya">Keduanya</button>
+        </div>
+      </div>
       <div class="aksi-modal">
         <button class="tombol" id="btnBatalBayar">Batal</button>
         <button class="tombol sukses" id="btnSelesaikan">Selesaikan &amp; Cetak</button>
@@ -1308,6 +1324,7 @@
     <p class="sukses-angka" id="skAngka">Lunas</p>
     <p class="sukses-nota" id="skNota"></p>
     <div id="skPesan"></div>
+    <button class="tombol penuh sembunyi" id="btnKirimWaSukses" style="margin-bottom:8px"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></svg><span>Kirim struk ke WhatsApp</span></button>
     <div class="aksi-modal">
       <button class="tombol" id="btnCetakUlangSukses">Cetak Struk Kembali</button>
       <button class="tombol utama" id="btnSelesaiSukses">Selesai</button>
