@@ -10029,14 +10029,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        Wizardnya tetap dibuka: Penuh dan Spot check tidak butuh daftar ini. */
     let f = { kategori: [], merek: [] };
     let galatFilter = '';
-    try { f = await API.filterOpname(); } catch (e) { galatFilter = e.message || String(e); }
+    /* Cabangnya DIKIRIM dan DITULIS di judul (bagian 338): kategori milik
+       cabang itu saja, dan petugas melihat buku cabang mana yang akan ia ubah
+       SEBELUM menghitung — 29 Sep 2026 voucher SKG01 terhitung di SK01. */
+    const cabOp = cabangDari('opname');
+    try { f = await API.filterOpname({ cabang: cabOp }); } catch (e) { galatFilter = e.message || String(e); }
 
-    bukaModal('Mulai stok opname', `
+    bukaModal('Mulai stok opname — ' + cabOp, `
       <div class="grup">
         <label>Cakupan</label>
         <select id="opCakupan">
           <option value="PARSIAL">Parsial — per kategori atau merek</option>
-          <option value="PENUH">Penuh — seluruh SKU aktif</option>
+          <option value="PENUH">Penuh — seluruh SKU aktif cabang ini</option>
           <option value="SPOT">Spot check — beberapa SKU tertentu</option>
         </select>
       </div>

@@ -778,7 +778,7 @@ let _pernahJawab = false;
     batalOpname:     (d) => panggil('batal_opname', d),
     daftarOpname:    (d) => panggil('daftar_opname', d, { timeout: 60000 }),
     detailOpname:    (d) => panggil('detail_opname', d, { timeout: 120000 }),
-    filterOpname:    ()  => panggil('filter_opname'),
+    filterOpname:    (d) => panggil('filter_opname', d),
 
     /* --- retur --- */
     buatRetur:       (d) => panggil('buat_retur', d, { timeout: 90000 }),
