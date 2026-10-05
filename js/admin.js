@@ -1050,10 +1050,11 @@ const Admin = (() => {
    * Tanggal tetap DD/MM seperti seluruh aplikasi.
    */
   function ringkasRentang(dari, sampai, tanpaTahun) {
-    const u = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? { t: m[1], hb: m[3] + '-' + m[2] } : null; };
+    /* DD/MM, tahun dua angka di ujung (standar layar, bagian 342). */
+    const u = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? { t: m[1], hb: m[3] + '/' + m[2] } : null; };
     const a = u(dari), b = u(sampai);
     if (!a || !b) return tglTampil(dari) + ' – ' + tglTampil(sampai);
-    const thn = tanpaTahun ? '' : '-' + b.t;
+    const thn = tanpaTahun ? '' : '/' + b.t.slice(2);
     if (a.t + a.hb === b.t + b.hb) return a.hb + thn;
     if (a.t === b.t) return a.hb + ' – ' + b.hb + thn;
     return tglTampil(dari) + ' – ' + tglTampil(sampai);
@@ -1225,7 +1226,7 @@ const Admin = (() => {
   const waktuRingkas = (iso) => {
     const t = String(iso || ''); if (t.length < 16) return t;
     const hariIni = typeof tanggalLokal === 'function' ? tanggalLokal() : '';
-    return (t.slice(0, 10) === hariIni ? 'hari ini' : t.slice(8, 10) + '-' + t.slice(5, 7)) + ' ' + t.slice(11, 16);
+    return (t.slice(0, 10) === hariIni ? 'hari ini' : t.slice(8, 10) + '/' + t.slice(5, 7)) + ' ' + t.slice(11, 16);
   };
 
   /* Strip peringatan di atas KPI: shift terbuka + perangkat menunggu. Yang
@@ -1845,7 +1846,7 @@ const Admin = (() => {
                itu 5 hari = 41 satuan, dan "30-09" menempel pada "05-10" (bagian
                340, terlihat di data toko 5 Okt 2026). */ ''}
           ${tgl.map((t, i) => (i % langkah === 0 && x(n - 1) - x(i) >= 54) || i === n - 1
-            ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(t).substring(8, 10) + '-' + String(t).substring(5, 7))}</text>` : '').join('')}
+            ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(t).substring(8, 10) + '/' + String(t).substring(5, 7))}</text>` : '').join('')}
         </svg></div>`;
     };
     /* Jam perhitungannya ditulis (TTL grafik di server): angka sepuluh menit

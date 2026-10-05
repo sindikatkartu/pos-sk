@@ -430,7 +430,13 @@ function tanggalTambahHari(tglYmd, hari) {
  */
 
 /**
- * `yyyy-MM-dd` (atau ISO lengkap) -> `DD-MM-YYYY`. Untuk DILIHAT DI LAYAR, bukan disimpan.
+ * `yyyy-MM-dd` (atau ISO lengkap) -> `DD/MM/YY`. Untuk DILIHAT DI LAYAR, bukan disimpan.
+ *
+ * GARIS MIRING, TAHUN DUA ANGKA, sejak bagian 342. Keputusan pemilik 5 Okt
+ * 2026: "standart baru / disemua layar", lalu "DD/MM/YY bukan DD/MM/YYYY".
+ * KERTAS tetap DD/MM/YYYY (`tglCetak`): alasan 2 Sep di bawah — "26" bisa
+ * 2026 atau 1926 — berlaku untuk kertas yang disimpan bertahun-tahun, bukan
+ * untuk layar yang dibaca hari itu juga. Paragraf di bawah ini sejarahnya.
  *
  * TANDA HUBUNG, bukan garis miring, sejak v1.260 (bagian 266). Keputusan
  * pemilik 26 Sep 2026: "koreksi tanggal DD-MM-YYYY (catat dan jadikan
@@ -453,7 +459,7 @@ function tglTampil(v) {
   const s = String(v == null ? '' : v).trim();
   if (!s) return '—';
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : s;
 }
 
 /**
@@ -472,15 +478,19 @@ function tglCetak(v) {
  * Isi dokumen cetak disusun dengan pemformat LAYAR di banyak tempat (tabel
  * laporan yang sama dipakai layar dan kertas). Daripada menggandakan tiap
  * penyusunnya, pintu cetak mengembalikan tanggalnya ke bentuk kertas di SATU
- * tempat. Hanya pola tanggal utuh DD-MM-YYYY yang diganti; nomor dokumen di
- * aplikasi ini tidak berbentuk begitu (TF-SK01/2609/0001, SP-SK01-20260925-…).
+ * tempat: DD/MM/YY layar (bagian 342) -> DD/MM/20YY, dan DD-MM-YYYY lama
+ * (bagian 266) -> DD/MM/YYYY. Hanya pola tanggal UTUH yang diganti — tiga
+ * pasang angka berdiri sendiri; nomor dokumen di aplikasi ini tidak berbentuk
+ * begitu (TF-SK01/2609/0001, SP-SK01-20260925-…).
  */
 function keTanggalCetak(html) {
-  return String(html == null ? '' : html).replace(/(^|[^\d-])(\d{2})-(\d{2})-(\d{4})(?![\d-])/g, '$1$2/$3/$4');
+  return String(html == null ? '' : html)
+    .replace(/(^|[^\d\/-])(\d{2})\/(\d{2})\/(\d{2})(?![\d\/-])/g, '$1$2/$3/20$4')
+    .replace(/(^|[^\d-])(\d{2})-(\d{2})-(\d{4})(?![\d-])/g, '$1$2/$3/$4');
 }
 
 /**
- * `yyyy-MM-ddTHH:mm:ss` (atau berspasi) -> `DD/MM/YYYY HH:mm:ss`.
+ * `yyyy-MM-ddTHH:mm:ss` (atau berspasi) -> `DD/MM/YY HH:mm:ss` (bagian 342).
  *
  * Detiknya ikut kalau ada di sumbernya; yang dipotong hanya milidetik dan zona
  * waktu, karena keduanya tidak pernah dibaca manusia dan hanya memanjangkan

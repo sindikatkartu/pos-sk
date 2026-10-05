@@ -643,14 +643,15 @@ function pasangPengawasTabel() {
 }
 
 /**
- * SEL TANGGAL TIDAK DIPATAH (bagian 266). Sejak tanggal layar DD-MM-YYYY,
+ * SEL TANGGAL TIDAK DIPATAH (bagian 266). Waktu tanggal layar DD-MM-YYYY,
  * peramban boleh memotong baris SESUDAH tanda hubung: kolom sempit menulis
  * "17-09-" lalu "2026" di baris berikutnya — garis miring dulu tidak pernah
  * dipotong. Sel yang isinya SEMATA tanggal (atau tanggal + jam) diberi
  * `sel-tgl` (nowrap). Satu pengawas seperti rapikanTabelUang, bukan puluhan
- * tempat tabel digambar.
+ * tempat tabel digambar. Sejak bagian 342 layar DD/MM/YY; kedua bentuk tetap
+ * dikenali — nowrap tidak merugikan sel bergaris miring.
  */
-const POLA_SEL_TGL = /^\d{2}-\d{2}-\d{4}(?: \d{2}:\d{2}(?::\d{2})?)?$/;
+const POLA_SEL_TGL = /^\d{2}[-/]\d{2}[-/](?:\d{2}|\d{4})(?: \d{2}:\d{2}(?::\d{2})?)?$/;
 function rapikanSelTanggal(akar) {
   if (!akar || akar.nodeType !== 1) return;
   const sel = akar.tagName === 'TD' ? [akar] : akar.querySelectorAll ? akar.querySelectorAll('td') : [];
@@ -709,7 +710,7 @@ function rapikanTabelUang(akar) {
   }
 }
 
-/* ==================== KOLOM TANGGAL: DD/MM/YYYY ====================
+/* ==================== KOLOM TANGGAL: DD/MM/YY, PILIH-SAJA ====================
  *
  * Keluhan pemilik, 2 Sep 2026: "input date kok masih mm/dd/yyyy … saya orang
  * indonesia binggung jika melihat tampilan mm/dd/yyyy."
@@ -726,9 +727,9 @@ function rapikanTabelUang(akar) {
  * Terbukti: mengetik 25 12 2026 menghasilkan nilai `122026-02-05`. Tanggal yang
  * salah diam-diam jauh lebih mahal daripada tanggal yang urutannya asing.
  *
- * Jadi kolomnya diganti: satu kotak teks biasa yang menerima dan menampilkan
- * DD/MM/YYYY, dengan tombol kalender yang memanggil pemilih tanggal BAWAAN
- * lewat `showPicker()`.
+ * Jadi kolomnya diganti: satu kotak teks biasa yang MENAMPILKAN tanggalnya
+ * dalam urutan Indonesia, dengan pemilih tanggal BAWAAN lewat `showPicker()`.
+ * Sejak bagian 342 kotak itu PILIH-SAJA — lihat rapikanTanggal().
  *
  * Yang TIDAK berubah, dan inilah kenapa cara ini dipilih:
  *   - Elemen `input[type=date]` aslinya TETAP ADA di DOM, dengan id yang sama.
@@ -738,44 +739,24 @@ function rapikanTabelUang(akar) {
  *     memperbarui tampilannya — lihat pembungkus properti di bawah.
  */
 
-/** `yyyy-MM-dd` -> `DD/MM/YYYY`; nilai tak dikenal jadi string kosong. */
+/** `yyyy-MM-dd` -> `DD/MM/YY` (standar layar, bagian 342); nilai tak dikenal jadi string kosong. */
 function _isoKeRupa(v) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || ''));
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : '';   // DD-MM-YYYY (bagian 266)
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : '';
 }
 
 /**
- * `DD/MM/YYYY` -> `yyyy-MM-dd`, atau '' bila belum lengkap / tidak masuk akal.
+ * PILIH-SAJA (bagian 342). Pemilik 5 Okt 2026: kotak tanggal "pilih-saja lewat
+ * kalender". Kotaknya tidak bisa diketik: diketuk, diklik, atau Enter / Spasi /
+ * panah bawah langsung membuka pemilih tanggal bawaan, dan pemilih itu menulis
+ * ISO ke elemen aslinya.
  *
- * Tanggal DIPERIKSA, bukan sekadar disusun ulang: 31/02/2026 bukan tanggal, dan
- * menyusunnya jadi `2026-02-31` menghasilkan rentang yang diam-diam kosong di
- * server tanpa satu pun pesan.
+ * Sebabnya tahun DUA angka. Kotak yang diketik tidak bisa tahu apakah "051020"
+ * sudah selesai (05/10/2020) atau orangnya masih akan mengetik "26" — dan
+ * layar yang keburu memuat data tahun 2020 lebih buruk daripada tidak bisa
+ * mengetik. Kalender selalu menyerahkan tanggal yang lengkap dan nyata (31/02
+ * tidak bisa dipilih), jadi pemeriksa ketikan yang dulu ada di sini ikut dibuang.
  */
-function _rupaKeIso(v) {
-  const a = String(v || '').match(/\d/g);
-  if (!a || a.length !== 8) return '';
-  const d = a.slice(0, 2).join(''), b = a.slice(2, 4).join(''), t = a.slice(4).join('');
-  const iso = `${t}-${b}-${d}`;
-  const cek = new Date(iso + 'T00:00:00');
-  if (isNaN(cek.getTime())) return '';
-  /* `new Date('2026-02-31')` tidak melempar — ia menggeser ke 3 Maret. Yang
-     membuktikan tanggalnya nyata adalah ketiga komponennya kembali utuh. */
-  if (cek.getFullYear() !== Number(t) || cek.getMonth() + 1 !== Number(b) ||
-      cek.getDate() !== Number(d)) return '';
-  return iso;
-}
-
-/** Sisipkan garis miring saat mengetik, tanpa mengganggu penghapusan. */
-function _ketikTanggal(teks) {
-  const a = String(teks || '').match(/\d/g);
-  if (!a) return '';
-  const d = a.slice(0, 8);
-  let out = d.slice(0, 2).join('');
-  if (d.length > 2) out += '-' + d.slice(2, 4).join('');
-  if (d.length > 4) out += '-' + d.slice(4, 8).join('');
-  return out;
-}
-
 function rapikanTanggal(akar) {
   if (!akar || akar.nodeType !== 1) return;
   const daftar = [];
@@ -796,14 +777,14 @@ function rapikanTanggal(akar) {
     const rupa = document.createElement('input');
     rupa.type = 'text';
     rupa.className = 'tgl-rupa';
-    rupa.inputMode = 'numeric';
-    rupa.placeholder = 'dd-mm-yyyy';
-    rupa.maxLength = 10;
+    rupa.readOnly = true;
+    rupa.inputMode = 'none';       // tidak memanggil papan ketik di HP
+    rupa.placeholder = 'dd/mm/yy';
     rupa.autocomplete = 'off';
     /* Label yang menunjuk kolom aslinya harus tetap menunjuk sesuatu yang bisa
        difokuskan — dan yang dilihat orang sekarang kotak inilah. */
     if (asli.id) rupa.setAttribute('aria-labelledby', asli.id + '_lbl');
-    rupa.setAttribute('aria-label', asli.getAttribute('aria-label') || 'Tanggal (dd-mm-yyyy)');
+    rupa.setAttribute('aria-label', (asli.getAttribute('aria-label') || 'Tanggal') + ' — tekan untuk memilih di kalender');
     rupa.value = _isoKeRupa(asli.value);
     if (asli.disabled) rupa.disabled = true;
     bungkus.appendChild(rupa);
@@ -815,39 +796,16 @@ function rapikanTanggal(akar) {
     tombol.setAttribute('aria-label', 'Buka pemilih tanggal');
     bungkus.appendChild(tombol);
 
-    /* Ketikan orang -> nilai ISO di elemen aslinya, lalu `input` DAN `change`
-       dibangkitkan di elemen ASLI supaya seluruh penangan yang sudah ada
-       (delegasi `document.addEventListener('input', …)`) berjalan seperti
-       biasa. Tanpa dua baris itu, mengganti tanggal tidak memuat apa pun. */
-    rupa.addEventListener('input', () => {
-      const posAkhir = rupa.selectionStart === rupa.value.length;
-      rupa.value = _ketikTanggal(rupa.value);
-      if (posAkhir) rupa.setSelectionRange(rupa.value.length, rupa.value.length);
-      const iso = _rupaKeIso(rupa.value);
-      /* Kosong DIBIARKAN kosong: mengetik ulang berarti melewati keadaan
-         setengah jadi, dan menembak server di tiap huruf akan membuat layar
-         berkedip sepanjang orang mengetik. Yang dikirim hanya tanggal utuh. */
-      if (iso !== asli.value && (iso || rupa.value === '')) {
-        asli.value = iso;
-        asli.dispatchEvent(new Event('input', { bubbles: true }));
-        asli.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-      rupa.classList.toggle('tgl-salah', rupa.value.length === 10 && !iso);
-    });
-
-    /* Yang belum lengkap saat kolomnya ditinggalkan dikembalikan ke nilai yang
-       sah — kotak berisi "25/1" yang dibiarkan begitu terbaca sebagai tanggal
-       yang tersimpan, padahal tidak ada yang tersimpan. */
-    rupa.addEventListener('blur', () => {
-      rupa.value = _isoKeRupa(asli.value);
-      rupa.classList.remove('tgl-salah');
-    });
-
     const bukaPemilih = () => {
+      if (asli.disabled) return;
       try { asli.showPicker(); }
       catch (e) { asli.focus(); asli.click(); }
     };
     tombol.addEventListener('click', bukaPemilih);
+    rupa.addEventListener('click', bukaPemilih);
+    rupa.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); bukaPemilih(); }
+    });
 
     /* Pemilih bawaan menulis ke elemen aslinya; tampilannya menyusul dari sini. */
     asli.addEventListener('change', () => { rupa.value = _isoKeRupa(asli.value); });
