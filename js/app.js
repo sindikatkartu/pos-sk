@@ -6372,10 +6372,22 @@ async function gambarProfilLabel() {
      dropdown tindakannya disembunyikan, bukan dimatikan diam-diam. */
   const boleh = typeof Label.bolehUbahProfil !== 'function' || Label.bolehUbahProfil();
   $('#setLabelProfilAksi')?.closest('.kendali-tetap')?.classList.toggle('sembunyi', !boleh);
+  /* Bagian 349: selama daftar profil belum pernah naik ke server (p.server
+     palsu), profilnya hanya ada di perangkat ini. Kartu dulu tetap menulis
+     "berlaku di semua perangkat" — 6 Okt 2026 dua profil Owner ternyata tidak
+     pernah naik sejak v1.304.0, dan kalimat itu yang menutupinya. Tindakan
+     "naik" hanya muncul selama itu; dimatikan juga, bukan cuma disembunyikan. */
+  const naik = $('#setLabelProfilAksi option[value="naik"]');
+  if (naik) { naik.hidden = !!p.server; naik.disabled = !!p.server; }
   const info = $('#infoLabelProfil');
   if (info) {
     const berubah = await Label.profilBerubah();
-    info.textContent = !boleh
+    info.textContent = !p.server
+      ? (boleh
+        ? (berubah ? 'Setelan di bawah sudah diubah dan BELUM disimpan ke profil ini. ' : '') +
+          'Profil ini masih tersimpan di perangkat ini saja — perangkat lain belum memakainya. Pilih Tindakan profil → "Berlakukan di semua perangkat".'
+        : 'Profil di perangkat ini saja: Owner belum memberlakukan profil untuk semua perangkat.')
+      : !boleh
       ? (berubah ? 'Setelan di bawah sudah diubah — berlaku di perangkat ini saja. ' : '') +
         'Profil diatur Owner dan berlaku di semua perangkat; di sini Anda memilih profilnya.'
       : berubah
@@ -7566,6 +7578,11 @@ function pasangEvent() {
         if (nama === null) return;
         await Label.profilBaru(nama);
         Admin.toast('Profil baru tersimpan.', 'sukses');
+      } else if (aksi === 'naik') {
+        /* Daftar dan bawaannya naik apa adanya — jadikanBawaan atas bawaan yang
+           sama tidak mengubah isi apa pun, hanya menuliskannya ke server. */
+        await Label.jadikanBawaan(p.bawaan);
+        Admin.toast('Profil berlaku di semua perangkat — perangkat lain menerimanya pada pembaruan data berikutnya.', 'sukses');
       } else if (aksi === 'bawaan') {
         await Label.jadikanBawaan(p.aktif);
         Admin.toast('"' + kini.nama + '" jadi profil bawaan — itu yang dipakai Keranjang stiker saat dibuka.', 'sukses');
