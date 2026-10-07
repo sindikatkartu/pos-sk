@@ -3692,8 +3692,13 @@ const METODE_KASIR = ['tunai', 'transfer_bca', 'transfer_bni', 'transfer_bri', '
    belum memuat ulang tidak boleh gagal menjual. */
 const METODE_ECER = ['tunai', 'qris'];
 function metodeKasirTersedia() {
-  if (jenisToko(APP_STATE.cabang, APP_STATE.setting) !== 'grosir') return METODE_ECER;
   const bank = metodeBankAktif(APP_STATE.setting);
+  /* Bagian 351: cabang yang SUDAH diatur memakai pilihannya sendiri (bebas,
+     tunai selalu ada); bank tetap harus aktif di Pengaturan Sistem — dua
+     saklar. Yang belum diatur jatuh ke bawaan ecer/grosir di bawah. */
+  const atur = metodeCabang(APP_STATE.setting, APP_STATE.cabang);
+  if (atur) return METODE_KASIR.filter(m => atur.includes(m) && (!/^transfer_/.test(m) || bank.includes(m)));
+  if (jenisToko(APP_STATE.cabang, APP_STATE.setting) !== 'grosir') return METODE_ECER;
   return METODE_KASIR.filter(m => !/^transfer_/.test(m) || bank.includes(m));
 }
 function gambarMetode() {

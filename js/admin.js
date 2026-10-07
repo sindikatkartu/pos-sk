@@ -6656,6 +6656,42 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol utama" id="btnSimpanLini">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
+  /**
+   * Metode pembayaran di Kasir per cabang (bagian 351). Keempat bank selalu
+   * tampil: pemilik membuka dan menutup rekening kapan saja, dan centangnya
+   * tetap tersimpan selama rekening itu tertutup. Kasir menawarkan bank hanya
+   * bila DUA saklar hidup — dicentang di sini DAN aktif di Pengaturan Sistem.
+   * Tunai selalu ada (laci, kas awal, setoran bergantung padanya).
+   */
+  function blokMetodeCabang(c) {
+    const st = APP_STATE.setting || {};
+    const atur = String(c.metode_bayar || '').split(',').map(s => s.trim()).filter(Boolean);
+    const grosir = jenisToko(c.kode_cabang, st) === 'grosir';
+    const awal = atur.length ? atur
+      : ['tunai', 'qris'].concat(grosir ? metodeBankAktif(st) : []);
+    const bankBuka = metodeBankAktif(st);
+    const opsi = [['tunai', 'Tunai'], ['qris', 'QRIS']].concat(BANK_SEMUA.map(b => [b[1], 'Transfer ' + b[2]]));
+    return `<div class="grup" id="grupMetodeCabang" data-awal="${esc(awal.slice().sort().join(','))}">
+        <label>Metode pembayaran di Kasir</label>
+        <!-- Dua kolom setengah lebar (6 butir habis dibagi 2). Nama dan tandanya
+             SATU span: label.cek memperlakukan tiap anak sebagai butir sendiri, dan
+             di HP tanda "nonaktif" sempat berdiri sebagai kolom terpisah. -->
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px">
+          ${opsi.map(([m, nama]) => `<label class="cek"><input type="checkbox" data-metode-cabang="${m}"
+             ${m === 'tunai' || awal.includes(m) ? 'checked' : ''} ${m === 'tunai' ? 'disabled' : ''}> <span>${esc(nama)}${
+             /^transfer_/.test(m) && !bankBuka.includes(m) ? '<br><em style="font-size:var(--fs-12);color:var(--teks-redup);font-weight:400">nonaktif di Pengaturan Sistem</em>' : ''}</span></label>`).join('')}
+        </div>
+        <p class="petunjuk">${atur.length ? '' : 'Belum diatur — Kasir memakai bawaan toko ' + (grosir ? 'grosir' : 'ecer') + '. '}Tunai selalu ada. Bank tampil di Kasir hanya bila juga aktif di Pengaturan Sistem.</p>
+      </div>`;
+  }
+  /** Pilihan metode di borang cabang, atau undefined bila tidak diubah (yang belum diatur tetap ikut bawaan). */
+  function metodeCabangDipilih() {
+    const g = $('#grupMetodeCabang');
+    if (!g) return undefined;
+    const pilih = [...g.querySelectorAll('input[data-metode-cabang]')].filter(x => x.checked).map(x => x.dataset.metodeCabang);
+    return pilih.slice().sort().join(',') === g.dataset.awal ? undefined : pilih;
+  }
+
   function editorCabang(kode) {
     const c = kode ? ($('#isiCabang')._rows || []).find(x => x.kode_cabang === kode) : null;
     bukaModal(c ? 'Ubah cabang' : 'Cabang baru', `
@@ -6669,6 +6705,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Telepon</label><input type="text" id="bTelepon" value="${esc(c?.telepon || '')}"></div>
         ${c ? `<div class="grup"><label>Prefix nota</label><input type="text" id="bPrefix" value="${esc(c.prefix_nota || '')}"></div>` : '<div></div>'}
       </div>
+      ${c ? blokMetodeCabang(c) : ''}
       ${c ? `<label class="cek"><input type="checkbox" id="bAktif" ${c.aktif ? 'checked' : ''}> Aktif</label>`
           : '<p class="petunjuk">Pembuatan cabang membuat file spreadsheet baru di Drive — proses ini bisa memakan waktu sampai satu menit. Jangan tutup jendela.</p>'}
       <div id="pesanCabang"></div>`,
@@ -8794,7 +8831,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* `cabang_pusat` (bagian 322) tidak punya layar, tapi sengaja tidak digambar:
      ia diisi rutin migrasi bersama jurnal reklasnya. Diubah tangan, saldo bank
      terbelah antara cabang lama dan pusat. */
-  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim', 'cabang_pusat'];
+  /* metode_cabang diatur di borang Cabang (bagian 351, izin cabang·ubah). */
+  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim', 'cabang_pusat', 'metode_cabang'];
 
   /* LABEL. Dipendekkan sampai jadi NAMA setelan saja. Penjelasannya pindah ke
      `.set-bantu` di bawah kotak dan `<em>` di dalam kartu centang: label yang
@@ -13694,7 +13732,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           } else {
             await API.simpanCabang({ kode_cabang: nilai('bKode'), nama: nilai('bNama'),
                                      alamat: nilai('bAlamat'), telepon: nilai('bTelepon'),
-                                     prefix_nota: nilai('bPrefix'), aktif: centang('bAktif') });
+                                     prefix_nota: nilai('bPrefix'), aktif: centang('bAktif'),
+                                     metode_bayar: metodeCabangDipilih() });
           }
           await Sync.tarikMaster(true);
           await sukses('Cabang tersimpan.', 'cabang');

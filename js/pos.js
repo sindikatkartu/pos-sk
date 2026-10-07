@@ -1742,6 +1742,21 @@ function kodeCabangPusat() {
   const s = String(st.cabang_pusat || '').trim();
   return /^[A-Z][A-Z0-9]{1,9}$/.test(s) ? s : '';
 }
+/**
+ * METODE PEMBAYARAN PER CABANG (bagian 351) — cermin _petaMetodeCabang() di
+ * 11_Admin.gs, dari setelan `metode_cabang` (JSON { SK01: 'tunai,qris' }).
+ * null = cabang itu belum diatur (Kasir memakai bawaan ecer/grosir). Tunai
+ * selalu ikut. Bank yang tercantum tetap harus aktif — itu urusan pemanggil.
+ */
+function metodeCabang(setting, kode) {
+  let peta = setting && setting.metode_cabang;
+  if (!peta) return null;
+  try { if (typeof peta === 'string') peta = JSON.parse(peta); } catch (e) { return null; }
+  const isi = peta && typeof peta === 'object' ? peta[String(kode || '').trim().toUpperCase()] : '';
+  if (!isi) return null;
+  const d = String(isi).split(/[\s,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
+  return d.includes('tunai') ? d : ['tunai'].concat(d);
+}
 /* Akun bank yang BUKAN aktif disaring dari daftar kode akun apa pun; akun bukan-bank lolos. */
 const saringBankAktif = (daftarKode, setting) => {
   const aktif = akunBankAktif(setting);
@@ -1757,5 +1772,5 @@ if (typeof module !== 'undefined' && module.exports) {
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
                      labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
                      angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
-                     BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif };
+                     BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang };
 }
