@@ -281,12 +281,17 @@ html[data-tema="gelap"] { color-scheme: dark; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* Dua tumpukan huruf. --huruf-uang dipakai .angka-uang (angka uang di luar Kasir). */
+:root {
+  --huruf-dasar: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
+                 Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --huruf-uang: ui-monospace, 'Roboto Mono', 'Cascadia Mono', Consolas, 'Droid Sans Mono', monospace;
+}
 html, body {
   margin: 0; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--teks);
   /* Tumpukan font GitHub, apa adanya */
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
-               Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  font-family: var(--huruf-dasar);
   font-size: var(--fs-15); line-height: 1.5;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
@@ -1259,7 +1264,11 @@ main { flex: 1; overflow: hidden; position: relative; }
   color: var(--teks); font-size: var(--fs-28); font-weight: 750; letter-spacing: -.9px;
   padding-top: 10px; border-top: 1px solid var(--garis); margin-top: 8px; align-items: baseline;
 }
-.total-baris.besar span:first-child { font-size: var(--fs-13); font-weight: 600; color: var(--teks-redup);
+/* :not(.angka-uang) — span:first-child menangkap span pertama DI MANA PUN di baris ini,
+   dan sejak rp() dibungkus <span class="angka-uang"> pembungkus itulah yang pertama di
+   #byrSisa: angka KURANG jadi abu-abu, bukan merah (potret 8 Okt 2026). Label dan
+   "RP" tetap tertangkap persis seperti sebelumnya. */
+.total-baris.besar span:first-child:not(.angka-uang) { font-size: var(--fs-13); font-weight: 600; color: var(--teks-redup);
   letter-spacing: .4px; text-transform: uppercase; }
 
 /* ==================== KONTROL ====================
@@ -1708,6 +1717,14 @@ td.angka, th.angka {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* .kanan untuk sel tabel: 163 sel back office (Debit/Kredit/Saldo Buku
+   besar, Nominal jurnal, dst.) memakai "kanan" sejak awal, padahal kelas itu
+   TIDAK PERNAH punya aturan untuk sel — angkanya rata kiri dan digitnya tidak
+   lurus (8 Okt 2026, bagian 360). Rata kanan dan tabular SAJA, tanpa nowrap
+   seperti .angka: sebagian sel .kanan berisi nama akun/petugas di tabel
+   konfirmasi tanpa .gulir-x, dan di HP sempit nama panjang harus bisa patah
+   (peninjau-rilis). Sebelum ini pun sel itu tidak nowrap. */
+td.kanan, th.kanan { text-align: right; font-variant-numeric: tabular-nums; }
 tr.tebal td { font-weight: 600; }
 tr.pisah td { border-top: 1px solid var(--garis); }
 
@@ -2336,6 +2353,34 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
   font-size: .62em; font-weight: 600; color: var(--teks-redup);
   margin-right: 1px; letter-spacing: 0;
 }
+/* ANGKA UANG berhuruf lebar-seragam — keputusan pemilik 8 Okt 2026 (versi 2
+   dari tiga yang dipotret): yang membedakan uang dari angka HITUNGAN adalah
+   JENIS hurufnya, bukan tebalnya — tebal sudah berarti "baris total" di
+   laporan, dan potret versi tebal menghapus hierarki itu. "Rp" kecil TETAP
+   (huruf dasar), karena huruf tidak menjelaskan dirinya sendiri kepada
+   akuntan atau penerima tangkapan layar. Hanya keluaran rp() (angka yang
+   berdiri sendiri); angka di dalam kalimat (rpTeks) tetap huruf teks.
+
+   KASIR DIKECUALIKAN (keputusan pemilik) dengan cara MEMBATASI, bukan menimpa:
+   aturan di bawah hanya berlaku di layar back office dan dua tirai bersamanya
+   (tiraiUmum, tiraiTanya). Versi pertama "mengecualikan" Kasir dengan selektor
+   id — kekuatannya mengalahkan aturan lama Kasir yang lebih spesifik, dan "RP" di
+   baris total berubah ukuran (potret dibanding piksel, 8 Okt 2026). :where()
+   berkekuatan nol: di Kasir tidak ada satu pun aturan baru yang berlaku.
+   Dua tirai bersama (Nota ditahan, Ajukan diskon) ikut dikecualikan SELAMA
+   Kasir yang aktif — temuan peninjau-rilis; aturan tetap "Layar Kasir jangan
+   diutak-atik" berlaku juga untuk dialog yang dibukanya.
+   Nama kelasnya .angka-uang, BUKAN .uang — .uang sudah dipakai kotak isian
+   nominal dan tombol pecahan (ketahuan saat membandingkan piksel Kasir). */
+/* .88em: huruf lebar-seragam tampak lebih besar dan LEBIH LEBAR daripada huruf
+   dasar pada ukuran yang sama — tanpa ini Rp 9.999.999.999 tidak muat di kotak
+   KPI Dashboard (butuh 156px, ada 143px; uji-nominal). .rp dikompensasi
+   (.62 / .88 = .70) supaya "Rp" tetap sebesar sebelumnya. */
+:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) .angka-uang { font-family: var(--huruf-uang); font-variant-numeric: tabular-nums; font-size: .88em; letter-spacing: -.03em; }
+:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) .angka-uang .rp { font-family: var(--huruf-dasar); font-size: .70em; letter-spacing: 0; }
+/* Di TABEL ruangnya cukup: .88em membuat angka lebih kecil dari nama akunnya
+   (potret PC 8 Okt 2026). .rp di tabel laporan memang disembunyikan. */
+:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) table .angka-uang { font-size: .95em; }
 .statistik .nilai {
   font-size: var(--fs-24); font-weight: 600; margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -2530,6 +2575,28 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 /* Baris jumlah berdiri sendiri lewat garis, bukan lewat latar. */
 .laporan-uang table tr.subtotal td, .laporan-uang table tr.tebal td {
   border-top: 1.5px solid var(--garis); font-weight: 700;
+}
+/* LAPORAN KEUANGAN TIDAK CAPEK DI MATA (pemilik 8 Okt 2026: "tabel yang
+   melebar khususnya pada pc / tablet ... supaya tidak capek dimata yang
+   terlalu berjauhan"). Membalik "selebar penuh" bagian 48/51 HANYA untuk
+   laporan dua lajur nama ↔ angka (Laba Rugi; Neraca dua kartu): di PC 1440
+   nama dan angkanya berjarak > 1.000 px. Dibatasi di KARTU/PETAK, bukan di
+   .layar atau anak langsungnya (batang gulir pindah ke tengah, bagian 47).
+   Tabel banyak kolom (Buku besar, Jurnal, Kerugian) tetap penuh. */
+.kartu.laporan-sempit { max-width: 720px; }
+.petak.laporan-sempit { max-width: 1180px; }
+/* Baris selang-seling: mata tidak meleset baris saat menyeberang dari nama
+   ke angka. Warnanya --panel-2, jadi ikut tema gelap (bagian 205: latar
+   tipis wajib punya nilai gelapnya sendiri). Baris jumlah tetap dibedakan
+   GARIS dan tebal (bagian 214), bukan latar ini. Hanya di tampilan TABEL:
+   di HP (≤ 620 px) tiap baris sudah jadi kartu sendiri, dan latar di sana
+   menyisakan pita putih di tepi kartu — potret HP 8 Okt 2026. */
+@media (min-width: 621px) {
+  .laporan-uang table tbody tr:nth-child(even) > td,
+  #hasilKeuangan table tbody tr:nth-child(even) > td {
+    background: var(--panel-2);
+    background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+  }
 }
 /* Satuan di judul kartu: menempel pada judulnya, jauh lebih kecil dan
    lebih pucat — dan itu DIUKUR penjaganya, bukan cuma diklaim di sini. */

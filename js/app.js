@@ -56,11 +56,17 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
  * Yang menambah pemanggil baru: pakai `innerHTML`, atau `rpTeks()` kalau
  * memang butuh teks polos.
  */
+/* Dibungkus <span class="angka-uang"> (pemilik, 8 Okt 2026): angka uang berhuruf
+   lebar-seragam supaya tidak tertukar dengan angka hitungan di sebelahnya
+   ("Nota 9" ↔ "Rata-rata/nota Rp105.778"). Teksnya tidak berubah ("Rp1.234",
+   "-Rp8.000"), jadi pembaca textContent tidak tersentuh. Kasir dikecualikan
+   di app.css, bukan di sini. Bukan .uang: nama itu SUDAH dipakai kotak isian
+   nominal dan tombol pecahan, dan aturan hurufnya ikut mengenai mereka. */
 const rp = (n) => {
   const v = Math.round(Number(n) || 0);
-  const angka = '<span class="rp">' + CONFIG.MATA_UANG + '</span>' +
-    new Intl.NumberFormat(CONFIG.LOCALE).format(Math.abs(v));
-  return v < 0 ? '<span class="uang-minus">-' + angka + '</span>' : angka;
+  const angka = '<span class="angka-uang">' + (v < 0 ? '-' : '') + '<span class="rp">' + CONFIG.MATA_UANG + '</span>' +
+    new Intl.NumberFormat(CONFIG.LOCALE).format(Math.abs(v)) + '</span>';
+  return v < 0 ? '<span class="uang-minus">' + angka + '</span>' : angka;
 };
 
 /** Teks polos, untuk tempat yang memang bukan HTML (judul, ekspor, salin). */
@@ -6072,7 +6078,7 @@ async function tampilkanLabaRugi() {
     const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
     const d = await API.labaRugi(par);
     const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
-    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
+    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
       ${brs('(−) Retur Penjualan', -d.retur_penjualan)}
@@ -6103,7 +6109,7 @@ async function tampilkanNeraca() {
       <div class="pesan ${d.seimbang ? 'sukses' : 'galat'}">
         ${d.seimbang ? '✓ Neraca seimbang' : '✗ Neraca TIDAK seimbang — selisih ' + rp(d.selisih)}
       </div>
-      <div class="petak">${tabel('ASET', d.aset, d.total_aset)}
+      <div class="petak laporan-sempit">${tabel('ASET', d.aset, d.total_aset)}
       <div>${tabel('LIABILITAS', d.liabilitas, d.total_liabilitas)}${tabel('EKUITAS', d.ekuitas, d.total_ekuitas)}</div></div>`;
   } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }

@@ -181,8 +181,11 @@ const Admin = (() => {
         /* <span class="rp"> dari rp() bukan lencana: jatah 18 px (padding + tepi
            lencana) tidak berlaku untuknya. Sebelum ini tiap kolom rupiah 18 px
            lebih lebar dari perlunya — tiga kolom = 54 px yang hilang dari Nama
-           di tablet (bagian 233). */
-        html = html.replace(/<span class="rp">Rp<\/span>/g, 'Rp');
+           di tablet (bagian 233). Pembungkus <span class="angka-uang"> (huruf
+           uang, 8 Okt 2026) juga bukan lencana — tanpa baris kedua cacat yang
+           sama kembali: kolom harga +18 px, Nama Produk di tablet 170 → 137 px. */
+        html = html.replace(/<span class="rp">Rp<\/span>/g, 'Rp')
+          .replace(/<span class="angka-uang">([^<]*)<\/span>/g, '$1');
         if (html.indexOf('<') !== -1) markup = true;
         pecahBaris(html).forEach(t => unik.add(t));
       }
