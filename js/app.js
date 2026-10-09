@@ -131,7 +131,7 @@ async function keluarAkun() {
   // dibuang di baris berikutnya, dan itu tidak boleh digagalkan jaringan.
   try { await API.logout(); } catch (e) {}
   /* Angka dashboard yang tersimpan di perangkat ikut dibuang (bagian 258). */
-  try { localStorage.removeItem('possk_dash_v1'); } catch (e) { /* diblokir */ }
+  try { localStorage.removeItem('possk_dash_v1'); localStorage.removeItem('possk_lap_v1'); } catch (e) { /* diblokir */ }
   await DB.kvSet('token', null);
   location.reload();
 }
@@ -4788,6 +4788,103 @@ const rangkaLaporan = () => `
       `<div class="rangka-baris"><span class="rangka" style="width:${['92%', '78%', '86%', '70%'][i % 4]}"></span></div>`).join('')}
   </div>`;
 
+/* ==================== LAPORAN: DATA TERAKHIR DULU (bagian 365) ====================
+ * Pemilik 8 Okt 2026 (usulan D bagian 358): "kerjakan sekarang". Pola Dashboard
+ * bagian 258 untuk Laporan Penjualan (semua tab) dan Laporan Keuangan (Laba
+ * Rugi, Neraca, Buku besar, Kerugian): jawaban terakhir disimpan di PERANGKAT
+ * per akun + laporan + parameter; membuka laporan menggambar simpanan
+ * seketika bertanda jamnya, lalu menarik yang baru dan menggambar ulang.
+ *
+ * Selama angkanya angka LAMA, tombol & isian di wadahnya terkunci (CSS
+ * :has(> .lap-basi-tanda)) — tidak ada yang mencetak, mengekspor, atau
+ * memilih dari angka basi. Kuncinya menempel pada TANDA, bukan kelas wadah:
+ * gambar ulang apa pun (tab lain, data baru) mengganti isi wadah dan
+ * tandanya ikut hilang, jadi tidak ada kunci yang tertinggal.
+ * Menu akuntansi bertombol per baris (Jurnal, Kas & Bank, Piutang, …) TIDAK
+ * ikut: di sana orang membayar/membalik baris yang bisa sudah berubah.
+ * Simpanan ≤ 12 laporan, ≤ 150.000 karakter per laporan dan ≤ 900.000 seluruhnya
+ * (peninjau-rilis: 20 × 400 KB melewati kuota localStorage, dan kuota penuh
+ * ikut mematikan antrean galat klien & simpanan lain). Penulisan yang gagal
+ * membuang kunci ini seluruhnya. Dibuang saat keluar akun.
+ *
+ * Kuncinya memuat VERSI aplikasi dan dua hak yang mengubah isi laporan
+ * (lintas cabang, harga modal): simpanan berbentuk lama dari rilis sebelumnya
+ * tidak pernah digambar penggambar baru, dan hak yang dicabut di tengah sesi
+ * tidak menampilkan angka yang kini tidak boleh dilihat. */
+const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 12, BATAS_LAP = 150000, TOTAL_LAP = 900000;
+const kunciLap = (jenis, par) => {
+  const f = APP_STATE.flag || {};
+  return JSON.stringify([(APP_STATE.user || {}).id_user || '', CONFIG.VERSI,
+    (f.akses_lintas_cabang ? 'L' : '') + (f.lihat_harga_modal ? 'M' : ''), jenis, par]);
+};
+function bacaSimpanLap(jenis, par) {
+  try { return JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}')[kunciLap(jenis, par)] || null; }
+  catch (e) { return null; }
+}
+function tulisSimpanLap(jenis, par, data) {
+  try {
+    if (JSON.stringify(data).length > BATAS_LAP) return;
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}'); } catch (e) { s = {}; }
+    s[kunciLap(jenis, par)] = { data, waktu: Date.now() };
+    const urut = () => Object.keys(s).sort((a, b) => s[a].waktu - s[b].waktu);
+    while (Object.keys(s).length > MAKS_LAP) delete s[urut()[0]];
+    let teks = JSON.stringify(s);
+    while (teks.length > TOTAL_LAP && Object.keys(s).length > 1) { delete s[urut()[0]]; teks = JSON.stringify(s); }
+    localStorage.setItem(SIMPAN_LAP, teks);
+  } catch (e) {
+    /* Penuh/diblokir: buang kunci ini seluruhnya, supaya simpanan lain di
+       perangkat (antrean galat, Dashboard, id perangkat) tidak ikut macet. */
+    try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ }
+  }
+}
+function buangSimpanLap(jenis, par) {
+  try {
+    const s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}');
+    delete s[kunciLap(jenis, par)];
+    localStorage.setItem(SIMPAN_LAP, JSON.stringify(s));
+  } catch (e) { try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ } }
+}
+function tandaLap(w, waktu, galat) {
+  const tgl = new Date(waktu);
+  /* Tanggal disebut bila bukan hari ini: kunci Keuangan per bulan bisa berumur
+     berhari-hari, dan "pukul 10.15" saja terbaca seperti angka pagi ini. */
+  const jam = (tanggalLokal(tgl) === tanggalLokal() ? '' : tglTampil(tanggalLokal(tgl)) + ' ') +
+    tgl.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const ada = w.querySelector(':scope > .lap-basi-tanda');
+  const html = galat
+    ? 'Angka tersimpan pukul ' + esc(jam) + ' — gagal diperbarui: ' + esc(galat) + '. Buka ulang laporan untuk mencoba lagi.'
+    : 'Angka tersimpan pukul ' + esc(jam) + ' — sedang diperbarui…';
+  if (ada) { ada.innerHTML = html; ada.classList.toggle('galat', !!galat); return; }
+  w.insertAdjacentHTML('afterbegin', '<p class="petunjuk lap-basi-tanda" role="status">' + html + '</p>');
+}
+/**
+ * gambar(data, segar): dari simpanan seketika (segar = false, bertanda jam,
+ * terkunci), lalu ambil() dari server, simpan, gambar(data, true). masihSah()
+ * false = layar/tab/periode sudah berganti: hasilnya disimpan, tidak digambar.
+ * Tanpa simpanan dan server gagal: lempar, seperti dulu.
+ */
+async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
+  let s = bacaSimpanLap(jenis, par);
+  /* Simpanan yang TIDAK BISA digambar (bentuknya tidak dikenal penggambar
+     ini) dibuang, dan laporannya dimuat dari server seperti tanpa simpanan —
+     dulu galatnya menghentikan pemuatan dan simpanan rusak itu menetap. */
+  if (s) {
+    try { gambar(s.data, false); tandaLap(w, s.waktu); }
+    catch (e) { buangSimpanLap(jenis, par); s = null; Rangka.pasang(w, rangkaLaporan()); }
+  }
+  let d;
+  try { d = await ambil(); }
+  catch (e) {
+    if (!s) throw e;
+    if (masihSah()) tandaLap(w, s.waktu, e.message);
+    return s.data;
+  }
+  tulisSimpanLap(jenis, par, d);
+  if (masihSah()) gambar(d, true);
+  return d;
+}
+
 /** Tarik data satu tab bila belum ada di simpanan; simpanannya per rentang. */
 async function tarikTabLaporan(tab) {
   if (!LAP.data[tab]) {
@@ -4805,23 +4902,27 @@ async function gambarTabLaporan(tab) {
   $$('#tabLaporan button').forEach(b => b.classList.toggle('aktif', b.dataset.tabLap === tab));
   const w = $('#hasilLaporan');
   if (!LAP.dari || !LAP.sampai) return gambarPetunjukLaporan('Pilih periode di atas untuk menampilkan laporan.');
+  const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
+                   petugas: gambarLapPetugas, void: gambarLapVoid,
+                   diskon: gambarLapDiskonTab }[tab];
   if (!LAP.data[tab]) {
-    Rangka.pasang(w, rangkaLaporan());   // bentuk asli diingat (bagian 262)
     /* Balapan tab: yang tiba belakangan untuk tab yang sudah ditinggalkan
        tidak boleh menimpa tab yang sedang dibuka. */
     const tiket = { tab, dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
+    const par = { dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
+    /* Data terakhir dulu (bagian 365). Angka lama TIDAK masuk LAP.data — cetak
+       & ekspor menarik yang baru sendiri lewat tarikTabLaporan. */
+    if (!bacaSimpanLap('lap_' + tab, par)) Rangka.pasang(w, rangkaLaporan());   // bentuk asli diingat (bagian 262)
     try {
-      await tarikTabLaporan(tab);
+      await denganSimpananLap(w, 'lap_' + tab, par, () => tarikTabLaporan(tab),
+        (d, segar) => { if (!segar) gambar(w, d); }, () => !tiketLaporanBasi(tiket));
     } catch (e) {
       if (tiketLaporanBasi(tiket)) return;
       w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
       return;
     }
-    if (tiketLaporanBasi(tiket)) return;
+    if (tiketLaporanBasi(tiket) || !LAP.data[tab]) return;
   }
-  const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
-                   petugas: gambarLapPetugas, void: gambarLapVoid,
-                   diskon: gambarLapDiskonTab }[tab];
   gambar(w, LAP.data[tab]);
 }
 
@@ -5839,6 +5940,9 @@ const tombolUnduh = (jenis, par) => `<div class="kartu"><div class="bar-alat">
  * membacanya untuk tahu layar ini sudah pernah dimuat atau belum.
  */
 let keuTerakhir = null;
+/* Nomor panggilan pemuat Keuangan (bagian 365): jawaban yang tiba untuk
+   panggilan yang sudah disusul tidak menggambar apa pun. */
+let _keuTiket = 0;
 /** Layar Jurnal & Tutup Buku sudah pernah dimuat (bagian 306). */
 let jrnDimuat = false;
 
@@ -6007,12 +6111,24 @@ let _bbAkun = '';
 
 async function tampilkanBukuBesar() {
   const w = $('#hasilKeuangan');
-  Rangka.pasang(w, rangkaLaporan());   // bagian 262
-  try {
-    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+  const tiket = ++_keuTiket;
+  const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+  const diminta = _bbAkun;
+  /* Daftar akun + buku besarnya SATU simpanan (bagian 365): akun yang
+     ditawarkan menentukan akun yang ditarik. */
+  const ambil = async () => {
     const daftar = await API.daftarAkunBergerak(par);
     const akun = daftar.akun || [];
-    if (!akun.some(a => a.kode === _bbAkun)) _bbAkun = akun.length ? akun[0].kode : '';
+    const kode = akun.some(a => a.kode === diminta) ? diminta : (akun.length ? akun[0].kode : '');
+    return { akun, kode, d: kode ? await API.bukuBesar({ ...par, kode_akun: kode }) : null };
+  };
+  const gambarBB = (h, segar) => {
+    const akun = h.akun || [];
+    _bbAkun = h.kode;
+    /* Akun yang DIMINTA bisa kosong/hilang (pembukaan pertama: belum ada
+       pilihan) — simpan juga di bawah akun yang TERPILIH, karena itulah yang
+       diminta pada pembukaan berikutnya. */
+    if (segar && h.kode !== diminta) tulisSimpanLap('buku_besar', { ...par, kode_akun: h.kode }, h);
 
     const pilih = `<div class="kartu">
       <div class="saring-baris">
@@ -6032,7 +6148,7 @@ async function tampilkanBukuBesar() {
       return;
     }
 
-    const d = await API.bukuBesar({ ...par, kode_akun: _bbAkun });
+    const d = h.d;
     const SUMBER = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
                      RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer',
                      PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
@@ -6066,17 +6182,22 @@ async function tampilkanBukuBesar() {
           </tbody></table></div>
         ${d.baris.length ? '' : '<p class="petunjuk">Tidak ada catatan di periode ini — saldonya tidak berubah.</p>'}
       </div>`;
+  };
+  if (!bacaSimpanLap('buku_besar', { ...par, kode_akun: diminta })) Rangka.pasang(w, rangkaLaporan());   // bagian 262
+  try {
+    await denganSimpananLap(w, 'buku_besar', { ...par, kode_akun: diminta }, ambil, gambarBB,
+      () => tiket === _keuTiket && keuTerakhir === tampilkanBukuBesar);
   } catch (e) {
-    w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+    if (tiket === _keuTiket) w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
   }
 }
 
 async function tampilkanLabaRugi() {
   const w = $('#hasilKeuangan');
-  w.innerHTML = '<div class="kartu">Menghitung…</div>';
-  try {
-    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
-    const d = await API.labaRugi(par);
+  const tiket = ++_keuTiket;
+  const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+  if (!bacaSimpanLap('laba_rugi', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
+  const gambarLR = (d) => {
     const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
     w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
@@ -6093,15 +6214,19 @@ async function tampilkanLabaRugi() {
       ${brs('(−) Beban Lain', -d.beban_lain)}
       ${brs('LABA BERSIH (' + d.margin_bersih_persen + '%)', d.laba_bersih, 'tebal pisah')}
       </table></div></div>`;
-  } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+  };
+  try {
+    await denganSimpananLap(w, 'laba_rugi', par, () => API.labaRugi(par), gambarLR,
+      () => tiket === _keuTiket && keuTerakhir === tampilkanLabaRugi);
+  } catch (e) { if (tiket === _keuTiket) w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
 async function tampilkanNeraca() {
   const w = $('#hasilKeuangan');
-  w.innerHTML = '<div class="kartu">Menghitung…</div>';
-  try {
-    const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
-    const d = await API.neraca(par);
+  const tiket = ++_keuTiket;
+  const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+  if (!bacaSimpanLap('neraca', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
+  const gambarNeraca = (d) => {
     const tabel = (judul, arr, total) => `<div class="kartu laporan-uang"><div class="bar-alat"><h3>${judul}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
       ${arr.map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
       <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div></div>`;
@@ -6111,7 +6236,11 @@ async function tampilkanNeraca() {
       </div>
       <div class="petak laporan-sempit">${tabel('ASET', d.aset, d.total_aset)}
       <div>${tabel('LIABILITAS', d.liabilitas, d.total_liabilitas)}${tabel('EKUITAS', d.ekuitas, d.total_ekuitas)}</div></div>`;
-  } catch (e) { w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+  };
+  try {
+    await denganSimpananLap(w, 'neraca', par, () => API.neraca(par), gambarNeraca,
+      () => tiket === _keuTiket && keuTerakhir === tampilkanNeraca);
+  } catch (e) { if (tiket === _keuTiket) w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
 async function tampilkanUji() {
@@ -6156,6 +6285,11 @@ function rentangBulanKeu(periode) {
 
 async function tampilkanKerugianKeu() {
   const w = $('#hasilKeuangan');
+  /* Nomornya diambil SEBELUM jalan keluar di bawah (peninjau-rilis): pindah ke
+     Back Office selagi Kerugian SK01 dimuat dulu tidak menyusul panggilan
+     lama, dan kerugian SK01 tergambar di bawah pilihan Back Office. */
+  const tiket = ++_keuTiket;
+  _keuKerugian = null;
   const r = rentangBulanKeu($('#keuPeriode').value);
   if (!r) { w.innerHTML = '<div class="kartu"><p class="petunjuk">Pilih bulan dulu.</p></div>'; return; }
   const par = { dari: r.dari, sampai: r.sampai, cabang: $('#keuCabang').value };
@@ -6164,19 +6298,23 @@ async function tampilkanKerugianKeu() {
     w.innerHTML = '<div class="kartu"><p class="petunjuk">Back Office tidak punya persediaan. Pilih salah satu toko atau Semua cabang.</p></div>';
     return;
   }
-  Rangka.pasang(w, rangkaLaporan());
+  /* Cetak hanya dari angka SEGAR (bagian 365): selama angka lama tampil,
+     yang tercetak tidak boleh angka bulan/cabang sebelumnya — _keuKerugian
+     dikosongkan di awal fungsi. */
+  if (!bacaSimpanLap('kerugian', par)) Rangka.pasang(w, rangkaLaporan());
+  /* Balapan: tab atau periode sudah berganti selama menunggu. */
+  const sah = () => tiket === _keuTiket && keuTerakhir === tampilkanKerugianKeu && $('#keuPeriode').value === par.dari.slice(0, 7);
   try {
-    const d = await tarikKerugian(par);
-    /* Balapan: tab atau periode sudah berganti selama menunggu. */
-    if (keuTerakhir !== tampilkanKerugianKeu || $('#keuPeriode').value !== par.dari.slice(0, 7)) return;
-    _keuKerugian = { d, par };
-    gambarLapKerugian(w, d);
-    if (bolehTabKerugian()) w.insertAdjacentHTML('afterbegin', `<div class="kartu tanpa-cetak"><div class="bar-alat">
-      <strong>Cetak laporan ini</strong><div style="flex:1"></div>
-      <button type="button" class="tombol" id="btnCetakKerugian">${ikonAksi('cetak')}<span>Cetak A4</span></button>
-    </div></div>`);
+    await denganSimpananLap(w, 'kerugian', par, () => tarikKerugian(par), (d, segar) => {
+      if (segar) _keuKerugian = { d, par };
+      gambarLapKerugian(w, d);
+      if (bolehTabKerugian()) w.insertAdjacentHTML('afterbegin', `<div class="kartu tanpa-cetak"><div class="bar-alat">
+        <strong>Cetak laporan ini</strong><div style="flex:1"></div>
+        <button type="button" class="tombol" id="btnCetakKerugian">${ikonAksi('cetak')}<span>Cetak A4</span></button>
+      </div></div>`);
+    }, sah);
   } catch (e) {
-    w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+    if (sah()) w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
   }
 }
 
