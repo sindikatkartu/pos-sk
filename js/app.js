@@ -1731,7 +1731,9 @@ function bukaLayar(id) {
   if (id === 'keuangan' && !keuTerakhir) return pilihTabKeu('labarugi');
   /* Alasan yang sama untuk Jurnal & Tutup Buku (bagian 306): dimuat sekali
      saat pertama dibuka; berikutnya yang memuat ulang adalah periode/cabang. */
-  if (id === 'jurnal' && !jrnDimuat) { jrnDimuat = true; return tampilkanJurnalManual(); }
+  /* Juga bila masih menampilkan angka tersimpan (gagal diperbarui): tandanya
+     menyuruh membuka ulang, jadi membuka ulang wajib memuat (bagian 369). */
+  if (id === 'jurnal' && (!jrnDimuat || $('#hasilJurnal')?.dataset.basi)) { jrnDimuat = true; return tampilkanJurnalManual(); }
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') return perbaruiInfoData();
   if (id === 'shift') return periksaShift();
@@ -4788,102 +4790,7 @@ const rangkaLaporan = () => `
       `<div class="rangka-baris"><span class="rangka" style="width:${['92%', '78%', '86%', '70%'][i % 4]}"></span></div>`).join('')}
   </div>`;
 
-/* ==================== LAPORAN: DATA TERAKHIR DULU (bagian 365) ====================
- * Pemilik 8 Okt 2026 (usulan D bagian 358): "kerjakan sekarang". Pola Dashboard
- * bagian 258 untuk Laporan Penjualan (semua tab) dan Laporan Keuangan (Laba
- * Rugi, Neraca, Buku besar, Kerugian): jawaban terakhir disimpan di PERANGKAT
- * per akun + laporan + parameter; membuka laporan menggambar simpanan
- * seketika bertanda jamnya, lalu menarik yang baru dan menggambar ulang.
- *
- * Selama angkanya angka LAMA, tombol & isian di wadahnya terkunci (CSS
- * :has(> .lap-basi-tanda)) — tidak ada yang mencetak, mengekspor, atau
- * memilih dari angka basi. Kuncinya menempel pada TANDA, bukan kelas wadah:
- * gambar ulang apa pun (tab lain, data baru) mengganti isi wadah dan
- * tandanya ikut hilang, jadi tidak ada kunci yang tertinggal.
- * Menu akuntansi bertombol per baris (Jurnal, Kas & Bank, Piutang, …) TIDAK
- * ikut: di sana orang membayar/membalik baris yang bisa sudah berubah.
- * Simpanan ≤ 12 laporan, ≤ 150.000 karakter per laporan dan ≤ 900.000 seluruhnya
- * (peninjau-rilis: 20 × 400 KB melewati kuota localStorage, dan kuota penuh
- * ikut mematikan antrean galat klien & simpanan lain). Penulisan yang gagal
- * membuang kunci ini seluruhnya. Dibuang saat keluar akun.
- *
- * Kuncinya memuat VERSI aplikasi dan dua hak yang mengubah isi laporan
- * (lintas cabang, harga modal): simpanan berbentuk lama dari rilis sebelumnya
- * tidak pernah digambar penggambar baru, dan hak yang dicabut di tengah sesi
- * tidak menampilkan angka yang kini tidak boleh dilihat. */
-const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 12, BATAS_LAP = 150000, TOTAL_LAP = 900000;
-const kunciLap = (jenis, par) => {
-  const f = APP_STATE.flag || {};
-  return JSON.stringify([(APP_STATE.user || {}).id_user || '', CONFIG.VERSI,
-    (f.akses_lintas_cabang ? 'L' : '') + (f.lihat_harga_modal ? 'M' : ''), jenis, par]);
-};
-function bacaSimpanLap(jenis, par) {
-  try { return JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}')[kunciLap(jenis, par)] || null; }
-  catch (e) { return null; }
-}
-function tulisSimpanLap(jenis, par, data) {
-  try {
-    if (JSON.stringify(data).length > BATAS_LAP) return;
-    let s = {};
-    try { s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}'); } catch (e) { s = {}; }
-    s[kunciLap(jenis, par)] = { data, waktu: Date.now() };
-    const urut = () => Object.keys(s).sort((a, b) => s[a].waktu - s[b].waktu);
-    while (Object.keys(s).length > MAKS_LAP) delete s[urut()[0]];
-    let teks = JSON.stringify(s);
-    while (teks.length > TOTAL_LAP && Object.keys(s).length > 1) { delete s[urut()[0]]; teks = JSON.stringify(s); }
-    localStorage.setItem(SIMPAN_LAP, teks);
-  } catch (e) {
-    /* Penuh/diblokir: buang kunci ini seluruhnya, supaya simpanan lain di
-       perangkat (antrean galat, Dashboard, id perangkat) tidak ikut macet. */
-    try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ }
-  }
-}
-function buangSimpanLap(jenis, par) {
-  try {
-    const s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}');
-    delete s[kunciLap(jenis, par)];
-    localStorage.setItem(SIMPAN_LAP, JSON.stringify(s));
-  } catch (e) { try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ } }
-}
-function tandaLap(w, waktu, galat) {
-  const tgl = new Date(waktu);
-  /* Tanggal disebut bila bukan hari ini: kunci Keuangan per bulan bisa berumur
-     berhari-hari, dan "pukul 10.15" saja terbaca seperti angka pagi ini. */
-  const jam = (tanggalLokal(tgl) === tanggalLokal() ? '' : tglTampil(tanggalLokal(tgl)) + ' ') +
-    tgl.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-  const ada = w.querySelector(':scope > .lap-basi-tanda');
-  const html = galat
-    ? 'Angka tersimpan pukul ' + esc(jam) + ' — gagal diperbarui: ' + esc(galat) + '. Buka ulang laporan untuk mencoba lagi.'
-    : 'Angka tersimpan pukul ' + esc(jam) + ' — sedang diperbarui…';
-  if (ada) { ada.innerHTML = html; ada.classList.toggle('galat', !!galat); return; }
-  w.insertAdjacentHTML('afterbegin', '<p class="petunjuk lap-basi-tanda" role="status">' + html + '</p>');
-}
-/**
- * gambar(data, segar): dari simpanan seketika (segar = false, bertanda jam,
- * terkunci), lalu ambil() dari server, simpan, gambar(data, true). masihSah()
- * false = layar/tab/periode sudah berganti: hasilnya disimpan, tidak digambar.
- * Tanpa simpanan dan server gagal: lempar, seperti dulu.
- */
-async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
-  let s = bacaSimpanLap(jenis, par);
-  /* Simpanan yang TIDAK BISA digambar (bentuknya tidak dikenal penggambar
-     ini) dibuang, dan laporannya dimuat dari server seperti tanpa simpanan —
-     dulu galatnya menghentikan pemuatan dan simpanan rusak itu menetap. */
-  if (s) {
-    try { gambar(s.data, false); tandaLap(w, s.waktu); }
-    catch (e) { buangSimpanLap(jenis, par); s = null; Rangka.pasang(w, rangkaLaporan()); }
-  }
-  let d;
-  try { d = await ambil(); }
-  catch (e) {
-    if (!s) throw e;
-    if (masihSah()) tandaLap(w, s.waktu, e.message);
-    return s.data;
-  }
-  tulisSimpanLap(jenis, par, d);
-  if (masihSah()) gambar(d, true);
-  return d;
-}
+/* Penolong "data terakhir dulu" (bagian 365) pindah ke pos.js — bagian 369. */
 
 /** Tarik data satu tab bila belum ada di simpanan; simpanannya per rentang. */
 async function tarikTabLaporan(tab) {
@@ -4923,6 +4830,9 @@ async function gambarTabLaporan(tab) {
     }
     if (tiketLaporanBasi(tiket) || !LAP.data[tab]) return;
   }
+  /* Angka SEGAR dari LAP.data: kunci angka lama tab lain dilepas (Workflow
+     tinjau-rilis: kembali ke tab yang sudah termuat membuatnya terkunci). */
+  lepasBasi(w);
   gambar(w, LAP.data[tab]);
 }
 
@@ -6014,12 +5924,14 @@ function hitungSelisihJurnal() {
 
 async function tampilkanJurnalManual() {
   const w = $('#hasilJurnal');
+  /* Data terakhir dulu + nomor panggilan (bagian 369): jawaban periode/cabang
+     lama yang tiba belakangan tidak menimpa yang baru dipilih. */
+  const tiket = ++_jrnTiket;
+  const par = { periode: $('#jrnPeriode').value, cabang: $('#jrnCabang').value };
   /* Kerangka, bukan kata "Memuat…" — ia menempati ruang yang persis akan
      diisi, jadi layarnya tidak melompat saat datanya tiba (ada penjaganya). */
-  Rangka.pasang(w, rangkaLaporan());   // bagian 262
-  try {
-    const par = { periode: $('#jrnPeriode').value, cabang: $('#jrnCabang').value };
-    const d = await API.daftarJurnalManual(par);
+  if (!bacaSimpanLap('jurnal', par)) Rangka.pasang(w, rangkaLaporan());   // bagian 262
+  const gambarJurnal = (d) => {
     _jurnalAkun = d.akun || [];
     _jurnalUuid = crypto.randomUUID ? crypto.randomUUID()
                 : Date.now() + '-' + Math.random().toString(36).slice(2);
@@ -6070,10 +5982,14 @@ async function tampilkanJurnalManual() {
         : '<p class="petunjuk">Belum ada jurnal penyesuaian di periode ini.</p>'}
     </div>`;
     hitungSelisihJurnal();
+  };
+  try {
+    await denganSimpananLap(w, 'jurnal', par, () => API.daftarJurnalManual(par), gambarJurnal, () => tiket === _jrnTiket);
   } catch (e) {
-    w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+    if (tiket === _jrnTiket) w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
   }
 }
+let _jrnTiket = 0;
 
 async function simpanJurnalManual() {
   const h = await API.jurnalManual({

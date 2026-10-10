@@ -2584,13 +2584,15 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    .layar atau anak langsungnya (batang gulir pindah ke tengah, bagian 47).
    Tabel banyak kolom (Buku besar, Jurnal, Kerugian) tetap penuh. */
 .kartu.laporan-sempit { max-width: 720px; }
-/* DATA TERAKHIR DULU di laporan (bagian 365): selama wadah memuat tanda
-   "Angka tersimpan pukul …", tombol & isian di dalamnya terkunci — tidak ada
-   yang dicetak atau diekspor dari angka lama. Kunci menempel pada TANDA:
-   gambar ulang mengganti isi wadah, tanda dan kuncinya ikut hilang. */
+/* DATA TERAKHIR DULU (bagian 365, 369): selama wadah ber-data-basi (angka
+   tersimpan, belum diganti angka baru) tombol & isiannya terkunci — tidak ada
+   yang dicetak, diekspor, atau dibayar dari angka lama. Penjaga sungguhannya
+   di pos.js (semua klik, termasuk Enter dari keyboard); ini untuk tetikus.
+   SATU kunci: aturan lama yang menempel pada tanda (:has) dibuang — dua kunci
+   saling menutupi dan mutan "tombol tidak dikunci" lolos (bagian 369). */
 .lap-basi-tanda { margin: 0 0 var(--irama); }
 .lap-basi-tanda.galat { color: var(--bahaya); }
-:has(> .lap-basi-tanda) :is(button, select, input, a.tombol) { pointer-events: none; opacity: .5; }
+[data-basi] :is(button, select, input, a.tombol) { pointer-events: none; opacity: .5; }
 .petak.laporan-sempit { max-width: 1180px; }
 /* Baris selang-seling: mata tidak meleset baris saat menyeberang dari nama
    ke angka. Warnanya --panel-2, jadi ikut tema gelap (bagian 205: latar

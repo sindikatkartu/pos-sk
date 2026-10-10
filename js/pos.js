@@ -1774,3 +1774,142 @@ if (typeof module !== 'undefined' && module.exports) {
                      angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
                      BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang };
 }
+
+/* ==================== LAPORAN: DATA TERAKHIR DULU (bagian 365; di pos.js sejak bagian 369) ====================
+ * TEMPATNYA DI pos.js (bagian 369): admin.js ikut memakainya (menu
+ * akuntansi), dan panggung rupa.html hanya memuat pos.js + grafik.js +
+ * admin.js — penolong di app.js membuat layar itu berhenti di sana dengan
+ * ReferenceError (penjaga "admin.js tidak menambah ketergantungan baru pada
+ * app.js"). APP_STATE, esc, dan Admin dipakai saat DIJALANKAN, bukan saat
+ * berkas dimuat.
+ *
+ * Pemilik 8 Okt 2026 (usulan D bagian 358): "kerjakan sekarang". Pola Dashboard
+ * bagian 258 untuk Laporan Penjualan (semua tab) dan Laporan Keuangan (Laba
+ * Rugi, Neraca, Buku besar, Kerugian): jawaban terakhir disimpan di PERANGKAT
+ * per akun + laporan + parameter; membuka laporan menggambar simpanan
+ * seketika bertanda jamnya, lalu menarik yang baru dan menggambar ulang.
+ *
+ * Selama angkanya angka LAMA, wadahnya ber-data-basi dan SEMUA klik di
+ * dalamnya ditolak penjaga di bawah (tetikus & keyboard) — tidak ada yang
+ * mencetak, mengekspor, membayar, atau membalik dari angka basi. Sejak bagian
+ * 369 kuncinya di WADAH (bukan di tanda), jadi jalur yang mengganti isi wadah
+ * TANPA penolong ini wajib melepasnya sendiri (`lepasBasi`) — Workflow
+ * tinjau-rilis menemukan dua yang lupa (tab Kas & Bank, tab Laporan yang
+ * sudah termuat). Penggambar yang menggambar ulang dari data yang SAMA
+ * (cabang Gaji, cari Akun perkiraan) memulihkan tandanya (`pulihkanTandaBasi`).
+ * Dipakai juga oleh menu akuntansi (admin.js muatTersimpan, bagian 369).
+ * Simpanan ≤ 12 laporan, ≤ 150.000 karakter per laporan dan ≤ 900.000 seluruhnya
+ * (peninjau-rilis: 20 × 400 KB melewati kuota localStorage, dan kuota penuh
+ * ikut mematikan antrean galat klien & simpanan lain). Penulisan yang gagal
+ * membuang kunci ini seluruhnya. Dibuang saat keluar akun.
+ *
+ * Kuncinya memuat VERSI aplikasi dan dua hak yang mengubah isi laporan
+ * (lintas cabang, harga modal): simpanan berbentuk lama dari rilis sebelumnya
+ * tidak pernah digambar penggambar baru, dan hak yang dicabut di tengah sesi
+ * tidak menampilkan angka yang kini tidak boleh dilihat. */
+/* Rangka umum (rangkaLaporan milik app.js tidak terlihat dari sini). */
+const RANGKA_LAP_UMUM = '<div class="kartu" aria-busy="true" aria-label="Memuat">' +
+  ['92%', '78%', '86%', '70%'].map((l) => '<div class="rangka-baris"><span class="rangka" style="width:' + l + '"></span></div>').join('') + '</div>';
+const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 12, BATAS_LAP = 150000, TOTAL_LAP = 900000;
+const kunciLap = (jenis, par) => {
+  const f = APP_STATE.flag || {};
+  return JSON.stringify([(APP_STATE.user || {}).id_user || '', typeof CONFIG !== 'undefined' ? CONFIG.VERSI : '',
+    (f.akses_lintas_cabang ? 'L' : '') + (f.lihat_harga_modal ? 'M' : ''), jenis, par]);
+};
+function bacaSimpanLap(jenis, par) {
+  try { return JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}')[kunciLap(jenis, par)] || null; }
+  catch (e) { return null; }
+}
+function tulisSimpanLap(jenis, par, data) {
+  try {
+    if (JSON.stringify(data).length > BATAS_LAP) return;
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}'); } catch (e) { s = {}; }
+    s[kunciLap(jenis, par)] = { data, waktu: Date.now() };
+    const urut = () => Object.keys(s).sort((a, b) => s[a].waktu - s[b].waktu);
+    while (Object.keys(s).length > MAKS_LAP) delete s[urut()[0]];
+    let teks = JSON.stringify(s);
+    while (teks.length > TOTAL_LAP && Object.keys(s).length > 1) { delete s[urut()[0]]; teks = JSON.stringify(s); }
+    localStorage.setItem(SIMPAN_LAP, teks);
+  } catch (e) {
+    /* Penuh/diblokir: buang kunci ini seluruhnya, supaya simpanan lain di
+       perangkat (antrean galat, Dashboard, id perangkat) tidak ikut macet. */
+    try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ }
+  }
+}
+function buangSimpanLap(jenis, par) {
+  try {
+    const s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}');
+    delete s[kunciLap(jenis, par)];
+    localStorage.setItem(SIMPAN_LAP, JSON.stringify(s));
+  } catch (e) { try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ } }
+}
+function tandaLap(w, waktu, galat) {
+  const tgl = new Date(waktu);
+  /* Tanggal disebut bila bukan hari ini: kunci Keuangan per bulan bisa berumur
+     berhari-hari, dan "pukul 10.15" saja terbaca seperti angka pagi ini. */
+  const jam = (tanggalLokal(tgl) === tanggalLokal() ? '' : tglTampil(tanggalLokal(tgl)) + ' ') +
+    tgl.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  const ada = w.querySelector(':scope > .lap-basi-tanda');
+  const html = galat
+    ? 'Angka tersimpan pukul ' + esc(jam) + ' — gagal diperbarui: ' + esc(galat) + '. Buka ulang laporan untuk mencoba lagi.'
+    : 'Angka tersimpan pukul ' + esc(jam) + ' — sedang diperbarui…';
+  if (ada) { ada.innerHTML = html; ada.classList.toggle('galat', !!galat); return; }
+  w.insertAdjacentHTML('afterbegin', '<p class="petunjuk lap-basi-tanda" role="status">' + html + '</p>');
+}
+/**
+ * gambar(data, segar): dari simpanan seketika (segar = false, bertanda jam,
+ * terkunci), lalu ambil() dari server, simpan, gambar(data, true). masihSah()
+ * false = layar/tab/periode sudah berganti: hasilnya disimpan, tidak digambar.
+ * Tanpa simpanan dan server gagal: lempar, seperti dulu.
+ */
+async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
+  /* Wadahnya DITANDAI selama angka lama tampil (bagian 369), bukan hanya
+     tandanya: layar seperti Akun perkiraan menggambar ulang dari data yang
+     sama (kotak cari) dan tanda di dalamnya ikut hilang, sedangkan angkanya
+     tetap lama. Pemuatan baru selalu mulai bersih. */
+  lepasBasi(w);
+  let s = bacaSimpanLap(jenis, par);
+  /* Simpanan yang TIDAK BISA digambar (bentuknya tidak dikenal penggambar
+     ini) dibuang, dan laporannya dimuat dari server seperti tanpa simpanan —
+     dulu galatnya menghentikan pemuatan dan simpanan rusak itu menetap. */
+  if (s) {
+    try { gambar(s.data, false); tandaLap(w, s.waktu); w.dataset.basi = '1'; w.dataset.basiWaktu = String(s.waktu); }
+    catch (e) { buangSimpanLap(jenis, par); s = null; Rangka.pasang(w, RANGKA_LAP_UMUM); }
+  }
+  let d;
+  try { d = await ambil(); }
+  catch (e) {
+    if (!s) throw e;
+    if (masihSah()) tandaLap(w, s.waktu, e.message);
+    return s.data;
+  }
+  tulisSimpanLap(jenis, par, d);
+  if (masihSah()) { gambar(d, true); lepasBasi(w); }
+  return d;
+}
+
+/** Lepas kunci angka lama dari wadah — wajib di jalur yang mengganti isinya
+ *  dengan angka SEGAR tanpa lewat denganSimpananLap (bagian 369). */
+function lepasBasi(w) { if (w) { delete w.dataset.basi; delete w.dataset.basiWaktu; } }
+/** Penggambar ulang dari data yang sama selagi angkanya masih lama: tandanya
+ *  ikut terhapus innerHTML, kuncinya tidak — pulihkan tandanya. */
+function pulihkanTandaBasi(w) {
+  if (w && w.dataset.basi && w.dataset.basiWaktu && !w.querySelector(':scope > .lap-basi-tanda')) tandaLap(w, +w.dataset.basiWaktu);
+}
+
+/* PENJAGA KLIK selama angka lama tampil (bagian 369). Di menu akuntansi hampir
+   tiap baris punya tombol yang MENGIRIM angka dari data yang dimuat — koreksi
+   balik kas, terima setoran, simpan rekon, simpan aset. Kunci CSS hanya
+   menghentikan tetikus; Enter dari keyboard tetap memicu klik. Penjaga ini
+   menolak SEMUA klik di dalam wadah ber-data-basi, di fase tangkap, sebelum
+   penangan mana pun — termasuk Laporan bagian 365. */
+/* Diperiksa dulu: pos.js juga dimuat Node (require) dan sandbox uji dengan
+   `document` tiruan tanpa addEventListener. */
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', (e) => {
+  const basi = e.target && e.target.closest && e.target.closest('[data-basi]');
+  if (!basi) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  try { Admin.toast('Tunggu angka terbaru — yang tampil masih angka tersimpan.', 'info'); } catch (x) { /* toast belum siap */ }
+}, true);

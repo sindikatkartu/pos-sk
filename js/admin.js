@@ -5968,10 +5968,30 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== PIUTANG ==================== */
 
+  /* ==================== DATA TERAKHIR DULU di menu akuntansi (bagian 369) ====================
+     Pola Laporan (bagian 365, denganSimpananLap di pos.js) untuk Kas & Bank,
+     Piutang, Utang, Aset Tetap, Gaji, Kasbon, Akun perkiraan, Ringkasan Gabungan.
+     Bedanya: hampir tiap baris di sini punya tombol yang MENGIRIM angka dari
+     data yang dimuat. Selama angka lama tampil wadahnya ber-data-basi, dan
+     penjaga di pos.js menolak SEMUA klik di dalamnya (tetikus dan keyboard).
+     Nomor panggilan per KELOMPOK: jawaban yang sudah disusul tidak digambar —
+     termasuk tiga tab Kas & Bank yang berbagi #hasilKas (dulu ringkasan yang
+     terlambat menimpa Koran/Rekon, dan Rekon bisa menyimpan saldo akun lama
+     dengan kode akun baru). */
+  const _tiketMuat = {};
+  const naikTiket = (kunci) => (_tiketMuat[kunci] = (_tiketMuat[kunci] || 0) + 1);
+  async function muatTersimpan(sel, kunci, jenis, par, ambil, gambar, sahTambahan) {
+    const w = $(sel);
+    if (!w) return;
+    const tiket = naikTiket(kunci);
+    const sah = () => _tiketMuat[kunci] === tiket && document.contains(w) && (!sahTambahan || sahTambahan());
+    if (!bacaSimpanLap(jenis, par)) memuat(sel);
+    try { await denganSimpananLap(w, jenis, par, ambil, gambar, sah); }
+    catch (e) { if (sah()) galat(sel, e); }
+  }
+
   async function muatPiutang() {
-    memuat('#isiPiutang');
-    try {
-      const d = await API.daftarPiutang({});
+    await muatTersimpan('#isiPiutang', 'piutang', 'piutang', {}, () => API.daftarPiutang({}), (d) => {
       const a = d.aging;
       $('#isiPiutang').innerHTML = `
         <p class="petunjuk">Uang pelanggan yang belum dibayar, dikelompokkan menurut lamanya terlambat. Pembayaran dicatat lewat tombol di tiap baris.</p>
@@ -6000,7 +6020,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], d.piutang, { kosong: 'Tidak ada piutang beredar' })}
         </div>`;
       $('#isiPiutang')._rows = d.piutang;
-    } catch (e) { galat('#isiPiutang', e); }
+    });
   }
 
   function dialogBayarPiutang(uuid, cabang) {
@@ -6031,9 +6051,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * satu pun layar untuk melihat atau melunasinya.
    */
   async function muatUtang() {
-    memuat('#isiUtang');
-    try {
-      const d = await API.daftarUtang({});
+    await muatTersimpan('#isiUtang', 'utang', 'utang', {}, () => API.daftarUtang({}), (d) => {
       const a = d.aging;
       $('#isiUtang').innerHTML = `
         <p class="petunjuk">Tagihan supplier yang belum dibayar, dikelompokkan menurut lamanya terlambat. Pembayaran dicatat lewat tombol di tiap baris.</p>
@@ -6067,7 +6085,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
         </div>`;
       $('#isiUtang')._rows = d.utang;
-    } catch (e) { galat('#isiUtang', e); }
+    });
   }
 
   /**
@@ -6781,15 +6799,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function muatHasilKons() {
     const tiket = ++tiketKons;
-    memuat('#hasilKons');
-    try {
-      const d = await API.ringkasanKonsolidasi({ periode: $('#konsPeriode').value });
-      if (tiket !== tiketKons) return;   // periodenya sudah diganti
-      gambarKons(d, tiket);
-    } catch (e) {
-      if (tiket !== tiketKons) return;
-      galat('#hasilKons', e);
-    }
+    const per = $('#konsPeriode').value;
+    /* Angka lama digambar TANPA kartu kekayaan (nomor −1 membuat muatKekayaan
+       berhenti): neracanya ditarik sekali, sesudah angka baru tiba (bagian 369). */
+    await muatTersimpan('#hasilKons', 'kons', 'konsolidasi', { periode: per },
+      () => API.ringkasanKonsolidasi({ periode: per }),
+      (d, segar) => gambarKons(d, segar ? tiket : -1),
+      () => tiket === tiketKons);   // periodenya sudah diganti
   }
 
   /* Kartu yang GAGAL harus punya jalan keluar. Tanpa tombol, satu-satunya
@@ -11024,16 +11040,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatCoa() {
     const w = $('#isiCoa');
     if (!w) return;
-    memuat('#isiCoa');
-    try {
-      coaData = await API.daftarCoa();
-      gambarCoa();
-    } catch (e) { galat('#isiCoa', e); }
+    await muatTersimpan('#isiCoa', 'coa', 'coa', {}, () => API.daftarCoa(), (d) => { coaData = d; gambarCoa(); });
   }
 
   function gambarCoa() {
     const d = coaData, w = $('#isiCoa');
     if (!d || !w) return;
+    queueMicrotask(() => pulihkanTandaBasi(w));
     const peta = {};
     d.akun.forEach(a => { peta[a.kode] = a; });
     const dalam = (a) => { let n = 0, x = a; while (x && x.induk && peta[x.induk] && n < 6) { n++; x = peta[x.induk]; } return n; };
@@ -11236,11 +11249,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function muatHasilAset() {
-    memuat('#hasilAset');
-    try {
-      asetData = await API.daftarAset({ periode: nilai('asetPeriode') });
-      gambarAset();
-    } catch (e) { galat('#hasilAset', e); }
+    const per = nilai('asetPeriode');
+    await muatTersimpan('#hasilAset', 'aset', 'aset', { periode: per },
+      () => API.daftarAset({ periode: per }), (d) => { asetData = d; gambarAset(); });
   }
 
   function gambarAset() {
@@ -11597,6 +11608,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function muatHasilKas() {
+    /* Satu nomor untuk KETIGA tab (bagian 369): pindah tab menyusul pemuatan
+       tab lain yang masih berjalan. */
+    naikTiket('kas');
     if (!tabKasBoleh().some(([x]) => x === tabKas)) tabKas = 'ringkasan';
     /* Pemilih cabang hanya disembunyikan di rekening koran akun pusat (lihat muatKoran). */
     /* Rekonsiliasi tidak mengirim cabang sama sekali (rekening bank itu satu)
@@ -11604,8 +11618,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (tabKas !== 'koran') $('#wadahCabangKas')?.classList.toggle('sembunyi', tabKas === 'rekon');
     if (tabKas === 'koran') return muatKoran();
     if (tabKas === 'rekon') return muatRekon();
-    memuat('#hasilKas');
-    try {
+    const parKas = { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') };
+    await muatTersimpan('#hasilKas', 'kas', 'kas', parKas, async () => {
       /* TIGA panggilan sekaligus, bukan berurutan. Tiap panggilan Apps Script
          membayar ~0,8 detik memuat proyek; berurutan berarti menunggu tiga
          kali lipat untuk data yang tidak saling bergantung. */
@@ -11626,9 +11640,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ? API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7), cabang: kodeCabangPusat() })
           : null
       ]);
-      kasData = { kas, setor, ner, arus, nerPusat: pusat5 };
-      gambarKas();
-    } catch (e) { galat('#hasilKas', e); }
+      return { kas, setor, ner, arus, nerPusat: pusat5 };
+    }, (d) => { kasData = d; gambarKas(); });
   }
 
   function gambarKas() {
@@ -11919,6 +11932,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatKoran() {
     const w = $('#hasilKas');
     if (!w) return;
+    /* Isi #hasilKas diganti di sini tanpa denganSimpananLap: kunci angka lama
+       tab Ringkasan dilepas (Workflow tinjau-rilis, bagian 369). */
+    lepasBasi(w);
     const periode = (nilai('kasSampai') || tanggalLokal()).substring(0, 7);
     const nm = await namaAkunKasBank();
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuKoran">
@@ -11927,9 +11943,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <select id="koranAkun" class="kendali-tetap" title="Akun">${akunKasAktif().map((k) =>
           `<option value="${k}" ${k === akunKoran ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
       <div id="isiKoran"></div></div>`;
-    memuat('#isiKoran');
-    try {
-      const bb = await API.bukuBesar({ kode_akun: akunKoran, periode, cabang: cabangKas });
+    const parKoran = { akun: akunKoran, periode, cabang: cabangKas };
+    await muatTersimpan('#isiKoran', 'kas', 'kas_koran', parKoran,
+      () => API.bukuBesar({ kode_akun: parKoran.akun, periode, cabang: parKoran.cabang }), (bb) => {
       /* Bank & Kas Admin dibaca server sebagai SATU rekening, apa pun cabang
          yang dipilih (bagian 322) — pemilih cabangnya disembunyikan supaya
          tidak menjanjikan saringan yang tidak ada (bagian 328). SERVER yang
@@ -11956,7 +11972,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <tfoot><tr><th colspan="${cabangKas === '*' ? 4 : 3}">Saldo akhir · ${baris.length} mutasi</th>
           <th class="kanan">${rp(bb.total_debit)}</th><th class="kanan">${rp(bb.total_kredit)}</th>
           <th class="kanan">${rp(bb.saldo_akhir)}</th></tr></tfoot></table></div>`;
-    } catch (e) { galat('#isiKoran', e); }
+    });
     $('#koranAkun')?.addEventListener('change', (e) => { akunKoran = e.target.value; muatKoran(); });
   }
 
@@ -11969,6 +11985,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatRekon() {
     const w = $('#hasilKas');
     if (!w) return;
+    lepasBasi(w);   // lihat muatKoran
     const periode = (nilai('kasSampai') || tanggalLokal()).substring(0, 7);
     const nm = await namaAkunKasBank();
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuRekon">
@@ -11978,11 +11995,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           `<option value="${k}" ${k === akunRekon ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
       <div id="isiRekon"></div></div>`;
     $('#rekonAkun').addEventListener('change', (e) => { akunRekon = e.target.value; muatRekon(); });
-    memuat('#isiRekon');
-    try {
-      rekonData = await API.rekonBank({ kode_akun: akunRekon, periode });
-      gambarRekon();
-    } catch (e) { galat('#isiRekon', e); }
+    const akunIni = akunRekon;
+    await muatTersimpan('#isiRekon', 'kas', 'kas_rekon', { akun: akunIni, periode },
+      () => API.rekonBank({ kode_akun: akunIni, periode }), (d) => { rekonData = d; gambarRekon(); });
   }
   function hitungRekonLayar() {
     const d = rekonData, set = new Set([...document.querySelectorAll('#isiRekon [data-cocok]:checked')].map((x) => x.dataset.cocok));
@@ -12434,16 +12449,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function muatHasilGaji() {
-    memuat('#hasilGaji');
-    try {
-      gajiData = await API.daftarGaji({ periode: nilai('gajiPeriode') });
-      gambarGaji();
-    } catch (e) { galat('#hasilGaji', e); }
+    const per = nilai('gajiPeriode');
+    /* Slip periode sebelumnya tidak boleh tertinggal: ganti cabang selagi
+       periode baru dimuat (atau gagal) dulu menggambarnya TANPA kunci, dan
+       Ubah slip menulis balik angka lama (Workflow tinjau-rilis). */
+    gajiData = null;
+    await muatTersimpan('#hasilGaji', 'gaji', 'gaji', { periode: per },
+      () => API.daftarGaji({ periode: per }), (d) => { gajiData = d; gambarGaji(); });
   }
 
   function gambarGaji() {
     const d = gajiData;
     if (!d || !$('#hasilGaji')) return;
+    queueMicrotask(() => pulihkanTandaBasi($('#hasilGaji')));
     const slip = d.slip.filter((s) => cabangGaji === '*' || s.cabang === cabangGaji);
     const jum = (k) => slip.reduce((a, s) => a + (Number(s[k]) || 0), 0);
     const dibayar = slip.filter((s) => s.status === 'DIBAYAR');
@@ -12619,13 +12637,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function muatKasbon() {
-    memuat('#hasilKasbon');
-    try {
+    await muatTersimpan('#hasilKasbon', 'kasbon', 'kasbon', {}, async () => {
       const [k, pt] = await Promise.all([API.daftarKasbon({}), API.daftarPetugas()]);
-      kasbonData = k;
-      petugasGaji = pt || [];
-      gambarKasbon();
-    } catch (e) { galat('#hasilKasbon', e); }
+      return { k, pt: pt || [] };
+    }, (d) => { kasbonData = d.k; petugasGaji = d.pt; gambarKasbon(); });
   }
 
   function gambarKasbon() {
