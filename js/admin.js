@@ -12539,7 +12539,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const p = { id_slip: id, cabang: nilai('gj_cabang'), catatan: nilai('gj_catatan') };
     KOMPONEN_GAJI.forEach(([k]) => { p[k] = angka('gj_' + k); });
     if (!$('#gj_potongan_kasbon').disabled) p.potongan_kasbon = angka('gj_potongan_kasbon');
-    await API.simpanGaji(p);
+    /* Cap waktu slip yang dilihat layar ini: server menolak bila slipnya sudah
+       diubah orang lain sejak dimuat (bagian 370). */
+    const lama = slipDari(id);
+    if (lama && lama.diubah !== undefined) p.diubah_dimuat = lama.diubah;
+    try { await API.simpanGaji(p); }
+    catch (e) {
+      if (e.kode !== 'KONFLIK') throw e;
+      tutupModal();
+      toast(e.message, 'galat');
+      return muatHasilGaji();
+    }
     tutupModal();
     toast('Slip disimpan.');
     return muatHasilGaji();
