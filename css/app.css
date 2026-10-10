@@ -3417,6 +3417,10 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
      spesifik, jadi di HP isi sel terakhir tiap kartu — Saldo Buku besar, tombol
      ⋮ Pengguna — berhenti 16 px sebelum tepi kanan, sel lain menempel tepi. */
   .kartu > .gulir-x > table > tbody > tr > td:last-child { padding-right: 0; }
+  /* Sel colspan ("Belum ada pengeluaran.", "BEBAN OPERASIONAL") rata TENGAH
+     — aturan sel pertama di atas (38%) mengalahkan `td[colspan] { padding-left: 0 }`
+     di bawah, jadi teksnya miring ke kanan sejak 22 Sep 2026 (bagian 367). */
+  .kartu > .gulir-x > table > tbody > tr > td[colspan] { padding-left: 0; }
   /* Sel yang memang kosong dibuang saja dari kartunya. Baris "Telepon" tanpa
      nomor apa pun bukan keterangan, hanya baris kosong yang memanjangkan kartu.
      Di tabel layar lebar kolomnya tetap ada, jadi tidak ada data yang hilang. */
