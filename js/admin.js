@@ -12544,14 +12544,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const lama = slipDari(id);
     if (lama && lama.diubah !== undefined) p.diubah_dimuat = lama.diubah;
     try { await API.simpanGaji(p); }
-    catch (e) {
-      if (e.kode !== 'KONFLIK') throw e;
-      tutupModal();
-      toast(e.message, 'galat');
-      return muatHasilGaji();
-    }
+    catch (e) { return konflikGaji(e); }
     tutupModal();
     toast('Slip disimpan.');
+    return muatHasilGaji();
+  }
+
+  /** Jawaban KONFLIK atas Simpan/Bayar slip (bagian 370, 371): borang ditutup,
+      sebabnya disebut, angka terbaru dimuat. Galat lain diteruskan. */
+  function konflikGaji(e) {
+    if (e.kode !== 'KONFLIK') throw e;
+    tutupModal();
+    toast(e.message, 'galat');
     return muatHasilGaji();
   }
 
@@ -12592,7 +12596,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              <tr><td>Dari</td><td class="kanan">${esc(dari)}</td></tr></tbody></table>
            <p class="petunjuk">Belum yakin? Tekan Batal dan periksa lewat Ubah — slip Draf aman diubah kapan saja.</p>`,
           { ya: 'Ya, bayar', jenis: 'bahaya' }))) return;
-    await API.bayarGaji({ id_slip: id, akun_kas: nilai('gjSumber'), tanggal: nilai('gjTanggal') });
+    /* Cap waktu slip yang angkanya tampil di konfirmasi: server menolak bila
+       slipnya sudah diubah sejak dimuat (bagian 371). */
+    const p = { id_slip: id, akun_kas: nilai('gjSumber'), tanggal: nilai('gjTanggal') };
+    if (s.diubah !== undefined) p.diubah_dimuat = s.diubah;
+    try { await API.bayarGaji(p); }
+    catch (e) { return konflikGaji(e); }
     tutupModal();
     toast('Gaji ' + s.nama + ' dibayar.');
     return muatHasilGaji();
