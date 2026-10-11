@@ -1870,6 +1870,34 @@ function gambarPin() {
    karena tombol yang ditekan berikutnya adalah tombol yang berbeda. */
 let _sedangLogin = false;
 
+/* SIDIK PIN UNTUK LOGIN OFFLINE (bagian 379, tinjauan keamanan S1).
+   Dulu login tanpa internet cukup mencocokkan USERNAME pemakai terakhir —
+   PIN apa pun diterima, dan siapa pun yang memegang perangkat bisa masuk
+   memakai sesi tersimpan. Kini setiap login daring yang berhasil menyimpan
+   SIDIK PIN (PBKDF2-SHA256 ber-garam lewat WebCrypto — bukan PIN-nya), dan
+   login offline hanya masuk bila PIN yang diketik cocok. Lima PIN salah
+   berturut-turut mengunci login offline 15 menit, seperti di server. */
+const SIDIK_PIN_PUTARAN = 150000, SIDIK_MAKS_GAGAL = 5, SIDIK_KUNCI_MENIT = 15;
+const _heks = (u8) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join('');
+async function sidikPin(pin, garam) {
+  const enc = new TextEncoder();
+  const kunci = await crypto.subtle.importKey('raw', enc.encode(String(pin)), 'PBKDF2', false, ['deriveBits']);
+  const bit = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(garam),
+    iterations: SIDIK_PIN_PUTARAN }, kunci, 256);
+  return _heks(new Uint8Array(bit));
+}
+async function simpanSidikPin(username, pin) {
+  const garam = _heks(crypto.getRandomValues(new Uint8Array(16)));
+  await DB.kvSet('sidik_pin', { username: String(username).toLowerCase(), garam, sidik: await sidikPin(pin, garam) });
+  await DB.kvSet('gagal_offline', null);
+}
+/** true = cocok, false = salah, null = belum ada sidik untuk username ini. */
+async function cocokSidikPin(username, pin) {
+  const s = await DB.kvGet('sidik_pin', null);
+  if (!s || s.username !== String(username).toLowerCase()) return null;
+  return (await sidikPin(pin, s.garam)) === s.sidik;
+}
+
 async function login(pakaiPassword = false) {
   if (_sedangLogin) return;
   const username = $('#inpUsername').value.trim();
@@ -1906,6 +1934,10 @@ async function login(pakaiPassword = false) {
     API.setToken(d.token);
     await DB.kvSet('token', d.token);
     await DB.kvSet('sesi', d);
+    /* Sidik PIN untuk login offline berikutnya (bagian 379). Gagal menyimpan
+       sidik tidak boleh menggagalkan login — akibatnya cuma login offline
+       ditolak sampai login daring berikutnya. */
+    if (!pakaiPassword) { try { await simpanSidikPin(username, kredensial.pin); } catch (e) { /* tanpa WebCrypto */ } }
     await DB.kvSet('cabang_terakhir', d.cabang);
     await laporkanKeluarPaksa();
     await mulaiSesi(d);
@@ -1914,12 +1946,31 @@ async function login(pakaiPassword = false) {
     if (e.kode === 'PERANGKAT_MENUNGGU') {
       pesan('#pesanLogin', e.message + ' Perangkat sudah terdaftar otomatis — minta Owner menyetujuinya, lalu coba lagi.', 'galat');
     } else if (e.kode === 'JARINGAN' || e.kode === 'OFFLINE') {
-      // Login offline hanya diizinkan bila perangkat ini pernah login dan sesinya belum kedaluwarsa.
+      /* Login offline: perangkat ini pernah login sebagai orang ini, DAN PIN-nya
+         cocok dengan sidik yang disimpan saat login daring (bagian 379). Masa
+         berlaku sesi sengaja tidak dipaksakan di sini: kasir harus tetap bisa
+         berjualan offline keesokan harinya. */
       const sesiLama = await DB.kvGet('sesi', null);
       if (sesiLama && sesiLama.user.username === username) {
-        pesan('#pesanLogin', 'Offline — masuk memakai sesi tersimpan. Sinkronisasi akan berjalan saat internet kembali.', 'info');
-        API.setToken(sesiLama.token);
-        await mulaiSesi(sesiLama);
+        const gagal = (await DB.kvGet('gagal_offline', null)) || { n: 0, sampai: 0 };
+        const sisa = Math.ceil((Number(gagal.sampai || 0) - Date.now()) / 60000);
+        const cocok = sisa > 0 || pakaiPassword ? null : await cocokSidikPin(username, kredensial.pin).catch(() => null);
+        if (sisa > 0) {
+          pesan('#pesanLogin', 'Offline — terlalu banyak PIN salah. Coba lagi dalam ' + sisa + ' menit, atau tunggu internet.', 'galat');
+        } else if (cocok === true) {
+          await DB.kvSet('gagal_offline', null);
+          pesan('#pesanLogin', 'Offline — masuk memakai sesi tersimpan. Sinkronisasi akan berjalan saat internet kembali.', 'info');
+          API.setToken(sesiLama.token);
+          await mulaiSesi(sesiLama);
+        } else if (cocok === false) {
+          const n = Number(gagal.n || 0) + 1;
+          await DB.kvSet('gagal_offline', { n: n >= SIDIK_MAKS_GAGAL ? 0 : n,
+            sampai: n >= SIDIK_MAKS_GAGAL ? Date.now() + SIDIK_KUNCI_MENIT * 60000 : 0 });
+          pesan('#pesanLogin', 'Offline — PIN salah.', 'galat');
+        } else {
+          pesan('#pesanLogin', 'Offline — perangkat ini belum menyimpan sidik PIN untuk masuk tanpa internet. ' +
+            'Masuk sekali saat internet tersedia' + (pakaiPassword ? ' (login offline hanya dengan PIN)' : '') + '.', 'galat');
+        }
       } else {
         pesan('#pesanLogin', 'Tidak dapat menghubungi server dan belum ada sesi tersimpan di perangkat ini.', 'galat');
       }
@@ -7541,14 +7592,21 @@ function pasangEvent() {
          terhapus bersama pembersihan database cabang, lalu perangkatnya buntu.
          `periksaShift()` sudah bisa memulihkan keadaan ini sendiri, tapi HANYA
          saat online — dan tidak pernah terpanggil di jalur galat ini. */
-      if (e.kode === 'NOTFOUND' || e.kode === 'STATUS') {
+      /* SHIFT_ORANG_LAIN (bagian 379): id_shift disimpan per PERANGKAT; bila
+         pengecekan shift saat login gagal sesaat, perangkat masih memegang
+         shift pemakai sebelumnya. Server menolak menutupnya — perangkat
+         melepasnya, shift itu tetap terbuka untuk pemiliknya. */
+      if (e.kode === 'NOTFOUND' || e.kode === 'STATUS' || e.kode === 'SHIFT_ORANG_LAIN') {
         APP_STATE.idShift = null;
         await DB.kvSet('id_shift', null);
         APP_STATE.hasilTutupShift = null;
         $('#tiraiTutupShift').classList.remove('tampil');
         gambarKeadaanShift();
-        Admin.toast('Shift itu sudah ditutup dari perangkat lain, jadi dilepas dari perangkat ini. '
-                    + 'Silakan buka shift baru.', 'galat');
+        Admin.toast(e.kode === 'SHIFT_ORANG_LAIN'
+          ? 'Shift yang tersimpan di perangkat ini milik petugas lain, jadi dilepas dari perangkat ini — '
+            + 'shift itu tetap terbuka untuk pemiliknya. Silakan buka shift Anda sendiri.'
+          : 'Shift itu sudah ditutup dari perangkat lain, jadi dilepas dari perangkat ini. '
+            + 'Silakan buka shift baru.', 'galat');
         return;
       }
       $('#tsHasil').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
@@ -7713,6 +7771,9 @@ function pasangEvent() {
     if (!/^\d{6}$/.test(baru)) return pesan('#pesanGantiPin', 'PIN baru harus 6 digit angka.', 'galat');
     try {
       await API.gantiPin({ pin_lama: $('#pinLama').value, pin_baru: baru });
+      /* Sidik login offline ikut PIN baru (bagian 379) — PIN lama tidak boleh
+         tetap membuka perangkat ini saat internet mati. */
+      try { if (APP_STATE.user && APP_STATE.user.username) await simpanSidikPin(APP_STATE.user.username, baru); } catch (e) { /* tanpa WebCrypto */ }
       $('#pinLama').value = ''; $('#pinBaru').value = '';
       pesan('#pesanGantiPin', 'PIN berhasil diganti.', 'sukses');
     } catch (e) { pesan('#pesanGantiPin', e.message, 'galat'); }
