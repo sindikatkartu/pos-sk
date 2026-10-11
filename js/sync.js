@@ -105,7 +105,10 @@ const Sync = (() => {
           await API.catatCetakUlang(o.dokumen, { latar: true });   // antrean, bukan klik (bagian 277)
           o.status = 'SYNCED'; o.waktu_sinkron = new Date().toISOString();
         } catch (e) {
-          o.percobaan = (o.percobaan || 0) + 1;
+          /* DIBATASI (bagian 381) bukan kegagalan catatannya: server sedang
+             membatasi frekuensi, jadi tidak dihitung — tanpa ini lima putaran
+             sinkron dalam jendela 10 menit membuang catatan yang sah. */
+          if (e.kode !== 'DIBATASI') o.percobaan = (o.percobaan || 0) + 1;
           if (o.percobaan >= 5) o.status = 'DITOLAK';
         }
         await DB.put('outbox', o);

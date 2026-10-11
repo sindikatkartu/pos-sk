@@ -6295,6 +6295,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#isiPerangkat', e); }
   }
 
+  /* Peran BERKUASA = Owner, atau peran berizin setting·ubah — cermin
+     _peranBerkuasa di server (bagian 375). Layar Pengguna menyembunyikan apa
+     yang pasti ditolak server bagi pemakai tanpa setting·ubah (bagian 381). */
+  function peranBerkuasa(kode) {
+    if (String(kode) === 'OWNER') return true;
+    const p = (cachePeran || []).find(x => x.kode_peran === kode);
+    const iz = (p && p.izin) || {};
+    if (iz['*'] === '*') return true;
+    const m = iz.setting;
+    return m === '*' || (Array.isArray(m) && m.includes('ubah'));
+  }
+  const pengaturPeran = () => bolehIzin('setting', 'ubah');
+
   function gambarPengguna() {
     const w = $('#isiPengguna');
     if (!w) return;
@@ -6319,6 +6332,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                elipsis saja"). Satu tombol tetap ikon. */
             { judul: '', kelas: 'sel-menu', render: r => {
               const id = esc(r.id_user);
+              /* Akun berkuasa hanya diubah Owner (bagian 375, 381). */
+              if (!pengaturPeran() && peranBerkuasa(r.peran)) return '';
               if (!bolehIzin('user', 'ubah')) return tombolIkon('', 'Ubah', IKON.ubah, `data-edit-user="${id}"`);
               return menuTindakan({ id: 'menuBarisUser' + idAman(r.id_user), idTombol: 'btnBarisUser' + idAman(r.id_user),
                 kunci: 'baris-user', baris: true,
@@ -6502,8 +6517,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : 'Hanya Owner yang boleh mengganti username.')
              : ''}</p>
       <div class="baris2">
-        <div class="grup"><label>Peran *</label><select id="uPeran">
-          ${urutkanOleh(cachePeran || [], p => p.nama).map(p => `<option value="${esc(p.kode_peran)}" ${u?.peran === p.kode_peran ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
+        <div class="grup"><label>Peran *</label><select id="uPeran" ${u && !pengaturPeran() && String(u.id_user) === String(APP_STATE.user?.id_user) ? 'disabled' : ''}>
+          ${urutkanOleh((cachePeran || []).filter(p => pengaturPeran() || !peranBerkuasa(p.kode_peran) || u?.peran === p.kode_peran), p => p.nama).map(p => `<option value="${esc(p.kode_peran)}" ${u?.peran === p.kode_peran ? 'selected' : ''}>${esc(p.nama)}</option>`).join('')}
         </select></div>
         <div class="grup"><label>Cabang</label><select id="uCabang">
           ${cabangOpsi.slice().sort(urutNama).map(c => `<option value="${esc(c)}" ${u?.cabang === c ? 'selected' : ''}>${c === '*' ? 'Semua cabang' : esc(c)}</option>`).join('')}

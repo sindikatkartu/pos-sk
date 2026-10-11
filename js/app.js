@@ -4379,7 +4379,7 @@ async function bukaLaporanShift(idShift, cabang) {
     $('#lapShiftIsi').innerHTML = `
       ${d.berjalan ? '<div class="pesan info">Shift ini masih berjalan — angkanya berjalan juga, ' +
         'dan dihitung dengan rumus yang sama persis dengan saat nanti ditutup.</div>' : ''}
-      <p class="petunjuk">Kasir ${kasirTampil(d.shift)} · perangkat ${esc(d.shift.id_perangkat || '—')}<br>
+      <p class="petunjuk">Kasir ${kasirTampil(d.shift)} · perangkat ${esc(d.shift.perangkat || '—')}<br>
         Buka ${esc(waktuTampil(d.shift.buka))}${d.shift.tutup ? ' · tutup ' + esc(waktuTampil(d.shift.tutup)) : ''}</p>
 
       <div class="kartu" style="background:var(--bg)">
