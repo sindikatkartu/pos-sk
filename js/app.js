@@ -4390,6 +4390,7 @@ async function bukaLaporanShift(idShift, cabang) {
         ${baris('Kas fisik dihitung', rpAtau(k.fisik))}
         ${baris('Selisih', rpAtau(k.selisih), true)}
       </div>
+      ${d.boleh_koreksi ? formKoreksiKasShift(idShift, cabang, k) : ''}
 
       <h4 style="margin:16px 0 6px">Per metode bayar</h4>
       ${d.per_metode.length ? `<div class="gulir-x"><table>
@@ -4419,6 +4420,58 @@ async function bukaLaporanShift(idShift, cabang) {
   } catch (e) {
     $('#lapShiftIsi').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
   }
+}
+
+/* Koreksi kas fisik shift yang sudah ditutup (bagian 387). Tombolnya hanya
+   dikirim server untuk Owner & Head Admin (shift·ubah) selama setorannya belum
+   diterima; formnya terlipat sampai tombolnya ditekan, supaya laporan yang
+   dibuka untuk dibaca tidak terlihat seperti formulir. */
+function formKoreksiKasShift(idShift, cabang, k) {
+  return `<div style="margin-top:12px">
+    <button class="tombol" type="button" data-koreksi-kas-buka="1">Koreksi kas fisik</button>
+    <div class="kartu sembunyi" id="kartuKoreksiKas" style="background:var(--bg);margin-top:8px"
+         data-shift="${esc(idShift)}" data-cabang="${esc(cabang || '')}"
+         data-lama="${+k.fisik || 0}" data-sistem="${+(k.sistem_tutup ?? k.sistem) || 0}">
+      <p class="petunjuk">Untuk salah ketik uang laci saat tutup shift. Kas sistem tidak berubah;
+        selisih dan jurnalnya ikut dibetulkan. Hanya selama setorannya belum diterima.
+        Selisih dihitung dari kas sistem saat tutup: ${rp(k.sistem_tutup ?? k.sistem)}.</p>
+      <label>Kas fisik yang benar
+        <input type="text" class="uang" id="koreksiKasFisik" autocomplete="off" placeholder="${esc(ribuan(+k.fisik || 0))}"></label>
+      <label>Alasan
+        <input type="text" id="koreksiKasAlasan" autocomplete="off" placeholder="mis. salah ketik, laci pas"></label>
+      <div class="pesan galat rapat sembunyi" id="pesanKoreksiKas"></div>
+      <button class="tombol utama" type="button" id="btnKoreksiKas">Simpan koreksi</button>
+    </div>
+  </div>`;
+}
+
+async function simpanKoreksiKasShift(btn) {
+  const kartu = $('#kartuKoreksiKas');
+  const pesan = $('#pesanKoreksiKas');
+  const salah = (t) => { pesan.textContent = t; pesan.classList.remove('sembunyi'); };
+  pesan.classList.add('sembunyi');
+  const teks = String($('#koreksiKasFisik').value || '').trim();
+  const baru = angkaDari(teks);
+  const alasan = String($('#koreksiKasAlasan').value || '').trim();
+  const lama = Number(kartu.dataset.lama) || 0, sistem = Number(kartu.dataset.sistem) || 0;
+  if (teks === '' || !(baru >= 0)) return salah('Isi kas fisik yang benar.');
+  if (baru === lama) return salah('Angkanya sama dengan yang tercatat.');
+  if (alasan.length < 5) return salah('Alasan minimal 5 huruf.');
+  if (!(await Admin.tanya('Koreksi kas fisik shift ini?',
+        `<p class="petunjuk">${esc(kartu.dataset.shift)}</p>
+         <p class="petunjuk">Kas fisik ${rp(lama)} → <strong>${rp(baru)}</strong><br>
+           Selisih ${rp(lama - sistem)} → <strong>${rp(baru - sistem)}</strong></p>
+         <p class="petunjuk">Jurnal selisih kasnya ikut dibetulkan, dan jumlah setoran shift ini
+           menjadi ${rp(baru)}.</p>`,
+        { ya: 'Simpan koreksi' }))) return;
+  btn.disabled = true;   // terkunci selama memproses (bagian 261)
+  try {
+    const r = await API.koreksiKasShift({ id_shift: kartu.dataset.shift, kas_fisik: baru, alasan,
+      ...(kartu.dataset.cabang ? { cabang: kartu.dataset.cabang } : {}) });
+    Admin.toast('Kas fisik dikoreksi' + (r.no_jurnal ? ' · ' + r.no_jurnal : '') + '.', 'sukses');
+    await bukaLaporanShift(kartu.dataset.shift, kartu.dataset.cabang);
+    muatDaftarShift();
+  } catch (e) { salah(e.message); btn.disabled = false; }
 }
 
 async function periksaShift() {
@@ -7914,6 +7967,15 @@ function pasangEvent() {
   });
   document.addEventListener('click', e => {
     if (e.target.dataset?.tutupLapshift) $('#tiraiLapShift').classList.remove('tampil');
+  });
+  /* Koreksi kas fisik di jendela Laporan shift (bagian 387). */
+  $('#lapShiftIsi').addEventListener('click', e => {
+    if (e.target.dataset?.koreksiKasBuka) {
+      $('#kartuKoreksiKas')?.classList.remove('sembunyi');
+      e.target.classList.add('sembunyi');
+      $('#koreksiKasFisik')?.focus();
+    }
+    if (e.target.id === 'btnKoreksiKas') simpanKoreksiKasShift(e.target);
   });
   $('#btnCariNotaRiwayat').addEventListener('click', () => cariNotaLama());
   $('#cariNotaRiwayat').addEventListener('keydown', e => {

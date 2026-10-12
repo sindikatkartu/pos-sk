@@ -10438,8 +10438,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       d.status === 'POSTED' || d.status === 'DIBATALKAN'
         ? ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>')
         : `<button class="tombol" data-tutup="1">Nanti dulu</button>
+           ${bolehIzin('opname', 'hapus')
+             ? `<button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>` : ''}
            ${d.boleh_posting ? `<button class="tombol sukses" id="btnPostingOpname" data-uuid="${esc(d.uuid)}">
              Posting &amp; sesuaikan stok</button>` : ''}`);
+    /* Batalkan di layar REVIEW (bagian 386, titipan sesi data bagian 383):
+       server sudah membolehkan membatalkan opname yang belum diposting, tapi
+       tombolnya dulu hanya ada di layar menghitung (DRAFT). Cabang dengan
+       opname REVIEW tidak bisa membuka opname baru, dan satu-satunya jalan
+       keluar dari layar ini adalah posting. Penangannya sama (data-batal-opname:
+       bertanya + alasan). */
   }
 
   /** Kumpulkan hanya baris yang benar-benar diisi — kosong berarti belum dihitung. */
