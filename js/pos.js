@@ -1757,6 +1757,21 @@ function metodeCabang(setting, kode) {
   const d = String(isi).split(/[\s,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
   return d.includes('tunai') ? d : ['tunai'].concat(d);
 }
+/**
+ * METODE YANG DITAWARKAN DI SATU CABANG (bagian 389) — untuk layar selain
+ * Kasir (form tutup shift pulsa), yang perlu menanyakan cabang LAIN dari
+ * cabang sesi. Aturannya SAMA dengan metodeKasirTersedia() di app.js dan
+ * _metodeTersediaCabang() di 01_Util.gs; ketiganya dijaga satu uji
+ * kesetaraan di uji.js. Kasir sendiri sengaja tidak disentuh.
+ */
+function metodeTersediaCabang(setting, kode) {
+  const SEMUA = ['tunai', 'transfer_bca', 'transfer_bni', 'transfer_bri', 'transfer_mandiri', 'qris'];
+  const bank = metodeBankAktif(setting);
+  const atur = metodeCabang(setting, kode);
+  if (atur) return SEMUA.filter(m => atur.includes(m) && (!/^transfer_/.test(m) || bank.includes(m)));
+  if (jenisToko(kode, setting) !== 'grosir') return ['tunai', 'qris'];
+  return SEMUA.filter(m => !/^transfer_/.test(m) || bank.includes(m));
+}
 /* Akun bank yang BUKAN aktif disaring dari daftar kode akun apa pun; akun bukan-bank lolos. */
 const saringBankAktif = (daftarKode, setting) => {
   const aktif = akunBankAktif(setting);
@@ -1772,7 +1787,8 @@ if (typeof module !== 'undefined' && module.exports) {
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
                      labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
                      angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
-                     BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang };
+                     BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang,
+                     metodeTersediaCabang };
 }
 
 /* ==================== LAPORAN: DATA TERAKHIR DULU (bagian 365; di pos.js sejak bagian 369) ====================

@@ -2,6 +2,14 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
+<!-- CONTENT-SECURITY-POLICY (bagian 384, tinjauan keamanan R7).
+     Peramban hanya menjalankan skrip dari berkas situs ini sendiri — tidak ada
+     skrip yang tertulis di halaman, tidak ada eval. Teks apa pun yang lolos ke
+     layar (nama produk, catatan) tidak bisa menjadi skrip yang mengirim data ke
+     tempat lain: connect-src hanya situs ini dan Apps Script (script.google.com
+     menjawab dengan alihan ke script.googleusercontent.com — keduanya wajib).
+     Gaya inline tetap boleh: ratusan atribut style dipakai layar. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <title>POS SINDIKAT KARTU</title>
@@ -42,21 +50,11 @@
      Dibungkus try: mode penyamaran dan peramban yang memblokir penyimpanan situs
      membuat localStorage MELEMPAR, bukan mengembalikan null. Kasir tidak boleh
      kehilangan aplikasinya karena sebuah kenyamanan tampilan — gagal di sini
-     berarti temanya terang sampai app.js memasangnya, tidak lebih. -->
-<script>
-  try {
-    var t = localStorage.getItem('possk_tema');
-    if (t === 'gelap') document.documentElement.dataset.tema = 'gelap';
-    /* Warna bilah status ponsel ikut dipasang DI SINI, bukan hanya di app.js.
-       Aplikasi yang dipasang ke layar utama (standalone) membaca theme-color
-       saat halaman dimuat; yang diubah app.js belakangan tidak selalu diikuti.
-       Dilaporkan pemilik 10 Sep 2026: bilah status putih di atas aplikasi
-       gelap. Nilainya = token --panel tiap tema (app.css) — ada uji yang
-       menjaga keduanya sepakat. */
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', t === 'gelap' ? '#30302e' : '#ffffff');
-  } catch (e) { /* penyimpanan diblokir: tetap terang sampai app.js jalan */ }
-</script>
+     berarti temanya terang sampai app.js memasangnya, tidak lebih.
+
+     Skripnya di js/tema.js (bagian 384): CSP di atas hanya mengizinkan skrip
+     dari berkas situs sendiri, jadi skrip yang tertulis di halaman ditolak. -->
+<script src="js/tema.min.js"></script>
 </head>
 <body>
 
@@ -1025,7 +1023,7 @@
             <li><strong>Salah buka shift?</strong> Tekan <strong>Batalkan shift</strong> di tab Shift selagi belum mengisi apa pun — shiftnya dihapus tanpa mencatat apa pun. Yang boleh: pembuka shift itu, Owner, atau Head Admin. <strong>Jangan menutup shift dengan saldo akhir 0</strong>: server menolaknya, sebab itu berarti seluruh saldo hilang tanpa terjual. Shift yang sudah punya foto tidak bisa dibatalkan sebelum fotonya dihapus.</li>
             <li><strong>Salah ambil foto?</strong> Tekan <strong>Hapus</strong> di baris fotonya, selama shiftnya masih berjalan — untuk foto yang salah ambil atau salah pilih dari galeri. Yang boleh: pembuka shift itu, Owner, atau Head Admin. Penghapusannya tercatat.</li>
             <li><strong>Hapus shift yang sudah ditutup</strong> (Owner, tab Laporan) — hanya shift tutup terakhir di tiap cabang, dan jurnalnya dibalik otomatis.</li>
-            <li><strong>Tutup shift</strong> — isi saldo akhir tiap aplikasi, pengeluaran (tiap baris wajib ada keterangannya), dan uang yang dihitung, lalu tekan <strong>Kunci hitungan</strong>. <strong>Saldo masuk (topup)</strong> tidak diketik petugas: Head Admin atau Owner mencatatnya di tab <strong>Saldo → Catat topup</strong> selagi shiftnya berjalan — nominal dan rekening pembayarnya (Kas Admin, laci shift, atau rekening bank yang aktif — Pengaturan Sistem → <strong>Rekening bank aktif</strong>; untuk sementara BCA dan BRI). Di form tutup shift angkanya tampil terkunci; kalau ada saldo masuk yang belum tercatat, hubungi admin sebelum Kunci hitungan. Hanya topup dari laci yang mengurangi kas shift. Salah catat dibetulkan lewat <strong>Koreksi</strong> di tab Laporan. Seluruh uang shift itu diserahkan ke Head Admin, yang menerimanya di Kas &amp; Bank → Setoran toko (B13). Setoran yang belum diterima muncul sebagai pengingat saat shift berikutnya dibuka, tanpa menghalanginya.</li>
+            <li><strong>Tutup shift</strong> — isi saldo akhir tiap aplikasi, pengeluaran (tiap baris wajib ada keterangannya), dan uang yang dihitung, lalu tekan <strong>Kunci hitungan</strong>. <strong>Saldo masuk (topup)</strong> tidak diketik petugas: Head Admin atau Owner mencatatnya di tab <strong>Saldo → Catat topup</strong> selagi shiftnya berjalan — nominal dan rekening pembayarnya (Kas Admin, laci shift, atau rekening bank yang aktif — Pengaturan Sistem → <strong>Rekening bank aktif</strong>; untuk sementara BCA dan BRI). Di form tutup shift angkanya tampil terkunci; kalau ada saldo masuk yang belum tercatat, hubungi admin sebelum Kunci hitungan. Hanya topup dari laci yang mengurangi kas shift. Di cabang yang menerima QRIS atau transfer (hari ini SKG01), form tutup punya kartu <strong>Penjualan dibayar non-tunai</strong>: isi total penjualan pulsa yang dibayar QRIS, TRF BCA, atau TRF BRI — uangnya tidak masuk laci, jadi tidak dihitung di kas akhir fisik. Pelanggan membayar pulsa + barang grosir dengan satu QRIS? Isi bagian pulsanya saja; bagian grosir sudah tercatat di nota Kasir. Cabang lain tunai saja. Salah catat dibetulkan lewat <strong>Koreksi</strong> di tab Laporan. Seluruh uang shift itu diserahkan ke Head Admin, yang menerimanya di Kas &amp; Bank → Setoran toko (B13). Setoran yang belum diterima muncul sebagai pengingat saat shift berikutnya dibuka, tanpa menghalanginya.</li>
             <li><strong>Sumber Saldo</strong> — daftar aplikasi (BOS PULSA, DIGIPOS, …) dan cabang yang memakainya. Di bawahnya kartu <strong>Database pulsa</strong> dan sambungan <strong>Laporan Pulsa</strong>, hanya untuk yang boleh melihat pengaturan sistem.</li>
             <li><strong>Laporan</strong> — shift yang sudah ditutup, bisa dipilih per cabang. Hanya Owner dan Head Admin yang melihat tab ini; akun petugas pulsa tidak. <strong>Saldo</strong> — saldo tiap aplikasi di tiap cabang dalam satu tabel, dari shift terakhir yang ditutup; shift yang masih berjalan disebut, tapi belum dihitung.</li>
           </ul>
@@ -1034,7 +1032,7 @@
         <div class="kartu">
           <h3>B13. Kas &amp; Bank</h3>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li><strong>Setoran toko</strong> — shift kasir dan shift pulsa yang sudah ditutup, tapi uangnya belum diterima. Head Admin menghitung uangnya lalu menekan <strong>Terima</strong>; uangnya pindah dari Kas di Tangan ke Kas Admin. Tiap shift disetor sendiri-sendiri. Shift yang belum ditutup tidak muncul.</li>
+            <li><strong>Setoran toko</strong> — shift kasir dan shift pulsa yang sudah ditutup, tapi uangnya belum diterima. Head Admin menghitung uangnya lalu menekan <strong>Terima</strong>; uangnya pindah dari Kas di Tangan ke Kas Admin. Tiap shift disetor sendiri-sendiri. Shift yang belum ditutup tidak muncul. Di cabang yang menerima QRIS atau transfer (hari ini SKG01), barisnya juga merinci <strong>QRIS, TRF BCA, TRF BRI</strong> — dari nota kasir, dan dari isian tutup shift pulsa. Uang itu sudah tercatat di Dana QRIS dan rekeningnya sejak transaksi, jadi <strong>Terima</strong> tetap hanya memindahkan uang tunai. Sesudah Terima, aplikasi menawarkan <strong>Cetak bukti setoran</strong> berisi tunai dan seluruh rinciannya — pengganti berita acara manual.</li>
             <li><strong>Catat</strong> — kas masuk atau keluar back office yang tidak lewat laci kasir, misalnya membayar listrik dari Kas Admin. Aplikasi menanyakan sekali lagi sebelum menyimpan.</li>
             <li><strong>Mutasi kas</strong> — tiap gerakan uang satu per satu. <strong>Arus kas — 6 bulan terakhir</strong> — berapa yang masuk dan keluar tiap bulan, bukan cuma sisanya.</li>
           </ul>

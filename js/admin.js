@@ -7948,6 +7948,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const tombolSaldo = (kolom, b) => `<button type="button" class="tombol-ikon kecil" data-koreksi-saldo="${kolom}"
       data-sumber="${esc(String(b.kode_sumber))}" data-nilai="${+b[kolom] || 0}" data-nama="${esc(nama[b.kode_sumber] || String(b.kode_sumber))}"
       title="Koreksi ${kolom === 'saldo_awal' ? 'saldo awal' : 'saldo akhir'} — shift sebelah ikut berubah" aria-label="Koreksi ${kolom === 'saldo_awal' ? 'saldo awal' : 'saldo akhir'} ${esc(String(b.kode_sumber))}">✎</button>`;
+    /* Metode yang ditawarkan cabangnya HARI INI + yang SUDAH tercatat di shift
+       ini (catatan peninjau-rilis): metode lama yang setelannya dimatikan tidak
+       boleh hilang diam-diam dari koreksi. */
+    const ntLamaK = nontunaiDari(s.bayar_nontunai);
+    const ntKoreksi = metodeNontunaiPulsa(s.kode_cabang).concat(Object.keys(ntLamaK).filter((mt) => !metodeNontunaiPulsa(s.kode_cabang).includes(mt)));
     const isian = (k, v, ket) => `<input type="text" inputmode="numeric" class="uang" data-koreksi="${k}"
       value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(+v || 0))}" aria-label="${esc(ket)}">`;
     bukaModal('Koreksi shift ' + (s.jenis_shift || '') + ' ' + (s.kode_cabang || '') + ' · ' + String(s.tanggal || '').slice(0, 10), `
@@ -7971,6 +7976,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <label>Topup ${esc(nama[b.kode_sumber] || String(b.kode_sumber))} ${rp(b.deposit)} — dibayar dari</label>
         ${pilihAkunTopup(`data-koreksi-akun="${esc(String(b.kode_sumber))}"`, String(b.akun_deposit || '') || AKUN_LACI,
                          'Topup ' + b.kode_sumber + ' dibayar dari', false)}</div>`).join('')}
+      ${ntKoreksi.length ? `<div class="saring-baris">${ntKoreksi.map((mt) =>
+        `<div class="kendali-tetap"><label>Dibayar ${esc(labelMetode(mt))}</label>
+           <input type="text" inputmode="numeric" class="uang" data-koreksi-nt="${esc(mt)}"
+             value="${esc(new Intl.NumberFormat(CONFIG.LOCALE).format(nontunaiDari(s.bayar_nontunai)[mt] || 0))}"
+             aria-label="Penjualan pulsa dibayar ${esc(labelMetode(mt))}"></div>`).join('')}</div>
+        <p class="petunjuk">Penjualan yang dibayar non-tunai tidak masuk laci (bagian 389).</p>` : ''}
       <div class="grup" style="max-width:320px"><label>Kas fisik (uang di laci)</label>${isian('kas_fisik', s.kas_fisik, 'Kas fisik')}</div>
       <div class="grup"><label>Alasan koreksi *</label>
         <input type="text" id="alasanKoreksi" maxlength="200" placeholder="mis. salah ketik penjualan BOS PULSA, seharusnya 1.056.000"></div>
@@ -7995,7 +8006,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (topupDariLaci(tr.dataset.deposit, akunEl ? akunEl.value : '')) dep += +tr.dataset.deposit || 0;
       });
       const keluar = +s.total_keluar || 0;
-      const kasSistem = (+s.kas_awal || 0) + jual - dep - keluar;
+      let nt = 0;
+      m.querySelectorAll('[data-koreksi-nt]').forEach((el) => { nt += angkaDari(el.value); });
+      const kasSistem = (+s.kas_awal || 0) + jual - nt - dep - keluar;
       const kas = angkaDari(m.querySelector('[data-koreksi="kas_fisik"]').value);
       const baris = (l, lama, baru) => `<tr><td>${l}</td><td class="kanan">${rp(lama)}</td><td class="kanan">${rp(baru)}</td></tr>`;
       $('#pratinjauKoreksi').innerHTML = `<table class="tabel"><thead><tr><th>Hasil</th><th class="kanan">Sekarang</th>
@@ -8005,7 +8018,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${baris('Kas fisik', s.kas_fisik, kas)}${baris('Selisih kas', s.selisih, kas - kasSistem)}
         ${baris('Margin', s.margin, jual - modal - keluar)}</tbody></table>`;
     };
-    m.addEventListener('input', (e) => { if (e.target.closest('[data-koreksi]')) hitung(); });
+    m.addEventListener('input', (e) => { if (e.target.closest('[data-koreksi]') || e.target.closest('[data-koreksi-nt]')) hitung(); });
     m.addEventListener('change', (e) => { if (e.target.closest('[data-koreksi-akun]')) hitung(); });
     hitung();
   }
@@ -8027,11 +8040,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       return o;
     });
     const kas_fisik = angkaDari(m.querySelector('[data-koreksi="kas_fisik"]').value);
+    /* Non-tunai dikirim hanya bila cabangnya punya kolomnya (bagian 389). */
+    const ntEl = [...m.querySelectorAll('[data-koreksi-nt]')];
+    const nontunai = ntEl.length ? Object.fromEntries(ntEl.map((el) => [el.dataset.koreksiNt, angkaDari(el.value)])) : undefined;
     if (!(await tanya('Simpan koreksi shift ini?',
       `<p>Jurnal koreksi sebesar selisihnya akan terbit di buku besar, dan shift ini ditandai <strong>diedit</strong>
          beserta riwayatnya. Angka lama tetap tercatat di riwayat.</p>`, { ya: 'Simpan koreksi' }))) return;
     try {
-      const r = await API.koreksiShiftPulsa({ id_shift: k.id, sumber, kas_fisik, alasan });
+      const r = await API.koreksiShiftPulsa({ id_shift: k.id, sumber, kas_fisik, alasan, ...(nontunai ? { nontunai } : {}) });
       tutupModal();
       toast(`Shift ${k.id} dikoreksi${r.no_jurnal ? ' — jurnal ' + r.no_jurnal : ''}.`, 'sukses');
       await muatLaporanpulsa();
@@ -8311,8 +8327,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     (wajib ? '<option value="">— dibayar dari —</option>' : '') +
     akunTopupAktif(terpilih).map(([k, n]) => `<option value="${k}"${k === terpilih ? ' selected' : ''}>${esc(n)}</option>`).join('') + '</select>';
 
-  /** Hitungan yang SAMA dengan _hitungShiftPulsa di server. */
-  function hitungShiftpulsa(st, keluar) {
+  /** Hitungan yang SAMA dengan _hitungShiftPulsa di server. `nontunai` =
+      total penjualan yang dibayar QRIS/transfer (bagian 389) — tidak masuk laci. */
+  function hitungShiftpulsa(st, keluar, nontunai) {
     let modal = 0, jual = 0, deposit = 0, reward = 0, laci = 0;
     (st.sumber || []).forEach(s => {
       /* Reward = yang di-redeem ke saldo utama (bagian 266) — rumus server. */
@@ -8321,9 +8338,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (topupDariLaci(s.deposit, s.akun_deposit)) laci += (+s.deposit || 0);
     });
     /* Hanya topup yang dibayar dari laci mengurangi kas shift (bagian 309). */
-    const kasSistem = (+st.kas_awal || 0) + jual - laci - (+keluar || 0);
+    const kasSistem = (+st.kas_awal || 0) + jual - (+nontunai || 0) - laci - (+keluar || 0);
     return { modal, jual, deposit, laci, reward, kasSistem, margin: jual - modal - (+keluar || 0) };
   }
+  /* Metode non-tunai yang ditawarkan di cabang shift pulsa itu (bagian 389).
+     Hari ini hanya SKG01; cabang tunai saja tidak mendapat kolomnya. */
+  const metodeNontunaiPulsa = (kode) => metodeTersediaCabang(APP_STATE.setting, kode).filter(m => m !== 'tunai');
+  /* Isi kolom bayar_nontunai (JSON) → { metode: angka }. */
+  const nontunaiDari = (v) => {
+    let j = {};
+    try { j = typeof v === 'string' ? (v ? JSON.parse(v) : {}) : (v || {}); } catch (e) { j = {}; }
+    const o = {};
+    Object.keys(j || {}).forEach(m => { if ((+j[m] || 0) > 0) o[m] = +j[m]; });
+    return o;
+  };
 
   function gambarShiftpulsa() {
     const w = $('#isiShiftpulsa');
@@ -8451,7 +8479,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!w._keluar) w._keluar = (st.keluar || []).map(x => ({ keterangan: x.keterangan, jumlah: +x.jumlah || 0 }));
     const keluarBaris = w._keluar;
     const totalKeluar = keluarBaris.reduce((a, x) => a + (+x.jumlah || 0), 0);
-    const h = hitungShiftpulsa(st, totalKeluar);
+    const ntMetode = metodeNontunaiPulsa(st.kode_cabang);
+    const ntNilai = (m) => +kt['nontunai:' + m] || 0;
+    const totalNontunai = ntMetode.reduce((a, m) => a + ntNilai(m), 0);
+    const h = hitungShiftpulsa(st, totalKeluar, totalNontunai);
     const selisih = (+w._kasFisik || 0) - h.kasSistem;
     const ganjil = [];
     if (selisih !== 0) ganjil.push('selisih kas ' + rp(selisih));
@@ -8504,6 +8535,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <p class="petunjuk">Kas akhir fisik = hasil menghitung uang sungguhan di laci, bukan angka
            yang dicocokkan supaya selisihnya nol. Pengeluaran dijumlah dari rinciannya di bawah.</p>
       </div>
+      ${ntMetode.length ? `<div class="kartu" id="kartuNontunaiPulsa">
+        <h3>Penjualan dibayar non-tunai</h3>
+        <div class="saring-baris">
+          ${ntMetode.map(m => `<div class="kendali-tetap"><label>${esc(labelMetode(m))}</label>
+            <input type="text" inputmode="numeric" class="uang spsAngka" data-sp="nontunai" data-metode="${esc(m)}"
+              value="${('nontunai:' + m) in kt ? rp0(kt['nontunai:' + m]) : ''}" placeholder="0"
+              aria-label="Penjualan pulsa dibayar ${esc(labelMetode(m))}"></div>`).join('')}
+        </div>
+        <p class="petunjuk">Bagian penjualan pulsa yang dibayar lewat QRIS atau transfer — uangnya tidak
+           masuk laci, jadi tidak dihitung di kas akhir fisik. Satu QRIS untuk pulsa + barang grosir: isi
+           bagian <strong>pulsanya</strong> saja; bagian grosir sudah tercatat di nota Kasir. Kosong = tunai semua.</p>
+      </div>` : ''}
       <div class="kartu">
         <h3>Pengeluaran lain</h3>
         <div class="gulir-x">
@@ -8667,6 +8710,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kt = (w._ketik && w._ketik.nilai) || {};
     if (sp === 'kas_fisik') { w._kasFisik = v; if (kosong) delete kt.kas_fisik; else kt.kas_fisik = v; }
     else if (sp === 'keluar') { w._keluar = v; }
+    else if (sp === 'nontunai') {
+      /* Non-tunai per metode (bagian 389). Kosong = 0, bukan "belum diketik":
+         kolom ini tidak wajib — shift tanpa QRIS/transfer memang kosong. */
+      const k = 'nontunai:' + el.dataset.metode;
+      if (kosong) delete kt[k]; else kt[k] = v;
+    }
     else {
       const s = (w._st.sumber || [])[+el.dataset.i];
       if (!s) return;
@@ -12317,23 +12366,43 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * benar-benar dihitung di laci, bukan yang seharusnya ada; selisihnya sudah
    * dibukukan sendiri saat tutup shift.
    */
+  /* Shift belum disetor per id — bahan dialog Terima & bukti setoran (bagian 389). */
+  let _setoranBelum = {};
+  /* Urutan non-tunai di tabel & bukti: QRIS, bank, lalu metode LAMA yang masih
+     ada di nota belum disetor — "transfer" umum 11.018.550 di SKG01 (diukur
+     12 Okt 2026); tanpa ini bukti setoran kurang tanpa tanda. */
+  const URUT_NT = ['qris', 'transfer_bca', 'transfer_bni', 'transfer_bri', 'transfer_mandiri', 'transfer', 'debit', 'kredit'];
   function kartuSetoran(belum) {
+    _setoranBelum = {};
+    belum.forEach((sh) => { _setoranBelum[sh.id_shift] = sh; });
     if (!belum.length) {
       return `<div class="kartu"><h3>Setoran toko</h3>
         <p class="petunjuk">Tidak ada shift tertutup yang uangnya belum diserahkan.</p></div>`;
     }
+    /* SATU kolom "Non-tunai", rinciannya bertumpuk per metode (bagian 389).
+       Kolom per metode mendorong tombol Terima keluar layar tablet — dan data
+       SKG01 yang belum disetor berisi EMPAT metode sekaligus. Kolomnya hanya
+       ada bila ada isinya; bukti setoran merinci semua metode cabangnya. */
+    const adaNt = belum.some((sh) => URUT_NT.some((m) => (+(sh.nontunai || {})[m] || 0) > 0));
+    const ntSel = (sh) => {
+      const isi = URUT_NT.filter((m) => (+(sh.nontunai || {})[m] || 0) > 0)
+        .map((m) => `<div>${esc(labelMetode(m))} ${rp(sh.nontunai[m])}</div>`).join('');
+      return isi || ((sh.metode_nontunai || []).length ? rp(0) : '—');
+    };
     return `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Setoran toko ${lencanaDash(belum.length + ' belum diterima', 'kuning')}</h3>
         <span class="satuan-uang">dalam Rupiah</span></div>
       <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Cabang</th><th>Shift</th><th>Tutup</th>
           <th class="kanan">Uang dihitung</th>
+          ${adaNt ? '<th class="kanan">Non-tunai</th>' : ''}
           <th class="kanan">Selisih</th><th></th></tr></thead>
         <tbody>${belum.map((sh) => `<tr>
           <td data-l="Cabang">${esc(sh.kode_cabang || '')}</td>
           <td data-l="Shift">${esc(sh.id_shift)}${sh.jenis === 'PULSA' ? ' <span class="lencana">pulsa</span>' : ''}</td>
           <td data-l="Tutup">${esc(waktuTampil(sh.tutup))}</td>
           <td class="kanan" data-l="Uang dihitung">${rp(sh.kas_fisik)}</td>
+          ${adaNt ? `<td class="kanan" data-l="Non-tunai">${ntSel(sh)}</td>` : ''}
           <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
           <!-- Cabangnya dari BARISNYA, bukan dari pemilih di bar. Menyetorkan
                uang SK02 ke buku SK01 memindahkan uang yang tidak ada di sana. -->
@@ -12345,8 +12414,51 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          <strong>Kas di Tangan</strong> ke <strong>Kas Admin</strong>. Shift yang
          belum ditutup tidak muncul di sini — uang di laci yang masih dipakai
          tidak boleh dipindahkan. Shift pulsa ikut di sini, dan tiap shift
-         disetor sendiri-sendiri — kas awal shift pulsa selalu 0.</p>
+         disetor sendiri-sendiri — kas awal shift pulsa selalu 0.${adaNt ? `
+         Kolom Non-tunai hanya rincian serah terima: uangnya sudah tercatat
+         di Dana QRIS dan rekeningnya sejak transaksi, jadi <strong>Terima</strong> hanya
+         memindahkan uang tunai. Sesudah Terima, bukti setorannya bisa dicetak.` : ''}</p>
     </div>`;
+  }
+
+  /* BUKTI SETORAN (bagian 389) — menggantikan berita acara manual: tunai yang
+     diserahkan + rincian QRIS & transfer shift itu. Dokumen A4 lewat pintu
+     cetak dokumen yang sama dengan BKM/BKK. */
+  function buktiSetoranA4(sh, konteks) {
+    const k = konteks || {}, s = k.setting || {};
+    const nt = sh.nontunai || {};
+    const metode = URUT_NT.filter((m) => (sh.metode_nontunai || []).includes(m) || (+nt[m] || 0) > 0);
+    const baris = [['Tunai (uang dihitung, diserahkan)', +sh.kas_fisik || 0]]
+      .concat(metode.map((m) => [labelMetode(m) + ' (sudah di rekening/dana QRIS)', +nt[m] || 0]));
+    const total = baris.reduce((a, b) => a + b[1], 0);
+    const info = (kiri, kanan) => `<tr><td class="k">${esc(kiri)}</td><td>${kanan}</td></tr>`;
+    return `<h1>${esc(String(s.nama_usaha || 'SINDIKAT KARTU').toUpperCase())}</h1>` +
+      (s.alamat_usaha ? `<p class="sub">${esc(s.alamat_usaha)}</p>` : '') +
+      `<h2>BUKTI SETORAN SHIFT</h2>
+      <table class="info">
+        ${info('Shift', `<strong>${esc(sh.id_shift)}</strong>${sh.jenis === 'PULSA' ? ' (pulsa)' : ''}`)}
+        ${info('Cabang', esc(sh.kode_cabang || ''))}
+        ${info('Petugas', esc(sh.nama_user && sh.nama_user !== sh.id_user ? sh.nama_user + ' (' + sh.id_user + ')' : (sh.id_user || '')))}
+        ${info('Ditutup', esc(waktuTampil(sh.tutup)))}
+        ${info('Diterima', esc(waktuTampil(k.waktu)))}
+      </table>
+      <table class="isi">
+        <thead><tr><th>No</th><th>Metode</th><th class="n">Nominal</th></tr></thead>
+        <tbody>${baris.map((b, i) => `<tr><td>${i + 1}</td><td>${esc(b[0])}</td><td class="n">${esc(rpTeks(b[1]))}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="2">Total</td><td class="n">${esc(rpTeks(total))}</td></tr></tfoot>
+      </table>
+      <p class="catatan">Hanya uang tunai yang berpindah tangan. QRIS dan transfer tercatat di akunnya sejak transaksi.</p>
+      <table class="ttd"><tr><td><div class="peran">Diserahkan</div><div class="garis"></div><div class="nama">&nbsp;</div></td>
+        <td><div class="peran">Diterima</div><div class="garis"></div><div class="nama">${esc(k.user || '')}&nbsp;</div></td></tr></table>
+      <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
+        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
+  }
+  function cetakBuktiSetoran(sh) {
+    const kini = new Date();
+    const isi = buktiSetoranA4(sh, { setting: APP_STATE.setting || {}, user: (APP_STATE.user && APP_STATE.user.nama) || '',
+      versi: CONFIG.VERSI, waktu: tanggalLokal(kini) + 'T' + kini.toTimeString().substring(0, 8) });
+    try { Struk.cetakDokumen('Bukti setoran ' + sh.id_shift, isi); }
+    catch (e) { toast(e.message); }
   }
 
   function daftarMutasiKas(kas) {
@@ -13693,7 +13805,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (t.id === 'btnTutupShiftPulsa') {
         const stM = ($('#isiShiftpulsa') || {})._st || {};
-        if (!wajibDiketik([...document.querySelectorAll('#isiShiftpulsa .spsAngka')])) return;
+        /* Kolom non-tunai (bagian 389) TIDAK wajib: kosong = tunai semua. */
+        if (!wajibDiketik([...document.querySelectorAll('#isiShiftpulsa .spsAngka:not([data-sp="nontunai"])')])) return;
 
         const modalM = shiftMustahil(stM);
         if (modalM) {
@@ -13721,6 +13834,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                rinciannya tidak bisa diperiksa siapa pun sesudahnya. */
             keluar: (w._keluar || []).map(x => ({ keterangan: x.keterangan, jumlah: +x.jumlah || 0 })),
             catatan: (w._catatan || '').trim(),
+            /* Non-tunai per metode (bagian 389), dari keadaan layar. Server
+               menolak metode yang tidak ditawarkan cabangnya. */
+            nontunai: Object.fromEntries(Object.entries((w._ketik && w._ketik.nilai) || {})
+              .filter(([k, v]) => k.indexOf('nontunai:') === 0 && (+v || 0) > 0)
+              .map(([k, v]) => [k.slice('nontunai:'.length), +v])),
             /* Angka dikirim dari KEADAAN layar, bukan dibaca ulang dari DOM:
                satu kolom yang lupa dibaca mengirim nol tanpa tanda apa pun, dan
                nol di kolom saldo akhir melonjakkan modal. */
@@ -13916,10 +14034,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            punya pembanding. */
         const jml = Number(t.dataset.jumlah) || 0;
         const cab = t.dataset.cabang || APP_STATE.cabang;
+        /* Rincian non-tunai ikut disebut (bagian 389) — bukan dipindahkan. */
+        const shS = _setoranBelum[d.terimaSetor] || null;
+        const ntS = (shS && shS.nontunai) || {};
+        const ntTeks = URUT_NT.filter((m) => (+ntS[m] || 0) > 0).map((m) => `${esc(labelMetode(m))} ${rp(ntS[m])}`).join(' · ');
         if (!(await tanya('Terima setoran shift ini?',
               `<p class="petunjuk">${esc(cab)} · ${esc(d.terimaSetor)} · ${rp(jml)}</p>
                <p class="petunjuk">Uangnya berpindah dari <strong>Kas di Tangan</strong>
-               ke <strong>Kas Admin</strong>. Satu shift hanya bisa disetor sekali.</p>`,
+               ke <strong>Kas Admin</strong>. Satu shift hanya bisa disetor sekali.</p>
+               ${ntTeks ? `<p class="petunjuk">Non-tunai shift ini: ${ntTeks} — sudah tercatat di akunnya, tidak ikut dipindahkan.</p>` : ''}`,
               { ya: 'Terima setoran' }))) return;
         t.disabled = true;   // terkunci selama memproses (bagian 261)
         try {
@@ -13932,6 +14055,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             id_shift: '', luar_laci: true
           });
           toast('Setoran shift ' + d.terimaSetor + ' diterima.');
+          /* Bukti setoran ditawarkan SESUDAH diterima (bagian 389): tombol
+             kedua di baris memaksa menu ⋮ (bagian 274), dan Terima — kerja
+             harian — jadi dua klik. */
+          const shCetak = shS || { id_shift: d.terimaSetor, kode_cabang: cab, kas_fisik: jml, nontunai: {}, metode_nontunai: [] };
+          if (await tanya('Cetak bukti setoran?',
+                `<p class="petunjuk">${esc(d.terimaSetor)} — tunai ${rp(jml)}${ntTeks ? ' · ' + ntTeks : ''}.</p>`,
+                { ya: 'Cetak', batal: 'Tidak' })) cetakBuktiSetoran(shCetak);
           await muatHasilKas();
         } catch (x) { toast(x.message, 'galat'); t.disabled = false; }
         return;

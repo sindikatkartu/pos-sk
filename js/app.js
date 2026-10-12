@@ -4375,6 +4375,9 @@ async function bukaLaporanShift(idShift, cabang) {
        yang salah lebih buruk daripada tanda hubung: "selisih kas Rp 0" pada
        shift yang belum ditutup terbaca sebagai "sudah cocok". */
     const rpAtau = (v) => (v === null || v === undefined) ? '—' : rp(v);
+    /* Kas keluar ditulis minus, merah penuh (bagian 260). Komentar ini dulu
+       tertulis DI DALAM template di bawah dan ikut tergambar sebagai teks
+       (bagian 388). */
 
     $('#lapShiftIsi').innerHTML = `
       ${d.berjalan ? '<div class="pesan info">Shift ini masih berjalan — angkanya berjalan juga, ' +
@@ -4385,7 +4388,7 @@ async function bukaLaporanShift(idShift, cabang) {
       <div class="kartu" style="background:var(--bg)">
         ${baris('Kas awal laci', rp(k.awal))}
         ${baris('Penerimaan tunai', rp(k.tunai_masuk))}
-        ${baris('Kas keluar (di luar penjualan)', rp(-(+k.kas_keluar || 0)))}   /* minus merah penuh (bagian 260) */
+        ${baris('Kas keluar (di luar penjualan)', rp(-(+k.kas_keluar || 0)))}
         ${baris('Kas sistem', rp(k.sistem), true)}
         ${baris('Kas fisik dihitung', rpAtau(k.fisik))}
         ${baris('Selisih', rpAtau(k.selisih), true)}
