@@ -2111,6 +2111,13 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .jh-sumbu .jh-nama { color: var(--teks-redup); font-size: var(--fs-11); font-weight: 600; justify-content: center; padding-bottom: 0; }
 .jh-jam { display: grid; font-size: var(--fs-11); color: var(--teks-redup); text-align: center; font-variant-numeric: tabular-nums; }
 .ket-cab { font-size: var(--fs-11); color: var(--teks-redup); margin: 6px 0 0; }
+/* Jam ramai dua batang (bagian 391): jam puncak nota di bawah jam puncak omzet,
+   dan legenda pekat = omzet / muda = jumlah nota (warna cabang di batangnya;
+   kotak legenda memakai tinta teks, bukan warna seri). */
+.jh-nama .jh-nota { color: var(--teks-redup); font-size: var(--fs-11); opacity: .8; font-variant-numeric: tabular-nums; }
+.leg-jh { display: inline-flex; gap: 12px; margin-right: 8px; white-space: nowrap; }
+.leg-jh i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--teks-redup); margin-right: 4px; vertical-align: -1px; }
+.leg-jh i.muda { opacity: .4; }
 .bar100-cab { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: var(--fs-12); margin-top: 6px; }
 .bar100-cab .isi { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--garis-halus); }
 .bar100-cab .isi span { height: 100%; }

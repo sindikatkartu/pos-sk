@@ -1640,15 +1640,31 @@ const Admin = (() => {
        sebelah jam puncak tetap terlihat sebagai batang, bukan garis. */
     const W = 480, lebar = W / J.length, CELAH = 2, H = 100, MIN = 9;
     const bantu = J.map((_, i) => i ? `<line x1="${(i * lebar).toFixed(1)}" x2="${(i * lebar).toFixed(1)}" y1="0" y2="${H}" stroke="var(--garis-halus)" stroke-width="0.6" vector-effect="non-scaling-stroke"/>` : '').join('');
-    return kartuCab('cabJam', 'Jam ramai per cabang', 'omzet per jam', pc.map(c => {
+    /* DUA BATANG per jam (bagian 391, pemilik): pekat = omzet, muda = jumlah
+       nota — keduanya WARNA CABANG. Warna kedua yang tetap tidak lolos validator
+       buta warna terhadap keempat warna cabang sekaligus (abu vs hijau SK02
+       ΔE 5,1; kuning/merah vs oranye SKG01); beda terang-gelap terbaca semua
+       jenis buta warna. Masing-masing relatif terhadap puncaknya sendiri —
+       bukan dua sumbu angka. Server lama tanpa jam_nota: satu batang omzet. */
+    const duaBatang = pc.some(c => Array.isArray(c.jam_nota) && c.jam_nota.length === 24);
+    const OP_NOTA = 0.4;
+    return kartuCab('cabJam', 'Jam ramai per cabang', duaBatang ? 'omzet & jumlah nota per jam' : 'omzet per jam', pc.map(c => {
       const d = J.map(j => Number(c.jam[j]) || 0), mx = Math.max(...d), pk = d.indexOf(mx), w = cabDash.warna(c.cabang);
-      return `<div class="jh" data-jam-cab="${esc(c.cabang)}"><div class="jh-nama"><strong>${esc(c.cabang)}</strong><span>${mx > 0 ? jj(J[pk]) + ':00' : '—'}</span></div>
+      const dn = J.map(j => (Array.isArray(c.jam_nota) ? Number(c.jam_nota[j]) : 0) || 0), mxN = Math.max(...dn), pkN = dn.indexOf(mxN);
+      const lb = duaBatang ? (lebar - CELAH) / 2 - 0.5 : lebar - CELAH;
+      const batang = (v, m, x, op, ket) => { const t = v > 0 ? Math.max((H - 2) * v / m, MIN) : 0;
+        return t ? `<rect x="${x.toFixed(2)}" y="${(H - t).toFixed(1)}" width="${lb.toFixed(2)}" height="${t.toFixed(1)}" fill="${w}"${op < 1 ? ` fill-opacity="${op}" data-nota="1"` : ''}><title>${ket}</title></rect>` : ''; };
+      return `<div class="jh" data-jam-cab="${esc(c.cabang)}"><div class="jh-nama"><strong>${esc(c.cabang)}</strong><span>${mx > 0 ? jj(J[pk]) + ':00' : '—'}</span>${duaBatang && mxN > 0 ? `<small class="jh-nota">nota ${jj(J[pkN])}:00</small>` : ''}</div>
         <svg class="jh-baris" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${bantu}${d.map((v, i) => {
-          const t = v > 0 ? Math.max((H - 2) * v / mx, MIN) : 0;
-          return t ? `<rect x="${(i * lebar + CELAH / 2).toFixed(2)}" y="${(H - t).toFixed(1)}" width="${(lebar - CELAH).toFixed(2)}" height="${t.toFixed(1)}" fill="${w}"><title>${esc(c.cabang)} ${jj(J[i])}:00 · ${esc(rpTeks(v))}</title></rect>` : '';
+          const x0 = i * lebar + CELAH / 2;
+          const ket = esc(c.cabang) + ' ' + jj(J[i]) + ':00 · ' + esc(rpTeks(v)) + (duaBatang ? ' · ' + dn[i] + ' nota' : '');
+          return batang(v, mx, x0, 1, ket) + (duaBatang ? batang(dn[i], mxN, x0 + lb + 1, OP_NOTA, ket) : '');
         }).join('')}</svg></div>`;
     }).join('') + `<div class="jh jh-sumbu"><div class="jh-nama">Jam</div><div class="jh-jam" style="grid-template-columns:repeat(${J.length}, minmax(0, 1fr))">${J.map(j => `<span>${jj(j)}</span>`).join('')}</div></div>
-      <p class="ket-cab">Satu batang = satu jam, ${jj(J[0])}–${jj(J[J.length - 1])} · di bawah nama: jam puncak · sentuh batang untuk omzetnya · tiap cabang berskala sendiri.</p>`);
+      ${duaBatang
+        ? `<p class="ket-cab"><span class="leg-jh"><span><i></i>omzet</span><span><i class="muda"></i>jumlah nota</span></span>
+           Tiap jam dua batang warna cabang, ${jj(J[0])}–${jj(J[J.length - 1])}: pekat = omzet, muda = jumlah nota · masing-masing relatif terhadap puncaknya sendiri · di bawah nama: jam puncak omzet &amp; nota · sentuh batang untuk angkanya.</p>`
+        : `<p class="ket-cab">Satu batang = satu jam, ${jj(J[0])}–${jj(J[J.length - 1])} · di bawah nama: jam puncak · sentuh batang untuk omzetnya · tiap cabang berskala sendiri.</p>`}`);
   }
 
   /** Metode bayar → kelompok tetap: transfer_bca dst. ikut "transfer". */

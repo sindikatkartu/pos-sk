@@ -2185,6 +2185,13 @@ function bacaSettingKeState() {
    risiko tanpa menambah keamanan apa pun. */
 
 async function muatMaster() {
+  /* Setelan TERSIMPAN dibaca DULU, sebelum tarikan jaringan (bagian 391).
+     bangunNav() sudah membuka layar terakhir — sering Dashboard — dan
+     tarikMaster() bisa beberapa detik; selama itu APP_STATE.setting kosong,
+     jadi Tren per cabang menggambar satu panel "Semua" (toko_grosir belum
+     terbaca) dan tidak digambar ulang. Dibaca lagi di bawah sesudah tarikan. */
+  try { APP_STATE.setting = await DB.kvGet('setting', {}); bacaSettingKeState(); }
+  catch (e) { /* setelan lokal tak terbaca: tunggu tarikan di bawah */ }
   /* Penanda versinya membawa cabang sejak v1.144.0 (05_Master.gs), jadi
      perangkat yang cabangnya berganti otomatis menarik ulang — termasuk yang
      sudah terlanjur menyimpan daftar petugas cabang lain. Tidak ada tambalan
