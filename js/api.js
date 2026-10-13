@@ -629,7 +629,7 @@ let _pernahJawab = false;
        Tanpa itu lencana yang menyegar diri tiap beberapa menit menyalakan
        penanda sibuk dan mengunci layar tanpa ada yang menekan apa pun.
        Lihat _sibukOrang di atas. */
-    lencanaNav:        (o) => panggil('lencana_nav', {}, o || {}),
+    lencanaNav:        (o) => panggil('lencana_nav', (o && o.segar) ? { segar: true } : {}, o || {}),   // segar: lewati simpanan 5 menit (bagian 393)
     produkTerjual:     (d) => panggil('produk_terjual', d, { timeout: 90000 }),
     simpanProdukLengkap:(d)=> panggil('simpan_produk_lengkap', d),
     nonaktifkanProduk: (d) => panggil('nonaktifkan_produk', d),

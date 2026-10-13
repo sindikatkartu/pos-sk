@@ -1232,7 +1232,9 @@ function bangunNav() {
       `<button class="sisi-grup-tombol" id="${idGrup}" data-grup="${esc(g.nama)}"` +
       ` aria-expanded="${buka}" aria-controls="${idDaftar}">` +
       `<svg class="ikon-svg tanda-lipat" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>` +
-      `<span>${esc(g.nama)}</span></button></h2>` +
+      `<span>${esc(g.nama)}</span>` +
+      /* Jumlah tugas di grup ini — tampil hanya saat grupnya tertutup (bagian 393). */
+      `<span class="sisi-lencana" data-lencana-grup="${esc(g.nama)}" hidden></span></button></h2>` +
       `<ul class="sisi-daftar${buka ? '' : ' tutup'}" id="${idDaftar}" aria-labelledby="${idGrup}">` +
       g.isi.map(itemHtml).join('') +
       `</ul>`;
@@ -1368,6 +1370,18 @@ function gambarLencanaNav() {
     if (n) el.innerHTML = (n > 99 ? '99+' : String(n)) +
       '<span class="hanya-pembaca"> menunggu tindakan</span>';
   });
+  /* Judul grup (bagian 393): jumlah lencana menu yang TAMPIL di dalamnya —
+     dibaca dari daftarnya sendiri, jadi menu yang tidak boleh dibuka akun ini
+     tidak ikut terhitung. */
+  $$('#navSisi [data-lencana-grup]').forEach(el => {
+    const ul = el.closest('h2')?.nextElementSibling;
+    let n = 0;
+    if (ul) ul.querySelectorAll('[data-lencana]').forEach(x => { n += Number(peta[x.dataset.lencana]) || 0; });
+    el.hidden = !n;
+    el.textContent = n > 99 ? '99+' : String(n);
+    el.title = n + ' menunggu tindakan';
+  });
+  $$('[data-lencana-tab]').forEach(el => isiLencanaTab(el, peta));
 }
 
 let _lencanaTerakhir = 0;
@@ -1513,11 +1527,12 @@ function pasangPenangkapGalat() {
   });
 }
 
-async function tarikLencanaNav(latar) {
+async function tarikLencanaNav(latar, segar) {
   if (!API.online) return;
   _lencanaTerakhir = Date.now();
   try {
-    const d = await API.lencanaNav(latar ? { latar: true } : {});
+    /* segar: lewati simpanan server 5 menit — sesudah aksi yang menyelesaikan tugas (bagian 393). */
+    const d = await API.lencanaNav(Object.assign(latar ? { latar: true } : {}, segar ? { segar: true } : {}));
     APP_STATE.lencanaNav = d.lencana || {};
     gambarLencanaNav();
   } catch (e) { /* sengaja diam — lihat catatan di atas */ }
@@ -2549,6 +2564,7 @@ async function gambarProduk(kueri) {
      'change'. Digambar ulang di sini, di satu titik yang dilewati semua
      jalur itu. */
   tandaiKendaliKasir();
+  tandaiKeranjang();
 }
 
 /* ==================== INTIP STOK ANTAR CABANG ==================== */
@@ -2789,7 +2805,45 @@ const KirimWa = (() => {
     return r;
   }
 
-  return { nomor, isi, teksDraft, teksStruk, dataKeranjang, dataTahanan, teleponPelanggan, buka, kirim, KEPALA_BAWAAN, KAKI_BAWAAN };
+  /**
+   * STRUK sebagai GAMBAR kertas bergerigi (bagian 393), lewat lembar Bagikan
+   * Android — `wa.me` hanya bisa membawa teks. Keputusan pemilik: kontaknya
+   * DIPILIH KASIR di lembar itu, tidak lagi langsung ke nomor pelanggan
+   * (menggantikan bagian 344 untuk struk; draft tetap teks ke nomor).
+   *
+   * Hasil { cara: 'gambar' | 'batal' | 'teks' | 'ketuk', terbuka }:
+   *   gambar — lembar Bagikan terbuka dengan gambarnya;
+   *   batal  — kasir menutup lembarnya: TIDAK diganti teks diam-diam;
+   *   ketuk  — peramban menolak karena izin ketukan kedaluwarsa (sesudah
+   *            menyimpan nota) — kasir menekan tombol di layar sukses;
+   *   teks   — perangkat tidak bisa berbagi berkas (atau gambarnya gagal):
+   *            cara lama, teks ke nomor pelanggan.
+   */
+  async function struk(n, tel) {
+    const bisa = typeof Struk !== 'undefined' && typeof Struk.gambar === 'function' &&
+                 typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && typeof File === 'function';
+    if (bisa) {
+      let berkas = null;
+      try {
+        const b = await Struk.gambar(n);
+        berkas = new File([b], 'struk-' + String(n.no_nota || 'nota').replace(/[^\w-]+/g, '_') + '.png', { type: 'image/png' });
+      } catch (e) { console.warn('Gambar struk gagal, kirim teks:', e.message); }
+      if (berkas && navigator.canShare({ files: [berkas] })) {
+        try {
+          await navigator.share({ files: [berkas], text: 'Struk ' + (n.no_nota || '') });
+          return { cara: 'gambar', terbuka: true };
+        } catch (e) {
+          if (e && e.name === 'AbortError') return { cara: 'batal', terbuka: true };
+          if (e && e.name === 'NotAllowedError') return { cara: 'ketuk', terbuka: false };
+          console.warn('Bagikan struk gagal, kirim teks:', e && e.message);
+        }
+      }
+    }
+    const r = buka(teksStruk(n), tel);
+    return { cara: 'teks', terbuka: r.terbuka, url: r.url };
+  }
+
+  return { nomor, isi, teksDraft, teksStruk, dataKeranjang, dataTahanan, teleponPelanggan, buka, kirim, struk, KEPALA_BAWAAN, KAKI_BAWAAN };
 })();
 
 /* Pilihan struk di layar Bayar (bagian 344) — toko grosir saja, diingat per tablet. */
@@ -3108,6 +3162,35 @@ function gambarKeranjang() {
   $('#pegTotal').innerHTML = rp(t.total);
   $('#btnBayar').disabled = b.length === 0;
   $('#btnKirimWa')?.classList.toggle('sembunyi', !tokoGrosirIni());
+  tandaiKeranjang();
+}
+
+/**
+ * Angka "sudah di keranjang" di pojok kartu produk (bagian 393, pemilik: "beri
+ * lencana angka supaya tahu barang mana yang sudah masuk keranjang dan berikut
+ * jumlahnya ketika layar keranjang dihide"). Tampil SELALU (keputusan pemilik),
+ * bukan hanya saat keranjang terlipat.
+ *
+ * Hanya MENEMPEL/MENCABUT angka di kartu yang sudah tergambar — tidak menggambar
+ * ulang daftar: menambah barang terjadi tiap scan, dan gambarProduk() membaca
+ * IndexedDB. Jumlahnya dalam SATUAN DASAR (qty × faktor), semua baris SKU itu
+ * dijumlah — varian, satuan besar, dan baris harga manual satu angka.
+ */
+function tandaiKeranjang() {
+  const daftar = $('#daftarProduk');
+  if (!daftar) return;
+  const jml = {};
+  Keranjang.baris.forEach(x => { jml[x.sku] = (jml[x.sku] || 0) + x.qty * (Number(x.faktor) || 1); });
+  daftar.querySelectorAll('.kartu-produk[data-sku]').forEach(k => {
+    const n = Math.round((jml[k.dataset.sku] || 0) * 100) / 100;
+    let l = k.querySelector(':scope > .di-keranjang');
+    k.classList.toggle('ada-di-keranjang', n > 0);
+    if (n <= 0) { if (l) l.remove(); return; }
+    if (!l) { l = document.createElement('span'); l.className = 'di-keranjang'; k.appendChild(l); }
+    l.textContent = n.toLocaleString('id-ID');
+    l.title = n.toLocaleString('id-ID') + ' di keranjang';
+    l.setAttribute('aria-label', l.title);
+  });
 }
 
 /* ==================== KLAIM PETUGAS ====================
@@ -4159,9 +4242,13 @@ async function selesaikanTransaksi() {
        (bagian 344): peramban hanya mengizinkan membuka aplikasi lain beberapa
        detik sesudah ketukan, dan printer bisa makan waktu lebih lama. Kalau
        tetap tertolak, tombol "Kirim struk ke WhatsApp" di layar sukses ada. */
+    /* Sejak bagian 393 struk dikirim sebagai GAMBAR lewat lembar Bagikan
+       (KirimWa.struk). Tidak ditunggu: printer di bawah tidak boleh menanti
+       kasir memilih kontak. */
     if (kirimStruk !== 'cetak') {
-      const r = KirimWa.buka(KirimWa.teksStruk(arsip), telWa);
-      if (!r.terbuka) pesan('#skPesan', 'WhatsApp belum terbuka — tekan "Kirim struk ke WhatsApp".', 'peringatan');
+      KirimWa.struk(arsip, telWa).then((r) => {
+        if (!r.terbuka) pesan('#skPesan', 'WhatsApp belum terbuka — tekan "Kirim struk ke WhatsApp".', 'peringatan');
+      });
     }
 
     /* Urutannya penting: stok lokal dikurangi DULU, baru daftarnya digambar.
@@ -6586,6 +6673,8 @@ async function perbaruiInfoLabel() {
   if ($('#setLabelHurufNama')) $('#setLabelHurufNama').value = u.huruf_nama_mm;
   if ($('#setLabelTinggiBar')) $('#setLabelTinggiBar').value = u.tinggi_bar_mm;
   if ($('#setLabelBarisNama')) $('#setLabelBarisNama').value = String(u.baris_nama || 1);
+  if ($('#setLabelTebalKode')) $('#setLabelTebalKode').value = u.tebal_kode === false ? '0' : '1';
+  if ($('#setLabelTebalNama')) $('#setLabelTebalNama').value = u.tebal_nama === false ? '0' : '1';
   await gambarProfilLabel();
   /* Contoh hasil cetak digambar dari fungsi yang SAMA dengan yang mencetak.
      Pratinjau yang punya penggambar sendiri adalah pratinjau yang suatu hari
@@ -7377,7 +7466,10 @@ function pasangEvent() {
     hentikanTimerSukses();
     $('#btnSelesaiSukses').textContent = 'Selesai';
     const tel = await KirimWa.teleponPelanggan({ kode: _arsipSukses.kode_pelanggan });
-    KirimWa.kirim(KirimWa.teksStruk(_arsipSukses), tel);
+    const r = await KirimWa.struk(_arsipSukses, tel);
+    /* 'ketuk' = izin ketukan kedaluwarsa (lembar Bagikan), bukan pop-up yang diblokir. */
+    if (!r.terbuka) Admin.toast(r.cara === 'ketuk' ? 'Lembar Bagikan belum terbuka — ketuk sekali lagi "Kirim struk ke WhatsApp".'
+                                                : 'WhatsApp tidak terbuka — izinkan pop-up untuk POS ini, lalu coba lagi.', 'galat');
   });
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-struk-kirim]');
@@ -7723,7 +7815,10 @@ function pasangEvent() {
       huruf_kode_mm: Number($('#setLabelHurufKode')?.value),
       huruf_nama_mm: Number($('#setLabelHurufNama')?.value),
       tinggi_bar_mm: Number($('#setLabelTinggiBar')?.value),
-      baris_nama: Number($('#setLabelBarisNama')?.value) || 1
+      baris_nama: Number($('#setLabelBarisNama')?.value) || 1,
+      /* Kotak yang tidak ada (layar lama) → undefined → simpanUkuran memakai yang tersimpan. */
+      tebal_kode: $('#setLabelTebalKode') ? $('#setLabelTebalKode').value !== '0' : undefined,
+      tebal_nama: $('#setLabelTebalNama') ? $('#setLabelTebalNama').value !== '0' : undefined
     });
     await perbaruiInfoLabel();
     /* Angka yang dilaporkan dibaca dari HASIL penjepitan, bukan dari kolomnya.
@@ -7731,10 +7826,12 @@ function pasangEvent() {
        mengulang "40" akan membuatnya mengira setelannya masuk. */
     Admin.toast(`Kertas label: ${u.lebar_mm} × ${u.tinggi_mm} mm, ${u.kolom} per baris. ` +
                 `Huruf ${u.huruf_kode_mm}/${u.huruf_nama_mm} mm, barcode ` +
-                (u.tinggi_bar_mm > 0 ? `${u.tinggi_bar_mm} mm` : 'otomatis') + `, nama ${u.baris_nama} baris.`, 'sukses');
+                (u.tinggi_bar_mm > 0 ? `${u.tinggi_bar_mm} mm` : 'otomatis') + `, nama ${u.baris_nama} baris` +
+                `, nomor ${u.tebal_kode ? 'tebal' : 'normal'}, nama ${u.tebal_nama ? 'tebal' : 'normal'}.`, 'sukses');
   };
   ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak', '#setLabelKolom',
-   '#setLabelHurufKode', '#setLabelHurufNama', '#setLabelTinggiBar', '#setLabelBarisNama']
+   '#setLabelHurufKode', '#setLabelHurufNama', '#setLabelTinggiBar', '#setLabelBarisNama',
+   '#setLabelTebalKode', '#setLabelTebalNama']
     .forEach(id => $(id)?.addEventListener('change', simpanUkuranLabel));
 
   /* Profil isi stiker (bagian 332). Memilih profil memasang isinya ke setelan
@@ -8155,7 +8252,7 @@ function pantauVersiBaru() {
   /* Pintu satu arah untuk admin.js: ia boleh MEMINTA lencana disegarkan
      tanpa memanggil fungsi app.js. Arahnya sengaja cuma satu — app.js
      tidak pernah memanggil apa pun milik admin.js. */
-  document.addEventListener('possk:segarkan-lencana', () => tarikLencanaNav(true));
+  document.addEventListener('possk:segarkan-lencana', (e) => tarikLencanaNav(true, !!(e.detail && e.detail.segar)));
   /* Lonceng (bagian 305): ikon dari IKON (bukan jalur ketik), toggle, tutup di
      luar & Escape — perilaku sama dengan popover akun. */
   const lonceng = $('#btnLonceng');

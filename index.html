@@ -706,6 +706,7 @@
             <li><strong>Angka stok bisa ditekan.</strong> Menekan <strong>stok 7</strong> pada sebuah baris membuka daftar stok barang itu di seluruh cabang — dan tombol <strong>Cek terkini</strong> di dalamnya menghitung ulang langsung dari mutasi tiap cabang. Menekan angkanya <em>tidak</em> menambah barang ke keranjang; yang menambah adalah menekan bagian lain dari barisnya.</li>
             <li>Angka stok berwarna <strong>kuning</strong> berarti sudah menyentuh stok minimum barang itu, <strong>merah</strong> berarti habis. Saat habis, baris hijau <strong>ada di …</strong> menyebut cabang mana yang masih punya, tanpa perlu ditekan.</li>
             <li>Tombol <strong>⋯</strong> pada baris keranjang membuka detail item: qty, satuan, harga satuan, dan diskon baris.</li>
+            <li><strong>Bulatan biru berangka</strong> di pojok kartu produk = jumlah barang itu yang sudah di keranjang (satuan dasar: 1 lusin + 2 pcs tertulis 14). Berguna saat keranjang diturunkan di HP — tidak perlu membukanya untuk tahu apa yang sudah masuk.</li>
           </ul>
         </div>
 
@@ -766,7 +767,7 @@
             <li>Harga dihitung ulang dari katalog saat dilanjutkan; produk yang sudah nonaktif atau tidak dijual di cabang ini dilepas dan disebutkan.</li>
             <li>Tahanan <strong>bukan nota</strong>: tidak ada nomor nota, poin, stok, atau HPP yang tersentuh sampai Bayar. Stok tidak dipesan.</li>
             <li>Tersimpan <strong>di perangkat ini saja</strong> (tetap ada walau aplikasi ditutup, tetap bekerja tanpa internet), paling banyak 10. Semuanya <strong>dibuang saat Tutup shift</strong> — jumlahnya disebutkan sebelum shift ditutup. <strong>Toko grosir</strong>: draft hari ini tetap ada lewat Tutup shift (pesanan WhatsApp bisa dibalas di shift berikutnya) dan baru dibuang saat ganti hari.</li>
-            <li><strong>Toko grosir</strong>: tombol <strong>Kirim ke WhatsApp</strong> di atas BAYAR (dan di tiap draft di daftar Tahanan) membuka chat pelanggan berisi rincian draft. Pelanggan tanpa nomor: pilih kontaknya di WhatsApp. Di layar Bayar, <strong>Struk</strong> bisa dicetak, dikirim ke WhatsApp, atau keduanya.</li>
+            <li><strong>Toko grosir</strong>: tombol <strong>Kirim ke WhatsApp</strong> di atas BAYAR (dan di tiap draft di daftar Tahanan) membuka chat pelanggan berisi rincian draft. Pelanggan tanpa nomor: pilih kontaknya di WhatsApp. Di layar Bayar, <strong>Struk</strong> bisa dicetak, dikirim ke WhatsApp, atau keduanya. Struk WhatsApp dikirim sebagai <strong>gambar kertas struk</strong> lewat lembar Bagikan: pilih WhatsApp, lalu kontak pelanggannya (draft tetap berupa teks yang langsung ke nomor pelanggan). Tablet yang tidak bisa membagikan gambar mengirim teks seperti biasa.</li>
           </ul>
         </div>
 
@@ -1000,6 +1001,7 @@
             <li><strong>Cabang</strong> — setiap cabang punya berkas database sendiri; itulah sebabnya kasir cabang A tidak pernah menunggu cabang B.</li>
             <li><strong>Setting</strong> — nama usaha, kop &amp; footer struk, lebar kertas, PPN, dan lainnya. Berlaku untuk <strong>seluruh cabang</strong>.</li>
             <li><strong>Audit</strong> — jejak kejadian terakhir beserta pelakunya. Tidak bisa dihapus dari dalam aplikasi. Kartu <strong>Galat aplikasi</strong> menyebut perangkat asal tiap galat, supaya perangkat yang belum dimuat ulang cepat ketahuan.</li>
+            <li><strong>Lencana kuning berangka</strong> di menu = tugas yang menunggu: setoran shift belum diterima (Kas &amp; Bank, juga di tab Setoran), opname menunggu review, piutang lewat tempo, utang jatuh tempo ≤ 7 hari, slip gaji draf (tab Gaji), akun yang masih memakai PIN awal (Pengguna), galat aplikasi (tab Galat aplikasi), dan yang menunggu persetujuan. Grup menu yang tertutup menjumlahkan lencana di dalamnya. Angkanya diperbarui paling lambat 5 menit; sesudah Terima setoran, bayar gaji, atau posting opname langsung dihitung ulang.</li>
             <li><strong>Arsip</strong> — kapasitas berkas dan rotasi tahunan. Data lama <strong>dipindah, bukan dihapus</strong>, dan uji coba wajib dijalankan lebih dulu.</li>
           </ul>
           <p class="petunjuk">Bobot peran punya kartunya sendiri di layar ini, lengkap dengan contoh pembagiannya — tidak ada di daftar setelan lain, dan tidak ada di tempat lain. Satu hal yang bisa diubah dari dua tempat berarti yang terakhir menyimpan menang tanpa ada yang tahu.</p>
@@ -1187,12 +1189,30 @@
                 <option value="3">3 baris</option>
               </select>
             </div>
+            <!-- Tebal/normal (bagian 393): dua kotak, bukan satu — lima kotak
+                 meninggalkan satu kotak yatim di baris terakhir. -->
+            <div class="grup" style="margin:0">
+              <label for="setLabelTebalKode">Nomor SKU</label>
+              <select id="setLabelTebalKode">
+                <option value="1">Tebal</option>
+                <option value="0">Normal</option>
+              </select>
+            </div>
+            <div class="grup" style="margin:0">
+              <label for="setLabelTebalNama">Nama barang</label>
+              <select id="setLabelTebalNama">
+                <option value="1">Tebal</option>
+                <option value="0">Normal</option>
+              </select>
+            </div>
           </div>
           <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0">
             Tinggi barcode <strong>0</strong> berarti otomatis — batangnya mengambil
             seluruh sisa ruang sesudah tulisan. Semuanya berebut tinggi stiker yang
             sama: huruf yang dibesarkan dan baris nama yang ditambah memendekkan
-            barcodenya. Nama yang pendek tetap satu baris. Lihat akibatnya pada
+            barcodenya. Nama yang pendek tetap satu baris. <strong>Nomor SKU</strong> dan
+            <strong>Nama barang</strong> bisa dicetak tebal atau normal — ikut tersimpan di
+            profil. Lihat akibatnya pada
             contoh di bawah sebelum mencetak seratus lembar.</p>
 
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">

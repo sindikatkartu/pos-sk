@@ -1648,15 +1648,21 @@ const Admin = (() => {
        bukan dua sumbu angka. Server lama tanpa jam_nota: satu batang omzet. */
     const duaBatang = pc.some(c => Array.isArray(c.jam_nota) && c.jam_nota.length === 24);
     const OP_NOTA = 0.4;
+    /* Jarak ANTAR jam 7 satuan, di dalam satu jam 1 (bagian 393, pemilik: "beri
+       jarak tipis antar jam, agar terlihat terpisah antar jam"). Dengan celah 2,
+       batang nota jam 10 menempel batang omzet jam 11 dan empat batang terbaca
+       satu deret. Celah 11 dicoba di maket — batang HP terlalu kurus. Satu batang
+       (server lama) tetap celah 2: tiap jam memang hanya satu batang. */
+    const celah = duaBatang ? 7 : CELAH;
     return kartuCab('cabJam', 'Jam ramai per cabang', duaBatang ? 'omzet & jumlah nota per jam' : 'omzet per jam', pc.map(c => {
       const d = J.map(j => Number(c.jam[j]) || 0), mx = Math.max(...d), pk = d.indexOf(mx), w = cabDash.warna(c.cabang);
       const dn = J.map(j => (Array.isArray(c.jam_nota) ? Number(c.jam_nota[j]) : 0) || 0), mxN = Math.max(...dn), pkN = dn.indexOf(mxN);
-      const lb = duaBatang ? (lebar - CELAH) / 2 - 0.5 : lebar - CELAH;
+      const lb = duaBatang ? (lebar - celah) / 2 - 0.5 : lebar - celah;
       const batang = (v, m, x, op, ket) => { const t = v > 0 ? Math.max((H - 2) * v / m, MIN) : 0;
         return t ? `<rect x="${x.toFixed(2)}" y="${(H - t).toFixed(1)}" width="${lb.toFixed(2)}" height="${t.toFixed(1)}" fill="${w}"${op < 1 ? ` fill-opacity="${op}" data-nota="1"` : ''}><title>${ket}</title></rect>` : ''; };
       return `<div class="jh" data-jam-cab="${esc(c.cabang)}"><div class="jh-nama"><strong>${esc(c.cabang)}</strong><span>${mx > 0 ? jj(J[pk]) + ':00' : '—'}</span>${duaBatang && mxN > 0 ? `<small class="jh-nota">nota ${jj(J[pkN])}:00</small>` : ''}</div>
         <svg class="jh-baris" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${bantu}${d.map((v, i) => {
-          const x0 = i * lebar + CELAH / 2;
+          const x0 = i * lebar + celah / 2;
           const ket = esc(c.cabang) + ' ' + jj(J[i]) + ':00 · ' + esc(rpTeks(v)) + (duaBatang ? ' · ' + dn[i] + ' nota' : '');
           return batang(v, mx, x0, 1, ket) + (duaBatang ? batang(dn[i], mxN, x0 + lb + 1, OP_NOTA, ket) : '');
         }).join('')}</svg></div>`;
@@ -9280,7 +9286,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="tab-modal" id="tabAudit" role="group" aria-label="Bagian audit"
              style="margin-bottom:0">
           ${TAB_AUDIT.map(([id, label]) =>
-            `<button type="button" data-tabaudit="${id}" class="${id === aktif ? 'aktif' : ''}">${esc(label)}</button>`).join('')}
+            `<button type="button" data-tabaudit="${id}" class="${id === aktif ? 'aktif' : ''}">${esc(label)}${lencanaTabHtml('audit', id)}</button>`).join('')}
         </div>
         <p class="petunjuk">Jejak siapa mengubah apa, dan kerusakan aplikasi yang tidak terlihat. Tidak bisa dihapus dari dalam aplikasi.</p>
       </div>
@@ -11657,7 +11663,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <!-- Tab halaman (bagian 304): .tab-modal, bukan .seg — pola layar Pulsa. -->
           <div class="tab-modal" id="tabKas" role="group" aria-label="Bagian kas & bank" style="margin-bottom:12px">
             ${tabKasBoleh().map(([id, label]) =>
-              `<button type="button" data-tabkas="${id}" class="${id === tabKas ? 'aktif' : ''}">${label}</button>`).join('')}
+              `<button type="button" data-tabkas="${id}" class="${id === tabKas ? 'aktif' : ''}">${label}${lencanaTabHtml('kas', id)}</button>`).join('')}
           </div>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeKas"></span>
@@ -12567,7 +12573,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#panelGaji')) {
       w.innerHTML = `
         <div class="kartu" style="padding-bottom:0"><div class="tab-modal" id="tabGaji" style="margin:0">
-          <button data-tab-gaji="gaji" class="aktif">Gaji</button>
+          <button data-tab-gaji="gaji" class="aktif">Gaji${lencanaTabHtml('gaji', 'gaji')}</button>
           <button data-tab-gaji="kasbon">Kasbon</button></div>
           <p class="petunjuk" style="margin-top:10px">Gaji petugas per bulan: tekan <strong>Siapkan gaji bulan ini</strong>,
              periksa angkanya lewat <strong>Ubah</strong>, lalu <strong>Bayar</strong> dan cetak slipnya.
@@ -12755,6 +12761,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     catch (e) { return konflikGaji(e); }
     tutupModal();
     toast('Gaji ' + s.nama + ' dibayar.');
+    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));   // lencana tugas dihitung ulang (bagian 393)
     return muatHasilGaji();
   }
 
@@ -14071,6 +14078,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             id_shift: '', luar_laci: true
           });
           toast('Setoran shift ' + d.terimaSetor + ' diterima.');
+          document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));   // lencana tugas dihitung ulang (bagian 393)
           /* Bukti setoran ditawarkan SESUDAH diterima (bagian 389): tombol
              kedua di baris memaksa menu ⋮ (bagian 274), dan Terima — kerja
              harian — jadi dua klik. */
@@ -14502,6 +14510,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         try {
           const r = await API.postingOpname({ uuid: d.uuid, cabang: cabangDari('opname'),
                                               catatan: nilai('opCatatanPosting') });
+          document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));   // lencana tugas dihitung ulang (bagian 393)
           await Sync.tarikStok();
           await Sync.tarikStokSemuaCabang();
           await sukses(r.tanpa_selisih

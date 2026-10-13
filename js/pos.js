@@ -1778,6 +1778,25 @@ const saringBankAktif = (daftarKode, setting) => {
   return daftarKode.filter(k => !BANK_SEMUA.some(b => b[0] === k) || aktif.includes(k));
 };
 
+/* Lencana di TAB halaman (bagian 393): menu yang tugasnya ada di satu tab
+   tertentu memajang angka yang sama di tab itu. Kunci = id menu → tab.
+   Di pos.js, bukan app.js: admin.js ikut memakainya (lencanaTabHtml di
+   templat tabnya), dan admin.js tidak boleh bergantung pada app.js. */
+const TAB_LENCANA = { kas: 'setoran', audit: 'galat', gaji: 'gaji' };
+function isiLencanaTab(el, peta) {
+  const n = Number((peta || (typeof APP_STATE !== 'undefined' && APP_STATE.lencanaNav) || {})[el.dataset.lencanaTab]) || 0;
+  el.hidden = !n;
+  /* Kosong saat nol: textContent tombol tab tetap sama dengan namanya. */
+  el.textContent = n > 99 ? '99+' : (n ? String(n) : '');
+  el.title = n + ' menunggu tindakan';
+}
+/** Sisipan untuk tombol tab: kosong bila tab ini bukan tab tugas menunya. */
+function lencanaTabHtml(menu, tab) {
+  if (TAB_LENCANA[menu] !== tab) return '';
+  const n = Number(((typeof APP_STATE !== 'undefined' && APP_STATE.lencanaNav) || {})[menu]) || 0;
+  return `<span class="sisi-lencana lencana-tab" data-lencana-tab="${menu}" title="${n} menunggu tindakan"${n ? '' : ' hidden'}>${n > 99 ? '99+' : (n || '')}</span>`;
+}
+
 // Ekspor untuk pengujian di Node
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { Harga, tanggalLokal, tanggalTambahHari, tglTampil, tglCetak, keTanggalCetak, waktuTampil, jamTampil,
@@ -1788,7 +1807,7 @@ if (typeof module !== 'undefined' && module.exports) {
                      labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
                      angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
                      BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang,
-                     metodeTersediaCabang };
+                     metodeTersediaCabang, TAB_LENCANA, isiLencanaTab, lencanaTabHtml };
 }
 
 /* ==================== LAPORAN: DATA TERAKHIR DULU (bagian 365; di pos.js sejak bagian 369) ====================

@@ -454,14 +454,24 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    hari kerja normal, dan lencana yang selalu menyala berhenti dibaca.
    Nomornya rata tengah dengan lebar minimum, jadi 1 dan 12 sama tingginya dan
    barisnya tidak bergoyang saat angkanya berubah. */
+/* KUNING sejak bagian 393 (pemilik: "supaya petugas admin tahu lebih cepat
+   mana yang harus segera dikerjakan"). Setiap angka di sini adalah tugas yang
+   menunggu — warna peringatan memang artinya, dan abu-abu yang tenang mudah
+   terlewat. Rupa yang sama dipakai lencana di judul grup dan di tab. */
 .sisi-lencana {
   flex: none; min-width: 20px; box-sizing: border-box;
   padding: 2px 6px; border-radius: 999px;
-  background: var(--panel-2); border: 1px solid var(--garis-rangka);
-  color: var(--teks-redup); font-size: var(--fs-12); font-weight: 600;
-  line-height: 1.5; text-align: center;
+  background: var(--peringatan-lembut); border: 1px solid var(--peringatan-garis);
+  color: var(--peringatan); font-size: var(--fs-12); font-weight: 700;
+  line-height: 1.5; text-align: center; font-variant-numeric: tabular-nums;
 }
-.sisi-isi .item-nav.aktif .sisi-lencana { color: var(--teks); }
+/* Judul grup: jumlah tugas di dalamnya, HANYA saat grupnya tertutup — yang
+   terbuka sudah memajang lencana tiap menunya. */
+.sisi-grup-tombol .sisi-lencana { margin-left: auto; }
+.sisi-grup-tombol[aria-expanded="true"] .sisi-lencana { display: none; }
+/* Di tab halaman: menempel di kanan nama tabnya. */
+.lencana-tab { display: inline-block; margin-left: 6px; padding: 0 6px; line-height: 1.45; vertical-align: 1px; }
+.lencana-tab[hidden] { display: none; }
 
 /* Penanda MODUL — KETERANGAN KECIL di bawah nama menunya.
 
@@ -1177,6 +1187,26 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kartu-produk .stok.bisa-klik:hover { border-color: var(--utama); }
 .kartu-produk .stok .ikon-svg { width: 13px; height: 13px; opacity: .85; }
 .kartu-produk .ada-di-lain { font-size: var(--fs-12); color: var(--sukses); margin-top: 2px; font-weight: 600; }
+/* Angka "sudah di keranjang" (bagian 393): bulatan di POJOK kartu, bukan di
+   dalam barisnya — tinggi kartu dan letak harga/stok tetap; yang bergeser
+   hanya nama & keterangan, 14 px ke kanan (lihat di bawah).
+   Daftarnya diberi ruang 6 px atas & kiri supaya pojoknya tidak terpotong
+   `overflow:auto`; 6 = jarak antar kartu, jadi bulatan tidak menimpa kartu di
+   atasnya. Warna `--utama-tombol`: putih di atasnya tetap terbaca di tema gelap. */
+.daftar-produk { padding-top: 6px; padding-left: 6px; }
+.kartu-produk { position: relative; }
+.kartu-produk.ada-di-keranjang { background: var(--utama-lembut); border-color: var(--utama-garis); }
+/* Nama digeser sejauh bulatannya (sampai tiga angka) supaya pojoknya tidak
+   menimpa huruf pertama nama. */
+.kartu-produk.ada-di-keranjang .kiri-produk { padding-left: 14px; }
+.kartu-produk .di-keranjang {
+  position: absolute; top: -6px; left: -6px; z-index: 1;
+  min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box;
+  border-radius: 999px; background: var(--utama-tombol); color: #fff;
+  font-size: var(--fs-12); font-weight: 700; line-height: 22px; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--panel);
+  pointer-events: none;
+}
 
 /* ---------- Panel keranjang ---------- */
 .panel-keranjang {

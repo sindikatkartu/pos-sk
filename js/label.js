@@ -79,8 +79,16 @@ const Label = (() => {
        alasan yang sama dengan tiga angka di atas. Nama pendek tetap memakai
        satu baris walau batasnya 2 atau 3; barcode otomatis memendek hanya
        sebanyak baris yang benar-benar terpakai. */
-    baris_nama: 1
+    baris_nama: 1,
+    /* Tebal/normal nomor SKU dan nama (bagian 393, pemilik: "beri saya aktif
+       non aktifkan … supaya sewaktu waktu bisa saya setting sendiri"). Bawaannya
+       TEBAL — keadaan sejak v1.326 (bagian 392); profil dan setelan lama yang
+       belum punya kunci ini tetap tebal, lihat tebal(). */
+    tebal_kode: true,
+    tebal_nama: true
   };
+  /** Kunci tebal yang tidak ada (setelan/profil lama) berarti tebal. */
+  const tebal = (v) => v !== false && v !== 'false';
 
   /* Tinggi huruf, dalam mm. Monospace dipakai supaya lebar teks bisa DIHITUNG
      (±0,6 × tinggi per huruf) — tanpa itu pemotongan nama cuma tebakan. */
@@ -338,11 +346,14 @@ const Label = (() => {
     });
 
     /* Nomor SKU & nama TEBAL (bagian 392, pemilik): terbaca dari jarak rak.
+       Sejak bagian 393 masing-masing bisa dinormalkan di setelan isi stiker.
        Huruf monospace selebar sama tebal maupun biasa, jadi perhitungan muat
        dan pecahNama() tidak berubah. */
     const yKode = atas + tBar + selaKode + hKode * 0.82;
+    const bobotKode = tebal(o.tebal_kode) ? ' font-weight="bold"' : '';
+    const bobotNama = tebal(o.tebal_nama) ? ' font-weight="bold"' : '';
     bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yKode)}" font-size="${hKode}"` +
-                ` text-anchor="middle" font-family="monospace" font-weight="bold">${esc(kode)}</text>`);
+                ` text-anchor="middle" font-family="monospace"${bobotKode}>${esc(kode)}</text>`);
 
     /* Berapa huruf yang muat ikut menyusut saat hurufnya dibesarkan — kalau
        tidak, nama yang tadinya pas akan menjulur keluar stiker begitu ukurannya
@@ -350,7 +361,7 @@ const Label = (() => {
     barisNama.forEach((teks, i) => {
       const yNama = yKode + selaNama + hNama + i * hNama * JARAK_BARIS_NAMA;
       bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yNama)}" font-size="${hNama}"` +
-                  ` text-anchor="middle" font-family="monospace" font-weight="bold">${esc(teks)}</text>`);
+                  ` text-anchor="middle" font-family="monospace"${bobotNama}>${esc(teks)}</text>`);
     });
 
     return `<svg xmlns="http://www.w3.org/2000/svg" class="label"` +
@@ -547,14 +558,16 @@ const Label = (() => {
   const _satuDesimal = (n) => Math.round(n * 10) / 10;
 
   /** Isi stiker (bukan ukuran kertas) — inilah yang disimpan sebagai PROFIL. */
-  const KUNCI_ISI = ['huruf_kode_mm', 'huruf_nama_mm', 'tinggi_bar_mm', 'baris_nama'];
+  const KUNCI_ISI = ['huruf_kode_mm', 'huruf_nama_mm', 'tinggi_bar_mm', 'baris_nama', 'tebal_kode', 'tebal_nama'];
   function jepitIsi(u) {
     u = u || {};
     return {
       huruf_kode_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_kode_mm) || BAWAAN.huruf_kode_mm))),
       huruf_nama_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm))),
       tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))),
-      baris_nama: batasBarisNama(u)
+      baris_nama: batasBarisNama(u),
+      tebal_kode: tebal(u.tebal_kode),
+      tebal_nama: tebal(u.tebal_nama)
     };
   }
 
@@ -562,6 +575,10 @@ const Label = (() => {
     /* Pemanggil lama tidak mengirim `baris_nama`; yang tidak dikirim memakai
        yang tersimpan, bukan diam-diam kembali ke satu baris. */
     if (u.baris_nama === undefined) u = Object.assign({}, u, { baris_nama: (await ukuran()).baris_nama });
+    /* Sama untuk tebal (bagian 393): yang tidak dikirim memakai yang tersimpan. */
+    for (const k of ['tebal_kode', 'tebal_nama']) {
+      if (u[k] === undefined) u = Object.assign({}, u, { [k]: (await ukuran())[k] });
+    }
     /* Profil pertama dipotret SEBELUM setelannya berubah (lihat profil()). */
     try { await profil(); } catch (e) { /* profil bukan syarat menyimpan ukuran */ }
     const bersih = {
@@ -582,7 +599,9 @@ const Label = (() => {
       huruf_nama_mm: _satuDesimal(Math.max(1.2, Math.min(8, Number(u.huruf_nama_mm) || BAWAAN.huruf_nama_mm))),
       /* Nol DIPERTAHANKAN — ia berarti "otomatis", bukan "kosong". */
       tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))),
-      baris_nama: batasBarisNama(u)
+      baris_nama: batasBarisNama(u),
+      tebal_kode: tebal(u.tebal_kode),
+      tebal_nama: tebal(u.tebal_nama)
     };
     await DB.kvSet('label_ukuran', bersih);
     return bersih;

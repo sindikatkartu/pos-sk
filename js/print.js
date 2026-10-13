@@ -305,6 +305,45 @@ const Struk = (() => {
     await slotStruk.tulis(new Uint8Array(ESC.LACI));
   }
 
+  /* ---------- Jalur 3: struk sebagai GAMBAR (bagian 393) ---------- */
+
+  /**
+   * Struk WhatsApp toko grosir sebagai gambar kertas struk bertepi bergerigi
+   * (pemilik: "bentuk gambar kertas struk seperti layaknya struk sungguhan yang
+   * dipotong bergerigi"). Isinya baris() yang SAMA dengan kertas — gambar yang
+   * punya penyusun sendiri suatu hari akan berbeda dari kertasnya. Huruf
+   * monospace tebal seperti cetakan Bluetooth; kolom 32/42 karakter ikut
+   * `lebar_struk`. Digambar 2× supaya tajam saat diperbesar di WhatsApp.
+   * Memulangkan Blob PNG.
+   */
+  function gambar(nota) {
+    const L = baris(nota);
+    const kolom = Number(APP_STATE.setting.lebar_struk || 58) === 80 ? 42 : 32;
+    const S = 2, FS = 15, LH = 20, PAD = 20, GIGI = 8, TEPI = 20;
+    const HURUF = `bold ${FS}px monospace`;
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    g.font = HURUF;
+    const kw = Math.ceil(g.measureText('M').width * kolom) + PAD * 2;
+    const kh = L.length * LH + PAD * 2 + GIGI * 2;
+    c.width = (kw + TEPI * 2) * S; c.height = (kh + TEPI * 2) * S;
+    g.scale(S, S);
+    /* Latar abu muda, bukan transparan: PNG transparan tampil HITAM di
+       sebagian penampil WhatsApp, dan gerigi putihnya hilang. */
+    g.fillStyle = '#eceff1'; g.fillRect(0, 0, kw + TEPI * 2, kh + TEPI * 2);
+    const x0 = TEPI, y0 = TEPI, x1 = TEPI + kw, y1 = TEPI + kh;
+    const n = Math.max(1, Math.round(kw / (GIGI * 2))), lg = kw / n;
+    g.beginPath(); g.moveTo(x0, y0 + GIGI);
+    for (let i = 0; i < n; i++) { g.lineTo(x0 + lg * (i + 0.5), y0); g.lineTo(x0 + lg * (i + 1), y0 + GIGI); }
+    g.lineTo(x1, y1 - GIGI);
+    for (let i = n; i > 0; i--) { g.lineTo(x0 + lg * (i - 0.5), y1); g.lineTo(x0 + lg * (i - 1), y1 - GIGI); }
+    g.closePath();
+    g.save(); g.shadowColor = 'rgba(0,0,0,.18)'; g.shadowBlur = 10; g.shadowOffsetY = 3;
+    g.fillStyle = '#fffdf7'; g.fill(); g.restore();
+    g.fillStyle = '#222'; g.font = HURUF; g.textBaseline = 'top';
+    L.forEach((t, i) => g.fillText(t, x0 + PAD, y0 + GIGI + PAD + i * LH));
+    return new Promise((jadi, gagal) => c.toBlob((b) => (b ? jadi(b) : gagal(new Error('Gambar struk gagal dibuat.'))), 'image/png'));
+  }
+
   /* ---------- Jalur 2: HTML print (cadangan universal) ---------- */
 
   function cetakHtml(nota) {
@@ -465,7 +504,7 @@ const Struk = (() => {
 
   return { cetak, cetakHtml, cetakDokumen, bukaJendelaDokumen, isiJendelaDokumen, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
            pastikanTersambung, lepasPrinter,
-           baris, rupiah, barisBayar,
+           baris, gambar, rupiah, barisBayar,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };
 })();
 
