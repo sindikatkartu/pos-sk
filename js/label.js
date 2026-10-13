@@ -85,10 +85,22 @@ const Label = (() => {
        TEBAL — keadaan sejak v1.326 (bagian 392); profil dan setelan lama yang
        belum punya kunci ini tetap tebal, lihat tebal(). */
     tebal_kode: true,
-    tebal_nama: true
+    tebal_nama: true,
+    /* Margin atas & bawah stiker (bagian 395, titipan sesi data bagian 394:
+       barcode VD06010008 mepet tepi atas). Pemilik memilih menyimpannya di
+       PROFIL isi (server, Owner). Bawaannya angka patok lama 1 dan 0,8 mm —
+       profil tanpa kunci ini mencetak persis seperti v1.327. Tinggi batang
+       otomatis memendek sebanyak margin yang ditambah. */
+    margin_atas_mm: 1,
+    margin_bawah_mm: 0.8
   };
   /** Kunci tebal yang tidak ada (setelan/profil lama) berarti tebal. */
   const tebal = (v) => v !== false && v !== 'false';
+  /** Margin 0–5 mm, satu desimal; kosong/tak terbaca = cadangannya (bukan 0). */
+  const jepitMargin = (v, cadangan) => {
+    const n = (v === '' || v === null || v === undefined) ? NaN : Number(v);
+    return Number.isFinite(n) ? Math.round(Math.max(0, Math.min(5, n)) * 10) / 10 : cadangan;
+  };
 
   /* Tinggi huruf, dalam mm. Monospace dipakai supaya lebar teks bisa DIHITUNG
      (±0,6 × tinggi per huruf) — tanpa itu pemotongan nama cuma tebakan. */
@@ -308,7 +320,8 @@ const Label = (() => {
 
     /* Tinggi dibagi dari atas ke bawah, sisanya jadi tinggi batang. Dihitung,
        bukan dihafal: label 15mm dan label 25mm memakai rumus yang sama. */
-    const atas = 1, selaKode = 0.6, selaNama = 0.4, bawah = 0.8;
+    const atas = jepitMargin(o.margin_atas_mm, BAWAAN.margin_atas_mm), selaKode = 0.6, selaNama = 0.4,
+          bawah = jepitMargin(o.margin_bawah_mm, BAWAAN.margin_bawah_mm);
     /* Nama dipecah LEBIH DULU: tinggi batang bergantung pada berapa baris yang
        benar-benar terpakai, bukan pada batasnya. */
     const hurufPerBaris = Math.floor((W - 2 * o.margin_mm) / (hNama * RASIO_HURUF));
@@ -558,7 +571,8 @@ const Label = (() => {
   const _satuDesimal = (n) => Math.round(n * 10) / 10;
 
   /** Isi stiker (bukan ukuran kertas) — inilah yang disimpan sebagai PROFIL. */
-  const KUNCI_ISI = ['huruf_kode_mm', 'huruf_nama_mm', 'tinggi_bar_mm', 'baris_nama', 'tebal_kode', 'tebal_nama'];
+  const KUNCI_ISI = ['huruf_kode_mm', 'huruf_nama_mm', 'tinggi_bar_mm', 'baris_nama', 'tebal_kode', 'tebal_nama',
+                     'margin_atas_mm', 'margin_bawah_mm'];
   function jepitIsi(u) {
     u = u || {};
     return {
@@ -567,7 +581,9 @@ const Label = (() => {
       tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))),
       baris_nama: batasBarisNama(u),
       tebal_kode: tebal(u.tebal_kode),
-      tebal_nama: tebal(u.tebal_nama)
+      tebal_nama: tebal(u.tebal_nama),
+      margin_atas_mm: jepitMargin(u.margin_atas_mm, BAWAAN.margin_atas_mm),
+      margin_bawah_mm: jepitMargin(u.margin_bawah_mm, BAWAAN.margin_bawah_mm)
     };
   }
 
@@ -576,7 +592,7 @@ const Label = (() => {
        yang tersimpan, bukan diam-diam kembali ke satu baris. */
     if (u.baris_nama === undefined) u = Object.assign({}, u, { baris_nama: (await ukuran()).baris_nama });
     /* Sama untuk tebal (bagian 393): yang tidak dikirim memakai yang tersimpan. */
-    for (const k of ['tebal_kode', 'tebal_nama']) {
+    for (const k of ['tebal_kode', 'tebal_nama', 'margin_atas_mm', 'margin_bawah_mm']) {
       if (u[k] === undefined) u = Object.assign({}, u, { [k]: (await ukuran())[k] });
     }
     /* Profil pertama dipotret SEBELUM setelannya berubah (lihat profil()). */
@@ -601,7 +617,9 @@ const Label = (() => {
       tinggi_bar_mm: _satuDesimal(Math.max(0, Math.min(60, Number(u.tinggi_bar_mm) || 0))),
       baris_nama: batasBarisNama(u),
       tebal_kode: tebal(u.tebal_kode),
-      tebal_nama: tebal(u.tebal_nama)
+      tebal_nama: tebal(u.tebal_nama),
+      margin_atas_mm: jepitMargin(u.margin_atas_mm, BAWAAN.margin_atas_mm),
+      margin_bawah_mm: jepitMargin(u.margin_bawah_mm, BAWAAN.margin_bawah_mm)
     };
     await DB.kvSet('label_ukuran', bersih);
     return bersih;

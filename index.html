@@ -1205,6 +1205,15 @@
                 <option value="0">Normal</option>
               </select>
             </div>
+            <!-- Margin atas & bawah (bagian 395): bawaan 1 dan 0,8 mm. -->
+            <div class="grup" style="margin:0">
+              <label for="setLabelMarginAtas">Margin atas (mm)</label>
+              <input type="number" id="setLabelMarginAtas" min="0" max="5" step="0.1">
+            </div>
+            <div class="grup" style="margin:0">
+              <label for="setLabelMarginBawah">Margin bawah (mm)</label>
+              <input type="number" id="setLabelMarginBawah" min="0" max="5" step="0.1">
+            </div>
           </div>
           <p style="color:var(--teks-redup);font-size:var(--fs-12);margin:6px 0 0">
             Tinggi barcode <strong>0</strong> berarti otomatis — batangnya mengambil
@@ -1212,7 +1221,8 @@
             sama: huruf yang dibesarkan dan baris nama yang ditambah memendekkan
             barcodenya. Nama yang pendek tetap satu baris. <strong>Nomor SKU</strong> dan
             <strong>Nama barang</strong> bisa dicetak tebal atau normal — ikut tersimpan di
-            profil. Lihat akibatnya pada
+            profil. <strong>Margin atas</strong> menurunkan barcode dari tepi atas stiker
+            (barcodenya memendek sebanyak itu); bawaan 1 mm atas, 0,8 mm bawah. Lihat akibatnya pada
             contoh di bawah sebelum mencetak seratus lembar.</p>
 
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--garis-halus)">

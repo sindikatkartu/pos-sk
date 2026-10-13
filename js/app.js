@@ -6675,6 +6675,8 @@ async function perbaruiInfoLabel() {
   if ($('#setLabelBarisNama')) $('#setLabelBarisNama').value = String(u.baris_nama || 1);
   if ($('#setLabelTebalKode')) $('#setLabelTebalKode').value = u.tebal_kode === false ? '0' : '1';
   if ($('#setLabelTebalNama')) $('#setLabelTebalNama').value = u.tebal_nama === false ? '0' : '1';
+  if ($('#setLabelMarginAtas')) $('#setLabelMarginAtas').value = u.margin_atas_mm;
+  if ($('#setLabelMarginBawah')) $('#setLabelMarginBawah').value = u.margin_bawah_mm;
   await gambarProfilLabel();
   /* Contoh hasil cetak digambar dari fungsi yang SAMA dengan yang mencetak.
      Pratinjau yang punya penggambar sendiri adalah pratinjau yang suatu hari
@@ -7818,7 +7820,10 @@ function pasangEvent() {
       baris_nama: Number($('#setLabelBarisNama')?.value) || 1,
       /* Kotak yang tidak ada (layar lama) → undefined → simpanUkuran memakai yang tersimpan. */
       tebal_kode: $('#setLabelTebalKode') ? $('#setLabelTebalKode').value !== '0' : undefined,
-      tebal_nama: $('#setLabelTebalNama') ? $('#setLabelTebalNama').value !== '0' : undefined
+      tebal_nama: $('#setLabelTebalNama') ? $('#setLabelTebalNama').value !== '0' : undefined,
+      /* Teks apa adanya: kotak yang dikosongkan kembali ke bawaan, bukan 0 mm. */
+      margin_atas_mm: $('#setLabelMarginAtas') ? $('#setLabelMarginAtas').value : undefined,
+      margin_bawah_mm: $('#setLabelMarginBawah') ? $('#setLabelMarginBawah').value : undefined
     });
     await perbaruiInfoLabel();
     /* Angka yang dilaporkan dibaca dari HASIL penjepitan, bukan dari kolomnya.
@@ -7827,11 +7832,12 @@ function pasangEvent() {
     Admin.toast(`Kertas label: ${u.lebar_mm} × ${u.tinggi_mm} mm, ${u.kolom} per baris. ` +
                 `Huruf ${u.huruf_kode_mm}/${u.huruf_nama_mm} mm, barcode ` +
                 (u.tinggi_bar_mm > 0 ? `${u.tinggi_bar_mm} mm` : 'otomatis') + `, nama ${u.baris_nama} baris` +
-                `, nomor ${u.tebal_kode ? 'tebal' : 'normal'}, nama ${u.tebal_nama ? 'tebal' : 'normal'}.`, 'sukses');
+                `, nomor ${u.tebal_kode ? 'tebal' : 'normal'}, nama ${u.tebal_nama ? 'tebal' : 'normal'}` +
+                `, margin atas ${u.margin_atas_mm} mm, bawah ${u.margin_bawah_mm} mm.`, 'sukses');
   };
   ['#setLabelLebar', '#setLabelTinggi', '#setLabelJarak', '#setLabelKolom',
    '#setLabelHurufKode', '#setLabelHurufNama', '#setLabelTinggiBar', '#setLabelBarisNama',
-   '#setLabelTebalKode', '#setLabelTebalNama']
+   '#setLabelTebalKode', '#setLabelTebalNama', '#setLabelMarginAtas', '#setLabelMarginBawah']
     .forEach(id => $(id)?.addEventListener('change', simpanUkuranLabel));
 
   /* Profil isi stiker (bagian 332). Memilih profil memasang isinya ke setelan
