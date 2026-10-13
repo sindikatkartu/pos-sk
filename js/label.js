@@ -337,9 +337,12 @@ const Label = (() => {
       x += w;
     });
 
+    /* Nomor SKU & nama TEBAL (bagian 392, pemilik): terbaca dari jarak rak.
+       Huruf monospace selebar sama tebal maupun biasa, jadi perhitungan muat
+       dan pecahNama() tidak berubah. */
     const yKode = atas + tBar + selaKode + hKode * 0.82;
     bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yKode)}" font-size="${hKode}"` +
-                ` text-anchor="middle" font-family="monospace">${esc(kode)}</text>`);
+                ` text-anchor="middle" font-family="monospace" font-weight="bold">${esc(kode)}</text>`);
 
     /* Berapa huruf yang muat ikut menyusut saat hurufnya dibesarkan — kalau
        tidak, nama yang tadinya pas akan menjulur keluar stiker begitu ukurannya
@@ -347,7 +350,7 @@ const Label = (() => {
     barisNama.forEach((teks, i) => {
       const yNama = yKode + selaNama + hNama + i * hNama * JARAK_BARIS_NAMA;
       bagian.push(`<text x="${bulat(W / 2)}" y="${bulat(yNama)}" font-size="${hNama}"` +
-                  ` text-anchor="middle" font-family="monospace">${esc(teks)}</text>`);
+                  ` text-anchor="middle" font-family="monospace" font-weight="bold">${esc(teks)}</text>`);
     });
 
     return `<svg xmlns="http://www.w3.org/2000/svg" class="label"` +
