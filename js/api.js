@@ -61,7 +61,7 @@ const API = (() => {
    */
   const HANYA_BACA = new Set([
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
-    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota',
+    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan',
     'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
@@ -174,7 +174,7 @@ const API = (() => {
   const AMAN_DIULANG = new Set([
     /* pembacaan */
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
-    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota',
+    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan',
     'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
@@ -596,6 +596,7 @@ let _pernahJawab = false;
     /* Riwayat nota dibaca per rentang dan bisa ratusan baris; batas waktunya
        disamakan dengan laporan penjualan, bukan dengan panggilan kecil. */
     laporanNota:     (d) => panggil('laporan_nota', d, { timeout: 90000 }),
+    laporanPelanggan: (d) => panggil('laporan_pelanggan', d, { timeout: 90000 }),   // bagian 396
     laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
     otorisasiDiskon: (d) => panggil('otorisasi_diskon', d),
     /* Pengajuan diskon ke Owner (bagian 288). Tanya-keputusan berjalan di

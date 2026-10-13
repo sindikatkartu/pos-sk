@@ -1186,6 +1186,16 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kartu-produk .stok.lencana:not(.kuning):not(.merah) { border-color: var(--garis-halus); }
 .kartu-produk .stok.bisa-klik:hover { border-color: var(--utama); }
 .kartu-produk .stok .ikon-svg { width: 13px; height: 13px; opacity: .85; }
+/* Laporan per pelanggan (bagian 396): keterangan kode di bawah nama, dan
+   tiap nota di dokumen pelanggan sebagai lipatan yang bisa dibuka. */
+.ket-pelanggan { color: var(--teks-redup); font-size: var(--fs-12); }
+.nota-pelanggan { border: 1px solid var(--garis); border-radius: 8px; margin: 0 0 8px; padding: 0 10px; }
+.nota-pelanggan > summary {
+  cursor: pointer; display: flex; gap: 10px; justify-content: space-between; align-items: center;
+  min-height: 40px; font-variant-numeric: tabular-nums;
+}
+.nota-pelanggan[open] > summary { border-bottom: 1px solid var(--garis-halus); margin-bottom: 6px; }
+.nota-pelanggan table { margin-bottom: 8px; }
 .kartu-produk .ada-di-lain { font-size: var(--fs-12); color: var(--sukses); margin-top: 2px; font-weight: 600; }
 /* Angka "sudah di keranjang" (bagian 393): bulatan di POJOK kartu, bukan di
    dalam barisnya — tinggi kartu dan letak harga/stok tetap; yang bergeser
