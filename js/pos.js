@@ -592,9 +592,18 @@ const _KOLATOR = (typeof Intl !== 'undefined' && Intl.Collator)
    (kartu, petak ringkasan, tinggi) diingat per perangkat & kelas lebar
    (HP/tablet/PC); pemuatan berikutnya menggambar rangka dari bentuk itu.
    Pembukaan pertama memakai rangka umum pemanggilnya. Penyimpanan yang gagal
-   = rangka umum, bukan galat. */
+   = rangka umum, bukan galat.
+
+   SILUET (bagian 405). Pemilik 15 Okt 2026: "skeleton loader yang dinamis
+   mengikuti layar yang terbaru". Sampai di sini yang diingat hanya blok
+   teratas; isi kartunya tetap garis seragam, jadi judul, kolom tabel, tombol,
+   dan kartu HP berlabel tetap "muncul tiba-tiba". Kini setiap teks, kotak
+   isian, tombol, ikon, bingkai, dan garis yang terlihat di layar terakhir
+   ikut direkam (kiri & lebar dalam permil lebar blok, atas & tinggi px) dan
+   digambar di tempatnya. Dibatasi MAKS_KEPING per wadah dan ±1,5 tinggi
+   layar, supaya Produk ratusan baris tetap ringan disimpan & diukur. */
 const Rangka = (() => {
-  const KUNCI = 'possk_rangka_v3', MAKS = 80;
+  const KUNCI = 'possk_rangka_v4', MAKS = 60, MAKS_KEPING = 320;
   const kelasLebar = () => (window.innerWidth < 620 ? 'hp' : window.innerWidth < 1024 ? 'tab' : 'pc');
   const kunci = (nama) => (document.querySelector('.layar.aktif')?.id || '') + '|' + nama + '|' + kelasLebar();
   const baca = () => { try { return JSON.parse(localStorage.getItem(KUNCI) || '{}'); } catch (e) { return {}; } };
@@ -614,11 +623,30 @@ const Rangka = (() => {
    * berikutnya (sudah memuat margin, termasuk margin yang saling tumpang), dan
    * bloknya sendiri bermargin 0 — jadi posisi setiap blok persis seperti aslinya.
    */
+  /** Satu keping siluet: [jenis, kiri‰, atas px, lebar‰, tinggi px, radius px].
+   *  Teks digambar sebagai pita setinggi ±60% barisnya, di tengah barisnya. */
+  function keping(x) {
+    const kiri = 'left:' + x[1] / 10 + '%;width:' + x[3] / 10 + '%;';
+    const kotak = kiri + 'top:' + x[2] + 'px;height:' + x[4] + 'px;border-radius:' + (x[5] || 0) + 'px';
+    switch (x[0]) {
+      case 'T': {
+        const t = Math.max(6, Math.min(16, Math.round(x[4] * 0.6)));
+        return '<span class="rangka rs rs-t" style="' + kiri + 'top:' + (x[2] + Math.round((x[4] - t) / 2)) + 'px;height:' + t + 'px"></span>';
+      }
+      case 'F': return '<span class="rs rs-f" style="' + kotak + '"></span>';
+      case 'f': return '<span class="rs rs-f halus" style="' + kotak + '"></span>';
+      case 'K': return '<span class="rs rs-k" style="' + kotak + '"></span>';
+      case 'G': return '<span class="rs rs-g" style="' + kiri + 'top:' + x[2] + 'px"></span>';
+      default:  return '<span class="rangka rs" style="' + kotak + '"></span>';
+    }
+  }
   function gambar(bt) {
     const b = bt.b || [];
     const isi = b.map((x, i) => {
       let dalam;
-      if (x.j === 'P') {
+      if (x.s && x.s.length) {
+        dalam = '<div class="siluet" aria-busy="true" aria-label="Memuat" style="height:' + x.h + 'px">' + x.s.map(keping).join('') + '</div>';
+      } else if (x.j === 'P') {
         dalam = `<div class="${x.c}" aria-busy="true" style="height:${x.h}px;margin:0;overflow:hidden">${Array.from({ length: x.n }, () =>
           `<div class="${x.cc}"><span class="rangka" style="width:60%"></span><div style="margin-top:8px"><span class="rangka tinggi" style="width:80%"></span></div></div>`).join('')}</div>`;
       } else if (x.j === 'K') {
@@ -634,10 +662,101 @@ const Rangka = (() => {
     }).join('');
     return isi;
   }
+  const jelas = (c) => !!c && c !== 'transparent' && !/^rgba\([^)]*,\s*0\)$/.test(c);
+  let _kanvas = null;
+  /** Teks ::before (label kartu HP lewat attr(data-l)) tidak punya simpul teks
+   *  untuk diukur, jadi lebarnya dihitung dari hurufnya, letaknya dari gayanya. */
+  function labelSemu(e, r, g) {
+    const ps = getComputedStyle(e, '::before');
+    const c = ps.content;
+    if (!c || c === 'none' || c === 'normal' || ps.display === 'none') return null;
+    const a = c.match(/^attr\(([\w-]+)\)$/);
+    const teks = (a ? e.getAttribute(a[1]) || '' : c.replace(/^["']|["']$/g, '')).trim();
+    if (!teks) return null;
+    if (!_kanvas) _kanvas = document.createElement('canvas').getContext('2d');
+    _kanvas.font = ps.font || (ps.fontWeight + ' ' + ps.fontSize + ' ' + ps.fontFamily);
+    const ukHuruf = parseFloat(ps.fontSize) || 12;
+    let lb = _kanvas.measureText(teks).width;
+    const batas = parseFloat(ps.width);
+    if (ps.position === 'absolute' && /px$/.test(ps.width) && batas > 0) lb = Math.min(lb, batas);
+    const kiri = ps.position === 'absolute' ? r.left + (parseFloat(ps.left) || 0) : r.left + (parseFloat(g.paddingLeft) || 0) + (parseFloat(g.borderLeftWidth) || 0);
+    const atas = ps.position === 'absolute' ? r.top + (parseFloat(ps.top) || 0) : r.top + (parseFloat(g.paddingTop) || 0) + (parseFloat(g.borderTopWidth) || 0);
+    const tinggi = parseFloat(ps.lineHeight) || ukHuruf * 1.4;
+    return { left: kiri, top: atas, width: lb, height: tinggi, right: kiri + lb, bottom: atas + tinggi };
+  }
+  const BINGKAI_KUAT = '.kartu, .mini, .petak > *, .petak-mini > *';
+  /**
+   * Siluet satu blok: keping-keping yang terlihat, relatif terhadap blok `rb`.
+   * `ang.n` = sisa jatah keping untuk seluruh wadah; `batasY` = batas bawah
+   * (koordinat layar) yang masih direkam.
+   */
+  function siluet(blok, rb, ang, batasY) {
+    const out = [], garisan = [];
+    const lebar = rb.width || 1;
+    const permil = (v) => Math.round(v / lebar * 1000);
+    const taruh = (j, r, rad) => {
+      if (ang.n <= 0 || r.width < 2 || r.height < 2) return;
+      if (r.top > batasY || r.bottom <= rb.top || r.top >= rb.bottom || r.left >= rb.right || r.right <= rb.left) return;
+      const kiri = Math.max(0, permil(r.left - rb.left));
+      const lb = Math.min(1000 - kiri, permil(r.width));
+      if (lb < 1) return;
+      out.push([j, kiri, Math.round(r.top - rb.top), lb, Math.round(r.height), Math.round(Math.min(rad || 0, r.height / 2))]);
+      ang.n--;
+    };
+    const jalan = (e) => {
+      if (ang.n <= 0) return;
+      const r = e.getBoundingClientRect();
+      if (r.top > batasY) return;
+      const g = getComputedStyle(e);
+      if (g.display === 'none' || g.visibility === 'hidden' || Number(g.opacity) === 0) return;
+      /* Disembunyikan dari mata tapi tetap di HTML (kepala tabel kartu HP):
+         teks di dalamnya tetap punya kotak, jadi harus dilewati di sini. */
+      if ((g.clip && g.clip !== 'auto') || (g.clipPath && g.clipPath !== 'none')) return;
+      const tag = e.tagName.toUpperCase();
+      const rad = parseFloat(g.borderTopLeftRadius) || 0;
+      if (tag === 'SVG' || tag === 'IMG' || tag === 'CANVAS' || tag === 'VIDEO') { taruh('I', r, rad || 4); return; }
+      if (tag === 'INPUT' && e.type === 'hidden') return;
+      if (tag === 'INPUT' && /^(checkbox|radio)$/.test(e.type)) { taruh('I', r, e.type === 'radio' ? 99 : 3); return; }
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') { taruh('K', r, rad); return; }
+      const sisi = ['Top', 'Right', 'Bottom', 'Left'].map((k) => (parseFloat(g['border' + k + 'Width']) || 0) >= 1 && jelas(g['border' + k + 'Color']));
+      const latar = jelas(g.backgroundColor);
+      if ((tag === 'BUTTON' || e.classList.contains('tombol')) && (latar || sisi.every(Boolean))) { taruh('B', r, rad); return; }
+      if (e.classList.contains('lencana')) { taruh('B', r, rad); return; }
+      if (sisi.every(Boolean)) taruh(e.matches(BINGKAI_KUAT) ? 'F' : 'f', r, rad);
+      else {
+        if (sisi[0]) garisan.push([r.left, r.top, r.width]);
+        if (sisi[2]) garisan.push([r.left, r.bottom - 1, r.width]);
+      }
+      const semu = labelSemu(e, r, g);
+      if (semu) taruh('T', semu, 4);
+      for (const n of e.childNodes) {
+        if (n.nodeType === 3) {
+          if (!n.nodeValue.trim()) continue;
+          const rg = document.createRange(); rg.selectNodeContents(n);
+          for (const t of rg.getClientRects()) taruh('T', t, 4);
+        } else if (n.nodeType === 1) jalan(n);
+      }
+    };
+    jalan(blok);
+    /* Garis tabel datang per SEL — digabung per tinggi supaya satu baris tabel
+       jadi satu garis, bukan dua belas keping. */
+    garisan.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+    const gabung = [];
+    for (const x of garisan) {
+      const l = gabung[gabung.length - 1];
+      if (l && Math.abs(l[1] - x[1]) <= 1 && x[0] <= l[0] + l[2] + 2) l[2] = Math.max(l[2], x[0] + x[2] - l[0]);
+      else gabung.push(x.slice());
+    }
+    for (const x of gabung) taruh('G', { left: x[0], top: x[1], width: x[2], height: 2, right: x[0] + x[2], bottom: x[1] + 2 }, 0);
+    return out;
+  }
   /** Bentuk tingkat atas sebuah wadah yang sudah berisi data: tinggi tiap blok
-   *  dan jarak dari puncaknya ke puncak blok berikutnya (atau ke dasar wadah). */
+   *  dan jarak dari puncaknya ke puncak blok berikutnya (atau ke dasar wadah),
+   *  ditambah siluet isinya (bagian 405). */
   function ukur(w) {
     const g = getComputedStyle(w), rw = w.getBoundingClientRect();
+    const ang = { n: MAKS_KEPING };
+    const batasY = rw.top + Math.max(900, window.innerHeight * 1.5);
     const dasar = rw.bottom - (parseFloat(g.paddingBottom) || 0) - (parseFloat(g.borderBottomWidth) || 0);
     const el = [...w.children].filter((e) => e.offsetParent !== null).slice(0, 30);
     const r = el.map((e) => e.getBoundingClientRect());
@@ -647,10 +766,11 @@ const Rangka = (() => {
       const gs = getComputedStyle(e);
       const mt = i === 0 ? Math.round(parseFloat(gs.marginTop) || 0) : 0;
       const mb = i === el.length - 1 ? Math.round(parseFloat(gs.marginBottom) || 0) : 0;
+      const s = siluet(e, r[i], ang, batasY);
       if (e.matches('.petak-mini, .petak')) {
-        return { j: 'P', h, langkah, mt, mb, n: Math.min(12, e.children.length), c: e.className, cc: (e.children[0] && e.children[0].className) || '' };
+        return { j: 'P', h, langkah, mt, mb, s, n: Math.min(12, e.children.length), c: e.className, cc: (e.children[0] && e.children[0].className) || '' };
       }
-      return { j: e.classList.contains('kartu') ? 'K' : 'L', h, langkah, mt, mb };
+      return { j: e.classList.contains('kartu') ? 'K' : 'L', h, langkah, mt, mb, s };
     });
     return { b };
   }
