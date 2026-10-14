@@ -8072,6 +8072,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const r = await API.koreksiShiftPulsa({ id_shift: k.id, sumber, kas_fisik, alasan, ...(nontunai ? { nontunai } : {}) });
       tutupModal();
       toast(`Shift ${k.id} dikoreksi${r.no_jurnal ? ' — jurnal ' + r.no_jurnal : ''}.`, 'sukses');
+      /* Kas fisik ke/dari 0 mengubah daftar Setoran, jadi lencana dihitung ulang (bagian 401). */
+      document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
       await muatLaporanpulsa();
     } catch (e) { toast(e.message, 'galat'); }
   }

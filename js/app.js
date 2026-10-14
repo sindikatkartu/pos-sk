@@ -4566,6 +4566,8 @@ async function simpanKoreksiKasShift(btn) {
     const r = await API.koreksiKasShift({ id_shift: kartu.dataset.shift, kas_fisik: baru, alasan,
       ...(kartu.dataset.cabang ? { cabang: kartu.dataset.cabang } : {}) });
     Admin.toast('Kas fisik dikoreksi' + (r.no_jurnal ? ' · ' + r.no_jurnal : '') + '.', 'sukses');
+    /* Kas fisik ke/dari 0 mengubah daftar Setoran, jadi lencana dihitung ulang (bagian 401). */
+    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
     await bukaLaporanShift(kartu.dataset.shift, kartu.dataset.cabang);
     muatDaftarShift();
   } catch (e) { salah(e.message); btn.disabled = false; }
