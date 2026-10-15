@@ -2612,6 +2612,21 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    .layar atau anak langsungnya (batang gulir pindah ke tengah, bagian 47).
    Tabel banyak kolom (Buku besar, Jurnal, Kerugian) tetap penuh. */
 .kartu.laporan-sempit { max-width: 720px; }
+/* TABEL PENDEK RINGKASAN LAPORAN PENJUALAN (pemilik 15 Okt 2026, bagian 407:
+   "jarak kolom terlalu lebar sehingga tidak nyaman untuk dibaca"). Per hari,
+   Per kasir, Per metode bayar, Per cabang hanya 3–5 kolom; direntang 1094 px
+   jarak tanggal ke angkanya ±400 px. Dua kartu sebaris hanya bila WADAHNYA
+   ≥ 1040 px (tiap kartu ≥ 512 px — Per cabang lima kolom tetap muat angka
+   besar); diukur dari wadah, bukan layar, karena sidebar bisa dilipat.
+   Selebihnya satu kolom, kartu 720 px seperti laporan-sempit. Sebaris sama
+   tinggi, seperti Dashboard. Empat kartu di dua kolom: tidak ada yatim. */
+.lap-ringkas { container-type: inline-size; }
+.lap-ringkas-isi { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--irama); margin-bottom: var(--irama); }
+.lap-ringkas-isi > .kartu { margin-bottom: 0; max-width: 720px; min-width: 0; }
+@container (min-width: 1040px) {
+  .lap-ringkas-isi { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .lap-ringkas-isi > .kartu { max-width: none; }
+}
 /* DATA TERAKHIR DULU (bagian 365, 369): selama wadah ber-data-basi (angka
    tersimpan, belum diganti angka baru) tombol & isiannya terkunci — tidak ada
    yang dicetak, diekspor, atau dibayar dari angka lama. Penjaga sungguhannya

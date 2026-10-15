@@ -5493,10 +5493,14 @@ function gambarLapRingkas(w, d) {
 
       <div class="kartu" data-bagian="Tren harian"><h3>Tren harian</h3><div id="wadahLapTren"></div></div>
 
+      <!-- Empat tabel pendek (3–5 kolom) tidak direntang selebar layar (bagian 407):
+           dua sebaris bila wadahnya cukup lebar, selebihnya satu kolom 720 px. -->
+      <div class="lap-ringkas"><div class="lap-ringkas-isi">
       ${tabel('Per hari', KOLOM_LAP.perHari(), d.per_hari || [], 'Tidak ada penjualan di rentang ini.')}
       ${tabel('Per kasir', KOLOM_LAP.perKasir(), d.per_kasir || [], 'Tidak ada penjualan di rentang ini.')}
       ${tabel('Per metode bayar', KOLOM_LAP.perMetode(), d.per_metode || [], 'Belum ada pembayaran.')}
       ${tabel('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.')}
+      </div></div>
       ${tabel('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
       ${tabel('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.')}
       ${tabel('Nota dibatalkan', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang dibatalkan.')}

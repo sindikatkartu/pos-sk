@@ -309,6 +309,8 @@ const Admin = (() => {
      dari kamus bersama seperti yang lain; goresannya jadi sama dengan
      tetangganya di bar alat yang sama. */
   const IKON_TITIK_TIGA = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">${IKON.titik_tiga}</svg>`;
+  /* Di baris tabel: titik MENDATAR (bagian 408). Menu layar di bar alat tetap ⋮. */
+  const IKON_TITIK_BARIS = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">${IKON.titik_baris}</svg>`;
 
   /**
    * Menu tindakan "⋮" — SATU bentuk untuk tujuh daftar.
@@ -333,7 +335,7 @@ const Admin = (() => {
       <button class="tombol${o.tanda ? ' tanda-' + o.tanda : ''}" id="${o.idTombol}" aria-haspopup="menu" aria-expanded="false"
               aria-controls="${o.id}" data-menu-kunci="${esc(o.kunci || '')}"
               aria-label="${kata}" title="${kata}">
-        ${IKON_TITIK_TIGA}${o.titik || ''}
+        ${o.baris ? IKON_TITIK_BARIS : IKON_TITIK_TIGA}${o.titik || ''}
       </button>
       <div class="popover-akun popover-menu" id="${o.id}" role="menu"
            aria-labelledby="${o.idTombol}" hidden>${o.isi}</div>
@@ -6153,7 +6155,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="grup"><label>Tanggal</label><input type="date" id="buTanggal" value="${tanggalLokal()}"></div>
         <div class="grup"><label>Referensi / no. bukti transfer</label><input type="text" id="buRef"></div>
       </div>
-      ${htmlBagianBayar('buBagian', bankBayarAktif().concat([['tunai', 'Tunai'], ['qris', 'QRIS']]), u.sisa)}
+      ${htmlBagianBayar('buBagian', bankBayarAktif().concat([['tunai', 'Kas Admin'], ['qris', 'QRIS']]), u.sisa)}
       <div id="pesanBayarUtang"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol sukses" id="btnKonfirmasiBayarUtang"
@@ -6669,13 +6671,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     /* Gagal ditanya TIDAK sama dengan tidak punya. Sebabnya ditulis apa
        adanya, dan tabelnya tidak digambar sama sekali. */
     if (!rows) {
-      return `<div class="kartu">${kepala}
+      return `<div class="kartu laporan-sempit">${kepala}
         <div class="pesan galat">Daftar meja gagal ditarik${
           w._liniGagal ? ' — ' + esc(w._liniGagal) : ''}. Daftar cabang di atas tetap sahih.</div>
       </div>`;
     }
 
-    return `<div class="kartu">${kepala}
+    return `<div class="kartu laporan-sempit">${kepala}
       <p class="petunjuk">Cabang menjawab <strong>di mana</strong> sebuah nota lahir; meja
          menjawab <strong>divisi mana</strong> yang memilikinya. Satu toko bisa punya
          beberapa meja dengan laci dan tanggung jawab sendiri-sendiri — tanpa sumbu ini
@@ -7067,7 +7069,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${matriksKons('Laba Rugi', d.matriks && d.matriks.lr)}
       ${matriksKons('Neraca', ner, lencanaNer)}
 
-      <div class="kartu laporan-uang">
+      <div class="kartu laporan-uang laporan-sempit">
         <div class="bar-alat"><h3>Komposisi beban</h3>
           <span class="satuan-uang">dalam Rupiah</span></div>
         <div class="gulir-x"><table class="matriks-kons"><thead><tr>
@@ -7417,7 +7419,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const sel = (ada, berjalan) => ada ? '<span class="lencana hijau">ada</span>'
       : (berjalan ? '<span class="lencana abu">belum waktunya</span>'
                   : '<span class="lencana merah">belum</span>');
-    return `<div class="kartu">
+    return `<div class="kartu laporan-sempit">
       <h3>Keadaan berkas</h3>
       <div class="gulir-x">
         <table class="tabel">
@@ -13344,7 +13346,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         /* Konfirmasi (bagian 245): uang keluar ke supplier. */
         const bagian = bacaBagianBayar('buBagian');
         if (!(await tanya('Bayar utang ini?',
-              `<p class="petunjuk">${esc(teksBagianBayar(bagian))} dibayar tanggal ${esc(tglTampil(nilai('buTanggal')))}, dan jurnalnya dicatat per bank.</p>`,
+              `<p class="petunjuk">${esc(teksBagianBayar(bagian.map((b) => b.metode === 'tunai' ? { ...b, metode: 'kas_admin' } : b)))} dibayar tanggal ${esc(tglTampil(nilai('buTanggal')))}, dan jurnalnya dicatat per bank.</p>`,
               { ya: 'Simpan' }))) return;
         t.disabled = true;
         try {

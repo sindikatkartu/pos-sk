@@ -1550,6 +1550,9 @@ var IKON_SUMBER = {
   balik     : 'rotate-ccw',
   /* --- Kendali antarmuka. Dulu digambar sebaris di admin.js dan index.html --- */
   titik_tiga: 'ellipsis-vertical',
+  /* Menu tindakan di BARIS tabel (pemilik 15 Okt 2026, bagian 408): titik
+     mendatar, supaya terbedakan dari ⋮ menu layar di pojok kanan atas. */
+  titik_baris: 'ellipsis',
   buka_menu : 'chevron-down',
   tutup_menu: 'chevron-up',
   peringatan: 'triangle-alert',
@@ -1698,6 +1701,7 @@ var IKON = {
   coa       : '<path d="M8 5h13"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/>',
   gaji      : '<path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><path d="m2 16 6 6"/><circle cx="16" cy="9" r="2.9"/><circle cx="6" cy="5" r="3"/>',
   titik_tiga: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>',
+  titik_baris: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   buka_menu : '<path d="m6 9 6 6 6-6"/>',
   tutup_menu: '<path d="m18 15-6-6-6 6"/>',
   peringatan: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
