@@ -795,6 +795,18 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
   border-radius: 9px; background: var(--utama-tombol); color: #fff;
   font-size: var(--fs-11); font-weight: 700; line-height: 18px; text-align: center;
 }
+/* Pop-up jumlah lembar stiker (bagian 423): diletakkan fixed oleh
+   letakkanMenuBaris seperti menu ⋯ baris. Tertutupnya oleh atribut hidden
+   (`[hidden] { display: none !important }` di atas menang atas grid ini). */
+.menu-baris .popover-menu.stiker-pop { width: 248px; padding: 12px; text-align: left; white-space: normal; display: grid; gap: 10px; }
+.stiker-pop .sp-judul { font-size: var(--fs-11); letter-spacing: .06em; text-transform: uppercase; color: var(--teks-redup); font-weight: 600; }
+.stiker-pop .sp-nama { font-weight: 600; font-size: var(--fs-14); line-height: 1.3; }
+.stiker-pop .sp-jumlah { display: flex; align-items: center; gap: 6px; }
+.stiker-pop .sp-jumlah .tombol { width: 40px; min-height: 40px; padding: 0; justify-content: center; font-size: var(--fs-19); }
+.stiker-pop .sp-jumlah input { width: 64px; height: 40px; text-align: center; }
+.stiker-pop .sp-jumlah span { color: var(--teks-redup); font-size: var(--fs-13); line-height: 1.3; }
+.stiker-pop .sp-aksi { display: flex; gap: 8px; }
+.stiker-pop .sp-aksi .tombol { flex: 1; justify-content: center; min-height: 40px; }
 /* Pembeda isi ⋮ baris (bagian 274): WARNA TITIKNYA saja — bingkai dan
    ukurannya sama, jadi kolomnya tetap lurus. Kuning = ada permintaan yang
    menunggu (perangkat minta gabung); merah = di dalamnya ada Hapus. Kuning menang bila keduanya. */

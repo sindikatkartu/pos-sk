@@ -309,8 +309,8 @@ const Admin = (() => {
      dari kamus bersama seperti yang lain; goresannya jadi sama dengan
      tetangganya di bar alat yang sama. */
   const IKON_TITIK_TIGA = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">${IKON.titik_tiga}</svg>`;
-  /* Di baris tabel: titik MENDATAR (bagian 408). Menu layar di bar alat tetap ⋮. */
-  const IKON_TITIK_BARIS = `<svg class="ikon-svg" viewBox="0 0 24 24" style="width:18px;height:18px">${IKON.titik_baris}</svg>`;
+  /* Di baris tabel juga ⋮ tegak: titik mendatar bagian 408 dibatalkan pemilik
+     16 Okt 2026 (bagian 424) — "yang kemarin rubah ⋯ kembalikan ke ⋮ lagi". */
 
   /**
    * Menu tindakan "⋮" — SATU bentuk untuk tujuh daftar.
@@ -335,7 +335,7 @@ const Admin = (() => {
       <button class="tombol${o.tanda ? ' tanda-' + o.tanda : ''}" id="${o.idTombol}" aria-haspopup="menu" aria-expanded="false"
               aria-controls="${o.id}" data-menu-kunci="${esc(o.kunci || '')}"
               aria-label="${kata}" title="${kata}">
-        ${o.baris ? IKON_TITIK_BARIS : IKON_TITIK_TIGA}${o.titik || ''}
+        ${IKON_TITIK_TIGA}${o.titik || ''}
       </button>
       <div class="popover-akun popover-menu" id="${o.id}" role="menu"
            aria-labelledby="${o.idTombol}" hidden>${o.isi}</div>
@@ -2928,7 +2928,7 @@ const Admin = (() => {
              Pengecualian kedua dari "ikon + teks" (bagian 226): namanya di
              title/aria-label, gambarnya tag yang tidak dipakai arti lain. */
           { judul: '', kelas: 'sel-menu', render: r => `<span class="sel-tombol-baris">${
-              tombolIkon('tombol-label', 'Tambah 1 lembar label', IKON.label, `data-label-produk="${esc(r.sku)}"`)
+              tombolIkon('tombol-label', 'Label stiker — atur jumlah lembar', IKON.label, `data-label-produk="${esc(r.sku)}"`)
                 .replace('</button>', angkaStiker(r.sku) + '</button>')}${
               menuTindakan({ id: 'menuPr' + idAman(r.sku), idTombol: 'btnPr' + idAman(r.sku), kunci: 'baris-produk', baris: true,
                 isi: butirBaris('', 'Ubah', IKON.ubah, `data-edit-produk="${esc(r.sku)}"`, 'Ubah produk') })}</span>` }
@@ -3065,20 +3065,107 @@ const Admin = (() => {
     const baris = barisStikerDari(p);
     if (!baris) return toast('Produk ini tidak punya SKU maupun barcode untuk dicetak.', 'galat');
 
-    const k = await muatKeranjangLabel();
     /* SKU yang sama ditambah JUMLAHNYA, bukan jadi baris kedua. Dua baris
        dengan SKU sama membuat orang mengira ia salah pencet, lalu membuang
-       salah satunya — dan yang terbuang membawa jumlahnya. */
-    const ada = k.find(x => x.sku === baris.sku);
-    if (ada) ada.lembar = Math.min(999, (Number(ada.lembar) || 1) + 1);
-    else k.push(baris);
-    await simpanKeranjangLabel(k);
+       salah satunya — dan yang terbuang membawa jumlahnya.
+       Tanpa toast (bagian 423): yang memanggil ini tinggal kotak cari di
+       dialog keranjang, dan daftarnya tergambar ulang di depan mata. */
+    await ubahKeranjangStiker((k) => {
+      const ada = k.find(x => x.sku === baris.sku);
+      if (ada) ada.lembar = Math.min(999, (Number(ada.lembar) || 1) + 1);
+      else k.push(baris);
+    });
+  }
 
-    /* TANPA esc(): toast() menulis lewat textContent, jadi meloloskannya di sini
-       justru memunculkan "&amp;" pada nama produk yang memuat "&". */
-    toast(`${baris.nama} masuk keranjang stiker (${
-      k.reduce((a, x) => a + (Number(x.lembar) || 1), 0)} stiker).`);
+  /* ANTREAN TULIS KERANJANG STIKER (bagian 423). Baca-ubah-tulis yang
+     bertumpuk — dua ketukan cepat — membaca keranjang yang SAMA, dan yang
+     menulis belakangan menimpa yang lain: satu lembar hilang tanpa jejak.
+     Setiap perubahan menunggu yang sebelumnya selesai. `fn` mengubah
+     keranjangnya di tempat (atau memulangkan keranjang baru). */
+  let antreStiker = Promise.resolve();
+  const ubahKeranjangStiker = (fn) => (antreStiker = antreStiker.catch(() => {}).then(async () => {
+    const k = await muatKeranjangLabel();
+    const baru = fn(k) || k;
+    await simpanKeranjangLabel(baru);
     if ($('#modalUmum') && $('#modalUmum')._label) gambarKeranjangLabel();
+    return baru;
+  }));
+
+  /* POP-UP JUMLAH LEMBAR di baris Produk (bagian 423). Pemilik 16 Okt 2026:
+     sekali ketuk langsung masuk terasa aneh, dan toast di tiap ketukan
+     mengganggu. Ketukan kini membuka pop-up: jumlah lembar (− angka +),
+     Batal · Simpan; 0 lalu Simpan = keluar dari keranjang. Tanpa toast —
+     angka di sudut tombolnya yang jadi tanda. Dibungkus .menu-lain supaya
+     penutup menu yang sudah ada (klik di luar, Esc, gulir) ikut menutupnya,
+     dan diletakkan letakkanMenuBaris seperti menu ⋯ baris. */
+  async function bukaPopStiker(tombol) {
+    if (typeof Label === 'undefined') {
+      return toast('Muat ulang aplikasi sekali lagi supaya modul label ikut terpasang.', 'galat');
+    }
+    const sku = tombol.dataset.labelProduk;
+    let p = cacheProduk.find(x => x.sku === sku);
+    if (!p) p = (await katalogStiker()).find(x => String(x.sku) === String(sku));
+    if (!p) return toast('Produk tidak ditemukan.', 'galat');
+    const baris = barisStikerDari(p);
+    if (!baris) return toast('Produk ini tidak punya SKU maupun barcode untuk dicetak.', 'galat');
+
+    if (!$('#popStiker')) {
+      document.body.insertAdjacentHTML('beforeend', '<div class="menu-lain menu-baris" id="popStikerWadah">' +
+        '<div class="popover-akun popover-menu pop-isian stiker-pop" id="popStiker" role="dialog" aria-label="Label stiker" hidden></div></div>');
+    }
+    const m = $('#popStiker');
+    /* Angka awal dibaca dari KERANJANGNYA, bukan dari peta lembarStiker: peta
+       itu diisi tanpa ditunggu saat Produk dimuat, dan Simpan MENGGANTI
+       jumlahnya — angka basi menimpa 5 jadi 1 (temuan peninjau). */
+    const ada = Number(((await muatKeranjangLabel()).find(x => x.sku === baris.sku) || {}).lembar) || 0;
+    /* Esc (penangan menu bersama) mengembalikan fokus lewat aria-labelledby. */
+    if (!tombol.id) tombol.id = 'btnLabel' + idAman(sku);
+    m.setAttribute('aria-labelledby', tombol.id);
+    m.innerHTML = `
+      <div class="sp-judul">Label stiker</div>
+      <div class="sp-nama">${esc(baris.nama)}</div>
+      <div class="sp-jumlah">
+        <button type="button" class="tombol" data-sp="kurang" aria-label="Kurangi satu lembar">−</button>
+        <input type="number" id="spJumlah" min="0" max="999" step="1" inputmode="numeric" value="${ada || 1}" aria-label="Jumlah lembar">
+        <button type="button" class="tombol" data-sp="tambah" aria-label="Tambah satu lembar">+</button>
+        <span>lembar${ada ? ' · sudah ' + ada + ' di keranjang' : ''}</span>
+      </div>
+      <div class="sp-aksi">
+        <button type="button" class="tombol" data-sp="batal">Batal</button>
+        <button type="button" class="tombol utama" data-sp="simpan">Simpan</button>
+      </div>`;
+    tutupMenuLain();
+    m.hidden = false;
+    letakkanMenuBaris(tombol, m);
+    const isian = m.querySelector('#spJumlah');
+    isian.focus();
+    isian.select();
+    const jumlah = () => Math.max(0, Math.min(999, Math.round(Number(isian.value) || 0)));
+    const tutup = () => { m.hidden = true; if (tombol.isConnected) tombol.focus(); };
+    const simpan = async () => {
+      /* Kotak KOSONG = Batal (pemilik, bagian 423): orang yang menghapus angka
+         untuk mengetik ulang lalu terlanjur menekan Enter tidak bermaksud
+         mengeluarkan barangnya. Keluar dari keranjang hanya lewat angka 0. */
+      if (!String(isian.value).trim()) return tutup();
+      const n = jumlah();
+      tutup();
+      await ubahKeranjangStiker((k) => {
+        const i = k.findIndex(x => x.sku === baris.sku);
+        if (n === 0) { if (i >= 0) k.splice(i, 1); return; }
+        if (i >= 0) k[i].lembar = n;
+        else k.push(Object.assign({}, baris, { lembar: n }));
+      });
+    };
+    m.onclick = (e) => {
+      const b = e.target.closest('[data-sp]');
+      if (!b) return;
+      const a = b.dataset.sp;
+      if (a === 'kurang') isian.value = String(Math.max(0, jumlah() - 1));
+      else if (a === 'tambah') isian.value = String(Math.min(999, jumlah() + 1));
+      else if (a === 'batal') tutup();
+      else if (a === 'simpan') simpan();
+    };
+    isian.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); simpan(); } };
   }
 
   /* ---------- dialog keranjang ---------- */
@@ -3268,22 +3355,21 @@ const Admin = (() => {
   async function ubahJumlahStiker(e) {
     const sku = e.target.dataset.sku;
     const n = Math.max(1, Math.min(999, Math.round(Number(e.target.value) || 1)));
-    const k = await muatKeranjangLabel();
-    const b = k.find(x => x.sku === sku);
-    if (!b) return;
-    b.lembar = n;
-    await simpanKeranjangLabel(k);
-    await gambarKeranjangLabel();
+    /* Lewat antrean (bagian 423, temuan peninjau): mengetik angka lalu langsung
+       mengetuk produk lain memicu dua tulisan serentak — yang belakangan
+       menimpa yang lain. ubahKeranjangStiker menggambar ulang dialognya. */
+    await ubahKeranjangStiker((k) => {
+      const b = k.find(x => x.sku === sku);
+      if (b) b.lembar = n;
+    });
   }
 
   async function buangStiker(sku) {
-    await simpanKeranjangLabel((await muatKeranjangLabel()).filter(x => x.sku !== sku));
-    await gambarKeranjangLabel();
+    await ubahKeranjangStiker((k) => k.filter(x => x.sku !== sku));
   }
 
   async function kosongkanKeranjangLabel() {
-    await simpanKeranjangLabel([]);
-    await gambarKeranjangLabel();
+    await ubahKeranjangStiker(() => []);
   }
 
   async function kirimLabel() {
@@ -5633,11 +5719,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 pisahNonaktif: true, kunci: 'pelanggan' });
   }
 
+  /* Kotak Kode pelanggan & supplier SELALU terkunci (pemilik 17 Okt 2026,
+     bagian 425): kode baru dibuat server (G/R + yyMM + nomor, S + nomor —
+     bagian 287), dan server tidak lagi menerima kode ketikan untuk mitra baru. */
   function editorPelanggan(kode) {
     const p = kode ? ($('#isiMitra')._pel || []).find(x => x.kode === kode) : null;
     bukaModal(p ? 'Ubah pelanggan' : 'Pelanggan baru', `
       <div class="baris2">
-        <div class="grup"><label>Kode</label><input type="text" id="cKode" value="${esc(p?.kode || '')}" ${p ? 'disabled' : ''} placeholder="otomatis"></div>
+        <div class="grup"><label>Kode</label><input type="text" id="cKode" value="${esc(p?.kode || '')}" disabled placeholder="otomatis"></div>
         <div class="grup"><label>Nama *</label><input type="text" id="cNama" value="${esc(p?.nama || '')}"></div>
       </div>
       <div class="baris2">
@@ -5662,7 +5751,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const s = kode ? ($('#isiMitra')._sup || []).find(x => x.kode === kode) : null;
     bukaModal(s ? 'Ubah supplier' : 'Supplier baru', `
       <div class="baris2">
-        <div class="grup"><label>Kode</label><input type="text" id="sKode" value="${esc(s?.kode || '')}" ${s ? 'disabled' : ''} placeholder="otomatis"></div>
+        <div class="grup"><label>Kode</label><input type="text" id="sKode" value="${esc(s?.kode || '')}" disabled placeholder="otomatis"></div>
         <div class="grup"><label>Nama *</label><input type="text" id="sNama" value="${esc(s?.nama || '')}"></div>
       </div>
       <div class="baris2">
@@ -6227,8 +6316,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const butirBaris = (gaya, label, jalur, atribut, judul) =>
     `<button class="popover-item ${gaya}" role="menuitem" title="${esc(judul || label)}" ${atribut}>` +
     `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${jalur}</svg><span>${esc(label)}</span></button>`;
-  /** id elemen yang aman dari kode apa pun (id_user/id_perangkat). */
-  const idAman = (s) => String(s).replace(/[^\w-]/g, '_');
+  /** id elemen yang aman dari kode apa pun (id_user/id_perangkat/SKU).
+      Bagian 423: setiap karakter selain huruf, angka, dan "-" disandikan
+      "_<hex>_" — termasuk "_" sendiri. Dulu semuanya jadi "_", sehingga SKU
+      "A/1" dan "A.1" sama-sama "A_1" dan menu ⋯ yang satu membuka yang lain.
+      Kode biasa ("1-1201") tidak berubah. */
+  const idAman = (s) => String(s).replace(/[^A-Za-z0-9-]/g, (c) => '_' + c.codePointAt(0).toString(16) + '_');
 
   const tombolBaris = (gaya, label, jalur, atribut, judul) =>
     `<button class="tombol kecil ${gaya}" title="${esc(judul || label)}" ${atribut}>` +
@@ -13155,7 +13248,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Memilih apa pun di dalamnya menutupnya. Butir ekspor pun: unduhannya
          berjalan sendiri, dan menu yang tetap menganga sesudah tindakannya
          selesai terbaca seperti tombol yang tidak jadi menekan. */
-      const dalamMenu = t.closest('.menu-lain .popover-menu');
+      /* .pop-isian (pop-up jumlah lembar stiker, bagian 423) berisi kotak angka
+         dan tombol − + — ia tidak menutup saat isinya ditekan. */
+      const dalamMenu = t.closest('.menu-lain .popover-menu:not(.pop-isian)');
       if (dalamMenu) {
         const pemicu = document.getElementById(dalamMenu.getAttribute('aria-labelledby'));
         setTimeout(() => { dalamMenu.hidden = true;
@@ -13242,7 +13337,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
       if (d.editProduk)               return editorProduk(d.editProduk);
-      if (d.labelProduk)              return tambahKeranjangLabel(d.labelProduk);
+      if (d.labelProduk)              return bukaPopStiker(t);
       if (t.id === 'btnKeranjangLabel') return bukaKeranjangLabel();
       if (d.stikerTambah)             return tambahKeranjangLabel(d.stikerTambah);
       if (d.stikerBuang)              return buangStiker(d.stikerBuang);
