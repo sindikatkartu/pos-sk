@@ -926,6 +926,35 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 .pecahan .cip:hover  { background: var(--panel-3); border-color: var(--garis-kuat); }
 .pecahan .cip:active { background: var(--garis-halus); }
 .pecahan .cip:focus-visible { outline: none; box-shadow: var(--cincin); }
+/* KUNCI LAYAR (bagian 406): menutupi segalanya, termasuk modal yang terbuka.
+   Latar pekat — isi layar di belakangnya tidak boleh terbaca. */
+.kunci-layar {
+  position: fixed; inset: 0; z-index: 10000; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.kunci-layar[hidden] { display: none; }
+.kunci-kotak {
+  width: min(360px, 100%); background: var(--panel); border: 1px solid var(--garis);
+  border-radius: var(--radius); padding: 24px;
+}
+.kunci-kotak h2 { margin: 0 0 4px; font-size: var(--fs-19); }
+.kunci-nama { margin: 0 0 8px; font-weight: 600; }
+.kunci-kotak input { width: 100%; letter-spacing: .3em; font-size: var(--fs-21); text-align: center; }
+/* Dua tombol sama lebar dan berjarak dari kotak PIN, seperti kaki dialog lain. */
+.kunci-kotak .aksi-modal { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.kunci-kotak .aksi-modal .tombol { width: 100%; min-height: 44px; }
+/* BENTUK B (pemilik 16 Okt 2026, titipan bagian 411): pecahan mengisi lebar
+   dalam kolom sama besar — jumlah kolom ikut jumlah pecahan, bukan angka 4
+   yang dipatok — dan baris perintah jadi Uang pas · C · + Metode lain. Dua
+   baris untuk tujuh tombol, dulu tiga. Nominal dan perintah tetap dua wadah. */
+.pecahan-baris.nominal { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.pecahan-baris.perintah.ada-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr); }
+.pecahan-baris.nominal .cip, .pecahan-baris.perintah.ada-split .cip { min-width: 0; }
+#btnTambahMetode { width: 100%; margin-bottom: 12px; }
+#btnTambahMetode.di-baris {
+  width: auto; height: 34px; min-height: 34px; margin: 0; padding: 0 8px;
+  font-size: var(--fs-13); white-space: nowrap;
+}
 /* ==================== TOMBOL PECAHAN BERWUJUD UANG ====================
    Diminta pemilik 11 Sep 2026: "tombol uangnya di render seperti uang sungguhan,
    ukurannya sama semua supaya rapih dan interaktif".

@@ -129,6 +129,24 @@
   </div>
 </div>
 
+<!-- KUNCI LAYAR (bagian 406): diam 1 jam di layar mana pun kecuali Kasir.
+     Latarnya PEKAT, supaya angka di belakangnya tidak terbaca orang yang
+     lewat; halamannya tetap utuh di bawah. Dikendalikan KunciLayar (app.js). -->
+<div id="kunciLayar" class="kunci-layar" hidden role="dialog" aria-modal="true" aria-labelledby="kunciJudul">
+  <div class="kunci-kotak">
+    <h2 id="kunciJudul">Layar terkunci</h2>
+    <p class="kunci-nama" id="kunciNama"></p>
+    <p class="petunjuk">Tidak dipakai selama 1 jam. Masukkan PIN untuk melanjutkan — pekerjaan yang terbuka tetap utuh.</p>
+    <label for="kunciPin">PIN</label>
+    <input type="password" id="kunciPin" inputmode="numeric" maxlength="6" autocomplete="off">
+    <div id="kunciPesan"></div>
+    <div class="aksi-modal">
+      <button type="button" class="tombol" id="kunciKeluar">Keluar</button>
+      <button type="button" class="tombol utama" id="kunciBuka">Buka</button>
+    </div>
+  </div>
+</div>
+
 <div id="app" class="sembunyi">
 
   <!-- ---------- SIDEBAR ----------
@@ -753,7 +771,7 @@
           <h3>A7. Pembayaran &amp; bayar campur</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li>Kolom <strong>Nominal</strong> mulai dari nol, bukan dari total. Untuk tunai ada chip pecahan dan tombol <strong>Uang pas</strong>.</li>
-            <li><strong>+ Metode bayar lain (split)</strong> menambah baris bila pembeli bayar sebagian tunai, sebagian transfer/QRIS/kartu.</li>
+            <li><strong>+ Metode lain</strong> menambah baris bila pembeli bayar sebagian tunai, sebagian transfer/QRIS/kartu. Saat metode terakhir tunai, tombolnya ada di sebelah <strong>Uang pas</strong> dan <strong>C</strong>.</li>
             <li>Metode <strong>PIUTANG</strong> memunculkan kolom Jatuh tempo — nota jadi utang pelanggan, ditagih lewat menu Piutang.</li>
             <li>Label sisa berganti sendiri antara <strong>Kembali</strong> dan <strong>Kurang</strong>. Tombol Selesaikan mati bila kurang bayar tanpa metode piutang.</li>
           </ul>
@@ -831,6 +849,16 @@
             <li>Begitu internet kembali, nota terkirim otomatis dalam beberapa detik.</li>
             <li>Menu back office (Produk, Laporan, dan lainnya) sengaja tidak bisa dibuka offline, supaya tidak ada yang mengubah master berdasarkan data basi.</li>
             <li>Keluar (logout) <strong>selalu ditanyakan dulu</strong> — satu pertanyaan, bukan beruntun: kalau ada nota yang belum terkirim atau shift yang menggantung, keterangannya ikut di dalam pertanyaan yang sama. Keluar tetap <strong>ditolak</strong> selama shift masih terbuka saat online; offline, keluar boleh setelah konfirmasi dan tercatat untuk dilaporkan saat kembali online.</li>
+          </ul>
+        </div>
+
+        <div class="kartu">
+          <h3>A12a. Masuk berlaku sampai jam 4 pagi &amp; kunci layar</h3>
+          <ul style="margin:0 0 0 18px;padding:0">
+            <li>Setelah masuk, akun berlaku sampai <strong>pukul 04.00</strong> pagi berikutnya. Sesudah itu semua akun diminta masuk lagi dengan PIN, walau sedang dipakai. Nota yang belum terkirim tetap aman di perangkat.</li>
+            <li>Layar <strong>selain Kasir</strong> yang tidak disentuh selama <strong>1 jam</strong> akan terkunci. Masukkan PIN akun yang sama untuk melanjutkan — halaman yang sedang terbuka tetap utuh. Layar Kasir tidak pernah terkunci.</li>
+            <li>Kunci bisa dibuka tanpa internet di tablet tempat akun itu pernah masuk dengan PIN. <strong>5 kali PIN salah</strong> mengunci tablet selama 15 menit.</li>
+            <li>Tombol <strong>Keluar</strong> di layar kunci untuk orang lain yang mau memakai tablet itu. Selama shift masih buka, buka kunci dulu lalu tutup shift.</li>
           </ul>
         </div>
 
@@ -1314,7 +1342,7 @@
          nota tanpa pramuniaga saat setelan mewajibkannya. -->
     <div id="byrJagaKlaim"></div>
     <div id="byrDaftarMetode"></div>
-    <button class="tombol" id="btnTambahMetode" style="width:100%;margin-bottom:12px">+ Metode bayar lain (split)</button>
+    <button type="button" class="tombol" id="btnTambahMetode">+ Metode lain</button>
     <div class="grup sembunyi" id="grupJatuhTempo">
       <label>Jatuh tempo piutang</label>
       <input type="date" id="byrJatuhTempo">

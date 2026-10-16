@@ -1913,6 +1913,148 @@ async function cocokSidikPin(username, pin) {
   return (await sidikPin(pin, s.garam)) === s.sidik;
 }
 
+/* ==================== KUNCI LAYAR (bagian 406) ====================
+   Pemilik 15 Okt 2026: perangkat back office yang ditinggal terbuka tidak
+   boleh terbuka sampai berjam-jam. Diam 1 jam di layar mana pun KECUALI Kasir
+   → layar ditutup, dibuka dengan PIN akun yang sama. Halaman di belakangnya
+   tetap utuh (bukan keluar): borang setengah diisi tidak hilang, antrean nota
+   dan sinkron tetap jalan. Keadaan terkunci disimpan di perangkat — tanpa itu
+   memuat ulang halaman melompati kuncinya. Diam juga dihitung dari waktu
+   aktivitas terakhir yang disimpan: tablet yang tidur semalam terkunci saat
+   bangun. Offline: PIN dicocokkan dengan sidik login offline (bagian 379),
+   dengan penghitung salah yang sama. */
+const KunciLayar = (() => {
+  const DIAM_MS = 60 * 60 * 1000, SIMPAN_MS = 30 * 1000;
+  let terakhir = Date.now(), tersimpan = 0, terkunci = false, terpasang = false;
+  const dikecualikan = () => layarKini === 'kasir';
+  const simpan = (k, v) => DB.kvSet(k, v).catch(() => { /* penyimpanan diblokir: penghitung di memori tetap jalan */ });
+  function catatTerakhir(paksa) {
+    if (!paksa && Date.now() - tersimpan < SIMPAN_MS) return;
+    tersimpan = Date.now();
+    simpan('kunci_terakhir', terakhir);
+  }
+  function aktif() { if (terkunci) return; terakhir = Date.now(); catatTerakhir(false); }
+  function periksa() {
+    if (terkunci || !APP_STATE.user) return;
+    if (dikecualikan()) { terakhir = Date.now(); catatTerakhir(false); return; }
+    if (Date.now() - terakhir >= DIAM_MS) kunci();
+  }
+  function kunci() {
+    terkunci = true;
+    simpan('terkunci', { id_user: APP_STATE.user.id_user });
+    $('#kunciNama').textContent = (APP_STATE.user.nama || APP_STATE.user.username || '');
+    $('#kunciPin').value = '';
+    pesan('#kunciPesan', '');
+    $('#kunciLayar').hidden = false;
+    setTimeout(() => $('#kunciPin').focus(), 50);
+  }
+  function lepas() {
+    terkunci = false;
+    terakhir = Date.now();
+    catatTerakhir(true);
+    simpan('terkunci', null);
+    $('#kunciLayar').hidden = true;
+  }
+  async function bukaOffline(pin) {
+    const gagal = (await DB.kvGet('gagal_offline', null)) || { n: 0, sampai: 0 };
+    const sisa = Math.ceil((Number(gagal.sampai || 0) - Date.now()) / 60000);
+    if (sisa > 0) return pesan('#kunciPesan', 'Tanpa internet — terlalu banyak PIN salah. Coba lagi dalam ' + sisa + ' menit, atau tunggu internet.', 'galat');
+    const cocok = await cocokSidikPin(APP_STATE.user.username, pin).catch(() => null);
+    if (cocok === true) { await DB.kvSet('gagal_offline', null); return lepas(); }
+    if (cocok === false) {
+      const n = Number(gagal.n || 0) + 1;
+      await DB.kvSet('gagal_offline', { n: n >= SIDIK_MAKS_GAGAL ? 0 : n,
+        sampai: n >= SIDIK_MAKS_GAGAL ? Date.now() + SIDIK_KUNCI_MENIT * 60000 : 0 });
+      return pesan('#kunciPesan', 'Tanpa internet — PIN salah.', 'galat');
+    }
+    pesan('#kunciPesan', 'Tanpa internet, PIN belum bisa diperiksa di perangkat ini. Tunggu internet kembali.', 'galat');
+  }
+  async function buka() {
+    const tbl = $('#kunciBuka');
+    if (tbl.disabled) return;
+    const pin = $('#kunciPin').value.trim();
+    if (!/^\d{6}$/.test(pin)) return pesan('#kunciPesan', 'PIN 6 digit.', 'galat');
+    tbl.disabled = true;
+    try {
+      await API.bukaKunci({ pin });
+      lepas();
+    } catch (e) {
+      if (e.kode === 'JARINGAN' || e.kode === 'OFFLINE') await bukaOffline(pin);
+      else pesan('#kunciPesan', e.kode === 'AUTH' ? 'PIN salah.' : e.message, 'galat');
+    } finally {
+      tbl.disabled = false;
+      $('#kunciPin').value = '';
+    }
+  }
+  function keluar() {
+    if (APP_STATE.idShift) {
+      return pesan('#kunciPesan', 'Shift masih buka. Buka kunci dengan PIN, lalu tutup shift sebelum keluar.', 'galat');
+    }
+    simpan('terkunci', null);
+    keluarAkun();
+  }
+  /** Login baru (daring/offline): diam dihitung dari sekarang, kunci lama dibuang. */
+  async function segarkan() {
+    terakhir = Date.now();
+    await simpan('kunci_terakhir', terakhir);
+    await simpan('terkunci', null);
+  }
+  /** Penangan kunci (tombol Buka, Enter, Keluar, penahan ketikan) dipasang
+   *  SEKALI dan SEBELUM layar bisa terkunci — pulihkan() mengunci di awal
+   *  mulaiSesi, jauh sebelum mulai(); tanpa ini tombol Buka mati selama
+   *  dialog "PIN masih PIN awal" menunggu di bawah lapisan kunci (catatan
+   *  peninjau-rilis atas perbaikan sebelumnya). */
+  function pasang() {
+    if (!terpasang) {
+      terpasang = true;
+      ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach((nama) => document.addEventListener(nama, (e) => {
+        if (!terkunci) return aktif();
+        /* Selagi terkunci, ketikan & sentuhan di luar kotak kunci tidak sampai ke
+           aplikasi di belakangnya (pintasan keyboard layar back office). */
+        if (!(e.target && e.target.closest && e.target.closest('#kunciLayar'))) {
+          e.stopPropagation();
+          if (nama === 'keydown') e.preventDefault();
+        }
+      }, { capture: true, passive: nama === 'wheel' || nama === 'touchstart' }));
+      setInterval(periksa, 30 * 1000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') periksa(); });
+      $('#kunciBuka').addEventListener('click', buka);
+      $('#kunciPin').addEventListener('keydown', (e) => { if (e.key === 'Enter') buka(); });
+      $('#kunciKeluar').addEventListener('click', keluar);
+    }
+  }
+  async function mulai() {
+    pasang();
+    const t = await DB.kvGet('terkunci', null).catch(() => null);
+    terakhir = Number(await DB.kvGet('kunci_terakhir', 0).catch(() => 0)) || Date.now();
+    if (t && t.id_user === APP_STATE.user.id_user) kunci();
+    else periksa();
+  }
+  /** Kunci yang tersimpan dipulihkan PALING AWAL saat sesi dibuka — sebelum
+   *  data dimuat dan sebelum dialog apa pun (catatan peninjau-rilis: dulu baru
+   *  di ujung mulaiSesi, jadi isi layar sempat terbaca di belakang dialog "PIN
+   *  masih PIN awal"). Diam 1 jam dinilai belakangan di mulai(), sesudah layar
+   *  pertamanya diketahui (Kasir dikecualikan). */
+  async function pulihkan() {
+    pasang();
+    const t = await DB.kvGet('terkunci', null).catch(() => null);
+    if (t && APP_STATE.user && t.id_user === APP_STATE.user.id_user) kunci();
+  }
+  /** Sesi berakhir (token habis 04.00) selagi terkunci: lapisan kunci DIANGKAT
+   *  supaya dialog "Sesi berakhir" terlihat dan bisa ditekan. Tanpa ini PIN
+   *  yang benar pun dijawab "sesi berakhir", Keluar ditolak karena shift buka,
+   *  dan tablet tanpa tombol Esc terkurung (catatan peninjau-rilis). Tidak ada
+   *  yang terbuka: tokennya sudah mati, berikutnya layar login. */
+  function lepasPaksa() {
+    terkunci = false;
+    simpan('terkunci', null);
+    $('#kunciLayar').hidden = true;
+  }
+  return { mulai, segarkan, periksa, pulihkan, lepasPaksa, get terkunci() { return terkunci; },
+           /* Untuk uji peramban: mundurkan aktivitas terakhir tanpa menunggu sejam. */
+           _mundur: (ms) => { terakhir -= ms; } };
+})();
+
 async function login(pakaiPassword = false) {
   if (_sedangLogin) return;
   const username = $('#inpUsername').value.trim();
@@ -1955,6 +2097,7 @@ async function login(pakaiPassword = false) {
     if (!pakaiPassword) { try { await simpanSidikPin(username, kredensial.pin); } catch (e) { /* tanpa WebCrypto */ } }
     await DB.kvSet('cabang_terakhir', d.cabang);
     await laporkanKeluarPaksa();
+    await KunciLayar.segarkan();
     await mulaiSesi(d);
   } catch (e) {
     pinBuffer = ''; gambarPin();
@@ -1976,6 +2119,7 @@ async function login(pakaiPassword = false) {
           await DB.kvSet('gagal_offline', null);
           pesan('#pesanLogin', 'Offline — masuk memakai sesi tersimpan. Sinkronisasi akan berjalan saat internet kembali.', 'info');
           API.setToken(sesiLama.token);
+          await KunciLayar.segarkan();
           await mulaiSesi(sesiLama);
         } else if (cocok === false) {
           const n = Number(gagal.n || 0) + 1;
@@ -2043,6 +2187,7 @@ async function mulaiSesi(d) {
 
   $('#layarLogin').classList.add('sembunyi');
   $('#app').classList.remove('sembunyi');
+  await KunciLayar.pulihkan();   // bagian 415 — sebelum data & dialog apa pun
 
   const inisial = String(d.user.nama || '?').trim().split(/\s+/)
     .slice(0, 2).map(w => w[0]).join('').toUpperCase();
@@ -2091,6 +2236,7 @@ async function mulaiSesi(d) {
       menujuKartu('akun', 'kartuAkun', '#pinLama');
     }
   }
+  await KunciLayar.mulai();   // bagian 406 — sesudah layar pertama terbuka
 }
 
 /**
@@ -3855,7 +4001,12 @@ function gambarMetode() {
   /* Metode di luar daftar (mis. "transfer" dari nota yang dipulihkan, atau
      transfer di cabang ecer) = belum dipilih. */
   APP_STATE.metodeBayar.forEach((m) => { if (tersedia.indexOf(m.metode) === -1) m.metode = ''; });
-  $('#byrDaftarMetode').innerHTML = APP_STATE.metodeBayar.map((m, i) => `
+  /* Tombol split DIPINDAH, bukan dibuat ulang (bagian 411): keluarkan dulu dari
+     daftar sebelum innerHTML menimpanya — kalau tidak, simpulnya ikut hancur
+     bersama penangan kliknya. */
+  const split = $('#btnTambahMetode'), daftar = $('#byrDaftarMetode');
+  if (split && daftar.contains(split)) daftar.after(split);
+  daftar.innerHTML = APP_STATE.metodeBayar.map((m, i) => `
     <div class="baris2" style="margin-bottom:8px;align-items:end">
       <div>
         <label>Metode ${i + 1}</label>
@@ -3884,15 +4035,27 @@ function gambarMetode() {
              pecahan jadi harus menyaring dua tombol yang bukan uang di antara
              deretan uang. Dipisah, kedua kelompok selalu utuh berapa pun lebar
              layarnya. (Tanpa petik-balik: blok ini di dalam template literal.) */''}
-      <div class="pecahan-baris">
+      <div class="pecahan-baris nominal">
         ${PECAHAN.map(n => `<button type="button" class="cip uang u-${n}" data-i="${i}" data-f="pecahan"
             data-nilai="${n}" title="Tambah ${rpTeks(n)}"><span>${labelPecahan(n)}</span></button>`).join('')}
       </div>
-      <div class="pecahan-baris">
+      <div class="pecahan-baris perintah">
         <button type="button" class="cip pas" data-i="${i}" data-f="pas">Uang pas</button>
         <button type="button" class="cip kosong" data-i="${i}" data-f="nol" title="Nolkan">C</button>
       </div>
     </div>` : ''}`).join('');
+  /* Bentuk B (pemilik 16 Okt 2026, titipan bagian 411: "rapihkan tombol tombol
+     itu supaya tidak memakan tempat"): bila metode TERAKHIR tunai, tombol split
+     duduk di baris perintah — Uang pas · C · + Metode lain — dan baris selebar
+     penuhnya hilang. Metode terakhir bukan tunai: tidak ada baris pecahan, jadi
+     tombolnya tetap selebar penuh di bawah. Nominal dan perintah tetap dua
+     wadah terpisah, jadi tidak pernah bercampur. */
+  const m = APP_STATE.metodeBayar, akhir = m.length ? m[m.length - 1] : null;
+  const perintah = akhir && akhir.metode === 'tunai' ? [...daftar.querySelectorAll('.pecahan-baris.perintah')].pop() : null;
+  if (split) {
+    if (perintah) { perintah.appendChild(split); perintah.classList.add('ada-split'); }
+    split.classList.toggle('di-baris', !!perintah);
+  }
 }
 
 function gambarBayar() { gambarMetode(); gambarRingkasBayar(); }
@@ -8326,6 +8489,7 @@ function pasangEvent() {
   document.addEventListener('koneksi:berubah', () => document.dispatchEvent(
     new CustomEvent('sync:status', { detail: Sync.status })));
   document.addEventListener('sesi:berakhir', async () => {
+    KunciLayar.lepasPaksa();   // bagian 415 — dialog di bawah ini harus bisa ditekan
     /* Tokennya HARUS dihapus sebelum reload. Tanpa itu `mulai()` memulihkan token
        yang sudah mati, aplikasi terbuka kembali dengan sesi hantu — dan sejak
        tombol Keluar dijaga shift, kasir terkurung: tidak bisa keluar, dan tidak

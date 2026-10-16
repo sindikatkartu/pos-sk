@@ -220,7 +220,7 @@ const API = (() => {
   const TIDAK_DIULANG = new Set([
     'batal_opname', 'batal_pembelian', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
-    'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
+    'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
     'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_kas_shift', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
@@ -545,6 +545,7 @@ let _pernahJawab = false;
     gantiCabang:     (d) => panggil('ganti_cabang', d),
     catatKeluarPaksa:(d) => panggil('catat_keluar_paksa', d),
     gantiPin:        (d) => panggil('ganti_pin', d),
+    bukaKunci:       (d) => panggil('buka_kunci', d),
 
     /* Empat endpoint di bawah dipakai DUA cara: dari tombol, dan dari timer
        sinkronisasi. Karena itu mereka meneruskan `o` — `sync.js` mengisinya
