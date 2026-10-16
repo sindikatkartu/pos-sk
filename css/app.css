@@ -786,6 +786,15 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .menu-baris .popover-menu { min-width: 160px; z-index: 60; }
 .menu-baris > .tombol { min-height: 32px; padding: 4px 8px; }
 td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4px; padding-right: 8px; }
+/* Tombol Label baris Produk (bagian 418): ikon sekali ketuk SETINGGI tombol ⋯
+   di sebelahnya, dengan angka lembar di keranjang stiker di sudutnya. */
+.sel-tombol-baris { display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.tombol.kecil.tombol-label { position: relative; min-height: 32px; min-width: 34px; justify-content: center; }
+.angka-stiker {
+  position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: var(--utama-tombol); color: #fff;
+  font-size: var(--fs-11); font-weight: 700; line-height: 18px; text-align: center;
+}
 /* Pembeda isi ⋮ baris (bagian 274): WARNA TITIKNYA saja — bingkai dan
    ukurannya sama, jadi kolomnya tetap lurus. Kuning = ada permintaan yang
    menunggu (perangkat minta gabung); merah = di dalamnya ada Hapus. Kuning menang bila keduanya. */
@@ -3345,6 +3354,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   /* ⋮ baris (bagian 274): aturan 32 px-nya lebih spesifik daripada
      `.tombol` di atas, jadi disebut sendiri. Ditangkap uji-rupa. */
   .menu-baris > .tombol { min-height: 40px; }
+  .tombol.kecil.tombol-label { min-height: 40px; min-width: 40px; }
   .tombol-ikon, .bar-atas button, .sisi-atas button, .sisi-bawah button {
     min-width: 40px; min-height: 40px;
   }

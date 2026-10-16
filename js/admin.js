@@ -2536,6 +2536,9 @@ const Admin = (() => {
 
   async function muatProduk() {
     rangkaProduk();
+    /* Angka lembar di tombol Label & lencana Stiker dari keranjang yang
+       tersimpan di perangkat (bagian 418). */
+    muatKeranjangLabel().then(perbaruiLencanaStiker).catch(() => { /* keranjang tak terbaca: angka kosong */ });
     try {
       /* `turunan` diminta hanya kalau kolomnya memang sedang dipilih. Tiga
          pembacaan sheet (441 md) tidak dibayar orang yang cuma mencari satu
@@ -2919,8 +2922,16 @@ const Admin = (() => {
              apa pun tentang dirinya. Sekarang `Label.kodeProduk` mencetak
              barcode PABRIKNYA untuk produk itu, jadi kedua stiker memindai ke
              kode yang sama dan tidak ada lagi "yang salah" untuk discan. */
-          { judul: '', render: r => `<button class="tombol kecil" data-edit-produk="${esc(r.sku)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` +
-              ` <button class="tombol kecil" data-label-produk="${esc(r.sku)}" title="Cetak label harga">${ikonAlat('label')}<span>Label</span></button>` }
+          /* Bagian 418 (pemilik 16 Okt 2026): Label jadi IKON sekali ketuk dengan
+             angka lembar yang sudah di keranjang stiker — tiap ketuk menambah satu
+             lembar (bab 83), jadi tidak boleh pindah ke dalam menu; Ubah masuk ⋯.
+             Pengecualian kedua dari "ikon + teks" (bagian 226): namanya di
+             title/aria-label, gambarnya tag yang tidak dipakai arti lain. */
+          { judul: '', kelas: 'sel-menu', render: r => `<span class="sel-tombol-baris">${
+              tombolIkon('tombol-label', 'Tambah 1 lembar label', IKON.label, `data-label-produk="${esc(r.sku)}"`)
+                .replace('</button>', angkaStiker(r.sku) + '</button>')}${
+              menuTindakan({ id: 'menuPr' + idAman(r.sku), idTombol: 'btnPr' + idAman(r.sku), kunci: 'baris-produk', baris: true,
+                isi: butirBaris('', 'Ubah', IKON.ubah, `data-edit-produk="${esc(r.sku)}"`, 'Ubah produk') })}</span>` }
     ];
   }
   function tabelProduk(baris, kolom) {
@@ -2975,8 +2986,23 @@ const Admin = (() => {
     perbaruiLencanaStiker(k);
   };
 
+  /* Lembar per SKU di keranjang stiker — angka di tombol Label baris Produk
+     (bagian 418). Diisi perbaruiLencanaStiker, satu-satunya pintu yang
+     dilalui setiap perubahan keranjang (simpanKeranjangLabel, dialognya). */
+  let lembarStiker = {};
+  const angkaStiker = (sku) => {
+    const n = lembarStiker[String(sku)];
+    return n ? `<span class="angka-stiker" aria-hidden="true">${n > 99 ? '99+' : n}</span>` : '';
+  };
   /** Angka di butir Stiker = jumlah STIKER, bukan jumlah baris keranjang. */
   function perbaruiLencanaStiker(k) {
+    lembarStiker = {};
+    (k || []).forEach((x) => { lembarStiker[String(x.sku)] = (lembarStiker[String(x.sku)] || 0) + (Number(x.lembar) || 1); });
+    $$('[data-label-produk]').forEach((b) => {
+      const lama = b.querySelector('.angka-stiker');
+      if (lama) lama.remove();
+      b.insertAdjacentHTML('beforeend', angkaStiker(b.dataset.labelProduk));
+    });
     const n = (k || []).reduce((a, x) => a + (Number(x.lembar) || 1), 0);
     const el = $('#lencanaStiker');
     if (el) el.textContent = String(n);
@@ -3190,7 +3216,7 @@ const Admin = (() => {
           Number(x.lembar) || 1}" min="1" max="999" step="1" style="max-width:90px">
         <button class="tombol kecil bahaya" data-stiker-buang="${esc(x.sku)}">Buang</button>
       </div>`;
-    }).join('') : '<p class="petunjuk" style="margin:0">Keranjang masih kosong — cari produk di atas, atau tekan tombol Label di baris produk.</p>';
+    }).join('') : '<p class="petunjuk" style="margin:0">Keranjang masih kosong — cari produk di atas, atau tekan tombol barcode di baris produk.</p>';
 
     $$('.labQty').forEach(i => i.addEventListener('change', ubahJumlahStiker));
     perbaruiLencanaStiker(k);
@@ -11404,14 +11430,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         : (a.habis ? lencanaDash('habis disusutkan', 'redup') : '')}</td>
       <!-- nowrap: dua tombol di sel tanpa lebar akan membungkus ke bawah,
            dan baris tabelnya jadi setinggi dua tombol. -->
-      <td style="white-space:nowrap">${bolehIzin('laporan_keuangan', 'ubah') ? (
-        tombolBaris('', 'Ubah', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`, 'Ubah aset') +
-        /* Yang sudah DILEPAS tidak menawarkan tombolnya lagi: melepas dua
-           kali mengkreditkan asetnya dua kali dan mendebit akumulasinya dua
-           kali, dan neraca timpang persis sebesar satu aset. */
-        (a.status === 'AKTIF'
-          ? tombolBaris('', 'Lepas', IKON.lepas, `data-lepas-aset="${esc(a.kode)}"`,
-                        'Lepas aset — dijual, dihibahkan, atau dibuang') : '')
+      <td class="sel-menu">${bolehIzin('laporan_keuangan', 'ubah') ? (
+        /* Bagian 418: dua tombol → menu ⋯ (aturan bagian 274), titik merah
+           karena Lepas mengeluarkan aset dari buku. Yang sudah DILEPAS tidak
+           menawarkan Lepas lagi — melepas dua kali mengkreditkan asetnya dua
+           kali dan neraca timpang sebesar satu aset — jadi tinggal satu
+           tombol Ubah, tanpa menu. */
+        a.status === 'AKTIF'
+          ? menuTindakan({ id: 'menuAset' + idAman(a.kode), idTombol: 'btnAset' + idAman(a.kode), kunci: 'baris-aset', baris: true,
+              isi: butirBaris('', 'Ubah', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`, 'Ubah aset') +
+                   butirBaris('bahaya', 'Lepas', IKON.lepas, `data-lepas-aset="${esc(a.kode)}"`, 'Lepas aset — dijual, dihibahkan, atau dibuang') })
+          : tombolBaris('', 'Ubah', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`, 'Ubah aset')
       ) : ''}</td>
     </tr>`;
 
@@ -12656,8 +12685,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Aksi', render: (s) => `<div style="display:flex;gap:6px;white-space:nowrap">${
           s.status === 'DIBAYAR'
             ? tombolBaris('', 'Cetak', IKON.cetak, `data-cetak-slip="${esc(s.id_slip)}"`, 'Cetak slip gaji')
-            : bolehUbah ? tombolBaris('', 'Ubah', IKON.ubah, `data-ubah-slip="${esc(s.id_slip)}"`, 'Ubah slip') +
-                          tombolBaris('utama', 'Bayar', IKON.bayar, `data-bayar-slip="${esc(s.id_slip)}"`, 'Bayar gaji ini')
+            /* Bagian 418: Bayar (tindakan utama slip DRAF) tetap sekali ketuk; Ubah ke ⋯. */
+            : bolehUbah ? tombolBaris('utama', 'Bayar', IKON.bayar, `data-bayar-slip="${esc(s.id_slip)}"`, 'Bayar gaji ini') +
+                          menuTindakan({ id: 'menuSlip' + idAman(s.id_slip), idTombol: 'btnSlip' + idAman(s.id_slip), kunci: 'baris-slip', baris: true,
+                            isi: butirBaris('', 'Ubah', IKON.ubah, `data-ubah-slip="${esc(s.id_slip)}"`, 'Ubah slip') })
             : ''}</div>` }
     ];
     /* Siapkan PALING KANAN (bagian 256, pemilik: "letakkan dipaling kanan"). */

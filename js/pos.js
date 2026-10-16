@@ -1535,7 +1535,9 @@ var IKON_SUMBER = {
   ubah      : 'pencil',
   simpan    : 'save',
   batal     : 'x',
-  label     : 'tag',
+  /* Barcode, bukan tag (pemilik 16 Okt 2026, bagian 418: "ikon labelnya kayak
+     label baju, padahal label itu barcode"). */
+  label     : 'barcode',
   ekspor    : 'download',
   impor     : 'upload',
   jalankan  : 'play',
@@ -1675,7 +1677,7 @@ var IKON = {
      tanpa menulis apa pun; dua gambar berbeda untuk satu akibat
      membuat orang mengira ada bedanya. */
   batal     : '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
-  label     : '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  label     : '<path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/>',
   ekspor    : '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
   impor     : '<path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
   jalankan  : '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
