@@ -270,6 +270,87 @@ html[data-tema="gelap"] {
    gelap — tanpa itu setiap kotak tanggal menyala putih di tengah formulir. */
 html[data-tema="gelap"] { color-scheme: dark; }
 
+/* TOKEN KERTAS (bagian 431) — di wilayah token, bukan di badan aturan: nilai
+   terang untuk SETIAP token yang diubah mode gelap (daftarnya dibangkitkan
+   dari dua blok tema; uji.js menolak token gelap yang tidak ikut), tiga latar
+   diganti putih hangat, plus dua warna gradasi kertas. Pemakaiannya .kertas di
+   bawah (dekat .modal). */
+.kertas {
+  --bg: #faf9f5;
+  --panel: #fffdf8;
+  --panel-2: #f6f2e7;
+  --panel-3: #ece6d6;
+  --sisi-bg: #ffffff;
+  --garis: rgba(31,30,29,.30);
+  --garis-halus: rgba(31,30,29,.15);
+  --garis-kuat: rgba(31,30,29,.45);
+  --garis-tombol: rgba(31,30,29,.30);
+  --teks: #141413;
+  --teks-2: #3d3d3a;
+  --teks-redup: #706f69;
+  --utama: #206fbd;
+  --utama-tombol: #206fbd;
+  --utama-gelap: #17538d;
+  --utama-lembut: #e7f1fb;
+  --utama-garis: #a8cdf0;
+  --utama-rgb: 32,111,189;
+  --sukses: #547b1e;
+  --sukses-tombol: #547b1e;
+  --sukses-gelap: #3f5c16;
+  --sukses-lembut: #f2fae8;
+  --sukses-garis: #b6d493;
+  --peringatan: #a06104;
+  --peringatan-lembut: #fbf3e7;
+  --peringatan-garis: #e8c48c;
+  --bahaya: #cf2222;
+  --ungu: #6d4fc2;
+  --ungu-lembut: #efeafb;
+  --teal: #0f766e;
+  --teal-lembut: #e3f3f1;
+  --kons-kepala: #12243a;
+  --kons-kepala-teks: #f7fafc;
+  --sumber-pos: #22c07a;
+  --sumber-pulsa: #f0a132;
+  --sumber-accurate: #6f7bf7;
+  --kons-minus: #ff9090;
+  --bahaya-tombol: #cf2222;
+  --bahaya-lembut: #fbe7e7;
+  --bahaya-garis: #f0a9a9;
+  --bayang-1: 0 1px 0 rgba(31,30,29,.04);
+  --bayang-2: 0 1px 0 rgba(31,30,29,.04), 0 1px 3px rgba(31,30,29,.12);
+  --bayang-3: 0 3px 6px rgba(31,30,29,.15);
+  --bayang-4: 0 8px 24px rgba(31,30,29,.20);
+  --cincin: 0 0 0 3px rgba(32,111,189,.30);
+  --tirai: rgba(20,20,19,.50);
+  --garis-rangka: rgba(31,30,29,.16);
+  --gulir-bayang: rgba(0,0,0,.16);
+  --tombol-tekan: #e4e2d4;
+  --aksen-aktif: #c96442;
+  --logo-bg: #141413;
+  --logo-teks: #ffffff;
+  --seri-1: #2c84db;
+  --seri-2: #ca7b05;
+  --seri-3: #6a9b26;
+  --seri-4: #8b5cf6;
+  --seri-5: #c2559b;
+  --seri-6: #706f69;
+  --kertas-grafik: #ffffff;
+  --uang-10000-bg: #ece4f2;
+  --uang-10000-garis: #bfa6cf;
+  --uang-10000-teks: #573a6b;
+  --uang-20000-bg: #e6f1e2;
+  --uang-20000-garis: #a9cca0;
+  --uang-20000-teks: #33602a;
+  --uang-50000-bg: #e3edf7;
+  --uang-50000-garis: #a3c2de;
+  --uang-50000-teks: #1d4d78;
+  --uang-100000-bg: #fbe9e7;
+  --uang-100000-garis: #e0a99f;
+  --uang-100000-teks: #8a3323;
+  --kertas-atas: #fffefb;
+  --kertas-bawah: #fbf7ee;
+}
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Dua tumpukan huruf. --huruf-uang dipakai .angka-uang (angka uang di luar Kasir). */
@@ -1586,6 +1667,51 @@ label {
   padding: 22px; width: 100%; max-width: 480px; max-height: 90vh; overflow: auto;
 }
 .modal h3 { margin: 0 0 16px; font-size: var(--fs-19); font-weight: 650; letter-spacing: -.25px; }
+
+/* KERTAS (bagian 431, pemilik 17 Okt 2026: "pertahankan untuk detail/dokumen
+   semacam itu menggunakan warna putih biarpun di dark mode. tapi buat seperti
+   tekstur kertas", lalu "di per kecil dan padat informasi"). Rincian dokumen
+   yang hanya DIBACA — BKM/BKK, Pembelian, Transfer, Permintaan, Hasil opname,
+   Laporan shift, rincian selisih — tetap selembar kertas putih hangat di mode
+   gelap. Caranya: SETIAP token yang diubah blok mode gelap dikembalikan ke
+   nilai terangnya di dalam .kertas, jadi isi dokumen (tabel, lencana, tombol)
+   ikut terang tanpa aturan per komponen. Daftar tokennya DIBANGKITKAN dari
+   dua blok tema di atas, dan uji.js menolak token gelap yang tidak ikut —
+   token baru tidak bisa bocor diam-diam. Serat = SVG feTurbulence sebaris. */
+.kertas {
+  color-scheme: light; color: var(--teks);
+  background-color: var(--panel);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42  0 0 0 0 .36  0 0 0 0 .26  0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='%75rl(%23n)'/%3E%3C/svg%3E"), linear-gradient(180deg, var(--kertas-atas) 0%, var(--kertas-bawah) 100%);
+}
+html[data-tema="gelap"] .kertas { box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+/* Padat: dokumen dibaca sekilas, bukan diisi. Tombol tetap ≥ 40 px di
+   perangkat sentuh (aturan umum .tombol di blok sentuh tidak disentuh). */
+.modal.kertas { font-size: var(--fs-13); line-height: 1.4; padding: 14px 16px; }
+.modal.kertas h3 { font-size: var(--fs-15); margin: 0 0 6px; }
+.modal.kertas th, .modal.kertas td { padding: 4px 8px; }
+.modal.kertas p, .modal.kertas .petunjuk { margin: 2px 0 6px; font-size: var(--fs-12); }
+.modal.kertas .total-baris { padding: 2px 0; }
+.modal.kertas .total-baris.besar span:last-child { font-size: var(--fs-19); }
+.modal.kertas h4, .modal.kertas .bar-alat h3 { font-size: var(--fs-13); margin: 8px 0 2px; }
+
+/* RINCIAN SELISIH di tab Setoran (bagian 431): angkanya tombol, pop-up kecil
+   padat menempel di angkanya — diletakkan letakkanMenuBaris. */
+.sel-selisih { background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  text-decoration: underline dotted; text-underline-offset: 3px; color: inherit; }
+.sel-selisih.kurang { color: var(--bahaya); }
+.menu-baris .popover-menu.pop-selisih { width: 232px; min-width: 0; padding: 8px 10px; font-size: var(--fs-12);
+  line-height: 1.35; text-align: left; white-space: normal; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.pop-selisih .ps-judul { display: flex; justify-content: space-between; gap: 8px; font-size: var(--fs-11);
+  letter-spacing: .06em; text-transform: uppercase; color: var(--teks-redup); font-weight: 600; }
+.pop-selisih .ps-judul button { background: none; border: 0; padding: 0; font: inherit; color: var(--utama); cursor: pointer; letter-spacing: 0; text-transform: none; }
+.pop-selisih table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.pop-selisih td { padding: 1px 0; border: 0; background: none; }
+.pop-selisih td:last-child { text-align: right; }
+.pop-selisih tr.ps-garis td { border-top: 1px solid var(--garis); padding-top: 3px; font-weight: 600; }
+.pop-selisih tr.ps-kurang td { color: var(--bahaya); }
+.pop-selisih .ps-catatan { color: var(--teks-redup); margin-top: 4px; }
+.pop-selisih .ps-petunjuk { margin-top: 4px; padding: 4px 6px; border-left: 3px solid var(--peringatan); background: var(--peringatan-lembut); }
+
 /* Sejak v1.51 deretan ini boleh membungkus. Modal opname punya EMPAT tombol
    (Tutup · Batalkan opname · Simpan sementara · Selesai menghitung); dengan
    `flex:1` tanpa batas bawah, keempatnya menyusut sampai labelnya terpotong

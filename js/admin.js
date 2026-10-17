@@ -482,10 +482,20 @@ const Admin = (() => {
        ada — 89 galat di satu PC dalam sehari. bukaKeranjangLabel memasangnya
        lagi SESUDAH memanggil bukaModal. */
     $('#modalUmum')._label = null;
+    /* Setiap pembukaan mulai TANPA gaya kertas — hanya bukaDokumen yang memasangnya. */
+    $('#modalUmum').classList.remove('kertas');
     $('#modalUmum').innerHTML = `<h3>${esc(judul)}</h3>${isi}
       <div class="aksi-modal">${aksi || ('<button class="tombol" data-tutup="1">' +
           ikonAlat('batal') + '<span>Tutup</span></button>')}</div>`;
     $('#tiraiUmum').classList.add('tampil');
+  }
+  /** Rincian DOKUMEN: modal yang sama, bergaya kertas putih padat — juga di mode
+   *  gelap (bagian 431). Dokumen yang masih bisa ditindak (Pembelian: Periksa/Lunas,
+   *  Hasil opname: Posting) ikut — pemilik: "semua rincian dokumen". Dialog isian
+   *  (Bayar, Terima, Koreksi, borang baru) tetap bukaModal. */
+  function bukaDokumen(judul, isi, aksi) {
+    bukaModal(judul, isi, aksi);
+    $('#modalUmum').classList.add('kertas');
   }
   /* Menutup modal MELEPAS berkas Accurate yang menunggu disetujui.
      Ditemukan uji-acc-pratinjau: tanpa baris ini, Batal cuma menyembunyikan
@@ -5300,7 +5310,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const bolehBatal = !['DIBATALKAN', 'DITOLAK'].includes(d.status) && bolehIzin('pembelian', 'hapus');
     const bolehPeriksa = d.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui');
 
-    bukaModal(`Pembelian ${d.no_dokumen || '(tanpa nomor)'}`, `
+    bukaDokumen(`Pembelian ${d.no_dokumen || '(tanpa nomor)'}`, `
       <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.nama_supplier || '—')} ·
         ${lencanaStatusBeli(d.status)}
         ${d.jatuh_tempo ? `<br>Jatuh tempo ${esc(tglTampil(d.jatuh_tempo))}` : ''}
@@ -9696,7 +9706,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function detailTransfer(uuid) {
     const t = ($('#isiTransfer')._rows || []).find(x => x.uuid === uuid);
     if (!t) return;
-    bukaModal(`Transfer ${t.no_dokumen}`, `
+    bukaDokumen(`Transfer ${t.no_dokumen}`, `
       <p class="petunjuk">${esc(t.cabang_asal)} → ${esc(t.cabang_tujuan)} ·
         <span class="lencana ${LENCANA_TRANSFER[t.status] || ''}">${esc(t.status)}</span><br>
         Dikirim ${esc(waktuTampil(t.tanggal_kirim))} oleh ${esc(t.user_kirim)}
@@ -10184,7 +10194,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function detailPermintaan(uuid) {
     const t = ($('#isiPermintaan')._rows || []).find(x => x.uuid === uuid);
     if (!t) return;
-    bukaModal(`Permintaan ${t.no_dokumen}`, `
+    bukaDokumen(`Permintaan ${t.no_dokumen}`, `
       <p class="petunjuk">${esc(t.cabang_asal)} &rarr; ${esc(t.cabang_tujuan)} &middot;
         <span class="lencana ${LENCANA_PERMINTAAN[t.status] || ''}">${esc(t.status)}</span><br>
         Diminta ${esc(tglTampil(t.tanggal))} oleh ${esc(t.nama_peminta)}
@@ -10589,7 +10599,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const cocok = d.item.length - selisih.length;
     const punyaNilai = d.nilai_selisih !== undefined;
 
-    bukaModal(`Hasil opname — ${d.no_dokumen}`, `
+    bukaDokumen(`Hasil opname — ${d.no_dokumen}`, `
       <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(130px,100%),1fr))">
         <div class="kartu statistik"><div class="label">Dihitung</div><div class="nilai">${d.item.length}</div></div>
         <div class="kartu statistik"><div class="label">Cocok</div>
@@ -11999,7 +12009,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const d = dokKasCari(idDok);
     if (!d) return toast('Dokumen itu tidak ada lagi di daftar.', 'galat');
     const c = DOK_KAS[d.jenis];
-    bukaModal(c.label + (d.no ? ' ' + d.no : ''), `
+    bukaDokumen(c.label + (d.no ? ' ' + d.no : ''), `
       <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.kode_cabang || '')} · ${esc(d.nama_akun_kas)}</p>
       <div class="gulir-x"><table class="tabel"><thead><tr><th>Akun</th><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
         <tbody>${d.baris.map((b) => `<tr><td data-l="Akun">${esc(b.nama_akun || b.kode_akun)}</td>
@@ -12566,7 +12576,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td data-l="Tutup">${esc(waktuTampil(sh.tutup))}</td>
           <td class="kanan" data-l="Uang dihitung">${rp(sh.kas_fisik)}</td>
           ${adaNt ? `<td class="kanan" data-l="Non-tunai">${ntSel(sh)}</td>` : ''}
-          <td class="kanan" data-l="Selisih">${sh.selisih ? rp(sh.selisih) : '—'}</td>
+          <td class="kanan" data-l="Selisih">${sh.selisih ? `<button type="button" class="sel-selisih${sh.selisih < 0 ? ' kurang' : ''}" data-rincian-selisih="${esc(sh.id_shift)}"
+              title="Rincian selisih">${rp(sh.selisih)}</button>` : '—'}</td>
           <!-- Cabangnya dari BARISNYA, bukan dari pemilih di bar. Menyetorkan
                uang SK02 ke buku SK01 memindahkan uang yang tidak ada di sana. -->
           <td>${tombolBaris('utama', 'Terima', IKON.terima,
@@ -12582,6 +12593,91 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          di Dana QRIS dan rekeningnya sejak transaksi, jadi <strong>Terima</strong> hanya
          memindahkan uang tunai. Sesudah Terima, bukti setorannya bisa dicetak.` : ''}</p>
     </div>`;
+  }
+
+  /* RINCIAN SELISIH SETORAN (bagian 431). Pemilik: "itu selisih kurang jelas
+     asalnya dari mana ... supaya admin saya [tidak] harus muter muter nebak
+     nebak". Klik angka selisih → pop-up kecil padat bergaya kertas: kas awal +
+     tunai masuk − kas keluar = seharusnya, dihitung petugas, kurang/lebih,
+     catatan petugas, dan PETUNJUK bila angkanya cocok dengan sesuatu. Rincian
+     dibaca dari Laporan shift (API.laporanShift) SAAT DIKLIK — tidak ada kode
+     server baru, dan membuka tab Setoran tidak bertambah lambat. Shift pulsa
+     tidak punya Laporan shift kasir: hanya seharusnya / dihitung / selisih. */
+  const angkaSel = (v) => (Number(v) < 0 ? '\u2212' : '') + ribuan(Math.abs(Number(v) || 0));
+  function petunjukSelisih(sh, lap) {
+    const s = Math.round(Math.abs(Number(sh.selisih) || 0));
+    if (!s) return [];
+    const p = [];
+    const k = lap && lap.kas;
+    if (k && k.sistem_tutup !== null && k.sistem_tutup !== undefined && Math.abs(Number(k.sistem) - Number(k.sistem_tutup)) >= 1) {
+      p.push('Sesudah shift ditutup ada transaksi baru \u2014 hitungan sistem kini ' + angkaSel(k.sistem) + '.');
+    }
+    const nota = ((lap && lap.nota) || []).filter((n) => String(n.status) === 'AKTIF' && Math.round(Number(n.total) || 0) === s)[0];
+    if (nota) p.push('Sama dengan nota ' + nota.no_nota + ' (' + labelMetode(nota.metode || 'tunai') + ') \u2192 cek metode bayarnya.');
+    if (k && Math.round(Number(k.kas_keluar) || 0) === s) p.push('Sama dengan kas keluar \u2192 cek pengeluaran tercatat dua kali / uangnya belum diambil.');
+    if (typeof PECAHAN !== 'undefined' && PECAHAN.indexOf(s) !== -1) p.push('Tepat 1 lembar ' + ribuan(s) + ' \u2192 cek hitungan/kembalian.');
+    return p;
+  }
+  function isiPopSelisih(sh, lap, gagal) {
+    const k = lap && lap.kas;
+    const sel = Number(sh.selisih) || 0;
+    const seharusnya = k ? (k.sistem_tutup !== null && k.sistem_tutup !== undefined ? k.sistem_tutup : k.sistem) : sh.kas_sistem;
+    const baris = (l, v, kelas) => '<tr' + (kelas ? ' class="' + kelas + '"' : '') + '><td>' + esc(l) + '</td><td>' + angkaSel(v) + '</td></tr>';
+    const catatan = lap && lap.shift && String(lap.shift.catatan || '').trim();
+    const pt = petunjukSelisih(sh, lap);
+    return '<div class="ps-judul"><span>Selisih \u00b7 ' + esc(sh.id_shift) + '</span>' +
+        (lap ? '<button type="button" data-ps-laporan="1">Laporan \u2192</button>' : '') + '</div>' +
+      '<table>' +
+        (k ? baris('Kas awal', k.awal) + baris('+ Tunai masuk', k.tunai_masuk) + baris('\u2212 Kas keluar', k.kas_keluar) : '') +
+        baris('Seharusnya', seharusnya, 'ps-garis') +
+        baris('Dihitung', sh.kas_fisik) +
+        baris(sel < 0 ? 'Kurang' : 'Lebih', sel, 'ps-garis' + (sel < 0 ? ' ps-kurang' : '')) +
+      '</table>' +
+      (catatan ? '<div class="ps-catatan">\u201c' + esc(catatan) + '\u201d \u2014 petugas</div>' : '') +
+      (sh.jenis === 'PULSA' ? '<div class="ps-catatan">Shift pulsa \u2014 rinciannya di menu Pulsa.</div>' : '') +
+      (gagal ? '<div class="ps-catatan">Rincian kas awal & transaksi gagal dimuat.</div>' : '') +
+      pt.map((x) => '<div class="ps-petunjuk">' + esc(x) + '</div>').join('');
+  }
+  async function bukaPopSelisih(tombol) {
+    const sh = _setoranBelum[tombol.dataset.rincianSelisih];
+    if (!sh) return;
+    if (!$('#popSelisih')) {
+      document.body.insertAdjacentHTML('beforeend', '<div class="menu-lain menu-baris" id="popSelisihWadah">' +
+        '<div class="popover-akun popover-menu pop-isian pop-selisih kertas" id="popSelisih" role="dialog" aria-label="Rincian selisih" hidden></div></div>');
+    }
+    const m = $('#popSelisih');
+    if (!tombol.id) tombol.id = 'btnSelisih' + idAman(sh.id_shift);
+    m.setAttribute('aria-labelledby', tombol.id);
+    tutupMenuLain();
+    m.innerHTML = isiPopSelisih(sh, null).replace('</table>', '</table><div class="ps-catatan">Memuat rincian\u2026</div>');
+    m.hidden = false;
+    letakkanMenuBaris(tombol, m);
+    let lap = null, gagal = false;
+    if (sh.jenis !== 'PULSA') {
+      try { lap = await API.laporanShift({ id_shift: sh.id_shift, ...(sh.kode_cabang ? { cabang: sh.kode_cabang } : {}) }); }
+      catch (e) { gagal = true; }
+      if (lap && !lap.kas) { lap = null; gagal = true; }
+    }
+    /* Sudah ditutup, atau berganti ke baris lain selagi menunggu. */
+    if (m.hidden || m.getAttribute('aria-labelledby') !== tombol.id) return;
+    m.innerHTML = isiPopSelisih(sh, lap, gagal);
+    letakkanMenuBaris(tombol, m);
+    m.onclick = (e) => {
+      if (!e.target.closest('[data-ps-laporan]')) return;
+      tutupMenuLain();
+      bukaLaporanShift(sh.id_shift, sh.kode_cabang);
+      /* Laporan shift bisa MENGOREKSI kas fisik. Baris setoran yang dipegang
+         layar ini (data-jumlah, _setoranBelum) lalu basi, dan Terima ditolak
+         server ("Muat ulang tab Setoran"). Saat laporannya ditutup, tab
+         Setoran dimuat ulang — temuan peninjau-rilis bagian 431. */
+      const tirai = $('#tiraiLapShift');
+      const awas = new MutationObserver(() => {
+        if (tirai.classList.contains('tampil')) return;
+        awas.disconnect();
+        if ($('#layarKas.aktif') && tabKas === 'setoran') muatKas();
+      });
+      awas.observe(tirai, { attributes: true, attributeFilter: ['class'] });
+    };
   }
 
   /* BUKTI SETORAN (bagian 389) — menggantikan berita acara manual: tunai yang
@@ -13353,6 +13449,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnProdukBaru')   return editorProduk(null);
       if (d.editProduk)               return editorProduk(d.editProduk);
       if (d.labelProduk)              return bukaPopStiker(t);
+      if (d.rincianSelisih)           return bukaPopSelisih(t);
       if (t.id === 'btnKeranjangLabel') return bukaKeranjangLabel();
       if (d.stikerTambah)             return tambahKeranjangLabel(d.stikerTambah);
       if (d.stikerBuang)              return buangStiker(d.stikerBuang);
