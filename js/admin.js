@@ -7630,7 +7630,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   function kartuLikuid(lk) {
     if (!lk || !Array.isArray(lk.akun) || !lk.akun.length) return '';
-    const kotak = lk.akun.map((a) => miniKons(a.nama, rp(a.jumlah), a.kode))
+    const kotak = lk.akun.filter((a) => tampilAkunKas(a.kode, a.jumlah)).map((a) => miniKons(a.nama, rp(a.jumlah), ketAkunKas(a.kode)))
       .concat([
         miniKons(lk.deposit_nama || 'Deposit pulsa', rp(lk.deposit_pulsa), 'di aplikasi pulsa'),
         miniKons(lk.piutang_nama || 'Piutang usaha', rp(lk.piutang), 'belum tertagih'),
@@ -11174,7 +11174,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const AKUN_KAS = ['1-1100', '1-1150', '1-1200', '1-1210', '1-1201', '1-1202', '1-1203', '1-1204'];
   /* Yang ditawarkan di layar: bank aktif saja (bagian 317). AKUN_KAS tetap
      katalog penuh — dokumen lama berakun BNI/Mandiri tetap terbaca. */
-  const akunKasAktif = () => saringBankAktif(AKUN_KAS, APP_STATE.setting);
+  /* 1-1200 Bank (umum) DITUTUP (bagian 430, titipan sesi data bagian 427:
+     saldonya dinolkan ke Kas Admin di semua cabang). Tidak ditawarkan di
+     pilihan mana pun; di kotak saldo & laporan baris 1-1200 hanya digambar
+     bila saldonya TIDAK nol (pemilik: "tampil lagi otomatis" — mis. nota
+     "transfer" dari perangkat yang belum dimuat ulang). AKUN_KAS tetap utuh:
+     dijaga sama dengan server, dan dokumen lama tetap terbaca. */
+  const AKUN_BANK_UMUM = '1-1200';
+  const akunKasAktif = () => saringBankAktif(AKUN_KAS, APP_STATE.setting).filter((k) => k !== AKUN_BANK_UMUM);
+  const tampilAkunKas = (k, jumlah) => String(k) !== AKUN_BANK_UMUM || Math.abs(Number(jumlah) || 0) >= 0.5;
+  /* Keterangan Kas di Tangan (bagian 430): sejak bagian 427 isinya HANYA uang
+     laci shift berjalan — naik tiap nota tunai, turun saat setoran diterima. */
+  const ketAkunKas = (k) => String(k) === '1-1100' ? '1-1100 · uang laci shift berjalan' : String(k);
   /* Akun kas milik TOKO (laci, dana QRIS/EDC) lawan milik PUSAT (Kas Admin,
      bank) — bagian 322. Dipakai hanya untuk memutuskan apakah form perlu
      bertanya "cabang mana"; yang membukukan tetap server. Aturannya wajib sama
@@ -11906,7 +11917,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     w.innerHTML = `
       <div class="petak-mini petak-uang">
-        ${saldo.map((x) => miniKons(x.nama, rp(x.jumlah), x.kode)).join('')}
+        ${saldo.filter((x) => tampilAkunKas(x.kode, x.jumlah)).map((x) => miniKons(x.nama, rp(x.jumlah), ketAkunKas(x.kode))).join('')}
       </div>
       <p class="petunjuk">Saldo di atas dibaca dari buku besar yang sudah dijurnal
          (neraca akhir periode), bukan dijumlahkan dari daftar di bawah — kas juga
@@ -12174,20 +12185,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          toko dan di tab lain. */
       $('#wadahCabangKas')?.classList.toggle('sembunyi', !!bb.satu_rekening);
       const baris = bb.baris || [];
+      /* Debit/Kredit, bukan Masuk/Keluar (pemilik 17 Okt 2026, bagian 429:
+         "jangan pakai istilah yang berbeda beda") — riwayat satu akun, sama
+         dengan Buku Besar. Arus kas & Rekonsiliasi sengaja tetap Masuk/Keluar. */
       $('#isiKoran').innerHTML = `<p class="petunjuk">${esc(bb.akun ? bb.akun.nama : akunKoran)} · ${esc(bulanTeks(periode))} ·
           ${(bb.cabang || cabangKas) === '*' ? 'gabungan semua cabang' : 'cabang ' + esc(bb.cabang || cabangKas)}${
             bb.reklas_tersembunyi ? ' · ' + esc(String(bb.reklas_tersembunyi)) + ' baris reklas pembukaan Back Office tidak ditampilkan (saling menghapus)' : ''}</p>
         <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>${cabangKas === '*' ? '<th>Cabang</th>' : ''}
-          <th class="kanan">Masuk</th><th class="kanan">Keluar</th><th class="kanan">Saldo</th></tr></thead>
+          <th class="kanan">Debit</th><th class="kanan">Kredit</th><th class="kanan">Saldo</th></tr></thead>
         <tbody><tr><td colspan="${cabangKas === '*' ? 6 : 5}"><strong>Saldo awal</strong></td>
             <td class="kanan"><strong>${rp(bb.saldo_awal)}</strong></td></tr>
           ${baris.map((b) => `<tr><td data-l="Tanggal">${esc(tglTampil(b.tanggal))}<br><span class="petunjuk">${esc(b.no_jurnal || '')}</span></td>
             <td data-l="Sumber">${esc(LABEL_SUMBER_KAS[b.sumber] || b.sumber || '')}</td>
             <td data-l="Keterangan">${esc(b.keterangan || '')}</td>
             ${cabangKas === '*' ? `<td data-l="Cabang">${esc(b.cabang || '')}</td>` : ''}
-            <td class="kanan" data-l="Masuk">${+b.debit ? rp(b.debit) : ''}</td>
-            <td class="kanan" data-l="Keluar">${+b.kredit ? rp(b.kredit) : ''}</td>
+            <td class="kanan" data-l="Debit">${+b.debit ? rp(b.debit) : ''}</td>
+            <td class="kanan" data-l="Kredit">${+b.kredit ? rp(b.kredit) : ''}</td>
             <td class="kanan" data-l="Saldo">${rp(b.saldo)}</td></tr>`).join('')}</tbody>
         <tfoot><tr><th colspan="${cabangKas === '*' ? 4 : 3}">Saldo akhir · ${baris.length} mutasi</th>
           <th class="kanan">${rp(bb.total_debit)}</th><th class="kanan">${rp(bb.total_kredit)}</th>
@@ -12200,7 +12214,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      Server: apiRekonBank / apiSimpanRekonBank (08_Accounting.gs). Buku GABUNGAN
      semua cabang; centang baris yang sudah muncul di mutasi bank; ketik saldo
      akhir menurut bank. Kunci hanya bila selisih 0 — server menghitung ulang. */
-  const AKUN_REKON_LAYAR = ['1-1200', '1-1201', '1-1202', '1-1203', '1-1204', '1-1210'];
+  /* Tanpa 1-1200 sejak bagian 430 — sama dengan AKUN_REKON server. */
+  const AKUN_REKON_LAYAR = ['1-1201', '1-1202', '1-1203', '1-1204', '1-1210'];
   let akunRekon = '1-1201', rekonData = null;
   async function muatRekon() {
     const w = $('#hasilKas');
@@ -12488,7 +12503,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <thead><tr><th>Akun</th>
         ${bln.map((b) => `<th class="kanan">${esc(bulanTeks(b.periode))}</th>`).join('')}
         <th class="kanan">Total</th></tr></thead>
-      <tbody>${arus.akun.map((k) => {
+      <tbody>${arus.akun.filter((k) => tampilAkunKas(k, bln.reduce((a, b) => a + Math.abs(((b.per_akun && b.per_akun[k]) || {}).bersih || 0), 0))).map((k) => {
         const sel = bln.map((b) => (b.per_akun && b.per_akun[k]) || { bersih: 0 });
         const jml = sel.reduce((a, x) => a + (x.bersih || 0), 0);
         return `<tr>

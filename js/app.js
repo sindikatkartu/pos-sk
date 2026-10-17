@@ -6640,7 +6640,8 @@ async function tampilkanNeraca() {
   if (!bacaSimpanLap('neraca', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
   const gambarNeraca = (d) => {
     const tabel = (judul, arr, total) => `<div class="kartu laporan-uang"><div class="bar-alat"><h3>${judul}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
-      ${arr.map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
+      ${arr.filter(a => !(String(a.kode) === '1-1200' && Math.abs(Number(a.jumlah) || 0) < 0.5))   /* 1-1200 ditutup — hanya tampil bila tak nol (bagian 430) */
+        .map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
       <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div></div>`;
     w.innerHTML = tombolUnduh('neraca', par) + `
       <div class="pesan ${d.seimbang ? 'sukses' : 'galat'}">

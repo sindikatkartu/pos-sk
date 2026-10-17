@@ -2930,6 +2930,14 @@ td.boleh-patah .st { white-space: normal; }
    cuma yang bawah; 12px membuat keterangan menempel lebih rapat ke blok
    BERIKUTNYA daripada ke blok yang ia terangkan (bagian 205). */
 .petunjuk { font-size: var(--fs-13); color: var(--teks-redup); line-height: 1.6; margin: 6px 0 var(--irama); }
+/* Catatan kecil DI DALAM sel tabel (nomor jurnal di bawah tanggal, rincian
+   akun di bawah keterangan) bukan paragraf: tanpa margin paragraf di atas.
+   Bagian 429 — baris Buku Besar 81 px padahal dua baris teks ±59 px
+   (pemilik: "buku besar kenapa barisnya lebar"). admin.js menulis margin:0
+   sebaris di 8 tempat; app.js lupa di 3, Perangkat ("belum punya meja",
+   div) satu — kini satu aturan untuk semua.
+   Dijaga uji-tombol-kanan.mjs. */
+td > span.petunjuk, td > div.petunjuk { margin: 0; }
 
 /* Kode user di belakang namanya. Diredupkan, bukan dibuang: dua orang bisa
    bernama sama, dan kode itulah satu-satunya yang mencocokkan baris ini
