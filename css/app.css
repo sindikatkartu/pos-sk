@@ -1822,6 +1822,26 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .kartu > .gulir-x > table th:first-child, .kartu > .gulir-x > table td:first-child { padding-left: var(--tepi-x); }
 .kartu > table th:last-child,  .kartu > table td:last-child,
 .kartu > .gulir-x > table th:last-child,  .kartu > .gulir-x > table td:last-child  { padding-right: var(--tepi-x); }
+/* TOMBOL BARIS RATA KANAN (bagian 426, pemilik 17 Okt 2026: "tombol di
+   kartunya itu tidak diposisi kanan, tapi sedikit menjorok ke tengah").
+   Kolom tombol terakhir dulu rata KIRI di kolom yang lebih lebar dari
+   tombolnya — 25 kartu, 5–160 px menjorok. Sel terakhir yang BERISI tombol
+   rata kanan, kotak flex di dalamnya ikut ke kanan; tanpa jarak kanan bila
+   tabelnya di dalam bantalan kartu (tombolnya segaris dengan tombol pojok
+   kanan atas kartu). Tabel yang menempel ke tepi kartu (.kartu > .gulir-x)
+   tetap memakai --tepi-x dari aturan di atas — pemilihnya lebih spesifik.
+   Dikenali dari isinya (:has), bukan kelas per layar; Kasir tidak ikut —
+   lewat :where(), karena :not(#id) menyumbang spesifisitas ID dan akan
+   mengalahkan --tepi-x tabel yang menempel ke tepi kartu.
+   SELURUH kolom terakhir tabel itu yang rata kanan, bukan hanya sel bertombol:
+   di Utang sel terakhir berisi lencana "belum diperiksa" ATAU tombol Bayar —
+   meratakan sel bertombol saja membuat satu kolom berperataan dua (temuan
+   peninjau). Dijaga uji-tombol-kanan.mjs. */
+:where(.layar:not(#layarKasir)) table:has(> tbody > tr > td:last-child button) > tbody > tr > td:last-child { text-align: right; padding-right: 0; }
+:where(.layar:not(#layarKasir)) tbody td:last-child:has(button) > div { justify-content: flex-end; }
+@media (min-width: 621px) {
+  :where(.layar:not(#layarKasir)) table:has(> tbody > tr > td:last-child button) > thead > tr > th:last-child { text-align: right; padding-right: 0; }
+}
 /* Sudut kepala tabel ikut membulat mengikuti bingkai kartu */
 .kartu > table tr:first-child th:first-child,
 .kartu > .gulir-x > table tr:first-child th:first-child { border-top-left-radius: 5px; }
