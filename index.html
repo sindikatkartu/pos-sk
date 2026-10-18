@@ -700,6 +700,8 @@
           <h3>Cara memakai halaman ini</h3>
           <p>Halaman ini tersimpan di dalam aplikasi, jadi <strong>tetap terbaca walau internet mati</strong>. Isinya dua bagian: <strong>Bagian A</strong> untuk kasir, <strong>Bagian B</strong> untuk pemilik &amp; back office.</p>
           <p class="petunjuk">Menu yang tidak Anda lihat di sisi kiri berarti peran Anda memang tidak diberi aksesnya — itu bukan kerusakan. Kalau menu yang biasanya ada tiba-tiba hilang, keluar lalu masuk lagi supaya izin terbaru terbaca.</p>
+          <p class="petunjuk">Saat layar back office <strong>memuat, menyimpan, atau mencetak</strong>, tombol dan isian di layar itu meredup dan tidak bisa diketuk sampai selesai — supaya tidak ada yang tertekan dua kali. Menu di sisi kiri tetap bisa dipakai untuk pindah layar. Layar Kasir tidak ikut meredup.</p>
+          <p class="petunjuk">Beberapa layar dibagi menjadi <strong>tab</strong> di bagian atasnya — Mitra (Pelanggan · Supplier), Cabang (Cabang · Meja &amp; lini usaha), Poin &amp; Performa, dan Perangkat &amp; Printer. Tab yang terakhir dibuka diingat selama aplikasi terbuka.</p>
         </div>
 
         <div class="kartu">
@@ -1092,7 +1094,7 @@
 
     <section class="layar" id="layarPengaturan">
       <div class="petak">
-        <div class="kartu">
+        <div class="kartu" data-tab-isi="printer">
           <h3>Printer</h3>
           <p class="petunjuk">Printer struk yang dipakai perangkat ini dan cara mencetaknya. Pengaturan di sini hanya berlaku untuk perangkat ini.</p>
           <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoPrinter">Belum terhubung</p>
@@ -1143,7 +1145,7 @@
              Kartu ini pernah berisi tombol "Hubungkan printer label" untuk jalur
              Bluetooth+TSPL; jalur itu dibuang di v1.81.0 karena CG408TT tidak
              punya Bluetooth dan tidak berbahasa TSPL. -->
-        <div class="kartu">
+        <div class="kartu" data-tab-isi="label">
           <h3>Kertas label</h3>
           <p style="color:var(--teks-redup);font-size:var(--fs-13)">
             Label dicetak lewat dialog cetak ke driver printer label. Ukuran di
@@ -1271,7 +1273,7 @@
              kartu tidak pernah menyisakan satu yang sendirian di lebar mana pun.
              Isinya memang sedomain: keterangan perangkat, di sebelah tombol
              sinkronisasi perangkat itu. -->
-        <div class="kartu">
+        <div class="kartu" data-tab-isi="data">
           <h3>Data &amp; sinkronisasi</h3>
           <p style="color:var(--teks-redup);font-size:var(--fs-13)" id="infoData"></p>
           <button class="tombol" id="btnTarikMaster">Tarik ulang data master</button>

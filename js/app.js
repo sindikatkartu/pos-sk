@@ -1750,7 +1750,11 @@ function bukaLayar(id) {
      menyuruh membuka ulang, jadi membuka ulang wajib memuat (bagian 369). */
   if (id === 'jurnal' && (!jrnDimuat || $('#hasilJurnal')?.dataset.basi)) { jrnDimuat = true; return tampilkanJurnalManual(); }
   if (id === 'riwayat') return gambarRiwayat();
-  if (id === 'pengaturan') return perbaruiInfoData();
+  if (id === 'pengaturan') {
+    pasangTabKartu($('#layarPengaturan .petak'), 'pengaturan', { printer: 'Printer', label: 'Kertas label', data: 'Data & sinkronisasi' },   // bagian 432
+      'Pengaturan di layar ini hanya berlaku untuk perangkat ini.');
+    return perbaruiInfoData();
+  }
   if (id === 'shift') return periksaShift();
   if (id === 'tentang') return gambarTentang();
   if (id === 'kasir') { $('#inpCari').focus(); Tahanan.segarkanLencana(); }

@@ -484,6 +484,9 @@ const Admin = (() => {
     $('#modalUmum')._label = null;
     /* Setiap pembukaan mulai TANPA gaya kertas — hanya bukaDokumen yang memasangnya. */
     $('#modalUmum').classList.remove('kertas');
+    /* Modal dipakai ulang: beku bacaan modal SEBELUMNYA tidak ikut ke modal baru (bagian 433). */
+    $('#modalUmum').classList.remove('memuat');
+    $('#modalUmum')._memuat = 0;
     $('#modalUmum').innerHTML = `<h3>${esc(judul)}</h3>${isi}
       <div class="aksi-modal">${aksi || ('<button class="tombol" data-tutup="1">' +
           ikonAlat('batal') + '<span>Tutup</span></button>')}</div>`;
@@ -882,7 +885,11 @@ const Admin = (() => {
     });
   }
 
-  async function jalankanEkspor(btn) {
+  /* Ekspor menyiapkan berkas di perangkat sesudah server menjawab — wadahnya
+     ikut membeku sampai selesai (bagian 433). */
+  const tahanLayar = (fn) => (API && typeof API.tahanLayar === 'function' ? API.tahanLayar(fn) : fn());
+  const jalankanEkspor = (btn) => tahanLayar(() => jalankanEksporIsi(btn));
+  async function jalankanEksporIsi(btn) {
     // Keadaan "sedang menyiapkan" ditaruh di tombol pemicu, bukan di item menunya —
     // menunya menutup begitu dipilih, jadi label di dalamnya tak akan sempat terbaca.
     /* Tiga kemungkinan tempat tombolnya hidup: widget `tombolEkspor` (Keuangan),
@@ -3382,7 +3389,8 @@ const Admin = (() => {
     await ubahKeranjangStiker(() => []);
   }
 
-  async function kirimLabel() {
+  const kirimLabel = () => tahanLayar(() => kirimLabelIsi());   // bagian 433
+  async function kirimLabelIsi() {
     const d = $('#modalUmum') && $('#modalUmum')._label;
     if (!d) return;
     const k = await muatKeranjangLabel();
@@ -5660,12 +5668,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const pel = w._pel, sup = w._sup;
     w.innerHTML = `
       ${pel ? `
-      <div class="kartu">
+      <div class="kartu" data-tab-isi="pelanggan">
         <div class="bar-alat"><h3>Pelanggan</h3><div style="flex:1"></div>
           ${bolehIzin('pelanggan', 'buat') ? tombolTambah('btnPelangganBaru', 'Pelanggan') : ''}
           ${menuTindakan({ id: 'menuPelanggan', kunci: 'pelanggan', idTombol: 'btnMenuPelanggan',
               isi: butirNonaktif('pelanggan', hitungMati(pel)) })}</div>
-        <p class="petunjuk">Pelanggan dipilih kasir saat menutup nota — untuk poin, piutang, dan harga khusus. Supplier ada di kartu bawah, dipakai saat mencatat pembelian.</p>
+        <p class="petunjuk">Saringan Jenis memisahkan pelanggan ecer dan grosir; di Kasir pemisahannya otomatis.</p>
         ${/* Saringan jenis + kotak cari (bagian 286). Back office tetap
              menampilkan SEMUA pelanggan; yang dipisah otomatis hanya Kasir. */ ''}
         <div class="saring-baris">
@@ -5681,7 +5689,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>` : ''}
 
       ${sup ? `
-      <div class="kartu">
+      <div class="kartu" data-tab-isi="supplier">
         <div class="bar-alat"><h3>Supplier</h3><div style="flex:1"></div>
           ${bolehIzin('supplier', 'buat') ? tombolTambah('btnSupplierBaru', 'Supplier') : ''}
           ${menuTindakan({ id: 'menuSupplier', kunci: 'supplier', idTombol: 'btnMenuSupplier',
@@ -5695,6 +5703,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true, kunci: 'supplier' })}
       </div>` : ''}`;
+    pasangTabKartu(w, 'mitra', { pelanggan: 'Pelanggan', supplier: 'Supplier' },   // bagian 432
+      'Pelanggan dipilih kasir saat menutup nota — untuk poin, piutang, dan harga khusus. Supplier dipakai saat mencatat pembelian.');
     if (pel) {
       gambarTabelMitraPelanggan();
       /* Hanya TABELNYA yang digambar ulang saat mengetik — kotak carinya
@@ -6050,7 +6060,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="kartu statistik"><div class="label">Omzet terklaim</div><div class="nilai">${rp(r.omzet)}</div></div>
         </div>
 
-        <div class="kartu">
+        <div class="kartu" data-tab-isi="cabang">
           <div class="bar-alat"><h3>Peringkat cabang</h3>
             <div style="flex:1"></div>
             <label style="margin:0">Urutkan</label>${pilihUrut('urutCabang', URUT_CABANG, urutCabang)}</div>
@@ -6068,7 +6078,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              petugas dari klaim; selisih inilah bedanya.</p>` : ''}
         </div>
 
-        <div class="kartu">
+        <div class="kartu" data-tab-isi="petugas">
           <div class="bar-alat"><h3>Peringkat per petugas</h3>
             <div style="flex:1"></div>
             <label style="margin:0">Urutkan</label>${pilihUrut('urutPetugas', URUT_PETUGAS, urutPetugas)}
@@ -6092,7 +6102,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], petugas, { kosong: 'Belum ada klaim pada rentang tanggal ini' })}
         </div>
 
-        <div class="kartu">
+        <div class="kartu" data-tab-isi="klaim">
           <h3>Rincian klaim</h3>
           ${d.dipotong ? '<p class="petunjuk">Hanya 500 klaim terbaru yang ditampilkan. Gunakan Ekspor untuk data penuh.</p>' : ''}
           ${tabel([
@@ -6113,6 +6123,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Omzet', angka: true, render: x => rp(x.omzet) }
           ], d.rinci, { kosong: 'Belum ada klaim' })}
         </div>`;
+    pasangTabKartu(wadah, 'poin', { cabang: 'Peringkat cabang', petugas: 'Per petugas', klaim: 'Rincian klaim' });   // bagian 432
   }
 
   /* ==================== PIUTANG ==================== */
@@ -6762,7 +6773,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!w) return;
     const rows = w._rows || [];
     w.innerHTML = `
-      <div class="kartu">
+      <div class="kartu" data-tab-isi="cabang">
         <div class="bar-alat"><div style="flex:1"></div>
           ${bolehIzin('cabang', 'buat') ? tombolTambah('btnCabangBaru', 'Cabang baru') : ''}
           ${menuTindakan({ id: 'menuCabang', kunci: 'cabang', idTombol: 'btnMenuCabang',
@@ -6778,6 +6789,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true, kunci: 'cabang' })}
       </div>
       ${gambarLini()}`;
+    pasangTabKartu(w, 'cabang', { cabang: 'Cabang', meja: 'Meja & lini usaha' },   // bagian 432
+      'Cabang menjawab di mana sebuah nota lahir; meja menjawab divisi mana yang memilikinya.');
   }
 
   /**
@@ -6800,13 +6813,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     /* Gagal ditanya TIDAK sama dengan tidak punya. Sebabnya ditulis apa
        adanya, dan tabelnya tidak digambar sama sekali. */
     if (!rows) {
-      return `<div class="kartu laporan-sempit">${kepala}
+      return `<div class="kartu laporan-sempit" data-tab-isi="meja">${kepala}
         <div class="pesan galat">Daftar meja gagal ditarik${
           w._liniGagal ? ' — ' + esc(w._liniGagal) : ''}. Daftar cabang di atas tetap sahih.</div>
       </div>`;
     }
 
-    return `<div class="kartu laporan-sempit">${kepala}
+    return `<div class="kartu laporan-sempit" data-tab-isi="meja">${kepala}
       <p class="petunjuk">Cabang menjawab <strong>di mana</strong> sebuah nota lahir; meja
          menjawab <strong>divisi mana</strong> yang memilikinya. Satu toko bisa punya
          beberapa meja dengan laci dan tanggung jawab sendiri-sendiri — tanpa sumbu ini
@@ -10580,7 +10593,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     sedangSimpan = true;
     if (tombol) tombol.disabled = true;
     try {
-      const r = await API.simpanHitungan({ uuid: d.uuid, cabang: cabangDari('opname'), item: kirim });
+      /* Simpan otomatis (tanpa tombol) berjalan di LATAR: tidak mengunci kotak qty
+         yang sedang diisi (bagian 433, temuan peninjau-rilis). */
+      const r = await API.simpanHitungan({ uuid: d.uuid, cabang: cabangDari('opname'), item: kirim }, tombol ? undefined : { latar: true });
       versi.forEach((v, kodeSku) => { if (hitunganBerubah.get(kodeSku) === v) hitunganBerubah.delete(kodeSku); });
       pindaiSejakSimpan = 0;
       toast(tombol
@@ -13327,6 +13342,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        * detik oleh BATAS_TUNGGU di app.js, dan hanya dipasang oleh klik ORANG —
        * sinkronisasi latar tiap 5 menit tidak pernah menyalakannya. */
       if (document.body.classList.contains('tunggu')) return;
+      /* Wadah yang sedang memuat/mencetak (bagian 433, .memuat dari api.js):
+         Enter di papan ketik tidak tertahan pointer-events, jadi dijaga di sini. */
+      /* Kecuali TUTUP: modal yang memuat isinya sendiri tidak boleh menjebak —
+         tirai menutupi menu samping, dan tablet tidak punya Escape (peninjau-rilis). */
+      if (t.closest('.memuat') && !t.matches('[data-tutup], [data-tutup-lapshift]')) return;
 
       const d = t.dataset;
 

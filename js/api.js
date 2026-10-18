@@ -45,6 +45,56 @@ const API = (() => {
   let _sibukOrang = 0;
 
   /**
+   * MEMUAT MEMBEKUKAN ISI LAYAR (bagian 433). Pemilik 18 Okt 2026: "ketika ada
+   * aksi proses loading, masih banyak layar yang saya rasa tidak dibekukan" —
+   * memuat, menyimpan, dan mencetak/ekspor; menu samping TETAP bisa dipakai
+   * saat memuat (alasan bagian 266: Dashboard pertama ±23 detik tidak boleh
+   * menjebak orang); Kasir dikecualikan.
+   *
+   * Bacaan (HANYA_BACA) tidak menyalakan body.tunggu. Bacaan yang lahir dari
+   * TINDAKAN ORANG — dimulai ≤ 1,5 detik sesudah ketukan/ganti pilihan/Enter,
+   * atau selagi bacaan orang lain masih berjalan (rantai muat layar) — memberi
+   * kelas .memuat pada WADAHNYA saja: modal yang terbuka, atau layar aktif.
+   * Menu samping & bilah atas di luar wadah itu, jadi orang tetap bisa pergi.
+   * Bacaan timer (sinkron 5 menit, lencana, cek diskon) tidak lahir dari
+   * tindakan, jadi layar tidak membeku sendiri secara berkala — penyakit yang
+   * sudah pernah terjadi (lihat _sibukOrang di atas). Batas keras 60 detik.
+   */
+  const JENDELA_GESTUR = 1500, BATAS_MEMUAT = 60000;
+  let _gestur = 0, _bacaOrang = 0;
+  if (typeof document !== 'undefined') {
+    ['pointerdown', 'change', 'keydown'].forEach((t) => document.addEventListener(t, (e) => {
+      if (t === 'keydown' && e.key !== 'Enter') return;
+      _gestur = Date.now();
+    }, true));
+  }
+  const _dariOrang = () => Date.now() - _gestur < JENDELA_GESTUR || _bacaOrang > 0;
+  function _mulaiMemuat() {
+    if (typeof document === 'undefined') return null;
+    /* Kasir dikecualikan SELURUHNYA — juga tirainya (#tiraiSukses, #tiraiBayar,
+       #tiraiUmum …), yang berada di luar #layarKasir. Temuan peninjau-rilis:
+       layar sukses membeku selama struk dicetak lewat Bluetooth. */
+    const layar = document.querySelector('.layar.aktif');
+    if (!layar || layar.id === 'layarKasir') return null;
+    const el = document.querySelector('.tirai.tampil .modal') || layar;
+    el._memuat = (el._memuat || 0) + 1;
+    el.classList.add('memuat');
+    clearTimeout(el._batasMemuat);
+    el._batasMemuat = setTimeout(() => { el._memuat = 0; el.classList.remove('memuat'); }, BATAS_MEMUAT);
+    return el;
+  }
+  function _akhiriMemuat(el) {
+    if (!el) return;
+    el._memuat = Math.max(0, (el._memuat || 0) - 1);
+    if (!el._memuat) { clearTimeout(el._batasMemuat); el.classList.remove('memuat'); }
+  }
+  /** Pekerjaan di perangkat (cetak Bluetooth, ekspor berkas, kirim label) membekukan wadahnya juga. */
+  async function tahanLayar(fn) {
+    const el = _mulaiMemuat();
+    try { return await fn(); } finally { _akhiriMemuat(el); }
+  }
+
+  /**
    * PANGGILAN YANG HANYA MEMBACA — tidak mengunci layar (bagian 266).
    *
    * Sejak v1.256 (bagian 262) setiap permintaan orang mengunci klik dan
@@ -420,6 +470,10 @@ let _pernahJawab = false;
       throw Object.assign(new Error('Sedang offline'), { kode: 'OFFLINE' });
     }
     const latar = !mengunci(aksi, opsi);
+    /* Bacaan dari tindakan orang membekukan isi wadahnya (bagian 433). */
+    const bacaO = latar && opsi.latar !== true && _dariOrang();
+    let wadahMemuat = null;
+    if (bacaO) { _bacaOrang++; wadahMemuat = _mulaiMemuat(); }
     _sibuk++; if (!latar) _sibukOrang++; _kabar();
     const _t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     let _msServer = null, _galat = null, _ulang = 0;
@@ -485,6 +539,7 @@ let _pernahJawab = false;
       _catatWaktu(aksi, (typeof performance !== 'undefined' ? performance.now() : Date.now()) - _t0,
                   _msServer, _galat, _ulang);
       _sibuk--; if (!latar) _sibukOrang--; _kabar();
+      if (bacaO) { _bacaOrang--; _akhiriMemuat(wadahMemuat); }
     }
   }
 
@@ -508,9 +563,13 @@ let _pernahJawab = false;
        tetap menyala, pindah menu tidak ditahan. Tulisan di dalamnya tetap
        mengunci lewat panggil(). */
     const latar = opsi.latar === true || opsi.baca === true;
+    /* Rantai muat layar dari tindakan orang membekukan wadahnya (bagian 433). */
+    const bacaO = opsi.baca === true && opsi.latar !== true && _dariOrang();
+    let wadahMemuat = null;
+    if (bacaO) { _bacaOrang++; wadahMemuat = _mulaiMemuat(); }
     _sibuk++; if (!latar) _sibukOrang++; _kabar();
     try { return await fn(); }
-    finally { _sibuk--; if (!latar) _sibukOrang--; _kabar(); }
+    finally { _sibuk--; if (!latar) _sibukOrang--; _kabar(); if (bacaO) { _bacaOrang--; _akhiriMemuat(wadahMemuat); } }
   }
 
   /** Coba ulang dengan jeda menaik — dipakai sinkronisasi latar belakang. */
@@ -531,6 +590,8 @@ let _pernahJawab = false;
     get online() { return _online; },
     get sibuk()  { return _sibuk; },
     get sibukOrang() { return _sibukOrang; },
+    get bacaOrang() { return _bacaOrang; },
+    tahanLayar,
     hanyaBaca: (aksi) => HANYA_BACA.has(aksi),
     setToken(t) { _token = t; },
     getToken()  { return _token; },
@@ -776,7 +837,8 @@ let _pernahJawab = false;
 
     /* --- stok opname --- */
     buatOpname:      (d) => panggil('buat_opname', d, { timeout: 120000 }),
-    simpanHitungan:  (d) => panggil('simpan_hitungan', d, { timeout: 90000 }),
+    /* `o.latar` untuk simpan otomatis opname (timer) — tidak mengunci layar (bagian 433). */
+    simpanHitungan:  (d, o) => panggil('simpan_hitungan', d, Object.assign({ timeout: 90000 }, o || {})),
     selesaiHitung:   (d) => panggil('selesai_hitung', d, { timeout: 90000 }),
     postingOpname:   (d) => panggil('posting_opname', d, { timeout: 120000 }),
     batalOpname:     (d) => panggil('batal_opname', d),

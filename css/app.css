@@ -2469,6 +2469,15 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    Kartu ANGKA dikecualikan: sederet angka harus terbaca sebagai satu deret,
    jadi tingginya tetap disamakan — dan ruang kosongnya dicegah dari sisi lain,
    dengan memesan baris ekornya (lihat `.mini-ekor`). */
+/* Bilah tab kartu (bagian 432, pasangTabKartu di pos.js) selebar wadahnya,
+   juga di dalam .petak berlajur; bentuk tabnya .tab-modal yang sudah ada. */
+.bar-tab-kartu { grid-column: 1 / -1; padding-bottom: 0; }
+.bar-tab-kartu .tab-modal { margin: 0; }
+.bar-tab-kartu .pembuka-tab { margin: 10px 0 var(--irama); }
+/* Di .petak berlajur (Perangkat & Printer) kartu yang tampil tinggal SATU:
+   lajurnya diringkas jadi satu, kartu selebar wadah tapi tetap terbaca. */
+.petak:has(> .bar-tab-kartu) { grid-template-columns: minmax(0, 1fr); }
+.petak:has(> .bar-tab-kartu) > [data-tab-isi] { max-width: 720px; }
 .petak {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: var(--irama); margin-bottom: var(--irama); align-items: start;
@@ -3831,8 +3840,11 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
    index.html; menambah jenis kendali baru tanpa menambahkannya ke sini akan
    merah.
 
-   Kolom isian TEKS sengaja TIDAK dikunci — orang boleh terus mengetik sambil
-   menunggu, dan menahannya hanya membuang apa yang sudah diketiknya.
+   Kolom isian TEKS dulu sengaja TIDAK dikunci — orang boleh terus mengetik
+   sambil menunggu. Sejak bagian 433 (pemilik: menyimpan pun "masih bisa
+   ditekan") kotak ketik, area teks, dan baris yang bisa diklik ikut dikunci
+   di back office — aturan sesudah blok ini; yang sudah diketik tidak hilang,
+   hanya tidak bisa disentuh sampai simpannya selesai. Kasir tidak ikut.
 
    `pointer-events: none` menahan tetikus, TIDAK menahan papan ketik: Enter di
    atas tautan yang sedang fokus tetap menembak. Karena itu penangannya di
@@ -3863,6 +3875,18 @@ body.tunggu-redup [role="menuitem"],
 body.tunggu-redup input[type="checkbox"],
 body.tunggu-redup input[type="radio"],
 body.tunggu-redup input[type="file"] { opacity: .45; }
+/* MENYIMPAN (bagian 433): + kotak ketik, area teks, baris yang bisa diklik —
+   di back office saja; Kasir tidak ikut. */
+body.tunggu:not(:has(#layarKasir.aktif)) :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift, #popSelisih, #popStiker) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]) { pointer-events: none; }
+body.tunggu-redup :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea) { opacity: .45; }
+
+/* MEMUAT & MENCETAK (bagian 433): .memuat dipasang api.js pada WADAHNYA
+   (layar aktif atau modal) — menu samping & bilah atas di luar wadah, jadi
+   orang tetap bisa pindah layar. Redup menyusul 350 ms seperti tunggu. */
+.memuat { cursor: progress; }
+/* Tombol TUTUP tidak pernah beku: modal yang memuat isinya sendiri tidak boleh menjebak. */
+.memuat :is(button:not([data-tutup]):not([data-tutup-lapshift]), a[href], select, summary, label, [role="tab"], [role="menuitem"], input, textarea, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]) { pointer-events: none; }
+.memuat :is(button:not([data-tutup]):not([data-tutup-lapshift]), a[href], select, [role="tab"], input, textarea) { opacity: .5; transition: opacity .15s ease .35s; }
 /* Menu samping diredupkan LEBIH RINGAN. Ia menempati sepertiga layar; pada .45
    seluruh sisi kiri berubah jadi bayangan dan aplikasinya terbaca rusak, bukan
    sibuk. Yang penting kliknya memang ditahan — dan itu sudah dilakukan

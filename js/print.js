@@ -502,7 +502,11 @@ const Struk = (() => {
     return 'html';
   }
 
-  return { cetak, cetakHtml, cetakDokumen, bukaJendelaDokumen, isiJendelaDokumen, cetakBluetooth, hubungkanBluetooth, bukaLaci, perluBukaLaci,
+  /* Cetak Bluetooth menunggu printernya — wadahnya membeku selama itu (bagian
+     433, API.tahanLayar; Kasir dikecualikan di sana). Cetak dokumen A4 tidak
+     dibungkus: dialog cetak peramban sudah membekukan halamannya sendiri. */
+  const tahan = (f) => function (...a) { return (typeof API !== 'undefined' && API.tahanLayar) ? API.tahanLayar(() => f.apply(this, a)) : f.apply(this, a); };
+  return { cetak: tahan(cetak), cetakHtml, cetakDokumen, bukaJendelaDokumen, isiJendelaDokumen, cetakBluetooth: tahan(cetakBluetooth), hubungkanBluetooth, bukaLaci, perluBukaLaci,
            pastikanTersambung, lepasPrinter,
            baris, gambar, rupiah, barisBayar,
            bacaEkor, bitaStruk, normalEkor, EKOR_BAWAAN };

@@ -2071,3 +2071,47 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   e.stopImmediatePropagation();
   try { Admin.toast('Tunggu angka terbaru — yang tampil masih angka tersimpan.', 'info'); } catch (x) { /* toast belum siap */ }
 }, true);
+
+/* TAB KARTU (bagian 432). Pemilik 18 Okt 2026: "menu mitra pelanggan dan
+   suplier dibentuk menjadi tab" — lalu Cabang, Poin & Performa, Perangkat &
+   Printer. Kartu yang ditandai data-tab-isi di dalam satu wadah dijadikan
+   tab: bilah tab (.tab-modal, bentuk yang sama dengan Gaji/Kas & Bank)
+   disisipkan sebelum kartu bertanda pertama, kartu lain disembunyikan.
+   Tab terakhir per layar diingat selama halaman terbuka — menggambar ulang
+   (mode nonaktif, saring) tidak melempar orang kembali ke tab pertama.
+   Atributnya data-tab-layar supaya penyapu yang menekan semua data-tab…
+   (uji-tanggal) ikut membuka setiap tab. Satu kartu saja (izin) = tanpa tab.
+   `pembuka` = kalimat pembuka layar di bawah bilah tab (kartu pertama layar
+   back office wajib punya — uji-petunjuk-layar), seperti tab Gaji. */
+const _tabKartuTerakhir = {};
+function pasangTabKartu(wadah, kunci, label, pembuka) {
+  if (!wadah) return;
+  const lama = wadah.querySelector(':scope > .bar-tab-kartu');
+  if (lama) lama.remove();
+  const kartu = [...wadah.querySelectorAll(':scope > [data-tab-isi]')];
+  if (kartu.length < 2) { kartu.forEach((k) => { k.hidden = false; }); return; }
+  let aktif = _tabKartuTerakhir[kunci];
+  if (!kartu.some((k) => k.dataset.tabIsi === aktif)) aktif = kartu[0].dataset.tabIsi;
+  const bar = document.createElement('div');
+  bar.className = 'kartu bar-tab-kartu';
+  bar.innerHTML = '<div class="tab-modal" role="tablist">' + kartu.map((k) =>
+    '<button type="button" role="tab" data-tab-layar="' + esc(kunci + ':' + k.dataset.tabIsi) + '">' +
+      esc(label[k.dataset.tabIsi] || k.dataset.tabIsi) + '</button>').join('') + '</div>' +
+    (pembuka ? '<p class="petunjuk pembuka-tab">' + esc(pembuka) + '</p>' : '');
+  kartu[0].before(bar);
+  const pilih = (id) => {
+    _tabKartuTerakhir[kunci] = id;
+    kartu.forEach((k) => { k.hidden = k.dataset.tabIsi !== id; });
+    bar.querySelectorAll('[data-tab-layar]').forEach((b) => {
+      const ya = b.dataset.tabLayar === kunci + ':' + id;
+      b.classList.toggle('aktif', ya);
+      b.setAttribute('aria-selected', String(ya));
+    });
+  };
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tab-layar]');
+    if (!b || document.body.classList.contains('tunggu')) return;
+    pilih(b.dataset.tabLayar.slice(kunci.length + 1));
+  });
+  pilih(aktif);
+}
