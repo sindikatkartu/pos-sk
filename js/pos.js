@@ -2082,23 +2082,70 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
    Atributnya data-tab-layar supaya penyapu yang menekan semua data-tab…
    (uji-tanggal) ikut membuka setiap tab. Satu kartu saja (izin) = tanpa tab.
    `pembuka` = kalimat pembuka layar di bawah bilah tab (kartu pertama layar
-   back office wajib punya — uji-petunjuk-layar), seperti tab Gaji. */
+   back office wajib punya — uji-petunjuk-layar), seperti tab Gaji.
+   Bagian 436: bilah tab jadi KEPALA bingkai (bingkaiTab) yang membungkus
+   seluruh isi `akar` — bawaannya wadah itu sendiri; Poin memberi #isiPoin
+   supaya saringan & ringkasan bersamanya ikut di dalam bingkai (model A). */
 const _tabKartuTerakhir = {};
-function pasangTabKartu(wadah, kunci, label, pembuka) {
+
+/* JENDELA TAB (bagian 436). Pemilik 18 Okt 2026: tab "meniru tabs nya google
+   chrome", dan Kas & Bank "letaknya terputus dengan isi layarnya". Bilah tab
+   jadi KEPALA satu bingkai, dan SELURUH isi akar — saringan bersama,
+   ringkasan, kartu hasil — dipindah ke badan bingkai yang warnanya sama
+   dengan tab aktif: tab dan halamannya terbaca sebagai satu benda, seperti
+   tab Chrome. Satu model untuk semua layar bertab (model A, pilihan pemilik).
+
+   Idempoten: akar yang sudah berbingkai tidak dibungkus dua kali — bilah tab
+   baru (layar yang menggambar ulang tabnya, mis. Pulsa) cukup menggantikan
+   kepalanya. Elemen dipindah, bukan disalin: id, penyimak, dan isian tetap. */
+function bingkaiTab(akar, tab) {
+  if (!akar) return null;
+  let j = akar.querySelector(':scope > .tab-jendela');
+  if (!j) {
+    j = document.createElement('div');
+    j.className = 'tab-jendela';
+    const badan = document.createElement('div');
+    badan.className = 'tab-badan';
+    while (akar.firstChild) badan.appendChild(akar.firstChild);
+    j.appendChild(badan);
+    akar.appendChild(j);
+  }
+  if (tab && tab.parentElement !== j) {
+    const lama = j.querySelector(':scope > .tab-modal');
+    if (lama) lama.remove();
+    j.prepend(tab);
+  }
+  return j;
+}
+
+function pasangTabKartu(wadah, kunci, label, pembuka, akar) {
   if (!wadah) return;
-  const lama = wadah.querySelector(':scope > .bar-tab-kartu');
-  if (lama) lama.remove();
-  const kartu = [...wadah.querySelectorAll(':scope > [data-tab-isi]')];
-  if (kartu.length < 2) { kartu.forEach((k) => { k.hidden = false; }); return; }
+  akar = akar || wadah;
+  const kartu = [...wadah.querySelectorAll('[data-tab-isi]')];
+  const ada = akar.querySelector(':scope > .tab-jendela');
+  if (kartu.length < 2) {
+    kartu.forEach((k) => { k.hidden = false; });
+    /* Tanpa tab (izin tinggal satu kartu): bingkai lama dilepas, isinya kembali. */
+    if (ada) {
+      const badan = ada.querySelector(':scope > .tab-badan');
+      while (badan && badan.firstChild) akar.insertBefore(badan.firstChild, ada);
+      ada.remove();
+    }
+    return;
+  }
   let aktif = _tabKartuTerakhir[kunci];
   if (!kartu.some((k) => k.dataset.tabIsi === aktif)) aktif = kartu[0].dataset.tabIsi;
   const bar = document.createElement('div');
-  bar.className = 'kartu bar-tab-kartu';
-  bar.innerHTML = '<div class="tab-modal" role="tablist">' + kartu.map((k) =>
+  bar.className = 'tab-modal';
+  bar.setAttribute('role', 'tablist');
+  bar.innerHTML = kartu.map((k) =>
     '<button type="button" role="tab" data-tab-layar="' + esc(kunci + ':' + k.dataset.tabIsi) + '">' +
-      esc(label[k.dataset.tabIsi] || k.dataset.tabIsi) + '</button>').join('') + '</div>' +
-    (pembuka ? '<p class="petunjuk pembuka-tab">' + esc(pembuka) + '</p>' : '');
-  kartu[0].before(bar);
+      esc(label[k.dataset.tabIsi] || k.dataset.tabIsi) + '</button>').join('');
+  const j = bingkaiTab(akar, bar);
+  const badan = j.querySelector(':scope > .tab-badan');
+  const pLama = badan.querySelector(':scope > .pembuka-tab');
+  if (pLama) pLama.remove();
+  if (pembuka) badan.insertAdjacentHTML('afterbegin', '<p class="petunjuk pembuka-tab">' + esc(pembuka) + '</p>');
   const pilih = (id) => {
     _tabKartuTerakhir[kunci] = id;
     kartu.forEach((k) => { k.hidden = k.dataset.tabIsi !== id; });

@@ -450,8 +450,7 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
     linear-gradient(var(--gulir-bayang), transparent)   top    / 100% 6px  no-repeat scroll,
     linear-gradient(transparent, var(--gulir-bayang))   bottom / 100% 6px  no-repeat scroll;
 }
-.sisi-isi::-webkit-scrollbar { width: 6px; }
-.sisi-isi::-webkit-scrollbar-thumb { background: var(--garis-kuat); border-radius: 3px; }
+/* Batang gulirnya ikut aturan bersama (bagian 436, dekat .tab-modal). */
 
 .sisi-grup {
   font-size: var(--fs-11); font-weight: 700; letter-spacing: .7px; text-transform: uppercase;
@@ -2469,15 +2468,11 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    Kartu ANGKA dikecualikan: sederet angka harus terbaca sebagai satu deret,
    jadi tingginya tetap disamakan — dan ruang kosongnya dicegah dari sisi lain,
    dengan memesan baris ekornya (lihat `.mini-ekor`). */
-/* Bilah tab kartu (bagian 432, pasangTabKartu di pos.js) selebar wadahnya,
-   juga di dalam .petak berlajur; bentuk tabnya .tab-modal yang sudah ada. */
-.bar-tab-kartu { grid-column: 1 / -1; padding-bottom: 0; }
-.bar-tab-kartu .tab-modal { margin: 0; }
-.bar-tab-kartu .pembuka-tab { margin: 10px 0 var(--irama); }
-/* Di .petak berlajur (Perangkat & Printer) kartu yang tampil tinggal SATU:
-   lajurnya diringkas jadi satu, kartu selebar wadah tapi tetap terbaca. */
-.petak:has(> .bar-tab-kartu) { grid-template-columns: minmax(0, 1fr); }
-.petak:has(> .bar-tab-kartu) > [data-tab-isi] { max-width: 720px; }
+/* Di .petak berlajur (Perangkat & Printer) kartu bertab yang tampil tinggal
+   SATU: lajurnya diringkas jadi satu, kartu selebar wadah tapi tetap terbaca
+   (bagian 432; sejak 436 bilah tabnya kepala .tab-jendela, bukan kartu). */
+.petak:has(> .tab-jendela) { grid-template-columns: minmax(0, 1fr); }
+.petak > .tab-jendela > .tab-badan > [data-tab-isi] { max-width: 720px; }
 .petak {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: var(--irama); margin-bottom: var(--irama); align-items: start;
@@ -3120,6 +3115,81 @@ label.cek.kartu-cek {
 }
 .tab-modal button:hover { color: var(--teks-2); }
 .tab-modal button.aktif { color: var(--teks); font-weight: 600; border-bottom-color: var(--aksen-aktif); }
+
+/* JENDELA TAB (bagian 436, bingkaiTab di pos.js). Pemilik 18 Okt 2026: tab
+   "meniru tabs nya google chrome"; Kas & Bank "terputus dengan isi layarnya".
+   Bilah tab = kepala bingkai di jalur yang lebih gelap; tab aktif berwarna
+   SAMA dengan badan bingkai, sudut atas membulat dan "kaki" melengkung ke
+   jalur — tab dan seluruh isinya terbaca sebagai satu halaman. Tanpa garis
+   tipis (pemilik tidak suka). Mode gelap: jalur paling gelap, badan setingkat
+   lebih terang, seperti Chrome gelap. */
+.tab-jendela { --jalur: var(--panel-3); --badan: var(--panel-2);
+  background: var(--badan); border: 1px solid var(--garis); border-radius: 10px;
+  margin-bottom: var(--irama); }
+/* TANPA overflow:hidden: menu ⋮ di bar alat (position:absolute) yang menjulur
+   melewati dasar bingkai akan terpotong dan butir bawahnya tak bisa diklik
+   (peninjau-rilis §436). Sudut membulat dipasang di jalur & badannya sendiri. */
+html[data-tema="gelap"] .tab-jendela { --jalur: var(--bg); }
+.tab-jendela > .tab-modal { margin: 0; padding: 8px 10px 0; gap: 0; border: 0;
+  background: var(--jalur); border-radius: 9px 9px 0 0; }
+/* Bentuk tab digambar SELURUHNYA di dalam kotak tombolnya sendiri: tombol
+   melebar 10 px ke kiri-kanan (margin negatif, tetangganya bertumpuk di
+   jalur yang transparan), dan latarnya enam lapis — dua kaki cekung di pojok
+   bawah, dua sudut atas membulat, dan badannya. Elemen semu yang menjorok
+   keluar tombol membuat isinya "lebih lebar dari kotaknya" di uji-rupa. */
+.tab-jendela > .tab-modal button { --tb: transparent; position: relative; border: 0; border-radius: 0;
+  margin: 0 -10px; padding: 10px 28px; min-height: 40px;
+  background:
+    radial-gradient(circle at 0 0, transparent 10px, var(--tb) 10.5px) left bottom / 10px 10px no-repeat,
+    radial-gradient(circle at 100% 0, transparent 10px, var(--tb) 10.5px) right bottom / 10px 10px no-repeat,
+    radial-gradient(circle at 100% 100%, var(--tb) 10px, transparent 10.5px) 10px 0 / 10px 10px no-repeat,
+    radial-gradient(circle at 0 100%, var(--tb) 10px, transparent 10.5px) right 10px top 0 / 10px 10px no-repeat,
+    linear-gradient(var(--tb), var(--tb)) 20px 0 / calc(100% - 40px) 10px no-repeat,
+    linear-gradient(var(--tb), var(--tb)) 10px 10px / calc(100% - 20px) calc(100% - 10px) no-repeat; }
+.tab-jendela > .tab-modal button:hover:not(.aktif) { --tb: color-mix(in srgb, var(--badan) 55%, var(--jalur)); }
+.tab-jendela > .tab-modal button.aktif { --tb: var(--badan); z-index: 1; }
+.tab-badan { padding: 14px; border-radius: 0 0 9px 9px; }
+.tab-badan > :last-child, .tab-badan > :last-child > .kartu:last-child { margin-bottom: 0; }
+.tab-badan > .pembuka-tab { margin: 0 2px var(--irama); }
+/* Di pop-up (Ubah produk): bingkai tanpa garis luar, menyatu dengan modalnya. */
+.tab-jendela.di-modal { border: 0; border-radius: var(--radius); margin-bottom: var(--sela-12); }
+.tab-jendela.di-modal > .tab-badan { padding: 14px 12px; }
+/* HP: isi kartu tetap 328 px (standar kendali setengah layar) — bingkai
+   melepas garis & jaraknya, kartu pertama menempel ke tab aktif. */
+@media (max-width: 620px) {
+  .tab-jendela:not(.di-modal) { border: 0; border-radius: var(--radius) var(--radius) 0 0;
+    background: transparent; overflow: visible; }
+  .tab-jendela:not(.di-modal) > .tab-modal { border-radius: var(--radius) var(--radius) 0 0; }
+  .tab-jendela:not(.di-modal) > .tab-badan { padding: 0; }
+  .tab-jendela:not(.di-modal) > .tab-modal button.aktif { --tb: var(--panel); }
+  .tab-jendela:not(.di-modal) > .tab-badan > .kartu:first-child,
+  .tab-jendela:not(.di-modal) > .tab-badan > :first-child > .kartu:first-child { border-top-left-radius: 0; border-top-right-radius: 0; border-top: 0; }
+  .tab-badan > .pembuka-tab { margin: 0 0 var(--irama); padding: 10px 14px; background: var(--panel); border: 1px solid var(--garis); border-top: 0;
+    border-radius: 0 0 var(--radius) var(--radius); }
+}
+/* Cetak: bingkai dilepas di blok @media print utama (di bawah). Blok cetak
+   KEDUA di sini akan dibaca penjaga "yang pertama ketemu" (jebakan §205). */
+
+/* BATANG GULIR (bagian 436). Pemilik: batang gulir menu samping "jelek, bisa
+   di desain ulang lebih modern" — lalu seluruh aplikasi. Pil tipis membulat,
+   tanpa panah, jalur transparan, menjauh 3 px dari tepi; samar saat diam,
+   menebal & menjelas saat dipegang. ::-webkit-scrollbar, BUKAN scrollbar-color:
+   properti standar di Chrome Windows tetap menggambar panah. Firefox memakai
+   cadangan di bawah. Tidak bergantung pada :hover induk — Chromium tidak
+   menggambar ulang pseudo ini saat induknya disorot. */
+/* Layar Kasir DIKECUALIKAN (aturan tetap: ukuran/tata letak Kasir tidak
+   diutak-atik kecuali diminta) — batang gulir klasik 15–17 px yang menyempit
+   jadi 10 px menggeser lebar keranjang & daftar produk (peninjau-rilis §436). */
+:not(#layarKasir, #layarKasir *)::-webkit-scrollbar { width: 10px; height: 10px; }
+:not(#layarKasir, #layarKasir *)::-webkit-scrollbar-track,
+:not(#layarKasir, #layarKasir *)::-webkit-scrollbar-corner { background: transparent; }
+:not(#layarKasir, #layarKasir *)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+:not(#layarKasir, #layarKasir *)::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, var(--teks-redup) 35%, transparent);
+  border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; min-height: 40px; }
+:not(#layarKasir, #layarKasir *)::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--teks-redup) 70%, transparent); border-width: 2px; }
+@supports not selector(::-webkit-scrollbar) {
+  :not(#layarKasir, #layarKasir *) { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--teks-redup) 45%, transparent) transparent; }
+}
 
 .baris-anak { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
 .baris-anak input, .baris-anak select { flex: 1; min-width: 0; padding: 8px 10px; }
@@ -3979,6 +4049,8 @@ body.tunggu-redup .sisi button:not(.sibuk) { opacity: .62; }
    bagian yang belum ditulis hari ini. Tidak bergantung pada centang
    "Background graphics" di dialog cetak Chrome — yang bawaannya mati. */
 @media print {
+  .tab-jendela { border: 0; background: none; }   /* bagian 436 */
+  .tab-badan { padding: 0; }
   :root, html[data-tema="gelap"], html[data-tema="terang"] {
     --bg: #ffffff; --panel: #ffffff; --panel-2: #ffffff; --panel-3: #ffffff;
     --sisi-bg: #ffffff;

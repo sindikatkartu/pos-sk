@@ -3783,14 +3783,14 @@ const Admin = (() => {
     const modal = APP_STATE.flag.lihat_harga_modal;
 
     bukaModal(baru ? 'Produk baru' : 'Ubah produk — ' + p.sku, `
-      <div class="tab-modal">
+      <div class="tab-jendela di-modal"><div class="tab-modal">
         <button class="aktif" data-tabm="umum">Umum</button>
         <button data-tabm="cocok">Kecocokan &amp; pencarian</button>
         <button data-tabm="satuan">Satuan bertingkat</button>
         <button data-tabm="tier">Tier harga</button>
         <button data-tabm="varian">Varian</button>
         <button data-tabm="tim">Tim &amp; poin</button>
-      </div>
+      </div><div class="tab-badan">
 
       <div data-panel="umum">
         ${baru ? htmlPenentuSku() : `<div class="baris2">
@@ -3893,6 +3893,7 @@ const Admin = (() => {
           Poin dibagi ke petugas menurut bobot peran, yang diatur di menu
           <strong>Petugas</strong>. Kasir tidak dapat mengubah angkanya.</p>
       </div>
+      </div></div>
 
       <!-- Cap waktu salinan YANG SEDANG DISUNTING, dikirim balik saat menyimpan.
            Server menolak kalau capnya sudah berbeda — tanpa itu dua orang di
@@ -6004,6 +6005,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function gambarHasilPoin() {
     const wadah = $('#hasilPoin');
+    /* Bilah tab lama (kepala bingkai #isiPoin) tidak boleh tertinggal di atas
+       "Menghitung…"/galat — pasangTabKartu memasangnya lagi sesudah berhasil. */
+    $('#isiPoin .tab-jendela > .tab-modal')?.remove();
     wadah.innerHTML = '<div class="kartu">Menghitung…</div>';
     try {
       dataPoin = await API.laporanPoin({
@@ -6123,7 +6127,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Omzet', angka: true, render: x => rp(x.omzet) }
           ], d.rinci, { kosong: 'Belum ada klaim' })}
         </div>`;
-    pasangTabKartu(wadah, 'poin', { cabang: 'Peringkat cabang', petugas: 'Per petugas', klaim: 'Rincian klaim' });   // bagian 432
+    pasangTabKartu(wadah, 'poin', { cabang: 'Peringkat cabang', petugas: 'Per petugas', klaim: 'Rincian klaim' },   // bagian 432
+      undefined, $('#isiPoin'));   // bagian 436: saringan & ringkasan bersama ikut di dalam bingkai
   }
 
   /* ==================== PIUTANG ==================== */
@@ -7814,16 +7819,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                Pengalih "30 hari / Laba 6 bln" di kartu Tren per cabang SENGAJA
                tetap .seg — ia pengalih di dalam kartu, bukan tab halaman.
 
-               margin-bottom:0 menyalin yang dipakai #tabLaporan: tanpa itu
-               .tab-modal membawa jarak 18 px yang menggantung di dasar kartu. -->
-          <div class="tab-modal" id="tabPulsa" role="group" aria-label="Bagian pulsa"
-               style="margin-bottom:0">
+               Sejak bagian 436 bilahnya kepala jendela tab (bingkaiTab di bawah). -->
+          <div class="tab-modal" id="tabPulsa" role="group" aria-label="Bagian pulsa">
             ${tabBoleh.map(([id, label]) =>
               `<button type="button" data-tabpulsa="${id}" class="${id === aktif ? 'aktif' : ''}">${label}</button>`).join('')}
           </div>
           <p class="petunjuk">Buku pulsa: buka dan tutup shift, saldo tiap aplikasi${bolehLaporan
             ? ', dan laporan shift yang sudah ditutup' : ''}.</p>
         </div>`;
+      /* Bagian 436: panel tab (#isiShiftpulsa dst.) adalah SAUDARA #isiPulsa,
+         jadi bingkainya membungkus seluruh layar. Bilah BARU dicari di dalam
+         #isiPulsa: bilah lama ber-id sama masih duduk di kepala bingkai, dan
+         $('#tabPulsa') akan menemukannya lebih dulu — dua bilah bertumpuk. */
+      bingkaiTab($('#layarPulsa'), w.querySelector('#tabPulsa'));
     }
     const peta = { shift: '#isiShiftpulsa', sumber: '#isiSumberpulsa', laporan: '#isiLaporanpulsa',
                    saldo: '#isiSaldopulsa' };
@@ -9429,14 +9437,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w._tab = aktif;
     w.innerHTML = `
       <div class="kartu">
-        <div class="tab-modal" id="tabAudit" role="group" aria-label="Bagian audit"
-             style="margin-bottom:0">
+        <div class="tab-modal" id="tabAudit" role="group" aria-label="Bagian audit">
           ${TAB_AUDIT.map(([id, label]) =>
             `<button type="button" data-tabaudit="${id}" class="${id === aktif ? 'aktif' : ''}">${esc(label)}${lencanaTabHtml('audit', id)}</button>`).join('')}
         </div>
         <p class="petunjuk">Jejak siapa mengubah apa, dan kerusakan aplikasi yang tidak terlihat. Tidak bisa dihapus dari dalam aplikasi.</p>
       </div>
       <div id="hasilAudit"></div>`;
+    bingkaiTab(w, $('#tabAudit'));   // bagian 436
     /* Dua baris `if` + `return`, bukan ternary. Penjaga "rantai menu → API →
        izin" menelusuri layar bertab dengan mencari pemuat tab yang dikembalikan
        langsung; ternary memutus penelusurannya. Bentuknya sama persis dengan
@@ -11823,7 +11831,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       w.innerHTML = `
         <div class="kartu">
           <!-- Tab halaman (bagian 304): .tab-modal, bukan .seg — pola layar Pulsa. -->
-          <div class="tab-modal" id="tabKas" role="group" aria-label="Bagian kas & bank" style="margin-bottom:12px">
+          <div class="tab-modal" id="tabKas" role="group" aria-label="Bagian kas & bank">
             ${tabKasBoleh().map(([id, label]) =>
               `<button type="button" data-tabkas="${id}" class="${id === tabKas ? 'aktif' : ''}">${label}${lencanaTabHtml('kas', id)}</button>`).join('')}
           </div>
@@ -11836,6 +11844,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              utang supplier punya menunya sendiri di <strong>Utang</strong>.</p>
         </div>
         <div id="hasilKas"></div>`;
+      bingkaiTab(w, $('#tabKas'));   // bagian 436
       $('#wadahPeriodeKas').innerHTML = Periode.html(PERIODE_KAS);
       $('#wadahCabangKas').innerHTML = pilihCabangKas();
       Periode.pasang(PERIODE_KAS, muatHasilKas);
@@ -12824,10 +12833,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!w) return;
     if (!$('#panelGaji')) {
       w.innerHTML = `
-        <div class="kartu" style="padding-bottom:0"><div class="tab-modal" id="tabGaji" style="margin:0">
+        <div class="kartu"><div class="tab-modal" id="tabGaji">
           <button data-tab-gaji="gaji" class="aktif">Gaji${lencanaTabHtml('gaji', 'gaji')}</button>
           <button data-tab-gaji="kasbon">Kasbon</button></div>
-          <p class="petunjuk" style="margin-top:10px">Gaji petugas per bulan: tekan <strong>Siapkan gaji bulan ini</strong>,
+          <p class="petunjuk">Gaji petugas per bulan: tekan <strong>Siapkan gaji bulan ini</strong>,
              periksa angkanya lewat <strong>Ubah</strong>, lalu <strong>Bayar</strong> dan cetak slipnya.
              Gaji pokok dan tunjangan disalin dari bulan lalu.</p></div>
         <div id="panelGaji">
@@ -12842,6 +12851,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div id="hasilGaji"></div>
         </div>
         <div id="panelKasbon" hidden><div id="hasilKasbon"></div></div>`;
+      bingkaiTab(w, $('#tabGaji'));   // bagian 436
       $('#wadahPeriodeGaji').innerHTML = Periode.html(PERIODE_GAJI);
       Periode.pasang(PERIODE_GAJI, muatHasilGaji);
       $('#gajiCabang').addEventListener('change', (e) => { cabangGaji = e.target.value; gambarGaji(); });
@@ -13199,6 +13209,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
       if (wadah) {
+        /* Bilah tab di kepala bingkai (bagian 436) ada DI LUAR wadahnya untuk
+           Pulsa — tanpa ini tabnya tetap bisa diklik dan memanggil server. */
+        $(wadah).closest('.layar')?.querySelectorAll('.tab-jendela > .tab-modal').forEach((b) => b.remove());
         $(wadah).innerHTML = `<div class="pesan info">Menu ini butuh koneksi internet.
           Data admin sengaja tidak di-cache supaya Anda tidak mengubah master berdasarkan data basi.
           Layar Kasir tetap berfungsi penuh tanpa internet.</div>`;
@@ -13354,8 +13367,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.tutup) return tutupModal();
       if (d.hapusBaris) return t.closest('.baris-anak').remove();
       if (d.tabm) {
-        $$('.tab-modal button').forEach(b => b.classList.toggle('aktif', b === t));
-        $$('[data-panel]').forEach(p => p.classList.toggle('sembunyi', p.dataset.panel !== d.tabm));
+        /* Hanya tab & panel pop-up INI (peninjau-rilis §436): pencarian di
+           seluruh dokumen membuang .aktif dari bilah Laporan, Keuangan, Kas … —
+           dan sejak jendela tab, .aktif itulah yang menggambar tab terbuka. */
+        const bilah = t.closest('.tab-modal'), modal = t.closest('.modal') || document;
+        bilah.querySelectorAll('button').forEach(b => b.classList.toggle('aktif', b === t));
+        modal.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('sembunyi', p.dataset.panel !== d.tabm));
         return;
       }
 
