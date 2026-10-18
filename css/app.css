@@ -2308,7 +2308,12 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .viz-cab { display: block; overflow: visible; }
 .viz-cab text { font-size: 11px; fill: var(--teks-redup); }
 .viz-cab .donat-atas { font-size: 17px; font-weight: 700; fill: var(--teks); }
-.viz-cab .label-seri { fill: var(--teks); font-weight: 600; }
+/* Legenda Tren per cabang (bagian 437): penanda berhalo + nama + angka hari terakhir. */
+.tren-legenda { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 4px 0 2px;
+  font-size: var(--fs-12); color: var(--teks-2); }
+.tren-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.tren-legenda i { width: 8px; height: 8px; border-radius: 50%; }   /* warna & halo di gaya sebarisnya */
+.tren-legenda b { font-weight: 600; color: var(--teks); margin-left: 2px; font-variant-numeric: tabular-nums; }
 .leg-cab { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; font-size: var(--fs-12); color: var(--teks-redup); }
 .leg-cab span { display: inline-flex; align-items: center; gap: 6px; }
 .leg-cab i, .petak-piutang .nama i, .tren-kepala i { width: 10px; height: 10px; border-radius: 3px; flex: none; display: inline-block; }

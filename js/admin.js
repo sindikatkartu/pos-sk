@@ -1860,38 +1860,37 @@ const Admin = (() => {
       const ss = gp.kode.filter(k => peta[k] && peta[k].length === n).map(k => ({ k, d: peta[k].map(v => v / 1e6), c: cabDash.warna(k) }));
       const kepala = `<div class="tren-kepala"><i style="background:${WARNA_JENIS_DASH[gp.jenis] || 'var(--teks-redup)'}"></i><strong>${esc(gp.label)}</strong>`;
       if (!ss.length || n < 2) return `<div class="tren-cab">${kepala}</div>${kosongCab('Belum ada data')}</div>`;
-      const W = 340, kanan = 70, H = 108, kiri = 30, bawah = 16, atas = 8;
+      /* Rancangan bagian 437 (pemilik 18 Okt 2026, "buatkan seperti ini" +
+         contoh gambar): kurva halus, isian gradasi di bawah tiap garis, kisi
+         titik-titik, penanda bulat berhalo di titik bertanggal & ujung, dan
+         legenda di bawah (nama + angka hari terakhir) — label nama & angka di
+         kanan grafik dibuang, plotnya jadi selebar kartu dan label ujung tidak
+         bisa lagi bertumpuk atau turun ke baris tanggal (bagian 302). */
+      /* bawah 20, bukan 16: halo r 7 di titik bernilai 0 (y(0) + 7) tetap
+         ±4 satuan di atas puncak huruf tanggal (peninjau-rilis §437). */
+      const W = 340, kanan = 12, H = 122, kiri = 30, bawah = 20, atas = 10;
       const maks = Math.max(0.1, ...ss.flatMap(s => s.d)) * 1.12;
       const x = (i) => kiri + i * ((W - kiri - kanan) / (n - 1)), y = (v) => atas + (H - atas - bawah) * (1 - v / maks);
       const tot = ss.reduce((a, s) => a + s.d.reduce((p, q) => p + q, 0), 0);
-      const uj = ss.map(s => ({ s, yy: y(s.d[n - 1]) })).sort((a, b) => a.yy - b.yy);
-      for (let i = 1; i < uj.length; i++) if (uj[i].yy - uj[i - 1].yy < 12) uj[i].yy = uj[i - 1].yy + 12;
-      /* Tumpukan label yang terdorong melewati garis dasar digeser NAIK
-         seluruhnya (bagian 302): saat semua cabang 0, label ke-2 dan ke-3
-         jatuh ke baris tanggal dan "SK01" menimpa "02-10". Batasnya 6 px DI
-         ATAS garis dasar: label bernilai 0 yang duduk persis di garis dasar
-         pun sudah menyentuh huruf tanggal (diukur, enam lebar layar). */
-      const lewat = uj.length ? uj[uj.length - 1].yy - (y(0) - 6) : 0;
-      if (lewat > 0) uj.forEach(u => { u.yy -= lewat; });
       const tengah = maks / 2, fmt = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: v < 10 ? 1 : 0 });
       const langkah = Math.max(1, Math.round(n / 4));
+      
+      const bertgl = tgl.map((t, i) => i).filter((i) => (i % langkah === 0 && x(n - 1) - x(i) >= 54) || i === n - 1);
+      const idG = 'gTren-' + (gp.jenis || 'semua');
+      const kisi = (yy) => `<line x1="${kiri}" x2="${W - kanan}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--garis)" stroke-dasharray="1 4" stroke-linecap="round"/>`;
       return `<div class="tren-cab">${kepala}<span class="tren-total">${n} hari <b>${esc(fmt(tot))} jt</b></span></div>
         <svg class="viz-cab" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Tren ${esc(gp.label)}">
-          <line x1="${kiri}" x2="${W - kanan}" y1="${y(0)}" y2="${y(0)}" stroke="var(--garis)"/>
-          <line x1="${kiri}" x2="${W - kanan}" y1="${y(tengah).toFixed(1)}" y2="${y(tengah).toFixed(1)}" stroke="var(--garis-halus)"/>
+          <defs>${ss.map((s, k) => `<linearGradient id="${idG}-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.c}" stop-opacity=".3"/><stop offset="1" stop-color="${s.c}" stop-opacity="0"/></linearGradient>`).join('')}</defs>
+          ${kisi(y(maks / 1.12))}${kisi(y(tengah))}${kisi(y(0))}
+          ${bertgl.map((i) => `<line x1="${x(i).toFixed(1)}" x2="${x(i).toFixed(1)}" y1="${atas}" y2="${y(0).toFixed(1)}" stroke="var(--garis)" stroke-dasharray="1 4" stroke-linecap="round"/>`).join('')}
           <text x="${kiri - 4}" y="${(y(tengah) + 4).toFixed(1)}" text-anchor="end">${esc(fmt(tengah))}</text>
-          ${ss.map(s => `<path d="${s.d.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ')}" fill="none" stroke="${s.c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><title>${esc(s.k)}</title></path>
-            <circle cx="${x(n - 1).toFixed(1)}" cy="${y(s.d[n - 1]).toFixed(1)}" r="3.5" fill="${s.c}" stroke="var(--panel)" stroke-width="2"/>`).join('')}
-          ${uj.map(u => `<text x="${(x(n - 1) + 7).toFixed(1)}" y="${(u.yy + 4).toFixed(1)}" class="label-seri">${esc(u.s.k)}</text><text x="${W - 2}" y="${(u.yy + 4).toFixed(1)}" text-anchor="end">${esc(fmt(u.s.d[n - 1]))}</text>`).join('')}
-          ${/* Label tanggal biasa duduk di TENGAH titiknya, yang terakhir rata
-               KANAN di ujung; masing-masing ±31 satuan (5 huruf, 11 px). Jaraknya
-               ke ujung harus muat setengah label + satu label + celah = 54. Dulu
-               syaratnya "kurang dari setengah langkah sebelum ujung": pada 30 hari
-               itu 5 hari = 41 satuan, dan "30-09" menempel pada "05-10" (bagian
-               340, terlihat di data toko 5 Okt 2026). */ ''}
-          ${tgl.map((t, i) => (i % langkah === 0 && x(n - 1) - x(i) >= 54) || i === n - 1
-            ? `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(t).substring(8, 10) + '/' + String(t).substring(5, 7))}</text>` : '').join('')}
-        </svg></div>`;
+          ${ss.map((s, k) => { const d = kurvaMonoton(s.d.map((v, i) => [x(i), y(v)]));
+            return `<path d="${d} L${x(n - 1).toFixed(1)} ${y(0).toFixed(1)} L${x(0).toFixed(1)} ${y(0).toFixed(1)} Z" fill="url(#${idG}-${k})" stroke="none"/>
+            <path d="${d}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linecap="round"><title>${esc(s.k)}</title></path>`; }).join('')}
+          ${ss.map((s) => bertgl.map((i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(s.d[i]).toFixed(1)}" r="7" fill="${s.c}" opacity=".2"/><circle cx="${x(i).toFixed(1)}" cy="${y(s.d[i]).toFixed(1)}" r="3.4" fill="${s.c}" stroke="var(--panel)" stroke-width="1.6"/>`).join('')).join('')}
+          ${bertgl.map((i) => `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(tgl[i]).substring(8, 10) + '/' + String(tgl[i]).substring(5, 7))}</text>`).join('')}
+        </svg>
+        <div class="tren-legenda">${ss.map((s) => `<span><i style="background:${s.c};box-shadow:0 0 0 3px ${s.c}40"></i>${esc(s.k)}<b>${esc(fmt(s.d[n - 1]))}</b></span>`).join('')}</div></div>`;
     };
     /* Jam perhitungannya ditulis (TTL grafik di server): angka sepuluh menit
        lalu tidak boleh menyamar jadi angka sekarang. */

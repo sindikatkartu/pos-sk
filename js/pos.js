@@ -2162,3 +2162,28 @@ function pasangTabKartu(wadah, kunci, label, pembuka, akar) {
   });
   pilih(aktif);
 }
+
+/* KURVA MONOTON (bagian 437) — jalur SVG halus lewat titik-titik [x, y]
+   dengan interpolasi kubik Fritsch–Carlson: kurvanya TIDAK PERNAH melewati
+   titik tertinggi/terendah di antara dua titik bersebelahan. Kurva halus biasa
+   (Catmull-Rom) menukik di bawah garis nol di antara hari sepi dan hari ramai —
+   grafik omzet yang menggambar angka minus yang tidak pernah ada. */
+function kurvaMonoton(p) {
+  const n = p.length;
+  if (!n) return '';
+  const f = (v) => v.toFixed(1);
+  if (n < 3) return 'M' + p.map((q) => f(q[0]) + ' ' + f(q[1])).join(' L');
+  const dx = [], m = [], t = [];
+  for (let i = 0; i < n - 1; i++) { dx[i] = p[i + 1][0] - p[i][0]; m[i] = (p[i + 1][1] - p[i][1]) / dx[i]; }
+  t[0] = m[0]; t[n - 1] = m[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    t[i] = m[i - 1] * m[i] <= 0 ? 0 : 3 * (dx[i - 1] + dx[i]) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]);
+  }
+  let d = 'M' + f(p[0][0]) + ' ' + f(p[0][1]);
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += ' C' + f(p[i][0] + h) + ' ' + f(p[i][1] + h * t[i]) + ' ' + f(p[i + 1][0] - h) + ' ' +
+         f(p[i + 1][1] - h * t[i + 1]) + ' ' + f(p[i + 1][0]) + ' ' + f(p[i + 1][1]);
+  }
+  return d;
+}

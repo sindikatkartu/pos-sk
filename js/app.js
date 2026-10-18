@@ -2214,6 +2214,14 @@ async function mulaiSesi(d) {
                                 (d.nama_cabang ? ' (' + d.nama_cabang + ')' : '');
 
   await terapkanLipat(await DB.kvGet('sisi_lipat', false), false);
+  /* Setelan TERSIMPAN dibaca SEBELUM bangunNav() (bagian 437). bangunNav
+     membuka layar terakhir — sering Dashboard — dan dashboard menggambar
+     SEKETIKA dari simpanan localStorage (sinkron), sedangkan setelan ini dari
+     IndexedDB (asinkron). Dibaca di awal muatMaster() (bagian 391) masih kalah
+     cepat: Tren per cabang tergambar satu panel "Semua" lalu baru terpisah
+     Ecer/Grosir. muatMaster() tetap membacanya lagi sesudah tarikan. */
+  try { APP_STATE.setting = await DB.kvGet('setting', {}); bacaSettingKeState(); }
+  catch (e) { /* setelan lokal tak terbaca: muatMaster menyusul */ }
   bangunNav();
   $('#btnTutupBuku').classList.toggle('sembunyi', !APP_STATE.flag.tutup_buku);
 
