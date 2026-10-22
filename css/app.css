@@ -955,6 +955,7 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 .siluet > .rs-f, .siluet > .rs-k { background: var(--panel); border: 1px solid var(--garis); }
 .siluet > .rs-f.halus, .siluet > .rs-k { border-color: var(--garis-halus); }
 .siluet > .rs-g { height: 0; border-top: 1px solid var(--garis-halus); }
+.siluet > .rs-l { background: var(--panel-2); }   /* latar berwarna (bagian 438) */
 
 /* ---------- Bilah atas ---------- */
 .bar-atas {

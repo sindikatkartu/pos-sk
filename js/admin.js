@@ -432,7 +432,11 @@ const Admin = (() => {
       ${rangkaBaris(12, ['92%', '78%', '86%', '70%'])}
     </div>`, '#isiProduk');   // bentuk asli diingat (bagian 262)
 
-  const rangkaDashboard = () => { $('#isiDashboard').innerHTML = `
+  /* Lewat Rangka.pasang sejak bagian 438: Dashboard satu-satunya layar yang
+     rangkanya gambar TETAP, jadi bentuk aslinya (bar pilihan, peringatan, tiga
+     kartu per cabang, Cabang sekilas) tidak pernah ditiru dan layarnya
+     melompat saat data tiba. Gambar di bawah tetap dipakai pembukaan pertama. */
+  const rangkaDashboard = () => Rangka.pasang($('#isiDashboard'), `
     <div class="bar-alat rapat bar-dash"><span class="rangka tinggi" style="width:150px"></span>${bolehCabangDash() ? '<span class="rangka tinggi" style="width:130px"></span>' : ''}</div>
     <!-- Bentuknya memakai .mini yang SAMA dengan kartu KPI sungguhan, bukan
          kotak karangan sendiri: rangka yang ukurannya berbeda dari isinya
@@ -449,7 +453,7 @@ const Admin = (() => {
     <div class="kartu" aria-busy="true">
       <span class="rangka" style="width:120px"></span>
       ${rangkaBaris(6, ['88%', '64%', '80%', '72%'])}
-    </div>`; };
+    </div>`, '#isiDashboard');
   const galat = (el, e) => { $(el).innerHTML = `<div class="pesan galat">${esc(e.message || e)}</div>`; };
 
   /**
@@ -11215,6 +11219,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const AKUN_BANK_UMUM = '1-1200';
   const akunKasAktif = () => saringBankAktif(AKUN_KAS, APP_STATE.setting).filter((k) => k !== AKUN_BANK_UMUM);
   const tampilAkunKas = (k, jumlah) => String(k) !== AKUN_BANK_UMUM || Math.abs(Number(jumlah) || 0) >= 0.5;
+  /** Saldo 1-1200 menurut neraca kas yang terakhir dimuat (bagian 439) — akun
+      pusat, jadi neraca Back Office bila ada. Dipakai untuk menawarkan 1-1200
+      di Rekening koran dan sebagai ASAL transfer selama saldonya ≠ 0. */
+  const saldoBankUmum = () => {
+    const sumber = (kasData && kasData.nerPusat && kasData.nerPusat.aset) || (kasData && kasData.ner && kasData.ner.aset) || [];
+    const a = sumber.filter((x) => String(x.kode) === AKUN_BANK_UMUM)[0];
+    return a ? Number(a.jumlah) || 0 : 0;
+  };
+  const bankUmumBersaldo = () => Math.abs(saldoBankUmum()) >= 0.5;
+  /* Sebagai ASAL transfer hanya bila saldonya POSITIF — minus tidak bisa
+     "dipindahkan", dan server menolak melebihi saldo (peninjau-rilis §439). */
+  const bankUmumPositif = () => saldoBankUmum() >= 0.5;
   /* Keterangan Kas di Tangan (bagian 430): sejak bagian 427 isinya HANYA uang
      laci shift berjalan — naik tiap nota tunai, turun saat setoran diterima. */
   const ketAkunKas = (k) => String(k) === '1-1100' ? '1-1100 · uang laci shift berjalan' : String(k);
@@ -12204,7 +12220,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuKoran">
       <div class="bar-alat"><h3>Rekening koran</h3><span class="satuan-uang">dalam Rupiah</span>
         <div style="flex:1"></div>
-        <select id="koranAkun" class="kendali-tetap" title="Akun">${akunKasAktif().map((k) =>
+        <select id="koranAkun" class="kendali-tetap" title="Akun">${akunKasAktif().concat(bankUmumBersaldo() ? [AKUN_BANK_UMUM] : []).map((k) =>
           `<option value="${k}" ${k === akunKoran ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
       <div id="isiKoran"></div></div>`;
     const parKoran = { akun: akunKoran, periode, cabang: cabangKas };
@@ -12399,7 +12415,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     (((kasData && kasData.ner && kasData.ner.aset) || [])).forEach((a) => { nama[String(a.kode)] = a.nama; });
     (coa || []).forEach((c) => { nama[String(c.kode)] = c.nama; });
     const opsi = akunTransfer().map((k) => `<option value="${k}">${esc(k)} — ${esc(nama[k] || k)}</option>`).join('');
-    $('#tbDari').innerHTML = opsi;
+    /* 1-1200 hanya sebagai ASAL, dan hanya selama bersaldo (bagian 439). */
+    $('#tbDari').innerHTML = opsi + (bankUmumPositif()
+      ? `<option value="${AKUN_BANK_UMUM}">${AKUN_BANK_UMUM} — ${esc(nama[AKUN_BANK_UMUM] || 'Bank (umum)')} · sudah ditutup, pindahkan saldonya</option>` : '');
     $('#tbKe').innerHTML = opsi;
     /* Bawaan: Kas Admin → bank pertama — kejadian paling sering. */
     $('#tbDari').value = '1-1150';
@@ -14401,6 +14419,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             akun_kas: asli.akun_kas, kode_akun: asli.kode_akun,
             jumlah: asli.jumlah,
             keterangan: 'Koreksi balik ' + asli.uuid + ' — ' + alasan,
+            /* Baris asli yang dibalik — server mencocokkannya sebelum mengizinkan
+               1-1200 yang sudah ditutup (bagian 439). */
+            balik_dari: asli.uuid,
             /* Baris yang bebannya ditanggung Back Office dibalik DI Back Office
                juga (bagian 334) — tandanya akhiran keterangan yang ditulis server. */
             ditanggung_pusat: /\[Back Office\]\s*$/.test(String(asli.keterangan || '')),

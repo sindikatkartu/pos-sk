@@ -603,7 +603,15 @@ const _KOLATOR = (typeof Intl !== 'undefined' && Intl.Collator)
    digambar di tempatnya. Dibatasi MAKS_KEPING per wadah dan ±1,5 tinggi
    layar, supaya Produk ratusan baris tetap ringan disimpan & diukur. */
 const Rangka = (() => {
-  const KUNCI = 'possk_rangka_v4', MAKS = 60, MAKS_KEPING = 320;
+  /* Kuncinya membawa VERSI aplikasi (bagian 438, pilihan pemilik "A"): bentuk
+     yang direkam versi lama tidak pernah dipakai sesudah rilis — pembukaan
+     pertama sesudah rilis memakai rangka UMUM pemanggilnya, lalu bentuk baru
+     direkam lagi. Bentuk lama yang jelas salah (mis. Kas sebelum jendela tab)
+     lebih menipu daripada rangka umum. Simpanan versi lama dibersihkan sekali. */
+  const KUNCI = 'possk_rangka_v5:' + ((typeof CONFIG !== 'undefined' && CONFIG && CONFIG.VERSI) || ''), MAKS = 60, MAKS_KEPING = 320;
+  try {
+    Object.keys(localStorage).filter((k) => /^possk_rangka_/.test(k) && k !== KUNCI).forEach((k) => localStorage.removeItem(k));
+  } catch (e) { /* diblokir: biarkan */ }
   const kelasLebar = () => (window.innerWidth < 620 ? 'hp' : window.innerWidth < 1024 ? 'tab' : 'pc');
   const kunci = (nama) => (document.querySelector('.layar.aktif')?.id || '') + '|' + nama + '|' + kelasLebar();
   const baca = () => { try { return JSON.parse(localStorage.getItem(KUNCI) || '{}'); } catch (e) { return {}; } };
@@ -637,6 +645,7 @@ const Rangka = (() => {
       case 'f': return '<span class="rs rs-f halus" style="' + kotak + '"></span>';
       case 'K': return '<span class="rs rs-k" style="' + kotak + '"></span>';
       case 'G': return '<span class="rs rs-g" style="' + kiri + 'top:' + x[2] + 'px"></span>';
+      case 'L': return '<span class="rs rs-l" style="' + kotak + '"></span>';
       default:  return '<span class="rangka rs" style="' + kotak + '"></span>';
     }
   }
@@ -663,6 +672,11 @@ const Rangka = (() => {
     return isi;
   }
   const jelas = (c) => !!c && c !== 'transparent' && !/^rgba\([^)]*,\s*0\)$/.test(c);
+  /** Latar efektif induk terdekat yang berwarna — pembanding "latar ini berbeda". */
+  const latarInduk = (e) => {
+    for (let p = e.parentElement; p; p = p.parentElement) { const c = getComputedStyle(p).backgroundColor; if (jelas(c)) return c; }
+    return '';
+  };
   let _kanvas = null;
   /** Teks ::before (label kartu HP lewat attr(data-l)) tidak punya simpul teks
    *  untuk diukur, jadi lebarnya dihitung dari hurufnya, letaknya dari gayanya. */
@@ -724,6 +738,11 @@ const Rangka = (() => {
       if (e.classList.contains('lencana')) { taruh('B', r, rad); return; }
       if (sisi.every(Boolean)) taruh(e.matches(BINGKAI_KUAT) ? 'F' : 'f', r, rad);
       else {
+        /* LATAR BERWARNA tanpa bingkai (bagian 438): jalur & badan jendela tab,
+           kepala tabel, kepala Konsolidasi — dulu tidak terekam, jadi rangka
+           layar bertab kehilangan bingkainya. Hanya bila warnanya berbeda dari
+           latar induknya; digambar SEBELUM isinya (urutan jalan = urutan cat). */
+        if (latar && r.width >= 24 && r.height >= 12 && g.backgroundColor !== latarInduk(e)) taruh('L', r, rad);
         if (sisi[0]) garisan.push([r.left, r.top, r.width]);
         if (sisi[2]) garisan.push([r.left, r.bottom - 1, r.width]);
       }
