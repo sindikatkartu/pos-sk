@@ -1559,6 +1559,8 @@ var IKON_SUMBER = {
   keuangan  : 'wallet',
   diskon    : 'percent',
   pulsa: 'signal',
+  /* Modul Produksi voucher/perdana (bagian 445). */
+  produksi: 'factory',
   accurate: 'file-spreadsheet',
   konsolidasi: 'layers',
   aset      : 'armchair',
@@ -1697,6 +1699,7 @@ var IKON = {
   /* Batang sinyal — sumber saldo pulsa. Sengaja BUKAN dompet: dompet sudah
      dipakai menu Keuangan, dan dua menu berikon sama di sidebar yang sama
      panjangnya membuat orang menghitung posisi, bukan mengenali gambar. */
+  produksi: '<path d="M12 16h.01"/><path d="M16 16h.01"/><path d="M3 19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5a.5.5 0 0 0-.769-.422l-4.462 2.844A.5.5 0 0 1 15 10.5v-2a.5.5 0 0 0-.769-.422L9.77 10.922A.5.5 0 0 1 9 10.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/><path d="M8 16h.01"/>',
   pulsa: '<path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/>',
   /* Tumpukan lapis — tiga sumber yang ditumpuk jadi satu angka. */
   accurate: '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/>',

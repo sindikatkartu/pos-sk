@@ -127,7 +127,9 @@ const API = (() => {
     'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak',
     /* Pengajuan diskon ke Owner (bagian 288): kasir menanyakan keputusan tiap
        beberapa detik, Owner membaca antreannya — keduanya membaca saja. */
-    'cek_diskon', 'daftar_diskon_minta'
+    'cek_diskon', 'daftar_diskon_minta',
+    /* bagian 445 */
+    'data_produksi'
   ]);
   /** Apakah permintaan ini mengunci layar: dari orang DAN bukan sekadar membaca. */
   const mengunci = (aksi, opsi) => opsi.latar !== true && !HANYA_BACA.has(aksi);
@@ -254,7 +256,10 @@ const API = (() => {
     'ajukan_void', 'putus_minta_void', 'tarik_minta_void',
     /* bagian 288: dua bacaan, dan menarik pengajuan yang sudah ditarik hanya
        memulangkan keadaannya — tidak menulis apa pun untuk kedua kalinya. */
-    'cek_diskon', 'daftar_diskon_minta', 'batal_diskon'
+    'cek_diskon', 'daftar_diskon_minta', 'batal_diskon',
+    /* bagian 445: bacaan modul Produksi, dan tiga tulisan yang servernya menjaga
+       duplikat per uuid dokumen (mutasi_stok / jurnal). */
+    'data_produksi', 'simpan_produksi', 'isi_saldo_inject', 'cocok_saldo_inject'
   ]);
   /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
      ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
@@ -308,6 +313,9 @@ const API = (() => {
     /* bagian 443: ulangan otomatis mengajukan koreksi dua kali / mengesahkan
        yang sudah disahkan. */
     'putus_koreksi',
+    /* bagian 445: aplikasi baru melahirkan sub-akun; batal produksi membalik
+       stok & jurnal — jawaban yang hilang bukan bukti tidak terjadi. */
+    'simpan_aplikasi_inject', 'batal_produksi',
     /* bagian 296: ulangan otomatis bisa membuat akun dua kali (kode berikutnya
        berbeda, jadi duplikatnya lolos pemeriksaan kode). */
     'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa',
@@ -672,6 +680,13 @@ let _pernahJawab = false;
     daftarDiskonMinta: (d) => panggil('daftar_diskon_minta', d || {}, { latar: true }),
     putusDiskon:       (d) => panggil('putus_diskon', d),
     putusKoreksi:      (d) => panggil('putus_koreksi', d),
+    /* Modul Produksi (bagian 445). */
+    dataProduksi:          (d) => panggil('data_produksi', d, { timeout: 90000 }),
+    simpanProduksi:        (d) => panggil('simpan_produksi', d),
+    batalProduksi:         (d) => panggil('batal_produksi', d),
+    isiSaldoInject:        (d) => panggil('isi_saldo_inject', d),
+    cocokSaldoInject:      (d) => panggil('cocok_saldo_inject', d),
+    simpanAplikasiInject:  (d) => panggil('simpan_aplikasi_inject', d),
     kotakPersetujuan:  () => panggil('kotak_persetujuan', {}, { latar: true }),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),

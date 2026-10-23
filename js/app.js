@@ -254,7 +254,10 @@ const WILAYAH = {
   toko:   ['kasir', 'riwayat', 'shift', 'pulsa', 'retur', 'pembatalan', 'stok', 'transfer', 'permintaan', 'opname'],
   kantor: ['produk', 'pembelian', 'returbeli', 'kas', 'piutang', 'utang', 'gaji', 'mitra', 'petugas',
            'laporan', 'keuangan', 'poin', 'coa', 'jurnal', 'aset', 'accurate', 'konsolidasi',
-           'pengguna', 'peran', 'perangkat', 'cabang', 'sistem', 'audit', 'arsip'],
+           'pengguna', 'peran', 'perangkat', 'cabang', 'sistem', 'audit', 'arsip',
+           /* Produksi voucher/perdana (bagian 445, keputusan pemilik): dicatat dari
+              luar kasir, saldo dari Kas Admin/bank, stoknya selalu SKG01. */
+           'produksi'],
   netral: ['dashboard', 'persetujuan', 'akun', 'tentang', 'bantuan', 'pengaturan']
 };
 const wilayahLayar = (id) => WILAYAH.kantor.includes(id) ? 'kantor' : (WILAYAH.toko.includes(id) ? 'toko' : 'netral');
@@ -336,6 +339,8 @@ const MENU = [
   // pada `.buat` akan menyembunyikan seluruh daftar pekerjaannya.
   { id: 'permintaan', label: 'Permintaan', grup: 'Persediaan', izin: ['permintaan', 'lihat'],        admin: true, backoffice: true },
   { id: 'opname',     label: 'Opname',     grup: 'Persediaan', izin: ['opname', 'buat'],             admin: true, backoffice: true },
+  /* Modul Produksi voucher/perdana (bagian 445): bertanda modul seperti Pulsa. */
+  { id: 'produksi',   label: 'Produksi',   grup: 'Persediaan', izin: ['produksi', 'lihat'],          admin: true, backoffice: true, modul: true },
   { id: 'pembelian',  label: 'Pembelian',  grup: 'Persediaan', izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
   { id: 'returbeli',  label: 'Retur Beli', grup: 'Persediaan', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
   /* Satu layar, dua tabel — jadi namanya harus jujur "Mitra", bukan "Pelanggan".
@@ -2596,6 +2601,9 @@ function bukaPilihPelanggan() {
  * server saat sinkron. Kosong atau '*' = semua cabang.
  */
 function produkDijualDiSini(p) {
+  /* Bahan produksi (bagian 445) bukan barang dagangan: voucher/perdana kosong
+     hanya keluar lewat modul Produksi. */
+  if (String(p?.kategori || '').trim() === 'Bahan Produksi') return false;
   const c = String(p?.cabang || '').trim();
   if (!c || c === '*') return true;
   const kini = String(APP_STATE.cabang || '').trim().toUpperCase();
@@ -6573,7 +6581,9 @@ async function tampilkanBukuBesar() {
     const SUMBER = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
                      RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer',
                      PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
-                     LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa' };
+                     LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa',
+                     /* bagian 445 */
+                     PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject' };
     const baris = (b) => `<tr>
       <td data-l="Tanggal">${esc(tglTampil(b.tanggal))}<span class="petunjuk" style="display:block">${esc(b.no_jurnal)}</span></td>
       <td data-l="Sumber">${esc(SUMBER[b.sumber] || b.sumber)}</td>

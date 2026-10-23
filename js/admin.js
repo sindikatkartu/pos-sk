@@ -4221,6 +4221,7 @@ const Admin = (() => {
      lebih rapuh daripada memanggil yang ada. */
   function hitungUlangSemua() {
     if ($('#beliTotal')) hitungTotalBeli();
+    if ($('#prodPerkiraan')) hitungPerkiraanProduksi();   // bagian 445
     if ($('#rtSelisih')) hitungRetur();
     if ($('#rbTotal')) hitungReturBeli();
   }
@@ -11517,6 +11518,434 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
   }
 
+  /* ==================== PRODUKSI voucher/perdana (bagian 445) ====================
+     Modul: bahan (produk berkategori Bahan Produksi) + saldo aplikasi inject →
+     barang jadi di stok cabang produksi (SKG01) dengan modal = bahan + paket.
+     Server: 26_Produksi.gs. Angka saldo & modal dibaca dari jurnal, bukan
+     dihitung ulang di sini. */
+  const KATEGORI_BAHAN = 'Bahan Produksi';
+  const TAB_PROD = [['produksi', 'Produksi'], ['saldo', 'Saldo aplikasi'], ['laporan', 'Laporan']];
+  const PERIODE_PROD = { id: 'prodPeriodePilih', dari: 'prodDari', sampai: 'prodSampai', nilai: 'bulan', judul: 'Periode produksi' };
+  const NAMA_AKUN_BAYAR = { '1-1150': 'Kas Admin', '1-1201': 'Bank BCA', '1-1202': 'Bank BNI', '1-1203': 'Bank BRI', '1-1204': 'Bank Mandiri' };
+  let tabProd = 'produksi', prodData = null, prodTerpasang = false;
+
+  /* Aplikasi melahirkan akun perkiraan: gerbangnya gerbang Akun Perkiraan
+     (setting·ubah atau kelola_akun_perkiraan) — sama dengan _bolehKelolaAkun di server. */
+  const bolehKelolaAplikasi = () => bolehIzin('produksi', 'ubah') &&
+    (bolehIzin('setting', 'ubah') || APP_STATE.flag?.kelola_akun_perkiraan === true);
+  function menuProduksi() {
+    const isi = (bolehKelolaAplikasi() ? butirBaris('', 'Tambah aplikasi', IKON.tambah, 'data-prod-aksi="aplikasi"') : '') +
+      butirBaris('', 'Cetak laporan', IKON.cetak, 'data-prod-aksi="cetak"');
+    return menuTindakan({ id: 'menuProduksi', idTombol: 'btnMenuProduksi', kunci: 'produksi', isi });
+  }
+
+  async function muatProduksi() {
+    const w = $('#isiProduksi');
+    if (!w) return;
+    if (!$('#prodDari')) {
+      w.innerHTML = `
+        <div class="kartu">
+          <div class="tab-modal" id="tabProduksi" role="group" aria-label="Bagian produksi">
+            ${TAB_PROD.map(([id, label]) => `<button type="button" data-tabprod="${id}" class="${id === tabProd ? 'aktif' : ''}">${label}</button>`).join('')}
+          </div>
+          <!-- ⋮ selalu paling kanan (bar-alat-menu: saringan kiri, aksi kanan). -->
+          <div class="bar-alat bar-alat-menu"><div class="saringan"><span class="wadah-periode" id="wadahPeriodeProd"></span></div>
+            <div class="aksi">${menuProduksi()}</div></div>
+          <p class="petunjuk">Voucher &amp; perdana kosong di-inject memakai saldo aplikasi operator, lalu masuk stok
+             sebagai barang siap jual. Modal per unit = harga bahan (FIFO) + modal paket. Yang gagal di-inject
+             dicatat sebagai barang rusak.</p>
+        </div>
+        <div id="hasilProduksi"></div>`;
+      bingkaiTab(w, $('#tabProduksi'));
+      $('#wadahPeriodeProd').innerHTML = Periode.html(PERIODE_PROD);
+      Periode.pasang(PERIODE_PROD, muatHasilProduksi);
+      pasangProduksi();
+    }
+    return muatHasilProduksi();
+  }
+
+  async function muatHasilProduksi() {
+    const par = { dari: nilai('prodDari'), sampai: nilai('prodSampai') };
+    await muatTersimpan('#hasilProduksi', 'produksi', 'produksi', par, () => API.dataProduksi(par),
+      (d) => { prodData = d; gambarProduksi(); });
+  }
+
+  function pilihTabProduksi(id) {
+    tabProd = id;
+    document.querySelectorAll('#tabProduksi [data-tabprod]').forEach((b) => b.classList.toggle('aktif', b.dataset.tabprod === id));
+    gambarProduksi();
+  }
+
+  function gambarProduksi() {
+    const w = $('#hasilProduksi'), d = prodData;
+    if (!w || !d) return;
+    if (tabProd === 'saldo') w.innerHTML = htmlSaldoProduksi(d);
+    else if (tabProd === 'laporan') w.innerHTML = htmlLaporanProduksi(d);
+    else { w.innerHTML = htmlCatatProduksi(d) + htmlDaftarProduksi(d); siapkanFormProduksi(); }
+  }
+
+  /* ---------- Tab Produksi ---------- */
+  function htmlCatatProduksi(d) {
+    if (!bolehIzin('produksi', 'buat')) return '';
+    const apl = d.aplikasi.filter((a) => a.aktif);
+    if (!d.bahan.length) {
+      return `<div class="pesan info">Belum ada bahan. Buat produk berkategori <strong>${esc(KATEGORI_BAHAN)}</strong>
+        (mis. voucher kosong, perdana kosong) di menu Produk, lalu catat pembeliannya di menu Pembelian cabang ${esc(d.cabang)}.</div>`;
+    }
+    if (!apl.length) return '<div class="pesan info">Belum ada aplikasi saldo. Tambahkan lewat ⋮ → Tambah aplikasi.</div>';
+    return `<div class="kartu" id="kartuProduksi"><h3>Catat produksi</h3>
+      <!-- Barang jadi selebar penuh, lalu EMPAT isian di .petak-4 (4 / 2 x 2 / 1),
+           lalu modal & catatan berdua — tidak ada isian yatim di baris terakhir
+           (uji-ruang kategori 3). -->
+      <div class="grup"><label>Barang jadi</label>
+        <div class="baris-anak" data-anak="prod" style="margin:0">${barisPilihProduk(1)}</div></div>
+      <div class="petak petak-4">
+        <div class="grup"><label for="prodBahan">Bahan</label><select id="prodBahan">
+          ${d.bahan.map((b) => `<option value="${esc(b.sku)}">${esc(b.nama)} · stok ${b.qty}</option>`).join('')}</select></div>
+        <div class="grup"><label for="prodAplikasi">Aplikasi</label><select id="prodAplikasi">
+          ${apl.map((a) => `<option value="${esc(a.kode)}">${esc(a.nama)} · saldo ${esc(rpTeks(a.saldo))}</option>`).join('')}</select></div>
+        <div class="grup"><label for="prodJadi">Jumlah jadi</label><input type="number" id="prodJadi" min="1" step="1" inputmode="numeric"></div>
+        <div class="grup"><label for="prodGagal">Gagal inject</label><input type="number" id="prodGagal" min="0" step="1" value="0" inputmode="numeric"></div>
+      </div>
+      <div class="petak petak-4">
+        <div class="grup"><label for="prodModal">Modal paket per unit</label><input type="text" class="uang" id="prodModal" inputmode="numeric" autocomplete="off"></div>
+        <div class="grup"><label for="prodCatatan">Catatan</label><input type="text" id="prodCatatan" maxlength="120" autocomplete="off"></div>
+      </div>
+      <p class="petunjuk" id="prodPerkiraan">Pilih barang jadi, isi jumlah dan modal paketnya.</p>
+      <div class="aksi"><button class="tombol utama" id="btnSimpanProduksi">${ikonAlat('simpan')}<span>Simpan produksi</span></button></div>
+    </div>`;
+  }
+
+  async function siapkanFormProduksi() {
+    if (!$('#kartuProduksi')) return;
+    lepasUuidDokumen('produksi');            // dokumen BARU — lihat uuidDokumen()
+    try { daftarPilihProduk = (await DB.all('produk')).filter((p) => String(p.kategori || '').trim() !== KATEGORI_BAHAN); }
+    catch (e) { daftarPilihProduk = []; }
+  }
+
+  /** Perkiraan sebelum simpan — yang menentukan tetap server (FIFO bisa memakai lebih dari satu lapisan). */
+  function hitungPerkiraanProduksi() {
+    const el = $('#prodPerkiraan'), d = prodData;
+    if (!el || !d) return;
+    const sku = $('#kartuProduksi input[data-f="sku"]')?.value || '';
+    const modalEl = $('#prodModal');
+    /* Modal paket terisi dari produksi TERAKHIR barang yang sama (keputusan pemilik). */
+    if (sku && modalEl && !modalEl.value) {
+      const lalu = d.produksi.find((x) => x.sku_jadi === sku && !x.batal);
+      if (lalu) { modalEl.value = ribuan(lalu.modal_paket); modalEl.dataset.auto = '1'; }
+    }
+    const jadi = Number($('#prodJadi')?.value) || 0, gagal = Number($('#prodGagal')?.value) || 0;
+    const modal = angkaDari(modalEl?.value || '') || 0;
+    const b = d.bahan.find((x) => x.sku === $('#prodBahan')?.value);
+    const a = d.aplikasi.find((x) => x.kode === $('#prodAplikasi')?.value);
+    if (!sku || !jadi || !b) { el.textContent = 'Pilih barang jadi, isi jumlah dan modal paketnya.'; return; }
+    const inject = jadi * modal, bahan = jadi * b.hpp_depan, perUnit = (inject + bahan) / jadi;
+    const kurang = a && inject > a.saldo;
+    el.innerHTML = `Perkiraan modal per unit <strong>${rp(Math.round(perUnit))}</strong> (bahan ${rp(b.hpp_depan)} + paket ${rp(modal)}) ·
+      inject ${rp(inject)}${a ? ` dari saldo ${esc(a.nama)} ${rp(a.saldo)}` : ''} · bahan terpakai ${jadi + gagal} dari stok ${b.qty}
+      ${kurang ? '<br><strong>Saldo aplikasi kurang — catat isi saldonya dulu di tab Saldo aplikasi.</strong>' : ''}`;
+  }
+
+  async function simpanProduksi(btn) {
+    const sku = $('#kartuProduksi input[data-f="sku"]')?.value || '';
+    const p = {
+      uuid: uuidDokumen('produksi'),
+      sku_jadi: sku, sku_bahan: $('#prodBahan').value, kode_aplikasi: $('#prodAplikasi').value,
+      qty_jadi: Number($('#prodJadi').value), qty_gagal: Number($('#prodGagal').value || 0),
+      modal_paket: angkaDari($('#prodModal').value || ''), catatan: ($('#prodCatatan').value || '').trim()
+    };
+    if (!sku) return toast('Pilih barang jadinya dari daftar.', 'galat');
+    if (!(p.qty_jadi > 0)) return toast('Isi jumlah jadi.', 'galat');
+    if (!(p.modal_paket >= 0) || $('#prodModal').value === '') return toast('Isi modal paket per unit (0 bila tanpa inject).', 'galat');
+    const jadiNama = $('#kartuProduksi .cari-prd')?.value || sku;
+    const apl = prodData.aplikasi.find((a) => a.kode === p.kode_aplikasi), bhn = prodData.bahan.find((b) => b.sku === p.sku_bahan);
+    if (!(await tanya('Simpan produksi ini?',
+      `<p class="petunjuk"><strong>${esc(jadiNama)}</strong> × ${p.qty_jadi} masuk stok ${esc(prodData.cabang)}.</p>
+       <p class="petunjuk">Bahan ${esc(bhn ? bhn.nama : p.sku_bahan)} keluar ${p.qty_jadi + p.qty_gagal}${p.qty_gagal ? ' (' + p.qty_gagal + ' gagal → barang rusak)' : ''}.<br>
+         Inject ${esc(apl ? apl.nama : p.kode_aplikasi)}: ${rp(p.modal_paket)} × ${p.qty_jadi} = <strong>${rp(p.modal_paket * p.qty_jadi)}</strong>.</p>`,
+      { ya: 'Simpan produksi' }))) return;
+    btn.disabled = true;
+    try {
+      const r = await API.simpanProduksi(p);
+      lepasUuidDokumen('produksi');
+      /* Kiriman ulang yang sudah tersimpan dijawab "duplikat" tanpa angka. */
+      toast(r.duplikat ? 'Produksi ini sudah tersimpan sebelumnya.'
+        : `Produksi ${r.no_dokumen || ''} tersimpan — ${p.qty_jadi} unit masuk stok, modal ${rpTeks(r.modal_satuan)}/unit.`, 'sukses');
+      await muatHasilProduksi();
+    } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
+  }
+
+  function htmlDaftarProduksi(d) {
+    const bolehUbah = bolehIzin('produksi', 'ubah');
+    return `<div class="kartu laporan-uang"><div class="bar-alat"><h3>Riwayat produksi</h3></div>
+      ${tabel([
+        { judul: 'Tanggal', render: (x) => `${esc(tglTampil(x.tanggal))}<div class="meta-kecil">${esc(x.no_dokumen)}</div>` },
+        { judul: 'Barang jadi', render: (x) => `${esc(x.nama_jadi)}${x.batal ? ' ' + lencanaDash('dibatalkan', 'merah') : ''}<div class="meta-kecil">${esc(x.nama_bahan)}</div>` },
+        { judul: 'Jadi', angka: true, render: (x) => x.qty_jadi },
+        { judul: 'Gagal', angka: true, render: (x) => x.qty_gagal || '—' },
+        { judul: 'Aplikasi', render: (x) => esc(x.nama_aplikasi || '—') },
+        { judul: 'Modal/unit', angka: true, render: (x) => rp(x.modal_satuan) },
+        { judul: 'Nilai', angka: true, render: (x) => rp(x.nilai_jadi) },
+        { judul: 'Oleh', render: (x) => esc(x.nama_user || x.id_user) },
+        { judul: '', kelas: 'sel-menu', render: (x) => bolehUbah && !x.batal
+            ? menuTindakan({ id: 'menuProd' + idAman(x.uuid), idTombol: 'btnProd' + idAman(x.uuid), kunci: 'baris-prod', baris: true, tanda: 'bahaya',
+                isi: butirBaris('', 'Rincian', IKON.tampil, `data-prod-rincian="${esc(x.uuid)}"`) +
+                     butirBaris('bahaya', 'Batalkan', IKON.batal, `data-prod-batal="${esc(x.uuid)}"`) })
+            : tombolBaris('', 'Rincian', IKON.tampil, `data-prod-rincian="${esc(x.uuid)}"`) }
+      ], d.produksi, { kosong: 'Belum ada produksi pada periode ini.' })}</div>`;
+  }
+
+  function rincianProduksi(u) {
+    const x = (prodData?.produksi || []).find((p) => p.uuid === u);
+    if (!x) return;
+    const baris = (l, v) => `<tr><td data-l="Rincian">${esc(l)}</td><td class="angka" data-l="Nilai">${v}</td></tr>`;
+    bukaModal('Produksi ' + (x.no_dokumen || ''), `
+      <p class="petunjuk">${esc(tglTampil(x.tanggal))} ${esc(x.waktu)} · oleh ${esc(x.nama_user || x.id_user)}${x.catatan ? ' · ' + esc(x.catatan) : ''}</p>
+      <div class="gulir-x"><table><tbody>
+        ${baris('Barang jadi', esc(x.nama_jadi) + ' × ' + x.qty_jadi)}
+        ${baris('Bahan terpakai', esc(x.nama_bahan) + ' · ' + rp(x.nilai_bahan))}
+        ${baris('Inject ' + (x.nama_aplikasi || ''), rp(x.modal_paket) + ' × ' + x.qty_jadi + ' = ' + rp(x.nilai_inject))}
+        ${baris('Gagal inject', x.qty_gagal ? x.qty_gagal + ' · ' + rp(x.nilai_gagal) + ' (beban rusak)' : '—')}
+        ${baris('Modal per unit', rp(x.modal_satuan))}
+        ${baris('Nilai masuk stok', '<strong>' + rp(x.nilai_jadi) + '</strong>')}
+      </tbody></table></div>
+      ${x.batal ? '<div class="pesan peringatan">Produksi ini sudah dibatalkan.</div>' : ''}`);
+  }
+
+  async function batalProduksi(u) {
+    const x = (prodData?.produksi || []).find((p) => p.uuid === u);
+    if (!x) return;
+    const alasan = await tanya('Batalkan produksi ' + (x.no_dokumen || '') + '?',
+      `<p class="petunjuk">${esc(x.nama_jadi)} × ${x.qty_jadi} dicabut dari stok, bahan kembali, dan saldo ${esc(x.nama_aplikasi || 'aplikasi')}
+       dikembalikan ${rp(x.nilai_inject)}. Hanya bisa selama barang jadinya belum terjual.</p>`,
+      { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5, ya: 'Batalkan', jenis: 'bahaya' });
+    if (!alasan) return;
+    try { await API.batalProduksi({ uuid: u, alasan }); toast('Produksi dibatalkan.', 'sukses'); await muatHasilProduksi(); }
+    catch (e) { toast(e.message, 'galat'); }
+  }
+
+  /* ---------- Tab Saldo aplikasi ---------- */
+  function htmlSaldoProduksi(d) {
+    const bolehBuat = bolehIzin('produksi', 'buat'), bolehUbah = bolehIzin('produksi', 'ubah');
+    const aksi = (a) => {
+      const t = [];
+      if (bolehBuat && a.aktif) t.push(['Isi saldo', IKON.tambah, `data-prod-isi="${esc(a.kode)}"`]);
+      if (d.boleh_cocokkan) t.push(['Cocokkan saldo', IKON.setujui, `data-prod-cocok="${esc(a.kode)}"`]);
+      if (d.boleh_kelola_aplikasi && bolehUbah) t.push(['Ubah', IKON.ubah, `data-prod-ubah="${esc(a.kode)}"`]);
+      if (!t.length) return '';
+      if (t.length === 1) return tombolBaris('', t[0][0], t[0][1], t[0][2]);
+      return menuTindakan({ id: 'menuApl' + idAman(a.kode), idTombol: 'btnApl' + idAman(a.kode), kunci: 'baris-apl', baris: true,
+        isi: t.map((x) => butirBaris('', x[0], x[1], x[2])).join('') });
+    };
+    return `<div class="kartu laporan-uang"><div class="bar-alat"><h3>Aplikasi saldo inject</h3></div>
+        ${tabel([
+          { judul: 'Aplikasi', render: (a) => `<strong>${esc(a.nama)}</strong>${a.aktif ? '' : ' ' + lencanaDash('nonaktif', '')}<div class="meta-kecil">${esc(a.operator || '—')} · akun ${esc(a.akun)}</div>` },
+          { judul: 'Saldo buku', angka: true, render: (a) => rp(a.saldo) },
+          { judul: '', kelas: 'sel-menu', render: aksi }
+        ], d.aplikasi, { kosong: 'Belum ada aplikasi. Tambahkan lewat ⋮ → Tambah aplikasi.' })}
+        <p class="petunjuk">Saldo buku dibaca dari jurnal: isi saldo menambah, produksi mengurangi. Kalau berbeda dengan angka di
+           aplikasinya, Owner memakai <strong>Cocokkan saldo</strong> — selisihnya dibukukan dengan alasan.</p></div>
+      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Mutasi saldo</h3></div>
+        ${tabel([
+          { judul: 'Tanggal', render: (x) => `${esc(tglTampil(x.tanggal))}<div class="meta-kecil">${esc(x.no_jurnal)}</div>` },
+          { judul: 'Jenis', render: (x) => esc(x.jenis) },
+          { judul: 'Aplikasi', render: (x) => esc(x.nama_aplikasi) },
+          { judul: 'Masuk', angka: true, render: (x) => x.masuk ? rp(x.masuk) : '—' },
+          { judul: 'Keluar', angka: true, render: (x) => x.keluar ? rp(x.keluar) : '—' },
+          { judul: 'Keterangan', render: (x) => esc(x.keterangan) }
+        ], d.mutasi_saldo, { kosong: 'Tidak ada mutasi saldo pada periode ini.' })}</div>`;
+  }
+
+  function bukaIsiSaldo(kode) {
+    const a = prodData.aplikasi.find((x) => x.kode === kode);
+    if (!a) return;
+    lepasUuidDokumen('isi_saldo');           // dokumen BARU — lihat uuidDokumen()
+    bukaModal('Isi saldo ' + a.nama, `
+      <p class="petunjuk">Saldo buku sekarang ${rp(a.saldo)}.</p>
+      <div class="petak petak-form">
+        <label>Nominal<input type="text" class="uang" id="isiNominal" inputmode="numeric" autocomplete="off"></label>
+        <label>Dibayar dari<select id="isiAkun">${prodData.akun_bayar.map((k) => `<option value="${k}">${esc(NAMA_AKUN_BAYAR[k] || k)}</option>`).join('')}</select></label>
+      </div>
+      <label>Keterangan<input type="text" id="isiKet" maxlength="120" autocomplete="off"></label>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanIsiSaldo" data-kode="${esc(kode)}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
+  }
+
+  async function simpanIsiSaldo(btn) {
+    const nominal = angkaDari($('#isiNominal').value || '');
+    if (!(nominal > 0)) return toast('Isi nominalnya.', 'galat');
+    const akun = $('#isiAkun').value, apl = prodData.aplikasi.find((a) => a.kode === btn.dataset.kode);
+    const ket = ($('#isiKet').value || '').trim();
+    if (!(await tanya('Catat isi saldo ' + (apl ? apl.nama : '') + '?',
+      `<p class="petunjuk"><strong>${rp(nominal)}</strong> dibayar dari ${esc(NAMA_AKUN_BAYAR[akun] || akun)}.</p>`,
+      { ya: 'Catat isi saldo' }))) return;
+    btn.disabled = true;
+    try {
+      await API.isiSaldoInject({ uuid: uuidDokumen('isi_saldo'), kode: btn.dataset.kode,
+        nominal, akun_bayar: akun, keterangan: ket });
+      lepasUuidDokumen('isi_saldo');
+      tutupModal(); toast('Saldo ' + rpTeks(nominal) + ' dicatat.', 'sukses'); await muatHasilProduksi();
+    } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
+  }
+
+  function bukaCocokSaldo(kode) {
+    const a = prodData.aplikasi.find((x) => x.kode === kode);
+    if (!a) return;
+    lepasUuidDokumen('cocok_saldo');         // dokumen BARU — lihat uuidDokumen()
+    bukaModal('Cocokkan saldo ' + a.nama, `
+      <p class="petunjuk">Saldo buku ${rp(a.saldo)}. Isi angka yang tertera di aplikasi sekarang; selisihnya dibukukan
+         (kurang ke Beban Lain-lain, lebih ke Pendapatan Lain-lain).</p>
+      <label>Saldo di aplikasi<input type="text" class="uang" id="cocokSaldo" inputmode="numeric" autocomplete="off"></label>
+      <label>Alasan *<input type="text" id="cocokAlasan" maxlength="200" autocomplete="off" placeholder="mis. biaya admin aplikasi"></label>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanCocok" data-kode="${esc(kode)}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
+  }
+
+  async function simpanCocokSaldo(btn) {
+    const teks = $('#cocokSaldo').value || '', alasan = ($('#cocokAlasan').value || '').trim();
+    if (teks === '') return toast('Isi saldo di aplikasi.', 'galat');
+    if (alasan.length < 5) return toast('Alasan minimal 5 huruf.', 'galat');
+    const apl = prodData.aplikasi.find((a) => a.kode === btn.dataset.kode), app = angkaDari(teks);
+    const beda = app - (apl ? apl.saldo : 0);
+    if (!(await tanya('Bukukan selisih saldo?',
+      `<p class="petunjuk">Saldo buku ${rp(apl ? apl.saldo : 0)} → saldo aplikasi ${rp(app)}: selisih <strong>${rp(beda)}</strong>
+         dibukukan ke ${beda < 0 ? 'Beban Lain-lain' : 'Pendapatan Lain-lain'}.</p>`, { ya: 'Bukukan selisih' }))) return;
+    btn.disabled = true;
+    try {
+      const r = await API.cocokSaldoInject({ uuid: uuidDokumen('cocok_saldo'), kode: btn.dataset.kode,
+        saldo_aplikasi: angkaDari(teks), alasan });
+      lepasUuidDokumen('cocok_saldo');
+      tutupModal(); toast(r.duplikat ? 'Pencocokan ini sudah tersimpan sebelumnya.' : 'Selisih ' + rpTeks(r.selisih) + ' dibukukan.', 'sukses'); await muatHasilProduksi();
+    } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
+  }
+
+  function bukaAplikasi(kode) {
+    const a = kode ? (prodData?.aplikasi || []).find((x) => x.kode === kode) : null;
+    bukaModal(a ? 'Ubah aplikasi ' + a.nama : 'Tambah aplikasi', `
+      <label>Nama aplikasi *<input type="text" id="aplNama" maxlength="40" value="${esc(a?.nama || '')}" placeholder="mis. Sidiva"></label>
+      <label>Operator<input type="text" id="aplOperator" maxlength="80" value="${esc(a?.operator || '')}" placeholder="mis. Smartfren · XL · Axis"></label>
+      ${a ? `<label class="cek"><input type="checkbox" id="aplAktif"${a.aktif ? ' checked' : ''}> Aktif dipakai produksi</label>` :
+            '<p class="petunjuk">Aplikasi baru mendapat akun saldonya sendiri di Akun Perkiraan (di bawah 1-1560 Saldo Deposit Inject).</p>'}`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanApl" data-kode="${esc(kode || '')}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
+  }
+
+  async function simpanAplikasi(btn) {
+    const nama = ($('#aplNama').value || '').trim();
+    if (nama.length < 2) return toast('Isi nama aplikasinya.', 'galat');
+    btn.disabled = true;
+    try {
+      await API.simpanAplikasiInject({ kode: btn.dataset.kode || undefined, nama, operator: ($('#aplOperator').value || '').trim(),
+        aktif: $('#aplAktif') ? $('#aplAktif').checked : true });
+      tutupModal(); toast('Aplikasi tersimpan.', 'sukses'); await muatHasilProduksi();
+    } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
+  }
+
+  /* ---------- Tab Laporan ---------- */
+  function ringkasProduksi(d) {
+    const sah = d.produksi.filter((x) => !x.batal);
+    const perBarang = {};
+    sah.forEach((x) => {
+      const g = perBarang[x.sku_jadi] || (perBarang[x.sku_jadi] = { nama: x.nama_jadi, kali: 0, jadi: 0, gagal: 0, nilai: 0 });
+      g.kali++; g.jadi += x.qty_jadi; g.gagal += x.qty_gagal; g.nilai += x.nilai_jadi;
+    });
+    const perApl = d.aplikasi.map((a) => {
+      const m = d.mutasi_saldo.filter((x) => x.aplikasi === a.kode);
+      /* Bersih (masuk − keluar) per sumber jurnal dalam rentang. */
+      const bersih = (sumber) => m.filter((x) => x.sumber === sumber).reduce((s, x) => s + x.masuk - x.keluar, 0);
+      return { nama: a.nama, isi: bersih('INJECT'), pakai: -(bersih('PRODUKSI') + bersih('PRODUKSI_BATAL')),
+               cocok: bersih('INJECT_COCOK'), saldo: a.saldo };
+    });
+    const tot = (k) => sah.reduce((s, x) => s + x[k], 0);
+    return { sah, perBarang: Object.values(perBarang).sort((a, b) => b.nilai - a.nilai), perApl,
+             dok: sah.length, jadi: tot('qty_jadi'), gagal: tot('qty_gagal'), bahan: tot('nilai_bahan'),
+             inject: tot('nilai_inject'), nilai: tot('nilai_jadi'), rusak: tot('nilai_gagal') };
+  }
+
+  function htmlLaporanProduksi(d) {
+    const r = ringkasProduksi(d);
+    /* EMPAT kotak di .petak-4 (4 = 2 x 2 di tablet/HP, tanpa kotak yatim —
+       uji-ruang kategori 3). Angka pendampingnya di baris ekor. */
+    const kotak = (label, nilai, ekor) => `<div class="kartu statistik">
+      <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
+    return `<div class="kartu"><div class="bar-alat"><h3>${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}</h3></div>
+        <div class="petak petak-4">
+          ${kotak('Unit jadi', r.jadi.toLocaleString('id-ID'), r.dok + ' produksi · ' + r.gagal + ' gagal')}
+          ${kotak('Nilai barang jadi', rp(r.nilai), 'rata-rata ' + rpTeks(r.jadi ? Math.round(r.nilai / r.jadi) : 0) + '/unit')}
+          ${kotak('Bahan terpakai', rp(r.bahan), 'beban rusak ' + rpTeks(r.rusak))}
+          ${kotak('Modal inject', rp(r.inject), 'dari saldo aplikasi')}
+        </div></div>
+      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Per barang jadi</h3></div>
+        ${tabel([
+          { judul: 'Barang jadi', render: (x) => esc(x.nama) },
+          { judul: 'Produksi', angka: true, render: (x) => x.kali },
+          { judul: 'Jadi', angka: true, render: (x) => x.jadi },
+          { judul: 'Gagal', angka: true, render: (x) => x.gagal || '—' },
+          { judul: 'Modal rata-rata', angka: true, render: (x) => rp(Math.round(x.nilai / x.jadi)) },
+          { judul: 'Nilai', angka: true, render: (x) => rp(x.nilai) }
+        ], r.perBarang, { kosong: 'Belum ada produksi pada periode ini.' })}</div>
+      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Saldo aplikasi</h3></div>
+        ${tabel([
+          { judul: 'Aplikasi', render: (x) => esc(x.nama) },
+          { judul: 'Isi saldo', angka: true, render: (x) => rp(x.isi) },
+          { judul: 'Dipakai produksi', angka: true, render: (x) => rp(x.pakai) },
+          { judul: 'Cocokkan', angka: true, render: (x) => x.cocok ? rp(x.cocok) : '—' },
+          { judul: 'Saldo sekarang', angka: true, render: (x) => rp(x.saldo) }
+        ], r.perApl, { kosong: 'Belum ada aplikasi.' })}</div>
+      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Stok bahan ${esc(d.cabang)} sekarang</h3></div>
+        ${tabel([
+          { judul: 'Bahan', render: (x) => esc(x.nama) },
+          { judul: 'Stok', angka: true, render: (x) => x.qty },
+          { judul: 'Nilai', angka: true, render: (x) => rp(x.nilai) }
+        ], d.bahan, { kosong: 'Belum ada bahan.' })}</div>`;
+  }
+
+  function cetakLaporanProduksi() {
+    const d = prodData;
+    if (!d) return;
+    const r = ringkasProduksi(d);
+    const tb = (kepala, baris) => `<table><thead><tr>${kepala.map((k, i) => `<th${i ? ' class="angka"' : ''}>${esc(k)}</th>`).join('')}</tr></thead>
+      <tbody>${baris.map((b) => `<tr>${b.map((v, i) => `<td${i ? ' class="angka"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const isi = `<h1>Laporan produksi ${esc(d.cabang)}</h1><p class="sub">${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}</p>
+      <p>${r.dok} produksi · ${r.jadi} unit jadi · ${r.gagal} gagal · nilai barang jadi ${esc(rpTeks(r.nilai))}
+         (bahan ${esc(rpTeks(r.bahan))} + inject ${esc(rpTeks(r.inject))}) · beban rusak ${esc(rpTeks(r.rusak))}</p>
+      <h3>Per barang jadi</h3>${tb(['Barang jadi', 'Produksi', 'Jadi', 'Gagal', 'Modal rata-rata', 'Nilai'],
+        r.perBarang.map((x) => [x.nama, x.kali, x.jadi, x.gagal, rpTeks(Math.round(x.nilai / x.jadi)), rpTeks(x.nilai)]))}
+      <h3>Saldo aplikasi</h3>${tb(['Aplikasi', 'Isi saldo', 'Dipakai produksi', 'Cocokkan', 'Saldo sekarang'],
+        r.perApl.map((x) => [x.nama, rpTeks(x.isi), rpTeks(x.pakai), rpTeks(x.cocok), rpTeks(x.saldo)]))}
+      <h3>Riwayat produksi</h3>${tb(['Tanggal', 'Barang jadi', 'Jadi', 'Gagal', 'Aplikasi', 'Modal/unit', 'Nilai'],
+        r.sah.map((x) => [tglTampil(x.tanggal) + ' ' + x.no_dokumen, x.nama_jadi, x.qty_jadi, x.qty_gagal, x.nama_aplikasi, rpTeks(x.modal_satuan), rpTeks(x.nilai_jadi)]))}`;
+    try { Struk.cetakDokumen('Laporan produksi ' + d.cabang, isi); } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  function pasangProduksi() {
+    if (prodTerpasang) return;
+    prodTerpasang = true;
+    document.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-tabprod], [data-prod-aksi], #btnSimpanProduksi, [data-prod-rincian], [data-prod-batal], ' +
+        '[data-prod-isi], [data-prod-cocok], [data-prod-ubah], #btnSimpanIsiSaldo, #btnSimpanCocok, #btnSimpanApl');
+      if (!t) return;
+      if (t.dataset.tabprod) return pilihTabProduksi(t.dataset.tabprod);
+      if (t.dataset.prodAksi === 'aplikasi') return bukaAplikasi('');
+      if (t.dataset.prodAksi === 'cetak') return cetakLaporanProduksi();
+      if (t.id === 'btnSimpanProduksi') return simpanProduksi(t);
+      if (t.dataset.prodRincian) return rincianProduksi(t.dataset.prodRincian);
+      if (t.dataset.prodBatal) return batalProduksi(t.dataset.prodBatal);
+      if (t.dataset.prodIsi) return bukaIsiSaldo(t.dataset.prodIsi);
+      if (t.dataset.prodCocok) return bukaCocokSaldo(t.dataset.prodCocok);
+      if (t.dataset.prodUbah) return bukaAplikasi(t.dataset.prodUbah);
+      if (t.id === 'btnSimpanIsiSaldo') return simpanIsiSaldo(t);
+      if (t.id === 'btnSimpanCocok') return simpanCocokSaldo(t);
+      if (t.id === 'btnSimpanApl') return simpanAplikasi(t);
+    });
+    document.addEventListener('input', (e) => {
+      if (e.target.closest && e.target.closest('#kartuProduksi') && !e.target.classList.contains('cari-prd')) hitungPerkiraanProduksi();
+    });
+    document.addEventListener('change', (e) => {
+      if (e.target.id === 'prodBahan' || e.target.id === 'prodAplikasi') hitungPerkiraanProduksi();
+    });
+  }
+
   async function muatAset() {
     const w = $('#isiAset');
     if (!w) return;
@@ -12221,7 +12650,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer', PENYESUAIAN: 'Penyesuaian',
     PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk', LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun',
     PULSA: 'Pulsa', UTANG: 'Bayar utang', PIUTANG: 'Pelunasan piutang', GAJI: 'Gaji', VOID: 'Void',
-    SALDO_AWAL: 'Saldo awal', PEMBELIAN_BATAL: 'Pembelian batal' };
+    SALDO_AWAL: 'Saldo awal', PEMBELIAN_BATAL: 'Pembelian batal',
+    INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject' };
   /* Nama akun kas/bank untuk dropdown: neraca yang sudah dimuat, lalu COA tersinkron. */
   async function namaAkunKasBank() {
     const nama = {};
@@ -13243,6 +13673,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       pulsa: '#isiPulsa',
                       accurate: '#isiAccurate',
                       aset: '#isiAset',
+                      produksi: '#isiProduksi',
                       coa: '#isiCoa',
                       gaji: '#isiGaji',
                       kas: '#isiKas',
@@ -13282,6 +13713,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'pulsa': return muatPulsa();
       case 'accurate': return muatAccurate();
       case 'aset': return muatAset();
+      case 'produksi': return muatProduksi();
       case 'coa':  return muatCoa();
       case 'gaji': return muatGaji();
       case 'kas': return muatKas();
