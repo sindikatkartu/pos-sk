@@ -1462,10 +1462,54 @@ const Periode = {
     }
     const r = rentangPeriode(jenis);
     if (kustom) kustom.hidden = !!r;
-    if (r) { if (dari) dari.value = r.dari; if (sampai) sampai.value = r.sampai; }
+    if (r) { if (dari) dari.value = r.dari; if (sampai) { sampai.value = r.sampai; sampai.min = r.dari; } }
     return !!(dari && dari.value && sampai && sampai.value && dari.value <= sampai.value);
   },
-  /** Pasang pendengar: dropdown DAN kolom kustom masing-masing memuat sendiri. */
+  /**
+   * Kolom tanggal kustom berubah (bagian 444). Pemilik 23 Okt 2026: "jika memilih
+   * tanggal awal langsung aksi, harusnya cukup di tanggal akhir". Tanggal AWAL
+   * tidak memuat: tanggal akhir DIKOSONGKAN — memilih tanggal yang sama di
+   * kalender tidak membangkitkan change, jadi tanpa dikosongkan orang yang hanya
+   * mengganti tanggal awal tidak akan pernah memuat — dibatasi tidak lebih awal
+   * (min), lalu kalendernya dibuka. Satu penolong untuk Periode.pasang, Laporan,
+   * dan Dashboard. @return true bila rentangnya lengkap dan harus dimuat.
+   */
+  kolomBerubah(o, id) {
+    const sampai = o.sampai ? document.getElementById(o.sampai) : null;
+    if (id === o.dari && sampai) {
+      const dari = document.getElementById(o.dari), lama = sampai.value;
+      sampai.min = dari.value || '';
+      sampai.value = '';
+      /* Kalender ditutup tanpa memilih: interaksi BERIKUTNYA di luar kotak
+         tanggal akhir mengembalikan tanggal akhir lama (atau tanggal awal bila
+         lama lebih awal) lalu memuat — supaya tidak ada jalur muat lain (ganti
+         cabang/tab) yang membaca tanggal akhir kosong (peninjau-rilis bagian 444). */
+      if (sampai._pulihPeriode) sampai._pulihPeriode();
+      const lepas = () => {
+        document.removeEventListener('pointerdown', pulih, true);
+        document.removeEventListener('keydown', pulih, true);
+        sampai._pulihPeriode = null;
+      };
+      const pulih = (e) => {
+        if (e.target && e.target.closest && e.target.closest('.kolom-tgl') === sampai.parentElement) return;
+        lepas();
+        if (sampai.value === '' && lama) {
+          sampai.value = lama >= dari.value ? lama : dari.value;
+          sampai.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      };
+      sampai._pulihPeriode = lepas;
+      setTimeout(() => { if (sampai._pulihPeriode === lepas) {
+        document.addEventListener('pointerdown', pulih, true);
+        document.addEventListener('keydown', pulih, true);
+      } }, 0);
+      try { sampai.showPicker(); }
+      catch (e) { const rupa = sampai.parentElement.querySelector('.tgl-rupa'); (rupa || sampai).focus(); }
+      return false;
+    }
+    return Periode.terapkan(o, 'kustom');
+  },
+  /** Pasang pendengar: dropdown DAN kolom kustom (lewat kolomBerubah) memuat sendiri. */
   pasang(o, muat) {
     const sel = document.getElementById(o.id);
     if (!sel || sel.dataset.periodeSiap) return;
@@ -1476,7 +1520,7 @@ const Periode = {
     sel.addEventListener('change', () => { if (Periode.terapkan(o, sel.value) && sel.value !== 'kustom') muat(sel.value); });
     [o.dari, o.sampai].filter(Boolean).forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.addEventListener('change', () => { if (sel.value === 'kustom' && Periode.terapkan(o, 'kustom')) muat('kustom'); });
+      if (el) el.addEventListener('change', () => { if (sel.value === 'kustom' && Periode.kolomBerubah(o, id)) muat('kustom'); });
     });
   }
 };

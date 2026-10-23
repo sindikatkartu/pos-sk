@@ -624,6 +624,21 @@ function rapikanTabel(akar) {
         });
       }
     }
+    /* BARIS KAKI (bagian 442): di HP baris total jadi kartu juga, jadi tiap
+       selnya butuh nama kolom. Posisinya dihitung dengan colspan — sel pertama
+       biasanya "Total n bulan" melintang dua-tiga kolom. Sel PERTAMA (melintang
+       atau tidak) tidak diberi nama: ia judul kartu totalnya ("Total 2 bulan",
+       "Semua cabang"), bukan nilai kolom Bulan/Cabang. */
+    if (t.tFoot) {
+      for (const baris of t.tFoot.rows) {
+        let kol = 0;
+        [...baris.cells].forEach((sel) => {
+          const lebar = Number(sel.getAttribute('colspan')) || 1;
+          if (!sel.hasAttribute('data-l') && lebar === 1 && kol > 0) sel.dataset.l = judul[kol] || '';
+          kol += lebar;
+        });
+      }
+    }
   }
 }
 
@@ -678,9 +693,9 @@ function rapikanSelTanggal(akar) {
  *
  * Tabel ber-Rp di SEL (td) → kelas `tabel-uang` (Rp disembunyikan, angka
  * lurus — kepala tabel TIDAK diubah, beda dengan kartu laporan-uang), dan
- * kartunya menyebut "dalam Rupiah": di sebelah judulnya kalau ada, atau satu
- * baris kecil di atas tabel. Layar Kasir tidak disentuh (aturan tetap), dan
- * kartu laporan-uang yang sudah ada tidak diubah.
+ * TANPA keterangan "dalam Rupiah" sejak bagian 440 — pemilik 23 Okt 2026:
+ * "eliminasi kalimat dalam rupiah itu, disemua layar. karena sudah pasti rupiah
+ * tanpa keterangan skalipun". Layar Kasir tidak disentuh (aturan tetap).
  */
 function rapikanTabelUang(akar) {
   if (!akar || !akar.querySelectorAll) return;
@@ -689,32 +704,6 @@ function rapikanTabelUang(akar) {
     if (t.classList.contains('tabel-uang') || t.closest('#layarKasir, .laporan-uang')) continue;
     if (!t.querySelector('td .rp')) continue;
     t.classList.add('tabel-uang');
-    const wadah = t.closest('.kartu') || t.closest('#modalUmum') || t.parentElement;
-    if (!wadah || wadah.querySelector('.satuan-uang')) continue;
-    const cap = document.createElement('span');
-    cap.className = 'satuan-uang';
-    cap.textContent = 'dalam Rupiah';
-    const bar = wadah.querySelector(':scope > .bar-alat');
-    const judulBar = bar && bar.querySelector('h3, h4');
-    const judul = wadah.querySelector(':scope > h3, :scope > h4');
-    if (judulBar) judulBar.after(cap);
-    else if (judul && bar) {
-      /* Kartu yang SUDAH punya bar kendali terpisah (mis. Laporan shift): judulnya
-         tidak dibungkus — itu membuat bar kedua dan menggeser tata letaknya. */
-      cap.classList.add('satuan-tabel');
-      judul.after(cap);
-    }
-    else if (judul) {
-      /* SIBLING, bukan di dalam <h3>: textContent judulnya tetap utuh (aturan bagian 214). */
-      const b = document.createElement('div');
-      b.className = 'bar-alat';
-      judul.before(b);
-      b.append(judul, cap);
-    }
-    else {
-      cap.classList.add('satuan-tabel');
-      (t.closest('.gulir-x') || t).before(cap);
-    }
   }
 }
 
@@ -4662,7 +4651,11 @@ async function bukaLaporanShift(idShift, cabang) {
         ${baris('Kas fisik dihitung', rpAtau(k.fisik))}
         ${baris('Selisih', rpAtau(k.selisih), true)}
       </div>
-      ${d.boleh_koreksi ? formKoreksiKasShift(idShift, cabang, k) : ''}
+      ${d.koreksi_menunggu
+        /* bagian 443: pengajuan koreksi dari selain Owner menunggu disahkan. */
+        ? `<div class="pesan info" style="margin-top:12px">Koreksi kas fisik sudah diajukan (${esc(d.koreksi_menunggu.ringkas)})
+            dan menunggu pengesahan Owner. Setoran shift ini ditahan sampai diputuskan.</div>`
+        : d.boleh_koreksi ? formKoreksiKasShift(idShift, cabang, k) : ''}
 
       <h4 style="margin:16px 0 6px">Per metode bayar</h4>
       ${d.per_metode.length ? `<div class="gulir-x"><table>
@@ -4729,18 +4722,22 @@ async function simpanKoreksiKasShift(btn) {
   if (teks === '' || !(baru >= 0)) return salah('Isi kas fisik yang benar.');
   if (baru === lama) return salah('Angkanya sama dengan yang tercatat.');
   if (alasan.length < 5) return salah('Alasan minimal 5 huruf.');
-  if (!(await Admin.tanya('Koreksi kas fisik shift ini?',
+  /* Selain Owner: diajukan, disahkan Owner (bagian 443). */
+  const owner = String(APP_STATE.user?.peran || '') === 'OWNER';
+  if (!(await Admin.tanya(owner ? 'Koreksi kas fisik shift ini?' : 'Ajukan koreksi kas fisik?',
         `<p class="petunjuk">${esc(kartu.dataset.shift)}</p>
          <p class="petunjuk">Kas fisik ${rp(lama)} → <strong>${rp(baru)}</strong><br>
            Selisih ${rp(lama - sistem)} → <strong>${rp(baru - sistem)}</strong></p>
-         <p class="petunjuk">Jurnal selisih kasnya ikut dibetulkan, dan jumlah setoran shift ini
-           menjadi ${rp(baru)}.</p>`,
-        { ya: 'Simpan koreksi' }))) return;
+         <p class="petunjuk">${owner ? `Jurnal selisih kasnya ikut dibetulkan, dan jumlah setoran shift ini
+           menjadi ${rp(baru)}.` : `Koreksi ini <strong>disahkan Owner</strong> lebih dulu — belum ada yang berubah sampai
+           Owner menyetujuinya, dan setoran shift ini ditahan sampai diputuskan.`}</p>`,
+        { ya: owner ? 'Simpan koreksi' : 'Ajukan ke Owner' }))) return;
   btn.disabled = true;   // terkunci selama memproses (bagian 261)
   try {
     const r = await API.koreksiKasShift({ id_shift: kartu.dataset.shift, kas_fisik: baru, alasan,
       ...(kartu.dataset.cabang ? { cabang: kartu.dataset.cabang } : {}) });
-    Admin.toast('Kas fisik dikoreksi' + (r.no_jurnal ? ' · ' + r.no_jurnal : '') + '.', 'sukses');
+    Admin.toast(r.menunggu ? 'Koreksi diajukan — menunggu pengesahan Owner.'
+      : 'Kas fisik dikoreksi' + (r.no_jurnal ? ' · ' + r.no_jurnal : '') + '.', 'sukses');
     /* Kas fisik ke/dari 0 mengubah daftar Setoran, jadi lencana dihitung ulang (bagian 401). */
     document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
     await bukaLaporanShift(kartu.dataset.shift, kartu.dataset.cabang);
@@ -6449,7 +6446,7 @@ async function tampilkanJurnalManual() {
 
     const borang = bolehUbah ? `
       <div class="kartu">
-        <div class="bar-alat"><h3>Jurnal baru</h3><span class="satuan-uang">dalam Rupiah</span></div>
+        <div class="bar-alat"><h3>Jurnal baru</h3></div>
         <p class="petunjuk">Untuk membetulkan catatan yang bukan uang tunai: salah akun beban, biaya
            dibayar di muka, gaji yang terutang. Uang tunai dicatat lewat menu Kas &amp; Bank.
            Yang tersimpan tidak bisa dihapus — kalau keliru, balikkan.</p>
@@ -6483,7 +6480,7 @@ async function tampilkanJurnalManual() {
     </tr>`;
 
     w.innerHTML = borang + tombolUnduh('jurnal', par) + `<div class="kartu laporan-uang">
-      <div class="bar-alat"><h3>Jurnal penyesuaian ${esc(par.periode)}</h3><span class="satuan-uang">dalam Rupiah</span></div>
+      <div class="bar-alat"><h3>Jurnal penyesuaian ${esc(par.periode)}</h3></div>
       ${daftar.length ? `<div class="gulir-x"><table>
         <thead><tr><th>Tanggal</th><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
         <tbody>${daftar.map(baris).join('')}</tbody></table></div>`
@@ -6589,7 +6586,7 @@ async function tampilkanBukuBesar() {
     w.innerHTML = pilih + tombolUnduh('buku_besar', { ...par, kode_akun: _bbAkun }) + `
       <div class="kartu laporan-uang">
         <div class="bar-alat"><h3>${esc(d.akun.kode)} ${esc(d.akun.nama)} — ${esc(d.periode)} · ${esc(d.cabang)}</h3>
-          <span class="satuan-uang">dalam Rupiah</span></div>
+          </div>
         <div class="gulir-x"><table>
           <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>
             <th class="kanan">Debit</th><th class="kanan">Kredit</th><th class="kanan">Saldo</th></tr></thead>
@@ -6623,7 +6620,7 @@ async function tampilkanLabaRugi() {
   if (!bacaSimpanLap('laba_rugi', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
   const gambarLR = (d) => {
     const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
-    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
+    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3></div><div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
       ${brs('(−) Retur Penjualan', -d.retur_penjualan)}
@@ -6651,7 +6648,7 @@ async function tampilkanNeraca() {
   const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
   if (!bacaSimpanLap('neraca', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
   const gambarNeraca = (d) => {
-    const tabel = (judul, arr, total) => `<div class="kartu laporan-uang"><div class="bar-alat"><h3>${judul}</h3><span class="satuan-uang">dalam Rupiah</span></div><div class="gulir-x"><table>
+    const tabel = (judul, arr, total) => `<div class="kartu laporan-uang"><div class="bar-alat"><h3>${judul}</h3></div><div class="gulir-x"><table>
       ${arr.filter(a => !(String(a.kode) === '1-1200' && Math.abs(Number(a.jumlah) || 0) < 0.5))   /* 1-1200 ditutup — hanya tampil bila tak nol (bagian 430) */
         .map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
       <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div></div>`;
@@ -8259,8 +8256,12 @@ function pasangEvent() {
   /* Komponen digambar di sini, sebelum pendengarnya dipasang. */
   $('#wadahPeriodeLaporan').innerHTML = Periode.html(PERIODE_LAPORAN);
   $('#lapPeriode').addEventListener('change', e => terapkanPeriodeLaporan(e.target.value));
-  ['#lapDari', '#lapSampai'].forEach(id => $(id).addEventListener('change', () => {
-    if ($('#lapPeriode').value === 'kustom') tampilkanLaporan();
+  /* Tanggal awal tidak memuat — penolong yang sama dengan Periode.pasang (bagian 444).
+     Tanggal AKHIR selalu diteruskan: tampilkanLaporan sendiri yang menulis
+     petunjuk rentang terbalik/kosong di tempat hasilnya (uji-laporan). */
+  ['lapDari', 'lapSampai'].forEach(id => $('#' + id).addEventListener('change', () => {
+    if ($('#lapPeriode').value !== 'kustom') return;
+    if (Periode.kolomBerubah(PERIODE_LAPORAN, id) || id === 'lapSampai') tampilkanLaporan();
   }));
   /* Cetak: dialog pilih bagian, lalu dokumen A4 di jendela sendiri — bukan
      pencetakan peramban atas halaman aplikasi. Lihat "CETAK LAPORAN: DOKUMEN A4". */

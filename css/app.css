@@ -1586,6 +1586,13 @@ input[type=number], input.uang, td .angka { font-variant-numeric: tabular-nums; 
   position: absolute; inset: 0; opacity: 0; pointer-events: none;
   width: 100%; height: 100%; padding: 0; border: 0; min-height: 0;
 }
+/* TIDAK PERNAH terlihat (bagian 444). Pemilik 23 Okt 2026: "tampilan menjadi
+   aneh ketika loading" — aturan redup saat memuat (body.tunggu-redup, .memuat,
+   [data-basi]) menyetel opacity semua input ke .45–.5, kotak asli ini ikut
+   muncul, dan tanggal kedua + ikon kalender kedua menumpuk di kotak DD/MM/YY.
+   !important di SINI, bukan pengecualian di tiap aturan redup: aturan redup
+   yang ditulis nanti pun tidak bisa memunculkannya. */
+.kolom-tgl > input[type=date] { opacity: 0 !important; }
 /* Pilih-saja (bagian 342): diketuk membuka kalender — kursornya tangan, bukan garis ketik. */
 .kolom-tgl > .tgl-rupa { padding-right: 34px; font-variant-numeric: tabular-nums; cursor: pointer; caret-color: transparent; }
 .kolom-tgl > .tgl-rupa:disabled { cursor: default; }
@@ -2785,9 +2792,9 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
    "Rp" justru perlu karena angkanya berdiri sendiri tanpa kepala kartu
    yang menyebut satuannya. Yang berubah cuma tabel yang sudah menyebutnya.
 
-   Syaratnya SATU dan tidak boleh dilanggar: kartu yang memakai kelas ini
-   WAJIB menyebut "dalam Rupiah" di judulnya. Angka tanpa satuan dan tanpa
-   keterangan adalah angka yang tidak bisa dibaca siapa pun. Dijaga uji. */
+   Keterangan "dalam Rupiah" yang dulu WAJIB menyertainya DIHAPUS di bagian
+   440 (pemilik 23 Okt 2026): semua angka uang di aplikasi ini sudah pasti
+   rupiah, jadi keterangan itu tidak menambah apa pun. */
 .laporan-uang table .rp { display: none; }
 /* Tabel uang di luar kartu laporan (bagian 262, dipasang rapikanTabelUang di
    app.js): hanya Rp & kelurusan angka — kepala tabelnya dibiarkan. */
@@ -3496,9 +3503,9 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
      satu kotak KPI di HP. */
   .bar-alat.bar-dash { grid-template-columns: 1fr 1fr; }
   .bar-alat.bar-dash > .keterangan-dash { grid-column: 1 / -1; }
-  /* "dalam Rupiah" di HP berdiri di baris sendiri di bawah judul; margin kiri 8 px
-     (yang di PC memisahkannya dari judul) di sini cuma mendorongnya 8 px keluar
-     kotak — uji-rupa menangkapnya di Piutang, 22 Sep 2026 (§225). */
+  /* Keterangan satuan di HP (kini hanya "akun laba-rugi: bulan berjalan" — "dalam
+     Rupiah" dihapus bagian 440) berdiri di baris sendiri; margin kiri 8 px di sini
+     cuma mendorongnya keluar kotak (§225). */
   .bar-alat > .satuan-uang { margin-left: 0; }
   .bar-alat-menu > .aksi { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .bar-alat-menu > .aksi > .tombol { width: 100%; }
@@ -3782,6 +3789,46 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
 
   /* Angka tetap rata kanan — di susunan ini itu memang sudah arah bakunya. */
   .gulir-x > table > tbody > tr > td.angka { text-align: right; }
+
+  /* BARIS KAKI jadi kartu juga (bagian 442). Pemilik 23 Okt 2026 (potret HP
+     Kas & Bank): "ada yang offside di layar HP". tfoot terlewat dari susunan
+     kartu di atas: baris Total tetap selebar lima kolom, menjulur keluar kartu
+     — dan karena .gulir-x di HP tidak memotong, seluruh layar bisa tergeser
+     ke samping. Latarnya --panel-2 supaya terbaca sebagai total, bukan baris. */
+  .gulir-x > table > tfoot,
+  .gulir-x > table > tfoot > tr,
+  .gulir-x > table > tfoot > tr > th,
+  .gulir-x > table > tfoot > tr > td { display: block; width: auto; }
+  .gulir-x > table > tfoot > tr {
+    border: 1px solid var(--garis); border-radius: var(--radius);
+    padding: 4px 12px; margin-top: 8px; background: var(--panel-2);
+  }
+  /* Label & nilai BERDAMPINGAN (flex), bukan label mutlak: label panjang
+     ("DIGIPOS by TELKOMSEL") ikut menyangga tinggi selnya, tidak menimpa baris
+     di bawahnya. */
+  .gulir-x > table > tfoot > tr > th,
+  .gulir-x > table > tfoot > tr > td,
+  .kartu > .gulir-x > table > tfoot > tr > th,
+  .kartu > .gulir-x > table > tfoot > tr > td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    padding: 8px 0; min-height: 20px;
+    border-bottom: 1px solid var(--garis-halus); text-align: right; white-space: normal;
+  }
+  .gulir-x > table > tfoot > tr > :last-child { border-bottom: none; }
+  /* Pemilih setara dengan aturan flex & "sel pertama 16 px" layar lebar —
+     tanpa itu sel kosong ikut tampil dan judul kartu menjorok. */
+  .kartu > .gulir-x > table > tfoot > tr > :empty,
+  .gulir-x > table > tfoot > tr > :empty { display: none; }
+  .kartu > .gulir-x > table > tfoot > tr > th:first-child,
+  .kartu > .gulir-x > table > tfoot > tr > td:first-child { padding-left: 0; }
+  .gulir-x > table > tfoot > tr > [data-l]::before {
+    content: attr(data-l); flex: 0 0 35%;
+    text-align: left; color: var(--teks-redup);
+    font-size: var(--fs-12); font-weight: 500; line-height: 1.55; overflow-wrap: anywhere;
+  }
+  /* Sel melintang ("Total 2 bulan") = judul kartu kakinya: selebar penuh, rata kiri. */
+  .gulir-x > table > tfoot > tr > :not([data-l]),
+  .kartu > .gulir-x > table > tfoot > tr > :not([data-l]) { justify-content: flex-start; text-align: left; font-weight: 600; }
 
   /* Spanduk nonaktif ikut menyesuaikan tepi kartu versi ponsel, dan tombol
      pulangnya turun ke baris sendiri daripada terjepit di ujung kanan. */

@@ -1506,8 +1506,16 @@ const Admin = (() => {
     ? (kodeKelompokDash(cabangDash).join(',') || '*') : cabangDash;
 
   const WARNA_JENIS_DASH = { eceran: '#2c84db', grosir: '#e0781f' };
-  const WARNA_CAB_DASH = { eceran: ['#2a78d6', '#1baf7a', '#4a3aa7'], grosir: ['#e0781f', '#b3548a'],
-                           '': ['#2a78d6', '#1baf7a', '#4a3aa7', '#e0781f', '#b3548a'] };
+  /* Ungu SK03 & pink grosir kedua dinaikkan terangnya (bagian 441, pemilik
+     23 Okt 2026: "warna ungu untuk sk03 jika didark mode, warna kurang jelas").
+     Diukur terhadap latar kartu: #4a3aa7 cuma 1,55:1 di gelap (#30302e) dan
+     #b3548a 2,87:1 — garis grafik butuh >= 3:1. Disisir sekalian: hijau SK02
+     #1baf7a cuma 2,82:1 di TERANG, biru SK01 #2a78d6 2,997:1 di GELAP.
+     Penggantinya lulus 3:1 di KEDUA tema (terang / gelap): #2f7fde 4,03 /
+     3,28, #18a070 3,33 / 3,97, #8a6cf0 3,83 / 3,45, #d4589f 3,69 / 3,59. Satu warna untuk dua tema, bukan dua: warna cabang =
+     identitas, harus sama di layar mana pun. Dijaga uji.js (bagian 441). */
+  const WARNA_CAB_DASH = { eceran: ['#2f7fde', '#18a070', '#8a6cf0'], grosir: ['#e0781f', '#d4589f'],
+                           '': ['#2f7fde', '#18a070', '#8a6cf0', '#e0781f', '#d4589f'] };
   const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
   const WARNA_METODE_DASH = { tunai: '#2c84db', qris: '#e0781f', transfer: '#8b5cf6', piutang: '#2e9e7d' };
 
@@ -6172,7 +6180,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
         <div class="kartu laporan-uang">
-          <div class="bar-alat"><h3>Daftar piutang — total ${rp(d.total)}</h3><span class="satuan-uang">dalam Rupiah</span>
+          <div class="bar-alat"><h3>Daftar piutang — total ${rp(d.total)}</h3>
             <div style="flex:1"></div>${menuEkspor('piutang')}</div>
           ${tabel([
             { judul: 'Cabang', kunci: 'cabang' },
@@ -6232,7 +6240,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div class="nilai" style="color:var(--bahaya)">${rp(a.lebih)}</div></div>
         </div>
         <div class="kartu laporan-uang">
-          <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3><span class="satuan-uang">dalam Rupiah</span>
+          <div class="bar-alat"><h3>Utang ke supplier — total ${rp(d.total)}</h3>
             <div style="flex:1"></div>${menuEkspor('utang')}</div>
           <p class="petunjuk">Setiap pembelian yang dicatat gudang masuk ke sini sebagai utang. Yang pembeliannya
              <strong>belum diperiksa Head Admin atau Akunting</strong> belum bisa dibayar — periksa dulu di menu Pembelian.</p>
@@ -7073,7 +7081,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }).join('');
     return `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>${esc(judul)}</h3>
-        <span class="petunjuk">dalam Rupiah</span>
+        
         <div style="flex:1"></div>${ekor || ''}</div>
       <div class="gulir-x"><table class="matriks-kons">
         <thead><tr><th class="akun">Akun</th>${kepala}
@@ -7221,7 +7229,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       <div class="kartu laporan-uang laporan-sempit">
         <div class="bar-alat"><h3>Komposisi beban</h3>
-          <span class="satuan-uang">dalam Rupiah</span></div>
+          </div>
         <div class="gulir-x"><table class="matriks-kons"><thead><tr>
           <th class="akun">Akun</th><th class="angka">Nominal</th>
           <th class="angka gabung">Porsi</th></tr></thead><tbody>
@@ -7887,7 +7895,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }, 0);
     w.innerHTML = `
       <div class="kartu laporan-uang">
-        <div class="bar-alat"><h3>Saldo aplikasi per cabang</h3><span class="satuan-uang">dalam Rupiah</span></div>
+        <div class="bar-alat"><h3>Saldo aplikasi per cabang</h3></div>
         <p class="petunjuk">Saldo akhir tiap aplikasi dari shift terakhir yang sudah ditutup di cabang itu.
            Shift yang masih berjalan belum dihitung — angkanya bergeser begitu shift itu ditutup.</p>
         ${cabang.length ? `<div class="gulir-x">
@@ -8220,12 +8228,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     /* Non-tunai dikirim hanya bila cabangnya punya kolomnya (bagian 389). */
     const ntEl = [...m.querySelectorAll('[data-koreksi-nt]')];
     const nontunai = ntEl.length ? Object.fromEntries(ntEl.map((el) => [el.dataset.koreksiNt, angkaDari(el.value)])) : undefined;
-    if (!(await tanya('Simpan koreksi shift ini?',
-      `<p>Jurnal koreksi sebesar selisihnya akan terbit di buku besar, dan shift ini ditandai <strong>diedit</strong>
-         beserta riwayatnya. Angka lama tetap tercatat di riwayat.</p>`, { ya: 'Simpan koreksi' }))) return;
+    const owner = String(APP_STATE.user?.peran || '') === 'OWNER';
+    if (!(await tanya(owner ? 'Simpan koreksi shift ini?' : 'Ajukan koreksi shift ini?', owner
+      ? `<p>Jurnal koreksi sebesar selisihnya akan terbit di buku besar, dan shift ini ditandai <strong>diedit</strong>
+         beserta riwayatnya. Angka lama tetap tercatat di riwayat.</p>`
+      : `<p>Koreksi ini <strong>disahkan Owner</strong> lebih dulu — belum ada yang berubah sampai Owner menyetujuinya.
+         Bila kas fisiknya ikut diubah, setoran shift ini ditahan sampai diputuskan.</p>`, { ya: owner ? 'Simpan koreksi' : 'Ajukan ke Owner' }))) return;
     try {
       const r = await API.koreksiShiftPulsa({ id_shift: k.id, sumber, kas_fisik, alasan, ...(nontunai ? { nontunai } : {}) });
       tutupModal();
+      if (r.menunggu) {
+        toast(`Koreksi shift ${k.id} diajukan — menunggu pengesahan Owner.`, 'sukses');
+        document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
+        return;
+      }
       toast(`Shift ${k.id} dikoreksi${r.no_jurnal ? ' — jurnal ' + r.no_jurnal : ''}.`, 'sukses');
       /* Kas fisik ke/dari 0 mengubah daftar Setoran, jadi lencana dihitung ulang (bagian 401). */
       document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
@@ -8250,7 +8266,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="ksDampak"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol" id="btnKsPeriksa">${ikonAlat('tampil')}<span>Periksa dampak</span></button>
-       <button class="tombol utama" id="btnKsSimpan" disabled>${ikonAlat('simpan')}<span>Simpan koreksi</span></button>`);
+       <button class="tombol utama" id="btnKsSimpan" disabled>${ikonAlat('simpan')}<span>${String(APP_STATE.user?.peran || '') === 'OWNER' ? 'Simpan koreksi' : 'Ajukan ke Owner'}</span></button>`);
     const m = $('#modalUmum');
     m._ks = o;
     /* Angka berubah sesudah diperiksa = pemeriksaannya basi: Simpan dikunci lagi. */
@@ -8289,6 +8305,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try {
       const r = await API.koreksiSaldoPulsa({ id_shift: o.id, kode_sumber: o.sumber, kolom: o.kolom, nilai, alasan });
       tutupModal();
+      if (r.menunggu) { toast(`Koreksi saldo shift ${o.id} diajukan — menunggu pengesahan Owner.`, 'sukses'); return; }
       const jurnal = r.terdampak.map((t) => t.no_jurnal).filter(Boolean);
       toast(`Saldo dikoreksi di ${r.terdampak.length} shift${jurnal.length ? ' — jurnal ' + jurnal.join(', ') : ''}.`, 'sukses');
       await muatLaporanpulsa();
@@ -9958,7 +9975,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      setujui_perangkat, putus_coa); pembelian dibuka di layarnya karena
      pemeriksaannya per barang. Berdetak tiap 20 detik selama layarnya terbuka. */
   const JENIS_PS = { diskon: ['Diskon', 'kuning'], void: ['Void', 'merah'], perangkat: ['Perangkat', 'biru'],
-                     coa: ['Akun baru', ''], pembelian: ['Pembelian', 'hijau'] };
+                     coa: ['Akun baru', ''], pembelian: ['Pembelian', 'hijau'], koreksi: ['Koreksi', ''] };
   let _butirPs = [], _timerPs = null;
   async function muatPersetujuan() {
     const w = $('#isiPersetujuan');
@@ -9968,10 +9985,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try { _butirPs = (((await API.kotakPersetujuan()) || {}).butir || []).map((b) => Object.assign({ kunci: b.jenis + '-' + b.id }, b)); }
     catch (e) { galat('#isiPersetujuan', e); return; }
     w.innerHTML = `<div class="kartu laporan-uang">
-      <div class="bar-alat"><h3>Menunggu keputusan Anda</h3><span class="satuan-uang">dalam Rupiah</span>
+      <div class="bar-alat"><h3>Menunggu keputusan Anda</h3>
         ${_butirPs.length ? `<span class="lencana kuning">${_butirPs.length} menunggu</span>` : ''}</div>
       <p class="petunjuk">Semua yang menunggu keputusan Anda di satu tempat — diskon, void, perangkat, akun baru,
-        dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
+        koreksi kas &amp; pulsa, dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
       ${tabel([
         { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>` },
         { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}` },
@@ -10003,13 +10020,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (setuju) {
       const peringatan = jenis === 'void'
         ? '<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali, jurnal dibalik penuh, piutang dan klaim petugasnya ikut dibatalkan.</div>'
-        : jenis === 'diskon' ? '<p class="petunjuk">Kasir bisa langsung menyelesaikan notanya. Berlaku untuk nota itu saja, sekali pakai.</p>' : '';
+        : jenis === 'diskon' ? '<p class="petunjuk">Kasir bisa langsung menyelesaikan notanya. Berlaku untuk nota itu saja, sekali pakai.</p>'
+        /* bagian 443: yang disahkan dijalankan lewat pintu koreksi yang sama, atas data hari ini. */
+        : jenis === 'koreksi' ? '<p class="petunjuk">Koreksinya langsung tertulis beserta jurnal selisihnya. Semua pemeriksaannya diulang atas data saat ini.</p>' : '';
       if (!(await tanya('Setujui ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + peringatan, { ya: 'Setujui' }))) return;
     } else if (jenis === 'perangkat') {
       if (!(await tanya('Blokir perangkat ini?', ket + '<p class="petunjuk">Perangkat ini tidak bisa masuk sampai dibuka lagi di menu Perangkat Terdaftar.</p>',
             { ya: 'Blokir', jenis: 'bahaya' }))) return;
     } else {
-      const min = jenis === 'void' ? 5 : 3;
+      const min = jenis === 'void' || jenis === 'koreksi' ? 5 : 3;
       alasan = await tanya('Tolak ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + '<p class="petunjuk">Alasannya terbaca oleh yang meminta.</p>',
         { isian: 'Alasan penolakan (minimal ' + min + ' karakter)', minimal: min, ya: 'Tolak', jenis: 'bahaya' });
       if (!alasan) return;
@@ -10020,7 +10039,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Cabang PERANGKATNYA, bukan cabang sesi penyetuju. */
       else if (jenis === 'perangkat') await API.setujuiPerangkat({ id_perangkat: id, status: setuju ? 'DISETUJUI' : 'DIBLOKIR', cabang: cabang || undefined });
       else if (jenis === 'coa') await API.putusCoa({ id, setuju, alasan });
-      toast(setuju ? 'Disetujui.' : (jenis === 'perangkat' ? 'Perangkat diblokir.' : 'Ditolak.'));
+      else if (jenis === 'koreksi') await API.putusKoreksi({ id, setuju, alasan });
+      toast(setuju ? (jenis === 'koreksi' ? 'Disahkan — koreksinya sudah tertulis.' : 'Disetujui.') : (jenis === 'perangkat' ? 'Perangkat diblokir.' : 'Ditolak.'));
     } catch (x) { toast(x.message, 'galat'); }
     document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));   // pendengarnya di document (app.js)
     await muatPersetujuan();
@@ -11357,7 +11377,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${(d.minta || []).length ? kartuMintaCoa(d) : ''}
       <div class="kartu laporan-uang">
         <div class="bar-alat"><h3>Bagan akun</h3>
-          <span class="satuan-uang">saldo dalam Rupiah · akun laba-rugi: bulan berjalan</span>
+          <span class="satuan-uang">akun laba-rugi: bulan berjalan</span>
           <div style="flex:1"></div>
           ${d.boleh_ubah ? tombolTambah('btnCoaTambah', 'Tambah akun') : ''}
           ${d.boleh_ajukan ? `<button class="tombol utama" id="btnCoaAjukan">${ikonAlat('kirim')}<span>Ajukan akun</span></button>` : ''}
@@ -11550,7 +11570,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     const kpi = `<div class="kartu">
       <div class="bar-alat"><h3>Ringkasan</h3>
-        <span class="satuan-uang">dalam Rupiah</span></div>
+        </div>
       <!-- .petak-mini SAJA, tanpa .petak-kpi: kelas itu memaksa ENAM kolom
            apa pun jumlah isinya, jadi tiga kotak masing-masing cuma dapat 1/6
            lebar — 137 px, sementara Rp9.999.999.999 butuh 141 px. Konsolidasi
@@ -11602,7 +11622,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     w.innerHTML = kpi + `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Daftar aset</h3>
-        <span class="satuan-uang">dalam Rupiah</span></div>
+        </div>
       ${d.aset.length ? `<div class="gulir-x"><table class="tabel">
         <thead><tr><th>Aset</th><th>Cabang</th>
           <th class="kanan">Harga</th><th class="kanan">Residu</th>
@@ -11957,7 +11977,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     if (tabKas === 'mutasi') {
       w.innerHTML = `<div class="kartu laporan-uang">
-        <div class="bar-alat"><h3>Mutasi kas</h3><span class="satuan-uang">dalam Rupiah</span>
+        <div class="bar-alat"><h3>Mutasi kas</h3>
           <div style="flex:1"></div>
           ${menuEkspor('kas', { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') })}</div>
         ${daftarMutasiKas(kas)}
@@ -12016,7 +12036,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const c = DOK_KAS[jenis], dok = dokKasDari(kas, jenis), banyakCabang = cabangKas === '*';
     const id = jenis === 'BKM' ? 'btnBkm' : 'btnBkk';
     return `<div class="kartu laporan-uang" id="kartuDok${jenis}">
-      <div class="bar-alat"><h3>${c.label}</h3><span class="satuan-uang">dalam Rupiah</span>
+      <div class="bar-alat"><h3>${c.label}</h3>
         <div style="flex:1"></div>
         ${bolehIzin('kas', 'buat') ? tombolTambah(id, c.label) : ''}</div>
       ${dok.length ? `<div class="gulir-x"><table class="tabel">
@@ -12218,7 +12238,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const periode = (nilai('kasSampai') || tanggalLokal()).substring(0, 7);
     const nm = await namaAkunKasBank();
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuKoran">
-      <div class="bar-alat"><h3>Rekening koran</h3><span class="satuan-uang">dalam Rupiah</span>
+      <div class="bar-alat"><h3>Rekening koran</h3>
         <div style="flex:1"></div>
         <select id="koranAkun" class="kendali-tetap" title="Akun">${akunKasAktif().concat(bankUmumBersaldo() ? [AKUN_BANK_UMUM] : []).map((k) =>
           `<option value="${k}" ${k === akunKoran ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
@@ -12273,7 +12293,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const periode = (nilai('kasSampai') || tanggalLokal()).substring(0, 7);
     const nm = await namaAkunKasBank();
     w.innerHTML = `<div class="kartu laporan-uang" id="kartuRekon">
-      <div class="bar-alat"><h3>Rekonsiliasi bank</h3><span class="satuan-uang">dalam Rupiah</span>
+      <div class="bar-alat"><h3>Rekonsiliasi bank</h3>
         <div style="flex:1"></div>
         <select id="rekonAkun" class="kendali-tetap" title="Akun bank">${saringBankAktif(AKUN_REKON_LAYAR, APP_STATE.setting).map((k) =>
           `<option value="${k}" ${k === akunRekon ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
@@ -12402,7 +12422,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td data-l="Keterangan">${esc(i > 0 ? ket.slice(i + 3) : ket)}</td></tr>`;
       }).join('')}</tbody></table></div>` : '<p class="petunjuk">Belum ada transfer bank di periode ini.</p>';
     return `<div class="kartu laporan-uang" id="kartuTransferBank">
-      <div class="bar-alat"><h3>Transfer bank</h3><span class="satuan-uang">dalam Rupiah</span></div>
+      <div class="bar-alat"><h3>Transfer bank</h3></div>
       ${form}${daftar}</div>`;
   }
 
@@ -12491,7 +12511,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const puncak = Math.max(1, ...arus.bulan.map((b) => Math.max(b.masuk, b.keluar)));
     const lebar = (v) => Math.round((Math.abs(v) / puncak) * 100);
     return `<div class="kartu laporan-uang">
-      <div class="bar-alat"><h3>Arus kas — 6 bulan terakhir</h3><span class="satuan-uang">dalam Rupiah</span></div>
+      <div class="bar-alat"><h3>Arus kas — 6 bulan terakhir</h3></div>
       <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Bulan</th><th class="kanan">Masuk</th><th class="kanan">Keluar</th>
           <th class="kanan">Bersih</th><th class="kanan">Saldo akhir</th>
@@ -12605,7 +12625,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     };
     return `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Setoran toko ${lencanaDash(belum.length + ' belum diterima', 'kuning')}</h3>
-        <span class="satuan-uang">dalam Rupiah</span></div>
+        </div>
       <div class="gulir-x"><table class="tabel">
         <thead><tr><th>Cabang</th><th>Shift</th><th>Tutup</th>
           <th class="kanan">Uang dihitung</th>
@@ -12621,7 +12641,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               title="Rincian selisih">${rp(sh.selisih)}</button>` : '—'}</td>
           <!-- Cabangnya dari BARISNYA, bukan dari pemilih di bar. Menyetorkan
                uang SK02 ke buku SK01 memindahkan uang yang tidak ada di sana. -->
-          <td>${tombolBaris('utama', 'Terima', IKON.terima,
+          <td>${sh.menunggu_koreksi
+              /* bagian 443: kas fisiknya sedang diajukan untuk dikoreksi — server menolak setorannya. */
+              ? lencanaDash('koreksi menunggu Owner', 'kuning')
+              : tombolBaris('utama', 'Terima', IKON.terima,
               `data-terima-setor="${esc(sh.id_shift)}" data-cabang="${esc(sh.kode_cabang || '')}" data-jumlah="${sh.kas_fisik}"`)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
@@ -12944,7 +12967,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ].join('');
     $('#hasilGaji').innerHTML = `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Slip gaji ${esc(namaBulan(d.periode))}</h3>
-        <span class="satuan-uang">dalam Rupiah</span>
+        
         ${aksi ? `<div class="kanan">${aksi}</div>` : ''}</div>
       ${tabel(kolom, slip, { kosong: 'Belum ada slip untuk bulan ini. Tekan "Siapkan gaji bulan ini".' })}
     </div>`;
@@ -13115,7 +13138,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Aksi', render: (r) => tombolBaris('', 'Riwayat', IKON.riwayat, `data-riwayat-kasbon="${esc(r.kode)}"`, 'Riwayat kasbon') }
     ];
     $('#hasilKasbon').innerHTML = `<div class="kartu laporan-uang">
-      <div class="bar-alat"><h3>Sisa kasbon per petugas</h3><span class="satuan-uang">dalam Rupiah</span>
+      <div class="bar-alat"><h3>Sisa kasbon per petugas</h3>
         ${bolehIzin('gaji', 'buat') ? `<div class="kanan">${tombolTambah('btnBeriKasbon', 'Beri kasbon')}</div>` : ''}</div>
       ${tabel(kolom, baris, { kosong: 'Belum ada kasbon.' })}
       <p class="petunjuk">Kasbon dicatat Dr 1-1310 Piutang Karyawan / Cr kas. Sisanya berkurang saat
@@ -15279,7 +15302,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (e.target.id === 'dashDari' || e.target.id === 'dashSampai') {
-        if (periodeDash === 'kustom' && Periode.terapkan(PERIODE_DASH, 'kustom')) {
+        /* Tanggal awal tidak memuat (bagian 444) — penolong yang sama dengan Periode.pasang. */
+        if (periodeDash === 'kustom' && Periode.kolomBerubah(PERIODE_DASH, e.target.id)) {
           dashKustom = { dari: $('#dashDari').value, sampai: $('#dashSampai').value };
           muatDashboard();
         }

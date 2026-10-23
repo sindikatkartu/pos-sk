@@ -305,6 +305,9 @@ const API = (() => {
     /* bagian 288: ulangan otomatis mengajukan dua kali / memutus yang sudah
        diputus dan memulangkan galat untuk keputusan yang sebenarnya berhasil. */
     'ajukan_diskon', 'putus_diskon',
+    /* bagian 443: ulangan otomatis mengajukan koreksi dua kali / mengesahkan
+       yang sudah disahkan. */
+    'putus_koreksi',
     /* bagian 296: ulangan otomatis bisa membuat akun dua kali (kode berikutnya
        berbeda, jadi duplikatnya lolos pemeriksaan kode). */
     'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa',
@@ -668,6 +671,7 @@ let _pernahJawab = false;
     batalDiskon:       (d) => panggil('batal_diskon', d),
     daftarDiskonMinta: (d) => panggil('daftar_diskon_minta', d || {}, { latar: true }),
     putusDiskon:       (d) => panggil('putus_diskon', d),
+    putusKoreksi:      (d) => panggil('putus_koreksi', d),
     kotakPersetujuan:  () => panggil('kotak_persetujuan', {}, { latar: true }),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
