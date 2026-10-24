@@ -17,11 +17,15 @@
    bukan kerapatannya. */
 :root {
   /* --- permukaan --- */
-  --bg:        #faf9f5;   /* kanvas aplikasi (background tertiary) */
-  --panel:     #ffffff;   /* kartu, panel, modal (background primary) */
-  --panel-2:   #f5f4ed;   /* kepala tabel, isian lembut, hover (background secondary) */
-  --panel-3:   #ecebe0;   /* hover tombol — satu langkah lebih dalam dari panel-2 */
-  --sisi-bg:   #ffffff;
+  /* Mode terang TIDAK SILAU (bagian 447, pemilik 24 Okt 2026: "pilih warna yang
+     tidak silau", palet A "hangat redup"). Kartu putih murni (terang 100 %) di
+     atas kanvas 95 % diturunkan ke 90 % di atas 80 %: kertas krem, bukan lampu.
+     Kertas dokumen (.kertas) sengaja TETAP putih — itu lembar cetak (§431). */
+  --bg:        #e9e7df;   /* kanvas aplikasi */
+  --panel:     #f4f3ee;   /* kartu, panel, modal */
+  --panel-2:   #ecebe4;   /* kepala tabel, isian lembut, hover */
+  --panel-3:   #e1dfd5;   /* hover tombol — satu langkah lebih dalam dari panel-2 */
+  --sisi-bg:   #efeee8;
 
   /* --- garis --- */
   --garis:       rgba(31,30,29,.30);
@@ -33,41 +37,41 @@
      18,4:1 · 10,9:1 · 5,0:1 di atas kanvas. Tersier digelapkan seujung kuku dari
      #73726c: nilai aslinya 4,38:1 di atas --panel-2, tepat di bawah AA, dan label
      kecil di kepala tabel justru duduk di permukaan itu. */
-  --teks:       #141413;
-  --teks-2:     #3d3d3a;
-  --teks-redup: #706f69;
+  --teks:       #24231f;
+  --teks-2:     #43423d;
+  --teks-redup: #62615a;
 
   /* --- warna arti ---
      Hue diambil dari palet; terang-gelapnya disesuaikan sampai lulus AA 4,5:1
      di atas SETIAP permukaan yang memakainya, termasuk latar lencananya sendiri.
      `-tombol` dipakai saat warnanya jadi LATAR bertulisan putih — di sana yang
      harus 4,5:1 adalah putihnya, bukan warnanya. */
-  --utama:         #206fbd;
-  --utama-tombol:  #206fbd;
+  --utama:         #1d65ad;
+  --utama-tombol:  #1d65ad;
   --utama-gelap:   #17538d;
-  --utama-lembut:  #e7f1fb;
+  --utama-lembut:  #dfe9f3;
   --utama-garis:   #a8cdf0;
   /* Tiga angka mentah, bukan warna jadi: cincin sorot memakai alpha yang
      berbeda di tiap langkah animasi, dan `rgba()` tidak bisa mengambil alpha
      dari warna yang sudah jadi. */
-  --utama-rgb:     32,111,189;
-  --sukses:        #547b1e;
+  --utama-rgb:     29,101,173;
+  --sukses:        #4a6e1a;
   --sukses-tombol: #547b1e;
   --sukses-gelap:  #3f5c16;
-  --sukses-lembut: #f2fae8;
+  --sukses-lembut: #e6eedc;
   --sukses-garis:  #b6d493;
-  --peringatan:        #a06104;
-  --peringatan-lembut: #fbf3e7;
+  --peringatan:        #8f5603;
+  --peringatan-lembut: #f1e8da;
   --peringatan-garis:  #e8c48c;
-  --bahaya:        #cf2222;
+  --bahaya:        #b81e1e;
   /* Dua rona TAMBAHAN untuk petak ikon KPI dashboard (10 Sep 2026). Enam angka
      memakai enam warna supaya mata menemukan "piutang" tanpa membaca labelnya;
      biru, hijau, kuning, merah sudah ada, dua ini melengkapi. Tidak dipakai
      untuk makna lain — ungu bukan "bahaya", teal bukan "sukses". */
   --ungu:          #6d4fc2;
-  --ungu-lembut:   #efeafb;
+  --ungu-lembut:   #e6e1f2;
   --teal:          #0f766e;
-  --teal-lembut:   #e3f3f1;
+  --teal-lembut:   #dbebe8;
   /* Ringkasan Gabungan (bagian 204). Kepala gelapnya bukan warna bermerek
      mana pun yang sudah ada — ia latar pekat tempat satu angka besar berdiri
      sendiri. Ketiga rona sumber dipisah dari palet makna: ia penanda
@@ -80,8 +84,8 @@
   /* Merah untuk angka minus DI ATAS kepala gelap. `--bahaya` dibuat untuk
      latar terang; di atas #12243a ia terlalu tua dan hampir hilang. */
   --kons-minus:       #ff9090;
-  --bahaya-tombol: #cf2222;
-  --bahaya-lembut: #fbe7e7;
+  --bahaya-tombol: #b81e1e;
+  --bahaya-lembut: #f2dfdc;
   --bahaya-garis:  #f0a9a9;
 
   /* --- bayangan: sangat tipis. Kedalaman datang dari GARIS, bukan blur. --- */
@@ -89,7 +93,7 @@
   --bayang-2: 0 1px 0 rgba(31,30,29,.04), 0 1px 3px rgba(31,30,29,.12);
   --bayang-3: 0 3px 6px rgba(31,30,29,.15);
   --bayang-4: 0 8px 24px rgba(31,30,29,.20);
-  --cincin:   0 0 0 3px rgba(32,111,189,.30);
+  --cincin:   0 0 0 3px rgba(29,101,173,.30);
 
   --tirai:             rgba(20,20,19,.50);   /* tirai di belakang modal */
   --gulir-bayang:      rgba(0,0,0,.16);      /* tanda "masih ada isi" di tepi wadah bergulir */
@@ -108,23 +112,23 @@
      panel berakhir. Setebal garis kartu, ia menarik perhatian yang seharusnya
      jatuh ke isinya. Garis kartu TIDAK ikut ditipiskan: di sana garisnya justru
      yang memisahkan satu angka dari angka berikutnya. */
-  --garis-rangka:      rgba(31,30,29,.16);
+  --garis-rangka:      rgba(31,30,29,.14);
   --irama:             16px;
-  --tombol-tekan:      #e4e2d4;
+  --tombol-tekan:      #d8d6c9;
   --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
   /* Kotak logo 'SK'. Pasangan inverted dari palet: latar gelap, tulisan terang —
      dan terbalik di mode gelap. Punya tokennya sendiri karena perannya bukan
      warna teks; versi lama memakai --teks sebagai latar, dan di mode gelap itu
      jadi kotak putih berisi huruf putih. */
-  --logo-bg:           #141413;
+  --logo-bg:           #24231f;
   --logo-teks:         #ffffff;
 
   /* Palet grafik, dibaca grafik.js saat menggambar. Enam slot, tiap slot >= 3:1
      di atas kartu DAN di atas isian lembut, pada KEDUA tema. Urutannya menjaga
      jarak warna antar seri bersebelahan tetap lebar. */
-  --seri-1: #2c84db;  --seri-2: #ca7b05;  --seri-3: #6a9b26;
+  --seri-1: #2c84db;  --seri-2: #ad6904;  --seri-3: #5c8a1f;
   --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #706f69;
-  --kertas-grafik: #ffffff;
+  --kertas-grafik: #f4f3ee;
   /* SKALA HURUF. Sepuluh langkah, dan hanya sepuluh.
      Pengukuran 31 Agu 2026 menemukan 21 deklarasi ukuran huruf yang menghasilkan
      15 ukuran berbeda di layar — termasuk 10,5 / 11,5 / 12,5 / 13,5 / 14,5 / 15,5,

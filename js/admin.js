@@ -1505,7 +1505,7 @@ const Admin = (() => {
   const cabangParamDash = () => KELOMPOK_DASH[cabangDash]
     ? (kodeKelompokDash(cabangDash).join(',') || '*') : cabangDash;
 
-  const WARNA_JENIS_DASH = { eceran: '#2c84db', grosir: '#e0781f' };
+  const WARNA_JENIS_DASH = { eceran: '#2c84db', grosir: '#c26612' };
   /* Ungu SK03 & pink grosir kedua dinaikkan terangnya (bagian 441, pemilik
      23 Okt 2026: "warna ungu untuk sk03 jika didark mode, warna kurang jelas").
      Diukur terhadap latar kartu: #4a3aa7 cuma 1,55:1 di gelap (#30302e) dan
@@ -1513,11 +1513,14 @@ const Admin = (() => {
      #1baf7a cuma 2,82:1 di TERANG, biru SK01 #2a78d6 2,997:1 di GELAP.
      Penggantinya lulus 3:1 di KEDUA tema (terang / gelap): #2f7fde 4,03 /
      3,28, #18a070 3,33 / 3,97, #8a6cf0 3,83 / 3,45, #d4589f 3,69 / 3,59. Satu warna untuk dua tema, bukan dua: warna cabang =
-     identitas, harus sama di layar mana pun. Dijaga uji.js (bagian 441). */
-  const WARNA_CAB_DASH = { eceran: ['#2f7fde', '#18a070', '#8a6cf0'], grosir: ['#e0781f', '#d4589f'],
-                           '': ['#2f7fde', '#18a070', '#8a6cf0', '#e0781f', '#d4589f'] };
+     identitas, harus sama di layar mana pun. Dijaga uji.js (bagian 441).
+     Kartu terang diredupkan (bagian 447: #ffffff → #f4f3ee): hijau #18a070 jadi
+     3,00:1 dan oranye #e0781f 2,75:1 — diganti #139065 3,63 / 3,28 dan
+     #c26612 3,63 / 3,28 (terang / gelap); piutang #2e9e7d → #278a6c. */
+  const WARNA_CAB_DASH = { eceran: ['#2f7fde', '#139065', '#8a6cf0'], grosir: ['#c26612', '#d4589f'],
+                           '': ['#2f7fde', '#139065', '#8a6cf0', '#c26612', '#d4589f'] };
   const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
-  const WARNA_METODE_DASH = { tunai: '#2c84db', qris: '#e0781f', transfer: '#8b5cf6', piutang: '#2e9e7d' };
+  const WARNA_METODE_DASH = { tunai: '#2c84db', qris: '#c26612', transfer: '#8b5cf6', piutang: '#278a6c' };
 
   /** "1,2 jt" / "450 rb" — angka ringkas untuk petak sempit; angka utuhnya di title. */
   const jtDash = (n) => {

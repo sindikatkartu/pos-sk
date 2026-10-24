@@ -29,6 +29,6 @@
        gelap. Nilainya = token --panel tiap tema (app.css) — ada uji yang
        menjaga keduanya sepakat. */
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', t === 'gelap' ? '#30302e' : '#ffffff');
+    if (meta) meta.setAttribute('content', t === 'gelap' ? '#30302e' : '#f4f3ee');
   } catch (e) { /* penyimpanan diblokir: tetap terang sampai app.js jalan */ }
 })();

@@ -2285,7 +2285,7 @@ function terapkanTema(nilai) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
     const panel = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
-    meta.setAttribute('content', panel || (gelap ? '#30302e' : '#ffffff'));
+    meta.setAttribute('content', panel || (gelap ? '#30302e' : '#f4f3ee'));
   }
 
   try { localStorage.setItem('possk_tema', sesudah); } catch (e) { /* diblokir */ }
@@ -4634,6 +4634,7 @@ async function bukaLaporanShift(idShift, cabang) {
     /* Cabang barisnya ikut (bagian 274): shift cabang lain tidak ada di
        sheet cabang sesi. Kosong = cabang sesi, seperti dulu. */
     const d = await API.laporanShift({ id_shift: idShift, ...(cabang ? { cabang } : {}) });
+    lapShiftKini = { d, idShift, cabang };   // dibaca formKoreksiBayar (bagian 446)
     const k = d.kas, p = d.penjualan;
     const baris = (label, nilai, tebal) => `<div class="total-baris${tebal ? ' besar' : ''}">
       <span>${esc(label)}</span><span>${nilai}</span></div>`;
@@ -4677,12 +4678,14 @@ async function bukaLaporanShift(idShift, cabang) {
         <span class="petunjuk" style="font-weight:400">· ${p.jumlah_nota} aktif${
           p.jumlah_void ? ', ' + p.jumlah_void + ' dibatalkan' : ''} · ${rp(p.total)}</span></h4>
       ${d.nota.length ? `<div class="gulir-x"><table>
-        <tr><th>No Nota</th><th>Jam</th><th>Metode</th><th class="angka">Total</th><th>Status</th></tr>
+        <tr><th>No Nota</th><th>Jam</th><th>Metode</th><th class="angka">Total</th><th>Status</th>${d.boleh_koreksi_bayar ? '<th></th>' : ''}</tr>
         ${d.nota.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
           <td>${esc(n.metode)}</td><td class="angka">${rp(n.total)}</td>
           <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
             : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
-        </tr>`).join('')}</table></div>` : '<p class="petunjuk">Belum ada nota.</p>'}
+          ${d.boleh_koreksi_bayar ? `<td>${aksiKoreksiBayar(n)}</td>` : ''}
+        </tr>`).join('')}</table></div>
+        <div id="wadahKoreksiBayar"></div>` : '<p class="petunjuk">Belum ada nota.</p>'}
 
       <h4 style="margin:16px 0 6px">Poin &amp; omzet petugas</h4>
       ${d.petugas.length ? `<div class="gulir-x"><table>
@@ -4716,6 +4719,96 @@ function formKoreksiKasShift(idShift, cabang, k) {
       <button class="tombol utama" type="button" id="btnKoreksiKas">Simpan koreksi</button>
     </div>
   </div>`;
+}
+
+/* KOREKSI PEMBAYARAN NOTA (bagian 446). Kasir salah memilih cara bayar — BCA
+   padahal BNI, transfer padahal tunai. Yang diganti hanya baris pembayarannya;
+   totalnya tetap. Server yang memutuskan boleh tidaknya (shift·ubah, setoran,
+   periode); layar hanya menawarkan. Formnya sebaris di laporan ini, bukan
+   modal kedua di atas jendela laporan. */
+let lapShiftKini = null;
+
+function aksiKoreksiBayar(n) {
+  if (n.status !== 'AKTIF') return '';
+  if (n.koreksi_menunggu) return '<span class="lencana kuning" title="' + esc(n.koreksi_menunggu) + '">menunggu Owner</span>';
+  if ((n.bayar || []).some((b) => b.metode === 'piutang') || !(n.bayar || []).length) return '';
+  return `<button class="tombol kecil" type="button" data-koreksi-bayar="${esc(n.uuid)}" title="Koreksi pembayaran nota ${esc(n.no_nota)}">` +
+    `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.ubah}</svg><span>Koreksi</span></button>`;
+}
+
+/** Satu baris isian: pilihan cara bayar + jumlah. */
+function barisKoreksiBayar(pilihan, metode, jumlah) {
+  return `<div class="saring-baris" data-baris-bayar="1">
+    <label class="kendali-tetap">Cara bayar
+      <select data-bayar-metode="1">${metode ? '' : '<option value="" selected>— pilih —</option>'}${pilihan.map((m) =>
+        `<option value="${esc(m)}"${m === metode ? ' selected' : ''}>${esc(labelMetode(m))}</option>`).join('')}</select></label>
+    <label class="kendali-tetap">Jumlah
+      <input type="text" class="uang" data-bayar-jumlah="1" autocomplete="off" value="${jumlah ? esc(ribuan(jumlah)) : ''}"></label>
+  </div>`;
+}
+
+function formKoreksiBayar(uuid) {
+  const L = lapShiftKini; if (!L) return;
+  const n = L.d.nota.find((x) => x.uuid === uuid); if (!n) return;
+  /* Metode lama yang kini tidak ditawarkan tetap bisa dipertahankan. */
+  const pilihan = [...new Set([...(L.d.metode_tersedia || []), ...n.bayar.map((b) => b.metode)])];
+  const total = n.bayar.reduce((a, b) => a + (+b.jumlah || 0), 0);
+  const w = $('#wadahKoreksiBayar');
+  w.innerHTML = `<div class="kartu" id="kartuKoreksiBayar" style="background:var(--bg);margin-top:8px"
+      data-uuid="${esc(uuid)}" data-total="${total}">
+    <h4 style="margin:0 0 6px">Koreksi pembayaran · ${esc(n.no_nota)}</h4>
+    <p class="petunjuk">Sekarang: ${esc(n.bayar.map((b) => labelMetode(b.metode) + ' ' + ribuan(b.jumlah)).join(' + '))}.
+      Ganti cara bayarnya; jumlahnya harus tetap ${rp(total)}. Barang, stok, dan poin tidak berubah.
+      Yang menyentuh TUNAI hanya untuk shift yang sudah ditutup dan setorannya belum diterima.</p>
+    <div id="barisKoreksiBayar">${n.bayar.map((b) => barisKoreksiBayar(pilihan, b.metode, b.jumlah)).join('')}</div>
+    <button class="tombol kecil" type="button" data-koreksi-bayar-tambah="1">
+      <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.tambah}</svg><span>Tambah baris</span></button>
+    <label>Alasan
+      <input type="text" id="koreksiBayarAlasan" autocomplete="off" placeholder="mis. kasir salah pilih bank"></label>
+    <div class="pesan galat rapat sembunyi" id="pesanKoreksiBayar"></div>
+    <button class="tombol" type="button" data-koreksi-bayar-batal="1">Batal</button>
+    <button class="tombol utama" type="button" id="btnKoreksiBayar">Simpan koreksi</button>
+  </div>`;
+  w._pilihan = pilihan;
+  w.scrollIntoView({ block: 'nearest' });
+  w.querySelector('[data-bayar-metode]')?.focus();
+}
+
+async function simpanKoreksiBayar(btn) {
+  const kartu = $('#kartuKoreksiBayar'), L = lapShiftKini;
+  const pesan = $('#pesanKoreksiBayar');
+  const salah = (t) => { pesan.textContent = t; pesan.classList.remove('sembunyi'); };
+  pesan.classList.add('sembunyi');
+  const n = L.d.nota.find((x) => x.uuid === kartu.dataset.uuid);
+  const total = Number(kartu.dataset.total) || 0;
+  const semua = [...kartu.querySelectorAll('[data-baris-bayar]')].map((b) => ({
+    metode: b.querySelector('[data-bayar-metode]').value,
+    jumlah: angkaDari(b.querySelector('[data-bayar-jumlah]').value)
+  }));
+  /* Baris baru tidak berbawaan Tunai — orang wajib memilih (§207). */
+  if (semua.some((b) => b.jumlah > 0 && !b.metode)) return salah('Pilih cara bayar di setiap baris.');
+  const bayar = semua.filter((b) => b.jumlah > 0);
+  const alasan = String($('#koreksiBayarAlasan').value || '').trim();
+  if (!bayar.length) return salah('Isi minimal satu baris pembayaran.');
+  const jml = bayar.reduce((a, b) => a + b.jumlah, 0);
+  if (jml !== total) return salah('Jumlahnya harus ' + ribuan(total) + ' (sekarang ' + ribuan(jml) + ').');
+  if (alasan.length < 5) return salah('Alasan minimal 5 huruf.');
+  const teks = (rows) => rows.map((b) => labelMetode(b.metode) + ' ' + ribuan(b.jumlah)).join(' + ');
+  const owner = String(APP_STATE.user?.peran || '') === 'OWNER';
+  if (!(await Admin.tanya(owner ? 'Koreksi pembayaran nota ini?' : 'Ajukan koreksi pembayaran?',
+        `<p class="petunjuk">Nota ${esc(n.no_nota)} · ${rp(total)}</p>
+         <p class="petunjuk">${esc(teks(n.bayar))} → <strong>${esc(teks(bayar))}</strong></p>
+         <p class="petunjuk">${owner ? 'Jurnal pembayarannya ikut dibetulkan; bila tunai berubah, kas sistem dan selisih shift ikut dihitung ulang.'
+           : 'Koreksi ini <strong>disahkan Owner</strong> lebih dulu — belum ada yang berubah sampai Owner menyetujuinya. Bila tunai ikut berubah, setoran shift ini ditahan sampai diputuskan.'}</p>`,
+        { ya: owner ? 'Simpan koreksi' : 'Ajukan ke Owner' }))) return;
+  btn.disabled = true;   // terkunci selama memproses (bagian 261)
+  try {
+    const r = await API.koreksiBayarNota({ uuid: n.uuid, bayar, alasan, ...(L.cabang ? { cabang: L.cabang } : {}) });
+    Admin.toast(r.menunggu ? 'Koreksi diajukan — menunggu pengesahan Owner.' : 'Pembayaran nota dikoreksi.', 'sukses');
+    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
+    await bukaLaporanShift(L.idShift, L.cabang);
+    muatDaftarShift();
+  } catch (e) { salah(e.message); btn.disabled = false; }
 }
 
 async function simpanKoreksiKasShift(btn) {
@@ -8422,6 +8515,15 @@ function pasangEvent() {
       $('#koreksiKasFisik')?.focus();
     }
     if (e.target.id === 'btnKoreksiKas') simpanKoreksiKasShift(e.target);
+    /* Koreksi pembayaran nota (bagian 446). closest: klik bisa jatuh di ikon/teks tombolnya. */
+    const t = e.target.closest?.('button');
+    if (!t) return;
+    if (t.dataset.koreksiBayar) formKoreksiBayar(t.dataset.koreksiBayar);
+    if (t.dataset.koreksiBayarBatal) $('#wadahKoreksiBayar').innerHTML = '';
+    if (t.dataset.koreksiBayarTambah) {
+      $('#barisKoreksiBayar').insertAdjacentHTML('beforeend', barisKoreksiBayar($('#wadahKoreksiBayar')._pilihan || [], '', 0));
+    }
+    if (t.id === 'btnKoreksiBayar') simpanKoreksiBayar(t);
   });
   $('#btnCariNotaRiwayat').addEventListener('click', () => cariNotaLama());
   $('#cariNotaRiwayat').addEventListener('keydown', e => {
