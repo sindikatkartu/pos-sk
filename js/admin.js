@@ -2565,6 +2565,38 @@ const Admin = (() => {
     }
   }
 
+  /**
+   * "stok N" untuk cabang LAIN (bagian 455): form Pembelian bisa mencatat ke
+   * cabang yang bukan cabang sesi (bagian 451), dan stok perangkat hanya milik
+   * cabang sesi. Dibaca dari salinan stok semua cabang yang sudah ditarik
+   * berkala untuk kasir (store `stok_cabang`) — tanpa panggilan server.
+   * Cabang itu belum ada di salinan = BELUM TAHU: "—", bukan 0.
+   */
+  let tiketStokCabang = 0;
+  async function timpaStokCabang(rows, cabang) {
+    /* Hanya pembacaan TERAKHIR yang boleh menulis angkanya: cabang diganti cepat
+       B lalu C, jawaban B yang tiba belakangan tidak menimpa C (peninjau-rilis). */
+    const tiket = ++tiketStokCabang;
+    if (!cabang || cabang === APP_STATE.cabang) {
+      const salin = rows.map((r) => ({ sku: r.sku, stok: r.stok }));
+      await timpaStokPerangkat(salin);
+      if (tiket !== tiketStokCabang) return;
+      rows.forEach((r, i) => { if (salin[i].stok === undefined) delete r.stok; else r.stok = salin[i].stok; });
+      return;
+    }
+    try {
+      const stok = (await DB.all('stok_cabang')).filter((x) => x.cabang === cabang);
+      if (tiket !== tiketStokCabang) return;
+      if (!stok.length) { rows.forEach((r) => { delete r.stok; }); return; }
+      const peta = {};
+      stok.forEach((x) => { peta[x.sku] = (peta[x.sku] || 0) + (Number(x.qty) || 0); });
+      rows.forEach((r) => { r.stok = peta[r.sku] || 0; });
+    } catch (e) {
+      rows.forEach((r) => { delete r.stok; });
+      console.warn('stok cabang ' + cabang + ' tidak terbaca: ' + e.message);
+    }
+  }
+
   async function muatProduk() {
     rangkaProduk();
     /* Angka lembar di tombol Label & lencana Stiker dari keranjang yang
@@ -5527,7 +5559,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanPembelian">${ikonAlat('simpan')}<span>Simpan pembelian</span></button>`);
     daftarPilihProduk = prod.produk;
-    timpaStokPerangkat(daftarPilihProduk);   // "stok N" di hasil pemilih (bagian 295)
+    /* "stok N" di hasil pemilih (bagian 295) mengikuti cabang TUJUAN (bagian 455). */
+    timpaStokCabang(daftarPilihProduk, $('#beliCabang')?.value || APP_STATE.cabang);
+    $('#beliCabang')?.addEventListener('change', (e) => timpaStokCabang(daftarPilihProduk, e.target.value));
     tambahBarisBeli();
     siapkanPindaiBeli(prod.produk);
     $('#beliPindai')?.focus();
@@ -12835,7 +12869,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!h.adaBank) { toast('Ketik dulu saldo akhir menurut mutasi bank.', 'galat'); return; }
     if (kunci && !(await tanya('Kunci rekonsiliasi ' + akunRekon + ' ' + bulanTeks(rekonData.periode) + '?',
           `<p class="petunjuk">Selisih 0. Sesudah dikunci tidak bisa diubah; ${(rekonData.baris || []).length - h.set.size} baris
-             yang belum cocok terbawa ke bulan berikutnya.</p>`, { ya: 'Kunci rekonsiliasi' }))) return;
+             yang belum cocok terbawa ke bulan berikutnya. Dokumen baru bertanggal bulan ini yang menyentuh rekening ini
+             (kas, transfer, pelunasan, koreksi pembayaran) akan ditolak.</p>`, { ya: 'Kunci rekonsiliasi' }))) return;
     try {
       const r = await API.simpanRekonBank({ kode_akun: akunRekon, periode: rekonData.periode,
         saldo_bank: angkaDari($('#rekonSaldoBank').value), cocok: [...h.set], kunci: !!kunci });
