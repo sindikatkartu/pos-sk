@@ -4680,7 +4680,7 @@ async function bukaLaporanShift(idShift, cabang) {
       ${d.nota.length ? `<div class="gulir-x"><table>
         <tr><th>No Nota</th><th>Jam</th><th>Metode</th><th class="angka">Total</th><th>Status</th>${d.boleh_koreksi_bayar ? '<th></th>' : ''}</tr>
         ${d.nota.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
-          <td>${esc(n.metode)}</td><td class="angka">${rp(n.total)}</td>
+          <td>${esc(labelMetodeGabung(n.metode))}</td><td class="angka">${rp(n.total)}</td>
           <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
             : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
           ${d.boleh_koreksi_bayar ? `<td>${aksiKoreksiBayar(n)}</td>` : ''}
@@ -5062,7 +5062,8 @@ function selisihLaporan(kini, lalu) {
  * Cetak (v1.156) adalah pengecualian yang disengaja: ia menarik tab yang belum
  * pernah dibuka, karena dokumen A4-nya memuat kelima bagian.
  */
-const LAP = { dari: '', sampai: '', cabang: '*', tab: 'ringkas', data: {}, urutPelanggan: 'bersih' };
+const LAP = { dari: '', sampai: '', cabang: '*', tab: 'ringkas', data: {}, urutPelanggan: 'bersih',
+              produkSaring: { kategori: '', rincian: 'cabang', cari: '' } };
 
 /* Satu tab, satu cara menariknya.
  *
@@ -5081,7 +5082,9 @@ const LAP_TARIK = {
   /* Diskon pindah dari menu sendiri ke tab ini (bagian 305). */
   diskon:  (par) => API.laporanDiskon(par),
   /* Per pelanggan (bagian 396). */
-  pelanggan: (par) => API.laporanPelanggan(par)
+  pelanggan: (par) => API.laporanPelanggan(par),
+  /* Per produk (bagian 452). */
+  produk: (par) => API.laporanProduk(par)
 };
 
 /* Urutan dan judul bagian — dipakai tab di layar DAN dokumen cetak. */
@@ -5098,7 +5101,9 @@ const LAP_BAGIAN = [
   { id: 'diskon',  judul: 'Diskon', cetakOtomatis: false },
   /* Per pelanggan (bagian 396): tidak tercentang otomatis — cetakan penjualan
      biasa tidak bertambah satu panggilan + satu bagian. */
-  { id: 'pelanggan', judul: 'Per pelanggan', cetakOtomatis: false }
+  { id: 'pelanggan', judul: 'Per pelanggan', cetakOtomatis: false },
+  /* Per produk (bagian 452): sama — tidak tercentang otomatis. */
+  { id: 'produk', judul: 'Per produk', cetakOtomatis: false }
   /* Kerugian persediaan pindah ke Laporan Keuangan (bagian 306): angkanya
      rupiah kerugian, pembacanya pembaca laporan keuangan. */
 ];
@@ -5326,6 +5331,97 @@ function gambarLapPelanggan(w, d) {
       <p class="petunjuk" style="margin:6px 0 0">Tidak ikut peringkat — pembeli yang tidak dipilih pelanggannya di kasir.</p></div>`;
 }
 
+/* ---------- Tab: per produk (bagian 452) ----------
+ * Pemilik: "untuk mengecek penjualan perproduk perkategori bagaimana?", lalu
+ * "harusnya bisa lebih spesifik dalam tools sapuan kategori / produk /
+ * cabang", dan namanya "jangan per kategori". Kategori → produk, disaring di
+ * perangkat (Kategori · Rincian per cabang/gabungan · Cari) tanpa panggilan
+ * lagi. Urutan kategori & produk: QTY terbanyak (keputusan pemilik); kolom per
+ * cabang memecah qty saja; retur tidak dipotong — sama dengan Produk terlaris.
+ * Cabang mana yang dihitung tetap dari bar atas: dua pemilih cabang di satu
+ * layar bisa saling bertentangan. */
+const NAMA_TANPA_KATEGORI = '(tanpa kategori)';
+const qtyTeks = (q) => (Number(q) || 0).toLocaleString('id-ID');
+function jumlahProdukLap(rows) {
+  const t = { qty: 0, omzet: 0, laba: 0, per_cabang: {} };
+  rows.forEach((x) => {
+    t.qty += Number(x.qty) || 0; t.omzet += Number(x.omzet) || 0; t.laba += Number(x.laba) || 0;
+    Object.keys(x.per_cabang || {}).forEach((c) => { t.per_cabang[c] = (t.per_cabang[c] || 0) + (Number(x.per_cabang[c]) || 0); });
+  });
+  t.margin_persen = t.omzet ? Math.round(t.laba / t.omzet * 10000) / 100 : 0;
+  return t;
+}
+function kelompokProdukLaporan(d) {
+  const s = LAP.produkSaring, q = String(s.cari || '').toLowerCase().trim();
+  const cocok = (d.produk || []).filter((x) =>
+    (!s.kategori || (x.kategori || NAMA_TANPA_KATEGORI) === s.kategori) &&
+    (!q || (String(x.nama) + ' ' + String(x.sku)).toLowerCase().includes(q)));
+  const peta = {};
+  cocok.forEach((x) => { const k = x.kategori || NAMA_TANPA_KATEGORI; (peta[k] = peta[k] || []).push(x); });
+  const banding = (a, b) => b.qty - a.qty || b.omzet - a.omzet;
+  const kat = Object.keys(peta).map((k) => Object.assign({ nama: k, produk: peta[k].slice().sort(banding) }, jumlahProdukLap(peta[k])))
+    .sort((a, b) => banding(a, b) || a.nama.localeCompare(b.nama));
+  return { kat, total: jumlahProdukLap(cocok), nProduk: cocok.length };
+}
+/** Kolom per cabang hanya bila Rincian = Per cabang dan cabangnya lebih dari satu. */
+const cabangKolomProduk = (d) =>
+  LAP.produkSaring.rincian === 'cabang' && (d.cabang || []).length > 1 ? d.cabang.slice().sort() : [];
+function angkaProdukLaporan(d, g) {
+  const t = g.total;
+  return [
+    { label: 'Kategori terjual', nilai: g.kat.length, ekor: d.margin ? g.nProduk + ' produk' : '' },
+    { label: 'Qty', nilai: qtyTeks(t.qty), ekor: '' },
+    { label: 'Omzet barang', nilai: rp(t.omzet), ekor: 'sebelum diskon nota' },
+    d.margin ? { label: 'Laba kotor', nilai: rp(t.laba), ekor: t.margin_persen + '% margin' }
+             : { label: 'Produk terjual', nilai: g.nProduk, ekor: '' }
+  ];
+}
+/** Baris total satu kategori, bentuknya sama dengan baris produk. */
+const barisTotalProduk = (k) => ({ _total: true, nama: k.nama, sku: '', qty: k.qty, omzet: k.omzet,
+  laba: k.laba, margin_persen: k.margin_persen, per_cabang: k.per_cabang });
+function gambarLapProduk(w, d) {
+  const s = LAP.produkSaring;
+  const kategori = [...new Set((d.produk || []).map((x) => x.kategori || NAMA_TANPA_KATEGORI))].sort((a, b) => a.localeCompare(b));
+  if (s.kategori && !kategori.includes(s.kategori)) s.kategori = '';
+  const multi = (d.cabang || []).length > 1;
+  w.innerHTML = `
+    ${(d.gagal || []).length ? `<div class="pesan peringatan">Sebagian data gagal dibaca — angka di bawah TIDAK lengkap: ${esc(d.gagal.join(' · '))}</div>` : ''}
+    <div id="lapProdukKotak"></div>
+    <div class="kartu tanpa-cetak"><div class="saring-baris">
+      <div class="kendali-tetap"><label for="lapProdukKategori">Kategori</label>
+        <select id="lapProdukKategori" class="kendali-tetap"><option value="">Semua kategori</option>${kategori.map((k) =>
+          `<option value="${esc(k)}"${k === s.kategori ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
+      ${multi ? `<div class="kendali-tetap"><label for="lapProdukRincian">Rincian</label>
+        <select id="lapProdukRincian" class="kendali-tetap">
+          <option value="cabang"${s.rincian === 'cabang' ? ' selected' : ''}>Per cabang</option>
+          <option value="gabung"${s.rincian === 'gabung' ? ' selected' : ''}>Gabungan</option></select></div>` : ''}
+      <div class="kendali-penuh" style="flex:1 1 100%;max-width:none"><label for="lapProdukCari">Cari produk</label>
+        <input type="text" class="input-cari" id="lapProdukCari" placeholder="Nama atau SKU…" value="${esc(s.cari)}" autocomplete="off"></div>
+    </div>
+    <p class="petunjuk" style="margin:0">Omzet barang = harga jual sebelum diskon nota dan sebelum retur, sama dengan Produk terlaris di Ringkasan. Kategori dan produk diurut dari qty terbanyak.</p></div>
+    <div id="lapProdukHasil"></div>`;
+  gambarHasilLapProduk(d);
+}
+/** Kotak angka + akordeon; digambar ulang sendiri supaya kotak Cari tidak kehilangan fokus. */
+function gambarHasilLapProduk(d) {
+  const w = $('#lapProdukHasil');
+  if (!w) return;
+  const g = kelompokProdukLaporan(d), kol = KOLOM_LAP.produkPer(d, cabangKolomProduk(d));
+  $('#lapProdukKotak').innerHTML = petakAngka(angkaProdukLaporan(d, g), 'petak-4');
+  const buka = !!String(LAP.produkSaring.cari || '').trim();
+  const sel = (k, x) => `<td class="${k.angka ? 'angka' : ''}" data-l="${esc(k.judul)}">${k.render(x)}</td>`;
+  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>
+    ${g.kat.map((k, i) => `<details class="nota-pelanggan"${buka || i === 0 ? ' open' : ''}>
+      <summary><span><strong>${esc(k.nama)}</strong> <small class="ket-pelanggan">${k.produk.length} produk · ${g.total.omzet ? Math.round(k.omzet / g.total.omzet * 1000) / 10 : 0}% omzet</small></span>
+        <span>${qtyTeks(k.qty)} pcs · ${rp(k.omzet)}</span></summary>
+      <div class="gulir-x"><table>
+        <thead><tr>${kol.map((c) => `<th class="${c.angka ? 'angka' : ''}">${esc(c.judul)}</th>`).join('')}</tr></thead>
+        <tbody>${k.produk.map((x) => `<tr>${kol.map((c) => sel(c, x)).join('')}</tr>`).join('')}</tbody>
+        <tfoot><tr>${kol.map((c) => sel(c, barisTotalProduk(k))).join('')}</tr></tfoot>
+      </table></div></details>`).join('')}</div>`
+    : `<div class="kartu"><p class="petunjuk">${(d.produk || []).length ? 'Tidak ada produk yang cocok dengan saringan.' : 'Belum ada penjualan pada rentang ini.'}</p></div>`;
+}
+
 /** Isi dokumen satu pelanggan — `cetak` = bentuk kertas (semua nota terbuka). */
 function isiDokumenPelanggan(pel, d, cetak) {
   const nota = d.nota || [], retur = d.retur || [];
@@ -5385,7 +5481,7 @@ async function gambarTabLaporan(tab) {
   if (!LAP.dari || !LAP.sampai) return gambarPetunjukLaporan('Pilih periode di atas untuk menampilkan laporan.');
   const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
                    petugas: gambarLapPetugas, void: gambarLapVoid,
-                   diskon: gambarLapDiskonTab, pelanggan: gambarLapPelanggan }[tab];
+                   diskon: gambarLapDiskonTab, pelanggan: gambarLapPelanggan, produk: gambarLapProduk }[tab];
   if (!LAP.data[tab]) {
     /* Balapan tab: yang tiba belakangan untuk tab yang sudah ditinggalkan
        tidak boleh menimpa tab yang sedang dibuka. */
@@ -5445,6 +5541,16 @@ const KOLOM_LAP = {
     { judul: 'Bersih', angka: true, render: x => `<strong>${rp(x.bersih)}</strong>` },
     { judul: 'Rata-rata/nota', angka: true, render: x => x.nota ? rp(x.rata) : '—' },
     { judul: 'Terakhir', render: x => x.terakhir ? esc(tglTampil(String(x.terakhir).slice(0, 10))) : '—' }
+  ],
+  /* Per produk (bagian 452): satu daftar kolom untuk layar dan kertas. */
+  produkPer: (d, cab) => [
+    { judul: 'Produk', render: x => x._total ? `<strong>Total ${esc(x.nama)}</strong>`
+        : `${esc(x.nama)}<br><small class="ket-pelanggan">${esc(x.sku)}</small>` },
+    ...cab.map(c => ({ judul: c, angka: true, render: x => (x.per_cabang || {})[c] ? qtyTeks(x.per_cabang[c]) : '—' })),
+    { judul: 'Qty', angka: true, render: x => x._total ? `<strong>${qtyTeks(x.qty)}</strong>` : qtyTeks(x.qty) },
+    { judul: 'Omzet', angka: true, render: x => x._total ? `<strong>${rp(x.omzet)}</strong>` : rp(x.omzet) },
+    ...(d.margin ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba) },
+                    { judul: 'Margin', angka: true, render: x => x.margin_persen + '%' }] : [])
   ],
   /* Dokumen satu pelanggan (bagian 396): isi tiap nota & returnya. */
   pelangganItem: () => [
@@ -5588,7 +5694,7 @@ const KOLOM_LAP = {
     { judul: 'Total', angka: true, render: x => rp(x.total) },
     ...((d.nota || []).some(n => n.laba_kotor !== undefined)
       ? [{ judul: 'Laba kotor', angka: true, render: x => rp(x.laba_kotor || 0) }] : []),
-    { judul: 'Bayar', render: x => esc((x.metode || x.tipe_bayar || '—').toUpperCase()) }
+    { judul: 'Bayar', render: x => esc(labelMetodeGabung(x.metode || x.tipe_bayar) || '—') }
   ],
   shift: () => [
     { judul: 'Shift', render: x => esc(x.id_shift) },
@@ -6350,6 +6456,15 @@ const CETAK_LAP_BAGIAN = {
   pelanggan: (d) => kotakCetakLaporan(angkaPelangganLaporan(d)) +
     tabelCetakLaporan('Per pelanggan', KOLOM_LAP.pelanggan(), urutPelangganLaporan(d), 'Belum ada pelanggan terdaftar yang berbelanja pada rentang ini.') +
     `<p class="sub">Umum (tanpa pelanggan, tidak ikut peringkat): ${(d.umum || {}).nota || 0} nota · bersih ${rp((d.umum || {}).bersih || 0)}</p>`,
+  /* Per produk (bagian 452): saringan yang sedang dipasang di layar ikut ke kertas. */
+  produk: (d) => {
+    const g = kelompokProdukLaporan(d), kol = KOLOM_LAP.produkPer(d, cabangKolomProduk(d)), s = LAP.produkSaring;
+    const saring = [s.kategori ? 'kategori ' + s.kategori : '', s.cari ? 'cari "' + s.cari + '"' : ''].filter(Boolean).join(' · ');
+    return kotakCetakLaporan(angkaProdukLaporan(d, g)) +
+      (saring ? `<p class="sub">Disaring: ${esc(saring)}</p>` : '') +
+      (g.kat.length ? g.kat.map(k => tabelCetakLaporan(k.nama + ' — ' + qtyTeks(k.qty) + ' pcs · ' + rpTeks(k.omzet), kol,
+        k.produk.concat([barisTotalProduk(k)]), '')).join('') : '<p class="sub">Belum ada penjualan pada rentang ini.</p>');
+  },
 };
 
 /* Isi cetak Kerugian persediaan (bagian 306: dicetak dari tab Laporan
@@ -8400,6 +8515,12 @@ function pasangEvent() {
     if (['lapNotaCari', 'lapNotaShift', 'lapNotaKasir'].includes(e.target.id)) {
       const d = LAP.data[LAP.tab];
       if (d) gambarLapNotaTabel(d);
+    }
+    /* Saringan tab Per produk (bagian 452): dari data yang sudah ada. */
+    const kunciProduk = { lapProdukKategori: 'kategori', lapProdukRincian: 'rincian', lapProdukCari: 'cari' }[e.target.id];
+    if (kunciProduk && LAP.data.produk) {
+      LAP.produkSaring[kunciProduk] = e.target.value;
+      gambarHasilLapProduk(LAP.data.produk);
     }
   });
   /* Keuangan: periode bulanan lewat komponen (Bulan ini · Bulan lalu · Kustom…).

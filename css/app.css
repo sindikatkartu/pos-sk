@@ -3536,6 +3536,9 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   /* Shift & Diskon: dua tanggal berdampingan; judul dan tombol melintang. */
   .bar-alat.dua-kendali { grid-template-columns: 1fr 1fr; }
   .bar-alat.dua-kendali > h3, .bar-alat.dua-kendali > button { grid-column: 1 / -1; }
+  /* Pengisi yang mendorong tombol ke kanan di layar lebar tidak boleh memakan
+     sel grid di HP (Pembelian, bagian 451). */
+  .bar-alat.dua-kendali > .pengisi-bar { display: none; }
   .saring-baris { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .saring-baris > .aksi { grid-column: 1 / -1; }
   .saring-baris > .aksi > .tombol { flex: 1 1 auto; }

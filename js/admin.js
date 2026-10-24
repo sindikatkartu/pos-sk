@@ -1414,7 +1414,7 @@ const Admin = (() => {
         judul = 'Kas masuk & umur piutang';
         kolom = [{ judul: 'Keterangan', kunci: 'k' }, { judul: 'Nominal', angka: true, render: r => rp(r.v) }];
         { const pi = (inti.kas && inti.kas.piutang) || {};
-          baris = ((inti.kas && inti.kas.per_metode) || []).map(r => ({ k: 'Kas masuk · ' + String(r.metode).toUpperCase(), v: r.jumlah }))
+          baris = ((inti.kas && inti.kas.per_metode) || []).map(r => ({ k: 'Kas masuk · ' + labelMetode(r.metode), v: r.jumlah }))
             .concat([{ k: 'Piutang belum jatuh tempo', v: pi.belum || 0 }, { k: 'Piutang lewat 1–30 hari', v: pi.d1_30 || 0 }, { k: 'Piutang lewat 30+ hari', v: pi.d30plus || 0 }]); }
         cari = false; break;
       case 'stok':
@@ -2011,7 +2011,7 @@ const Admin = (() => {
         <div class="petak-dash" id="petakDashLama">
           ${kartuDaftarDash('Kas & piutang', '', `
             <div class="dr-judul">Kas masuk</div>
-            ${barisDash((kas.per_metode || []).map(r => [esc(String(r.metode).toUpperCase()), rp(r.jumlah)]), 'Belum ada pembayaran')}
+            ${barisDash((kas.per_metode || []).map(r => [esc(labelMetode(r.metode)), rp(r.jumlah)]), 'Belum ada pembayaran')}
             <div class="dr-judul">Umur piutang</div>
             ${barisDash([
               ['Belum jatuh tempo', '<strong>' + rp(pi.belum || 0) + '</strong>'],
@@ -5255,15 +5255,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     DIBATALKAN: lencanaDash('Dibatalkan', 'merah')
   })[String(st)] || lencanaDash(esc(String(st || '')), 'redup');
 
+  /* Pembelian lintas cabang (bagian 451). Pemilik 24 Okt 2026: "backoffice
+     harusnya bisa melihat semua cabang agar tidak pindah pindah cabang secara
+     manual". Pilihan cabang per layar (bagian 262) + Periode (bawaan 30 hari —
+     dulu seluruh riwayat dimuat). Cabang tiap baris diingat di cabangBeli:
+     Rincian/Periksa/Tolak/Batal dikirim ke cabang dokumen itu, bukan cabang sesi. */
+  const PERIODE_BELI = { id: 'beliPeriode', dari: 'beliDari', sampai: 'beliSampai', nilai: '30' };
+  const cabangBeli = {};
+  const cabBeli = (uuid) => cabangBeli[uuid] || cabangDari('pembelian');
   async function muatPembelian() {
+    const nilaiP = $('#beliPeriode')?.value || PERIODE_BELI.nilai;
+    const kustomDari = $('#beliDari')?.value || '', kustomSampai = $('#beliSampai')?.value || '';
+    const r0 = Periode.rentang(nilaiP) || { dari: kustomDari, sampai: kustomSampai };
+    const semua = bolehPilihCabang() && (cabangLayar.pembelian || '*') === '*';
     memuat('#isiPembelian');
     try {
-      const rows = await API.daftarPembelian({ cabang: APP_STATE.cabang });
+      const rows = await API.daftarPembelian({ cabang: semua ? '*' : cabangDari('pembelian'), dari: r0.dari, sampai: r0.sampai });
+      rows.forEach((r) => { if (r.cabang) cabangBeli[r.uuid] = r.cabang; });
       $('#isiPembelian').innerHTML = `
         <div class="kartu">
-          <div class="bar-alat">
-            <span class="lencana">Cabang ${esc(APP_STATE.cabang)}</span>
-            <div style="flex:1"></div>
+          <div class="bar-alat dua-kendali">
+            ${pilihCabangHtml('pembelian', true)}
+            ${Periode.html({ ...PERIODE_BELI, nilai: nilaiP, nilaiDari: r0.dari, nilaiSampai: r0.sampai })}
+            <div class="pengisi-bar" style="flex:1"></div>
             ${bolehIzin('pembelian', 'buat') ? tombolTambah('btnPembelianBaru', 'Pembelian baru') : ''}
           </div>
           <p class="petunjuk">Staf gudang mencatat barang yang diterima dari supplier — stok dan utangnya langsung tercatat. Head Admin atau Akunting memeriksa dokumennya terhadap faktur; yang sudah diperiksa dibayar lewat menu Utang.</p>
@@ -5285,6 +5299,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'No dokumen', kunci: 'no_dokumen',
               render: r => `<span class="tautan-baris">${esc(r.no_dokumen || '(tanpa nomor)')}</span>` },
             { judul: 'Supplier', kunci: 'nama_supplier' },
+            ...(semua ? [{ judul: 'Cabang', kunci: 'cabang', render: r => `<span class="lencana">${esc(r.cabang)}</span>` }] : []),
             { judul: 'Total', angka: true, render: r => rp(r.total) },
             /* Status ditampilkan sejak v1.94: kolomnya sudah ada di sheet sejak awal
                tapi tidak pernah tergambar, jadi dokumen yang dibatalkan terlihat
@@ -5297,9 +5312,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 !['DIBATALKAN', 'DITOLAK'].includes(r.status) && bolehIzin('pembelian', 'hapus')
                   ? tombolBaris('bahaya', 'Batal', IKON.batal, `data-batal-pembelian="${esc(r.uuid)}"`) : ''
               ].join(' ') }
-          ], rows, { kosong: 'Belum ada pembelian tercatat',
+          ], rows, { kosong: 'Tidak ada pembelian di periode ini',
                      dataAttr: r => `data-rincian-beli="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
+      Periode.pasang(PERIODE_BELI, () => API.tugas(() => muatPembelian(), { baca: true }));
     } catch (e) { galat('#isiPembelian', e); }
   }
 
@@ -5325,7 +5341,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal('Rincian pembelian', rangkaBaris(6, ['72%', '56%', '66%', '48%']));
     let d;
     try {
-      d = await API.rincianPembelian({ uuid, cabang: APP_STATE.cabang });
+      d = await API.rincianPembelian({ uuid, cabang: cabBeli(uuid) });
     } catch (x) {
       return bukaModal('Rincian pembelian', `<div class="pesan galat">${esc(x.message)}</div>`);
     }
@@ -5482,9 +5498,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              memeriksa. Servernya memaksa 'kredit' apa pun yang dikirim. Sejarahnya
              di bagian 207: pilihan pertama "Tunai" sempat terpilih tanpa ada yang
              memutuskan dan kas buku jatuh ke minus 71 juta. -->
+        ${bolehPilihCabang() ? `<div class="grup"><label>Cabang</label><select id="beliCabang">
+          ${daftarKodeCabang().map((k) => `<option value="${esc(k)}"${k === cabangDari('pembelian') ? ' selected' : ''}>${esc(k)}</option>`).join('')}
+        </select></div>` : ''}
         <div class="grup"><label>Jatuh tempo pembayaran</label><input type="date" id="beliJatuhTempo"></div>
-        <div class="grup"><label>&nbsp;</label><p class="petunjuk" style="margin:0">Dicatat sebagai utang supplier. Dibayar lewat menu Utang sesudah Head Admin memeriksa.</p></div>
+        ${bolehPilihCabang() ? '' : '<div class="grup"><label>&nbsp;</label><p class="petunjuk" style="margin:0">Dicatat sebagai utang supplier. Dibayar lewat menu Utang sesudah Head Admin memeriksa.</p></div>'}
       </div>
+      ${bolehPilihCabang() ? '<p class="petunjuk">Dicatat sebagai utang supplier. Dibayar lewat menu Utang sesudah Head Admin memeriksa.</p>' : ''}
 
       <!-- Scanner pembelian (bagian 254): mesin scan mengetik kodenya lalu
            Enter, sama seperti Opname. -->
@@ -5595,16 +5615,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const item = kumpulkanAnak('beli').filter(i => i.sku && Number(i.qty) > 0);
     if (!item.length) return toast('Minimal satu item.', 'galat');
     /* Konfirmasi (bagian 245): stok masuk dan utang supplier tercatat sekarang. */
+    const cabangTuju = $('#beliCabang')?.value || APP_STATE.cabang;
     if (!(await tanya('Simpan pembelian?',
-          `<p class="petunjuk">${item.length} jenis barang, ${item.reduce((a, i) => a + (Number(i.qty) || 0), 0)} pcs masuk stok sekarang dan
+          `<p class="petunjuk">Cabang <strong>${esc(cabangTuju)}</strong> · ${item.length} jenis barang, ${item.reduce((a, i) => a + (Number(i.qty) || 0), 0)} pcs masuk stok sekarang dan
              tercatat sebagai utang ke supplier, menunggu diperiksa Head Admin atau Akunting.</p>`,
           { ya: 'Simpan pembelian' }))) return;
     const btn = $('#btnSimpanPembelian');
     btn.disabled = true;
+    /* Cabang DIKUNCI sejak kiriman pertama (peninjau-rilis bagian 451): penjaga
+       dobel di server (uuid, faktur + supplier) hanya mencari di cabang tujuan.
+       Kiriman ulang sesudah waktu habis dengan cabang yang diganti akan lolos
+       keduanya — stok, utang, dan jurnal tercatat di dua cabang. uuid yang sama
+       harus selalu pergi ke cabang yang sama. */
+    if ($('#beliCabang')) $('#beliCabang').disabled = true;
     try {
       const r = await API.simpanPembelian({
         uuid: uuidPembelian,
-        cabang: APP_STATE.cabang,
+        cabang: cabangTuju,
         tanggal: nilai('beliTanggal'), no_dokumen: nilai('beliNo'),
         kode_supplier: nilai('beliSupplier'),   // cara bayar: selalu utang (bagian 229)
         jatuh_tempo: nilai('beliJatuhTempo'),
@@ -9986,15 +10013,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!w) return;
     if (!w.innerHTML) memuat('#isiPersetujuan');
     /* `kunci` = jenis + id: id perangkat & id pengajuan bisa saja sama rupanya. */
-    try { _butirPs = (((await API.kotakPersetujuan()) || {}).butir || []).map((b) => Object.assign({ kunci: b.jenis + '-' + b.id }, b)); }
-    catch (e) { galat('#isiPersetujuan', e); return; }
+    let pengesah = {};
+    try {
+      const k = (await API.kotakPersetujuan()) || {};
+      pengesah = k.pengesah || {};
+      _butirPs = (k.butir || []).map((b) => Object.assign({ kunci: b.jenis + '-' + b.id }, b));
+    } catch (e) { galat('#isiPersetujuan', e); return; }
+    /* Peran yang bisa mengesahkan jenis ini (bagian 450) — dibaca server dari
+       data peran, jadi peran baru ikut tanpa kode. */
+    const teksPengesah = (j) => (pengesah[j] || []).length ? `<div class="meta-kecil">disahkan: ${esc(pengesah[j].join(', '))}</div>` : '';
     w.innerHTML = `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Menunggu keputusan Anda</h3>
         ${_butirPs.length ? `<span class="lencana kuning">${_butirPs.length} menunggu</span>` : ''}</div>
       <p class="petunjuk">Semua yang menunggu keputusan Anda di satu tempat — diskon, void, perangkat, akun baru,
         koreksi kas &amp; pulsa, dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
       ${tabel([
-        { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>` },
+        { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>${teksPengesah(b.jenis)}` },
         { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}` },
         { judul: 'Cabang', render: (b) => b.cabang ? `<span class="lencana">${esc(b.cabang)}</span>` : '—' },
         { judul: 'Oleh', render: (b) => `${esc(b.peminta || '—')}<div class="meta-kecil">${esc(waktuTampil(b.waktu))}</div>` },
@@ -14945,7 +14979,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               { ya: 'Sudah diperiksa' }))) return;
         try {
           const h = await API.periksaPembelian(Object.assign(
-            { uuid: d.periksaOk, cabang: APP_STATE.cabang, keputusan: 'DIPERIKSA' },
+            { uuid: d.periksaOk, cabang: cabBeli(d.periksaOk), keputusan: 'DIPERIKSA' },
             dimuka ? { dibayar_dimuka: dimuka } : {}));
           document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
           const b = h && h.dibayar;
@@ -14962,7 +14996,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { isian: 'Alasan penolakan (minimal 5 karakter)', minimal: 5, ya: 'Tolak pembelian', jenis: 'bahaya' });
         if (!alasanTolak) return;
         try {
-          await API.periksaPembelian({ uuid: d.periksaTolak, cabang: APP_STATE.cabang, keputusan: 'DITOLAK', alasan: alasanTolak });
+          await API.periksaPembelian({ uuid: d.periksaTolak, cabang: cabBeli(d.periksaTolak), keputusan: 'DITOLAK', alasan: alasanTolak });
           await Sync.tarikStok();
           document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
           await sukses('Pembelian ditolak — stok, jurnal, dan utangnya sudah dibalik.', 'pembelian');
@@ -14976,7 +15010,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ya: 'Batalkan pembelian', jenis: 'bahaya' });
         if (!alasan) return;
         try {
-          const r = await API.batalPembelian({ uuid: d.batalPembelian, cabang: APP_STATE.cabang, alasan });
+          const r = await API.batalPembelian({ uuid: d.batalPembelian, cabang: cabBeli(d.batalPembelian), alasan });
           await Sync.tarikStok();
           await sukses(`Pembelian dibatalkan — ${rpTeks(r.total)}, ${r.item} baris. Stok & jurnalnya sudah dibalik.`,
                        'pembelian');

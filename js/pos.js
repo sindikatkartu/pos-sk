@@ -1020,6 +1020,11 @@ function angkaDari(v) {
 function labelMetode(m) {
   return String(m || '').replace(/^transfer_/, 'trf_').replace(/_/g, ' ').toUpperCase();
 }
+/** Metode GABUNGAN dari server ("transfer_bca, tunai" di Laporan shift,
+ *  "tunai+qris" di Riwayat) → "TRF BCA + TUNAI" (bagian 449). */
+function labelMetodeGabung(teks) {
+  return String(teks || '').split(/\s*[+,]\s*/).filter(Boolean).map(labelMetode).join(' + ');
+}
 
 /**
  * Pembayaran seperti yang dilihat PELANGGAN: uang yang benar-benar diserahkan.
