@@ -12830,7 +12830,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const boleh = bolehIzin('kas', 'ubah') && !kunci;
     $('#isiRekon').innerHTML = `
       <p class="petunjuk">${esc(d.akun ? d.akun.nama : d.kode_akun)} · ${esc(bulanTeks(d.periode))} · buku GABUNGAN semua cabang.
-        ${kunci ? `<strong>Dikunci</strong> ${esc(waktuTampil(r.waktu))} — tidak bisa diubah.` : (r ? 'Draf tersimpan.' : '')}
+        ${kunci ? `<strong>Dikunci</strong> ${esc(waktuTampil(r.waktu))} — tidak bisa diubah.` : (r ? (r.status === 'DIBUKA' ? 'Kuncinya dibuka — kunci ulang sesudah dibetulkan.' : 'Draf tersimpan.') : '')}
+        ${/* Pengingat kunci ulang, semua bulan akun ini (bagian 458). */ (d.dibuka || []).length
+          ? '<br>' + lencanaDash('Belum dikunci ulang: ' + d.dibuka.map(bulanTeks).join(', '), 'kuning') : ''}
         ${d.lalu_status && d.lalu_status !== 'KUNCI' ? '<br>Rekonsiliasi bulan lalu belum dikunci — baris tertundanya belum terbawa ke sini.' : ''}</p>
       <div class="petak-mini petak-uang">
         ${miniKons('Saldo buku', rp(d.saldo_buku), 'akhir bulan, semua cabang')}
