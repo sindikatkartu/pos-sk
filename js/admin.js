@@ -6291,10 +6291,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * 5 Sep 2026 — sebelumnya pembelian kredit menaikkan saldo Utang Usaha tanpa
    * satu pun layar untuk melihat atau melunasinya.
    */
+  /* RIWAYAT PEMBAYARAN (bagian 460): tab kedua layar Utang. Pembayaran atas
+     utang yang sudah LUNAS tidak tampil di daftar utang, jadi tanpa tab ini
+     pembatalannya tidak punya tempat. Dimuat sendiri saat tabnya dibuka (satu
+     tab satu panggilan, bagian 55); hasil terakhir disimpan per rentang supaya
+     gambar ulang daftar utang (angka tersimpan lalu segar) tidak memanggil
+     server dua kali (panggilan yang sedang jalan dipakai bersama). Dikosongkan
+     tiap layar Utang dimuat — juga sesudah Bayar & Batalkan, yang memanggil
+     muat('utang') — karena pembayaran bisa lahir di tempat lain (pelunasan
+     saat Periksa di Pembelian, perangkat lain; peninjau-rilis bagian 460). */
+  const PERIODE_RIWAYAT_UTANG = { id: 'ruPeriode', dari: 'ruDari', sampai: 'ruSampai', nilai: '30' };
+  let riwayatUtang = null;      // { kunci: 'dari|sampai', janji, d }
+
   async function muatUtang() {
+    riwayatUtang = null;
     await muatTersimpan('#isiUtang', 'utang', 'utang', {}, () => API.daftarUtang({}), (d) => {
       const a = d.aging;
+      const nilaiP = $('#ruPeriode')?.value || PERIODE_RIWAYAT_UTANG.nilai;
+      const r0 = Periode.rentang(nilaiP) || { dari: $('#ruDari')?.value || '', sampai: $('#ruSampai')?.value || '' };
       $('#isiUtang').innerHTML = `
+        <div data-tab-isi="belum">
         <p class="petunjuk">Tagihan supplier yang belum dibayar, dikelompokkan menurut lamanya terlambat. Pembayaran dicatat lewat tombol di tiap baris.</p>
         <div class="petak petak-tangga">
           <div class="kartu statistik"><div class="label">Belum jatuh tempo</div><div class="nilai">${rp(a.lancar)}</div></div>
@@ -6324,9 +6340,68 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : (bolehIzin('utang', 'buat')
                     ? tombolBaris('utama', 'Bayar', IKON.kirim, `data-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '') }
           ], d.utang, { kosong: 'Tidak ada utang ke supplier' })}
+        </div>
+        </div>
+        <div class="kartu laporan-uang" data-tab-isi="riwayat">
+          <div class="bar-alat"><h3 id="judulRiwayatUtang">Pembayaran ke supplier</h3>
+            ${Periode.html({ ...PERIODE_RIWAYAT_UTANG, nilai: nilaiP, nilaiDari: r0.dari, nilaiSampai: r0.sampai })}</div>
+          <p class="petunjuk">Semua pembayaran utang di rentang ini, termasuk yang utangnya sudah lunas. Pembayaran yang salah catat
+             <strong>dibatalkan</strong> dari sini: sisa utangnya kembali, dan jurnalnya dibalik di tanggal bayar.</p>
+          <div id="hasilRiwayatUtang"></div>
         </div>`;
       $('#isiUtang')._rows = d.utang;
+      pasangTabKartu($('#isiUtang'), 'utang', { belum: 'Belum lunas', riwayat: 'Riwayat pembayaran' },
+        'Utang ke supplier dan riwayat pembayarannya.');
+      $('#isiUtang .tab-jendela > .tab-modal')?.addEventListener('click', (e) => {
+        if (e.target.closest('[data-tab-layar="utang:riwayat"]')) muatRiwayatUtang();
+      });
+      Periode.pasang(PERIODE_RIWAYAT_UTANG, () => { riwayatUtang = null; muatRiwayatUtang(); });
+      if (_tabKartuTerakhir.utang === 'riwayat') muatRiwayatUtang();
     });
+  }
+
+  async function muatRiwayatUtang() {
+    if (!$('#hasilRiwayatUtang')) return;
+    const r = Periode.rentang($('#ruPeriode')?.value || PERIODE_RIWAYAT_UTANG.nilai) || { dari: nilai('ruDari'), sampai: nilai('ruSampai') };
+    if (!r.dari || !r.sampai) return;
+    const kunci = r.dari + '|' + r.sampai;
+    if (!riwayatUtang || riwayatUtang.kunci !== kunci) {
+      /* Lewat .then: galat yang dilempar SEBELUM janji lahir tetap jatuh ke catch di bawah. */
+      riwayatUtang = { kunci, janji: Promise.resolve().then(() => API.daftarBayarUtang({ dari: r.dari, sampai: r.sampai })) };
+    }
+    const milik = riwayatUtang;
+    if (milik.d) return gambarRiwayatUtang(milik.d);
+    memuat('#hasilRiwayatUtang');
+    try {
+      const d = await milik.janji;
+      if (riwayatUtang !== milik) return;                  // rentang sudah diganti / dimuat ulang
+      milik.d = d;
+      gambarRiwayatUtang(d);
+    } catch (e) { if (riwayatUtang === milik) { riwayatUtang = null; galat('#hasilRiwayatUtang', e); } }
+  }
+
+  function gambarRiwayatUtang(d) {
+    const w = $('#hasilRiwayatUtang');
+    if (!w) return;
+    const j = $('#judulRiwayatUtang');
+    if (j) j.innerHTML = 'Pembayaran ke supplier — total ' + rp(d.total);
+    /* Enam kolom, bukan delapan: no. pembelian menumpang di bawah supplier dan
+       referensi di bawah metode. Dengan delapan, tablet (768) mendorong Nominal
+       dan Batalkan ke luar kartu — diukur uji-batal-bayar-utang. */
+    w.innerHTML = tabel([
+      { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+      { judul: 'Cabang', kunci: 'cabang' },
+      { judul: 'Supplier', render: r => esc(r.nama_supplier) + (r.no_dokumen ? '<br><small>' + esc(r.no_dokumen) + '</small>' : '') },
+      { judul: 'Metode', render: r => {
+          const ket = [r.referensi, r.dibatalkan ? 'batal: ' + r.alasan_batal : ''].filter(Boolean).join(' · ');
+          return esc(labelMetode(r.metode)) + (ket ? '<br><small>' + esc(ket) + '</small>' : '');
+        } },
+      { judul: 'Nominal', angka: true, render: r => rp(r.jumlah) },
+      { judul: '', render: r => r.dibatalkan ? lencanaDash('dibatalkan', 'merah')
+          : (bolehIzin('utang', 'hapus')
+              ? tombolBaris('bahaya', 'Batalkan', IKON.batal, `data-batal-bayar-utang="${esc(r.uuid)}" data-cabang="${esc(r.cabang)}"`) : '') }
+    ], d.bayar, { kosong: 'Tidak ada pembayaran di rentang ini', kelasWadah: 'riwayat-utang' });
+    w._rows = d.bayar;
   }
 
   /**
@@ -14201,6 +14276,23 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             e.message + ' — tekan Simpan sekali lagi, jumlahnya tidak akan tercatat dua kali.',
             'galat');
         }
+      }
+
+      if (d.batalBayarUtang) {
+        /* Bagian 460: satu baris bank per pembatalan; alasan wajib, tombol merah. */
+        const b = ($('#hasilRiwayatUtang')?._rows || []).find(x => x.uuid === d.batalBayarUtang);
+        if (!b) return;
+        const alasan = await tanya('Batalkan pembayaran utang?',
+          `<p class="petunjuk">${esc(b.nama_supplier)} · ${esc(tglTampil(b.tanggal))} · ${rp(b.jumlah)} dari ${esc(labelMetode(b.metode))}.
+             Sisa utangnya bertambah lagi sebesar itu, dan jurnalnya dibalik di tanggal bayar. Pembatalan ini tidak bisa dibatalkan.</p>`,
+          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5, ya: 'Batalkan pembayaran', jenis: 'bahaya' });
+        if (!alasan) return;
+        try {
+          const r = await API.batalBayarUtang({ uuid: b.uuid, cabang: b.cabang, alasan });
+          toast(r.duplikat ? 'Pembayaran itu sudah dibatalkan.' : 'Pembayaran dibatalkan — sisa utang ' + rpTeks(r.sisa) + '.');
+          return muat('utang');
+        } catch (x) { toast(x.message, 'galat'); }
+        return;
       }
 
       /* --- piutang --- */

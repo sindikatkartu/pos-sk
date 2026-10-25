@@ -116,7 +116,7 @@ const API = (() => {
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset', 'daftar_coa',
-    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
+    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'daftar_bayar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
@@ -232,7 +232,7 @@ const API = (() => {
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
     'daftar_aset', 'daftar_coa', 'rekon_bank', 'kotak_persetujuan',
-    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'log_audit', 'log_galat',
+    'daftar_setting', 'daftar_piutang', 'daftar_utang', 'daftar_bayar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian',
     'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
@@ -273,7 +273,7 @@ const API = (() => {
      sebuah endpoint baca yang lupa didaftarkan akan melempar galat ke layar
      tiap kali Google menjawab 404 sesaat. */
   const TIDAK_DIULANG = new Set([
-    'batal_opname', 'batal_pembelian', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
+    'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
     'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
@@ -795,6 +795,8 @@ let _pernahJawab = false;
     bayarPiutang:      (d) => panggil('bayar_piutang', d),
     daftarUtang:       (d) => panggil('daftar_utang', d, { timeout: 60000 }),
     bayarUtang:        (d) => panggil('bayar_utang', d),
+    daftarBayarUtang:  (d) => panggil('daftar_bayar_utang', d),
+    batalBayarUtang:   (d) => panggil('batal_bayar_utang', d),
     logAudit:          (d) => panggil('log_audit', d, { timeout: 60000 }),
     logGalat:          (d) => panggil('log_galat', d, { timeout: 60000 }),
     jurnalManual:      (d) => panggil('jurnal_manual', d, { timeout: 60000 }),
