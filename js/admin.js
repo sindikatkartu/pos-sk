@@ -12859,7 +12859,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <button class="tombol" id="btnRekonSimpan">Simpan draf</button>
         <button class="tombol utama" id="btnRekonKunci" disabled>Kunci rekonsiliasi</button></div>
       <p class="petunjuk">Centang baris yang SUDAH muncul di mutasi bank. Kunci aktif hanya bila selisihnya 0; baris yang
-         belum cocok terbawa ke bulan berikutnya.</p>` : ''}`;
+         belum cocok terbawa ke bulan berikutnya.</p>` : ''}
+      ${kunci && String(APP_STATE.user?.peran || '') === 'OWNER' ? `<div class="aksi">
+        <button class="tombol" id="btnRekonBuka">Buka kunci</button></div>` : ''}`;
     $('#isiRekon').addEventListener('input', segarkanRekon);
     $('#isiRekon').addEventListener('change', segarkanRekon);
     segarkanRekon();
@@ -12875,6 +12877,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const r = await API.simpanRekonBank({ kode_akun: akunRekon, periode: rekonData.periode,
         saldo_bank: angkaDari($('#rekonSaldoBank').value), cocok: [...h.set], kunci: !!kunci });
       toast(kunci ? 'Rekonsiliasi dikunci.' : 'Draf rekonsiliasi tersimpan (selisih ' + rpTeks(r.selisih) + ').');
+      await muatRekon();
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+  /* Buka kunci (bagian 457): Owner saja, dengan alasan — server memeriksa ulang. */
+  async function bukaKunciRekon() {
+    const alasan = await tanya('Buka kunci rekonsiliasi ' + akunRekon + ' ' + bulanTeks(rekonData.periode) + '?',
+      `<p class="petunjuk">Status kembali draf; centang dan saldo bank tetap. Dokumen bertanggal bulan ini yang menyentuh
+         rekening ini bisa masuk lagi sampai dikunci ulang. Alasannya tercatat.</p>`,
+      { ya: 'Buka kunci', isian: 'alasan, mis. ada transfer yang tertinggal', minimal: 5 });
+    if (alasan === null) return;
+    try {
+      await API.bukaRekonBank({ kode_akun: akunRekon, periode: rekonData.periode, alasan });
+      toast('Kunci rekonsiliasi dibuka.');
       await muatRekon();
     } catch (e) { toast(e.message, 'galat'); }
   }
@@ -14925,6 +14940,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnSimpanDok') return simpanDokKas();
       if (t.id === 'btnRekonSimpan') return simpanRekon(false);
       if (t.id === 'btnRekonKunci') return simpanRekon(true);
+      if (t.id === 'btnRekonBuka') return bukaKunciRekon();
       if (d.balikKas) {
         const asli = ((kasData && kasData.kas && kasData.kas.kas) || [])
           .filter((x) => String(x.uuid) === d.balikKas)[0];

@@ -323,7 +323,9 @@ const API = (() => {
     'koreksi_saldo_pulsa',
     /* bagian 304: kunci yang diulang dijawab STATUS "sudah dikunci" untuk
        penguncian yang sebenarnya berhasil. */
-    'simpan_rekon_bank'
+    'simpan_rekon_bank',
+    /* bagian 457: buka kunci yang diulang dijawab "tidak sedang dikunci". */
+    'buka_rekon_bank'
   ]);
 
   /* Status yang lahir dari JALUR, bukan dari kode: 404 (echo Google hilang),
@@ -663,6 +665,7 @@ let _pernahJawab = false;
     dokumenKas:      (d) => panggil('dokumen_kas', d),
     rekonBank:       (d) => panggil('rekon_bank', d, { timeout: 60000 }),
     simpanRekonBank: (d) => panggil('simpan_rekon_bank', d, { timeout: 60000 }),
+    bukaRekonBank:   (d) => panggil('buka_rekon_bank', d),
     daftarKas:       (d) => panggil('daftar_kas', d),
 
     laporanPenjualan:(d) => panggil('laporan_penjualan', d, { timeout: 60000 }),
