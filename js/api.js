@@ -276,7 +276,7 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
@@ -758,7 +758,9 @@ let _pernahJawab = false;
     hapusShiftPulsa:   (d) => panggil('hapus_shift_pulsa', d, { timeout: 90000 }),
     /* Koreksi shift pulsa yang sudah ditutup + riwayatnya (bagian 260). */
     koreksiShiftPulsa: (d) => panggil('koreksi_shift_pulsa', d, { timeout: 90000 }),
-    /* Koreksi kas fisik shift KASIR yang sudah ditutup (bagian 387). */
+    /* Koreksi shift KASIR sekaligus — kas fisik + pembayaran nota (bagian 464). */
+    koreksiShift:      (d) => panggil('koreksi_shift', d, { timeout: 90000 }),
+    /* Dua pintu lama (bagian 387, 446) — kini dibungkus koreksi_shift. */
     koreksiKasShift:   (d) => panggil('koreksi_kas_shift', d, { timeout: 90000 }),
     koreksiBayarNota:  (d) => panggil('koreksi_bayar_nota', d, { timeout: 90000 }),
     /* Shift yang lupa dicatat, ditambahkan di ujung rantai (bagian 265). */

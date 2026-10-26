@@ -3793,6 +3793,13 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   /* Sel tanpa nama kolom (tombol aksi) memakai seluruh lebar kartunya. */
   .gulir-x > table > tbody > tr > td[data-l=""] { padding-left: 0; }
   .gulir-x > table > tbody > tr > td[data-l=""]::before { content: none; }
+  /* Dokumen kertas (Laporan shift, bagian 431) memadatkan sel jadi 4px 8px —
+     lebih spesifik daripada susunan kartu di atas, jadi di HP isi sel yang
+     panjang menimpa nama kolomnya ("TUNAI 16.500 + TRF BCA 186.000" di daftar
+     koreksi, bagian 464). Nama kolom 35 % tetap butuh 38 % ruang kiri. */
+  .modal.kertas .gulir-x > table > tbody > tr > td { padding: 8px 0 8px 38%; }
+  .modal.kertas .gulir-x > table > tbody > tr > td[data-l=""],
+  .modal.kertas .gulir-x > table > tbody > tr > td[colspan] { padding-left: 0; }
   /* Nomor peringkat "1., 2., 3." tidak perlu barisnya sendiri di dalam kartu. */
   .gulir-x > table > tbody > tr > td.sempit { width: auto; }
 

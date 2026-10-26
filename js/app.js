@@ -4635,7 +4635,8 @@ async function bukaLaporanShift(idShift, cabang) {
     /* Cabang barisnya ikut (bagian 274): shift cabang lain tidak ada di
        sheet cabang sesi. Kosong = cabang sesi, seperti dulu. */
     const d = await API.laporanShift({ id_shift: idShift, ...(cabang ? { cabang } : {}) });
-    lapShiftKini = { d, idShift, cabang };   // dibaca formKoreksiBayar (bagian 446)
+    /* draf: koreksi yang dikumpulkan sebelum disimpan sekaligus (bagian 464). */
+    lapShiftKini = { d, idShift, cabang, draf: { kas: null, nota: {}, alasan: '' } };
     const k = d.kas, p = d.penjualan;
     const baris = (label, nilai, tebal) => `<div class="total-baris${tebal ? ' besar' : ''}">
       <span>${esc(label)}</span><span>${nilai}</span></div>`;
@@ -4662,9 +4663,11 @@ async function bukaLaporanShift(idShift, cabang) {
         ${baris('Selisih', rpAtau(k.selisih), true)}
       </div>
       ${d.koreksi_menunggu
-        /* bagian 443: pengajuan koreksi dari selain Owner menunggu disahkan. */
-        ? `<div class="pesan info" style="margin-top:12px">Koreksi kas fisik sudah diajukan (${esc(d.koreksi_menunggu.ringkas)})
-            dan menunggu pengesahan Owner. Setoran shift ini ditahan sampai diputuskan.</div>`
+        /* bagian 443/464: satu pengajuan per shift; selama menunggu, semua
+           tombol koreksi diganti keterangan ini. */
+        ? `<div class="pesan info" style="margin-top:12px">Koreksi shift ini sudah diajukan (${esc(d.koreksi_menunggu.ringkas)})
+            dan menunggu pengesahan Owner. Koreksi berikutnya bisa dibuat sesudah diputuskan. Bila menyentuh tunai atau
+            kas fisik, setoran shift ini ditahan sampai diputuskan.</div>`
         : d.boleh_koreksi ? formKoreksiKasShift(idShift, cabang, k) : ''}
 
       <h4 style="margin:16px 0 6px">Per metode bayar</h4>
@@ -4684,9 +4687,10 @@ async function bukaLaporanShift(idShift, cabang) {
           <td>${esc(labelMetodeGabung(n.metode))}</td><td class="angka">${rp(n.total)}</td>
           <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
             : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
-          ${d.boleh_koreksi_bayar ? `<td>${aksiKoreksiBayar(n)}</td>` : ''}
+          ${d.boleh_koreksi_bayar ? `<td data-aksi-nota="${esc(n.uuid)}">${d.koreksi_menunggu ? '' : aksiKoreksiBayar(n, false)}</td>` : ''}
         </tr>`).join('')}</table></div>
         <div id="wadahKoreksiBayar"></div>` : '<p class="petunjuk">Belum ada nota.</p>'}
+      <div id="wadahDrafKoreksi"></div>
 
       <h4 style="margin:16px 0 6px">Poin &amp; omzet petugas</h4>
       ${d.petugas.length ? `<div class="gulir-x"><table>
@@ -4702,7 +4706,8 @@ async function bukaLaporanShift(idShift, cabang) {
 /* Koreksi kas fisik shift yang sudah ditutup (bagian 387). Tombolnya hanya
    dikirim server untuk Owner & Head Admin (shift·ubah) selama setorannya belum
    diterima; formnya terlipat sampai tombolnya ditekan, supaya laporan yang
-   dibuka untuk dibaca tidak terlihat seperti formulir. */
+   dibuka untuk dibaca tidak terlihat seperti formulir. Sejak bagian 464 form
+   ini hanya MENAMBAH ke daftar koreksi; yang menyimpan kartu daftarnya. */
 function formKoreksiKasShift(idShift, cabang, k) {
   return `<div style="margin-top:12px">
     <button class="tombol" type="button" data-koreksi-kas-buka="1">Koreksi kas fisik</button>
@@ -4714,12 +4719,14 @@ function formKoreksiKasShift(idShift, cabang, k) {
         Selisih dihitung dari kas sistem saat tutup: ${rp(k.sistem_tutup ?? k.sistem)}.</p>
       <label>Kas fisik yang benar
         <input type="text" class="uang" id="koreksiKasFisik" autocomplete="off" placeholder="${esc(ribuan(+k.fisik || 0))}"></label>
-      <label>Alasan
-        <input type="text" id="koreksiKasAlasan" autocomplete="off" placeholder="mis. salah ketik, laci pas"></label>
       <div class="pesan galat rapat sembunyi" id="pesanKoreksiKas"></div>
-      <button class="tombol utama" type="button" id="btnKoreksiKas">Simpan koreksi</button>
+      <button class="tombol" type="button" id="btnKoreksiKas">${ikonTambahDaftar()}<span>Tambahkan ke daftar</span></button>
     </div>
   </div>`;
+}
+
+function ikonTambahDaftar() {
+  return `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.tambah}</svg>`;
 }
 
 /* KOREKSI PEMBAYARAN NOTA (bagian 446). Kasir salah memilih cara bayar — BCA
@@ -4729,9 +4736,9 @@ function formKoreksiKasShift(idShift, cabang, k) {
    modal kedua di atas jendela laporan. */
 let lapShiftKini = null;
 
-function aksiKoreksiBayar(n) {
+function aksiKoreksiBayar(n, diDaftar) {
   if (n.status !== 'AKTIF') return '';
-  if (n.koreksi_menunggu) return '<span class="lencana kuning" title="' + esc(n.koreksi_menunggu) + '">menunggu Owner</span>';
+  if (diDaftar) return '<span class="lencana">di daftar</span>';
   if ((n.bayar || []).some((b) => b.metode === 'piutang') || !(n.bayar || []).length) return '';
   return `<button class="tombol kecil" type="button" data-koreksi-bayar="${esc(n.uuid)}" title="Koreksi pembayaran nota ${esc(n.no_nota)}">` +
     `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.ubah}</svg><span>Koreksi</span></button>`;
@@ -4764,18 +4771,17 @@ function formKoreksiBayar(uuid) {
     <div id="barisKoreksiBayar">${n.bayar.map((b) => barisKoreksiBayar(pilihan, b.metode, b.jumlah)).join('')}</div>
     <button class="tombol kecil" type="button" data-koreksi-bayar-tambah="1">
       <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.tambah}</svg><span>Tambah baris</span></button>
-    <label>Alasan
-      <input type="text" id="koreksiBayarAlasan" autocomplete="off" placeholder="mis. kasir salah pilih bank"></label>
     <div class="pesan galat rapat sembunyi" id="pesanKoreksiBayar"></div>
     <button class="tombol" type="button" data-koreksi-bayar-batal="1">Batal</button>
-    <button class="tombol utama" type="button" id="btnKoreksiBayar">Simpan koreksi</button>
+    <button class="tombol" type="button" id="btnKoreksiBayar">${ikonTambahDaftar()}<span>Tambahkan ke daftar</span></button>
   </div>`;
   w._pilihan = pilihan;
   w.scrollIntoView({ block: 'nearest' });
   w.querySelector('[data-bayar-metode]')?.focus();
 }
 
-async function simpanKoreksiBayar(btn) {
+/** Form nota → daftar koreksi (bagian 464). Belum ada yang dikirim. */
+function tambahKoreksiBayar() {
   const kartu = $('#kartuKoreksiBayar'), L = lapShiftKini;
   const pesan = $('#pesanKoreksiBayar');
   const salah = (t) => { pesan.textContent = t; pesan.classList.remove('sembunyi'); };
@@ -4789,60 +4795,132 @@ async function simpanKoreksiBayar(btn) {
   /* Baris baru tidak berbawaan Tunai — orang wajib memilih (§207). */
   if (semua.some((b) => b.jumlah > 0 && !b.metode)) return salah('Pilih cara bayar di setiap baris.');
   const bayar = semua.filter((b) => b.jumlah > 0);
-  const alasan = String($('#koreksiBayarAlasan').value || '').trim();
   if (!bayar.length) return salah('Isi minimal satu baris pembayaran.');
   const jml = bayar.reduce((a, b) => a + b.jumlah, 0);
   if (jml !== total) return salah('Jumlahnya harus ' + ribuan(total) + ' (sekarang ' + ribuan(jml) + ').');
-  if (alasan.length < 5) return salah('Alasan minimal 5 huruf.');
-  const teks = (rows) => rows.map((b) => labelMetode(b.metode) + ' ' + ribuan(b.jumlah)).join(' + ');
-  const owner = String(APP_STATE.user?.peran || '') === 'OWNER';
-  if (!(await Admin.tanya(owner ? 'Koreksi pembayaran nota ini?' : 'Ajukan koreksi pembayaran?',
-        `<p class="petunjuk">Nota ${esc(n.no_nota)} · ${rp(total)}</p>
-         <p class="petunjuk">${esc(teks(n.bayar))} → <strong>${esc(teks(bayar))}</strong></p>
-         <p class="petunjuk">${owner ? 'Jurnal pembayarannya ikut dibetulkan; bila tunai berubah, kas sistem dan selisih shift ikut dihitung ulang.'
-           : 'Koreksi ini <strong>disahkan Owner</strong> lebih dulu — belum ada yang berubah sampai Owner menyetujuinya. Bila tunai ikut berubah, setoran shift ini ditahan sampai diputuskan.'}</p>`,
-        { ya: owner ? 'Simpan koreksi' : 'Ajukan ke Owner' }))) return;
-  btn.disabled = true;   // terkunci selama memproses (bagian 261)
-  try {
-    const r = await API.koreksiBayarNota({ uuid: n.uuid, bayar, alasan, ...(L.cabang ? { cabang: L.cabang } : {}) });
-    Admin.toast(r.menunggu ? 'Koreksi diajukan — menunggu pengesahan Owner.' : 'Pembayaran nota dikoreksi.', 'sukses');
-    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
-    await bukaLaporanShift(L.idShift, L.cabang);
-    muatDaftarShift();
-  } catch (e) { salah(e.message); btn.disabled = false; }
+  /* Sama dengan yang tercatat (digabung per cara bayar) = tidak ada yang dikoreksi. */
+  const per = (rows) => rows.reduce((a, b) => (a[b.metode] = (a[b.metode] || 0) + (+b.jumlah || 0), a), {});
+  const lama = per(n.bayar), baru = per(bayar);
+  if (Object.keys(lama).length === Object.keys(baru).length && Object.keys(baru).every((m) => lama[m] === baru[m])) {
+    return salah('Pembayarannya sama dengan yang tercatat.');
+  }
+  L.draf.nota[n.uuid] = bayar;
+  $('#wadahKoreksiBayar').innerHTML = '';
+  const td = $(`#lapShiftIsi [data-aksi-nota="${CSS.escape(n.uuid)}"]`);
+  if (td) td.innerHTML = aksiKoreksiBayar(n, true);
+  gambarDrafKoreksi();
 }
 
-async function simpanKoreksiKasShift(btn) {
+/** Form kas fisik → daftar koreksi (bagian 464). Belum ada yang dikirim. */
+function tambahKoreksiKas() {
   const kartu = $('#kartuKoreksiKas');
   const pesan = $('#pesanKoreksiKas');
   const salah = (t) => { pesan.textContent = t; pesan.classList.remove('sembunyi'); };
   pesan.classList.add('sembunyi');
   const teks = String($('#koreksiKasFisik').value || '').trim();
   const baru = angkaDari(teks);
-  const alasan = String($('#koreksiKasAlasan').value || '').trim();
-  const lama = Number(kartu.dataset.lama) || 0, sistem = Number(kartu.dataset.sistem) || 0;
+  const lama = Number(kartu.dataset.lama) || 0;
   if (teks === '' || !(baru >= 0)) return salah('Isi kas fisik yang benar.');
   if (baru === lama) return salah('Angkanya sama dengan yang tercatat.');
-  if (alasan.length < 5) return salah('Alasan minimal 5 huruf.');
-  /* Selain Owner: diajukan, disahkan Owner (bagian 443). */
+  lapShiftKini.draf.kas = baru;
+  $('#koreksiKasFisik').value = '';
+  kartu.classList.add('sembunyi');
+  $('#lapShiftIsi [data-koreksi-kas-buka]')?.classList.remove('sembunyi');
+  gambarDrafKoreksi();
+}
+
+/* Rumus server (apiKoreksiShift): kas sistem saat tutup + perubahan tunai;
+   kas fisik = yang dikoreksi atau yang tercatat. */
+function hitungDrafKoreksi(L) {
+  const { d, draf } = L, k = d.kas;
+  const tunai = (rows) => rows.filter((b) => b.metode === 'tunai').reduce((a, b) => a + (+b.jumlah || 0), 0);
+  const geser = Object.keys(draf.nota).reduce((a, u) => {
+    const n = d.nota.find((x) => x.uuid === u);
+    return a + tunai(draf.nota[u]) - tunai(n ? n.bayar : []);
+  }, 0);
+  const sistemLama = +(k.sistem_tutup ?? k.sistem) || 0, fisikLama = +k.fisik || 0;
+  const sistemBaru = sistemLama + geser, fisikBaru = draf.kas ?? fisikLama;
+  return { sistemLama, sistemBaru, selisihLama: fisikLama - sistemLama, selisihBaru: fisikBaru - sistemBaru };
+}
+
+/** Butir daftar: [label, sebelum, sesudah, atribut tombol Buang]. */
+function butirDrafKoreksi(L) {
+  const { d, draf } = L;
+  const teks = (rows) => rows.map((b) => labelMetode(b.metode) + ' ' + ribuan(b.jumlah)).join(' + ');
+  const butir = draf.kas !== null ? [['Kas fisik', rpTeks(+d.kas.fisik || 0), rpTeks(draf.kas), 'data-draf-buang-kas="1"']] : [];
+  Object.keys(draf.nota).forEach((u) => {
+    const n = d.nota.find((x) => x.uuid === u);
+    butir.push(['Nota ' + n.no_nota, teks(n.bayar), teks(draf.nota[u]), `data-draf-buang-nota="${esc(u)}"`]);
+  });
+  return butir;
+}
+
+/* Kartu "Koreksi yang akan disimpan" (bagian 464): satu alasan, satu tombol —
+   semua koreksi shift ini disimpan sekali dan disahkan Owner sekali. */
+function gambarDrafKoreksi() {
+  const L = lapShiftKini, w = $('#wadahDrafKoreksi');
+  if (!L || !w) return;
+  const a = $('#koreksiAlasan');
+  if (a) L.draf.alasan = a.value;
+  const butir = butirDrafKoreksi(L);
+  if (!butir.length) { w.innerHTML = ''; return; }
+  const h = hitungDrafKoreksi(L);
   const owner = String(APP_STATE.user?.peran || '') === 'OWNER';
-  if (!(await Admin.tanya(owner ? 'Koreksi kas fisik shift ini?' : 'Ajukan koreksi kas fisik?',
-        `<p class="petunjuk">${esc(kartu.dataset.shift)}</p>
-         <p class="petunjuk">Kas fisik ${rp(lama)} → <strong>${rp(baru)}</strong><br>
-           Selisih ${rp(lama - sistem)} → <strong>${rp(baru - sistem)}</strong></p>
-         <p class="petunjuk">${owner ? `Jurnal selisih kasnya ikut dibetulkan, dan jumlah setoran shift ini
-           menjadi ${rp(baru)}.` : `Koreksi ini <strong>disahkan Owner</strong> lebih dulu — belum ada yang berubah sampai
-           Owner menyetujuinya, dan setoran shift ini ditahan sampai diputuskan.`}</p>`,
+  w.innerHTML = `<div class="kartu" id="kartuDrafKoreksi" style="background:var(--bg);margin-top:16px">
+    <h4 style="margin:0 0 6px">Koreksi yang akan disimpan · ${butir.length}</h4>
+    <p class="petunjuk">${owner ? 'Disimpan sekaligus.' : 'Disimpan sekaligus dan disahkan Owner sekali.'} Belum ada yang berubah sampai disimpan.</p>
+    <div class="gulir-x"><table>
+      <tr><th>Yang dikoreksi</th><th>Sebelum</th><th>Sesudah</th><th></th></tr>
+      ${butir.map(([label, lama, baru, attr]) => `<tr><td>${esc(label)}</td><td>${esc(lama)}</td><td>${esc(baru)}</td>
+        <td><button class="tombol kecil" type="button" ${attr}><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.hapus}</svg><span>Buang</span></button></td></tr>`).join('')}
+    </table></div>
+    ${L.d.berjalan ? '' : `<p class="petunjuk">Kas sistem ${rp(h.sistemLama)} → <strong>${rp(h.sistemBaru)}</strong> ·
+      selisih ${rp(h.selisihLama)} → <strong>${rp(h.selisihBaru)}</strong></p>`}
+    <label>Alasan
+      <input type="text" id="koreksiAlasan" autocomplete="off" placeholder="mis. kasir salah pilih bank" value="${esc(L.draf.alasan)}"></label>
+    <div class="pesan galat rapat sembunyi" id="pesanDrafKoreksi"></div>
+    <button class="tombol utama" type="button" id="btnSimpanKoreksi"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.setujui}</svg><span>${owner ? 'Simpan' : 'Ajukan ke Owner'} (${butir.length} koreksi)</span></button>
+  </div>`;
+}
+
+function buangDrafKoreksi(uuid) {
+  const L = lapShiftKini;
+  if (uuid === null) L.draf.kas = null;
+  else {
+    delete L.draf.nota[uuid];
+    const n = L.d.nota.find((x) => x.uuid === uuid);
+    const td = $(`#lapShiftIsi [data-aksi-nota="${CSS.escape(uuid)}"]`);
+    if (td && n) td.innerHTML = aksiKoreksiBayar(n, false);
+  }
+  gambarDrafKoreksi();
+}
+
+async function simpanDrafKoreksi(btn) {
+  const L = lapShiftKini;
+  const pesan = $('#pesanDrafKoreksi');
+  const salah = (t) => { pesan.textContent = t; pesan.classList.remove('sembunyi'); };
+  pesan.classList.add('sembunyi');
+  const alasan = String($('#koreksiAlasan').value || '').trim();
+  if (alasan.length < 5) return salah('Alasan minimal 5 huruf.');
+  const butir = butirDrafKoreksi(L), h = hitungDrafKoreksi(L);
+  const owner = String(APP_STATE.user?.peran || '') === 'OWNER';
+  if (!(await Admin.tanya(owner ? `Simpan ${butir.length} koreksi shift ini?` : `Ajukan ${butir.length} koreksi ke Owner?`,
+        `<p class="petunjuk">${esc(L.idShift)}</p>
+         ${butir.map(([label, lama, baru]) => `<p class="petunjuk">${esc(label)}: ${esc(lama)} → <strong>${esc(baru)}</strong></p>`).join('')}
+         ${L.d.berjalan ? '' : `<p class="petunjuk">Selisih ${rp(h.selisihLama)} → <strong>${rp(h.selisihBaru)}</strong></p>`}
+         <p class="petunjuk">${owner ? 'Jurnal pembayaran dan selisih kasnya ikut dibetulkan sekaligus.'
+           : 'Semua koreksi ini <strong>disahkan Owner</strong> sekaligus — belum ada yang berubah sampai Owner menyetujuinya. Bila menyentuh tunai atau kas fisik, setoran shift ini ditahan sampai diputuskan.'}</p>`,
         { ya: owner ? 'Simpan koreksi' : 'Ajukan ke Owner' }))) return;
   btn.disabled = true;   // terkunci selama memproses (bagian 261)
   try {
-    const r = await API.koreksiKasShift({ id_shift: kartu.dataset.shift, kas_fisik: baru, alasan,
-      ...(kartu.dataset.cabang ? { cabang: kartu.dataset.cabang } : {}) });
+    const r = await API.koreksiShift({ id_shift: L.idShift, alasan, ...(L.cabang ? { cabang: L.cabang } : {}),
+      ...(L.draf.kas !== null ? { kas_fisik: L.draf.kas } : {}),
+      nota: Object.keys(L.draf.nota).map((u) => ({ uuid: u, bayar: L.draf.nota[u] })) });
     Admin.toast(r.menunggu ? 'Koreksi diajukan — menunggu pengesahan Owner.'
-      : 'Kas fisik dikoreksi' + (r.no_jurnal ? ' · ' + r.no_jurnal : '') + '.', 'sukses');
+      : 'Koreksi shift disimpan' + (r.no_jurnal ? ' · ' + r.no_jurnal : '') + '.', 'sukses');
     /* Kas fisik ke/dari 0 mengubah daftar Setoran, jadi lencana dihitung ulang (bagian 401). */
     document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));
-    await bukaLaporanShift(kartu.dataset.shift, kartu.dataset.cabang);
+    await bukaLaporanShift(L.idShift, L.cabang);
     muatDaftarShift();
   } catch (e) { salah(e.message); btn.disabled = false; }
 }
@@ -8636,16 +8714,20 @@ function pasangEvent() {
       e.target.classList.add('sembunyi');
       $('#koreksiKasFisik')?.focus();
     }
-    if (e.target.id === 'btnKoreksiKas') simpanKoreksiKasShift(e.target);
     /* Koreksi pembayaran nota (bagian 446). closest: klik bisa jatuh di ikon/teks tombolnya. */
     const t = e.target.closest?.('button');
     if (!t) return;
+    /* Form hanya menambah ke daftar; kartu daftar yang menyimpan (bagian 464). */
+    if (t.id === 'btnKoreksiKas') tambahKoreksiKas();
+    if (t.dataset.drafBuangKas) buangDrafKoreksi(null);
+    if (t.dataset.drafBuangNota) buangDrafKoreksi(t.dataset.drafBuangNota);
+    if (t.id === 'btnSimpanKoreksi') simpanDrafKoreksi(t);
     if (t.dataset.koreksiBayar) formKoreksiBayar(t.dataset.koreksiBayar);
     if (t.dataset.koreksiBayarBatal) $('#wadahKoreksiBayar').innerHTML = '';
     if (t.dataset.koreksiBayarTambah) {
       $('#barisKoreksiBayar').insertAdjacentHTML('beforeend', barisKoreksiBayar($('#wadahKoreksiBayar')._pilihan || [], '', 0));
     }
-    if (t.id === 'btnKoreksiBayar') simpanKoreksiBayar(t);
+    if (t.id === 'btnKoreksiBayar') tambahKoreksiBayar();
   });
   $('#btnCariNotaRiwayat').addEventListener('click', () => cariNotaLama());
   $('#cariNotaRiwayat').addEventListener('keydown', e => {

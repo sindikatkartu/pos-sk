@@ -10149,7 +10149,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         koreksi kas &amp; pulsa, dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
       ${tabel([
         { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>${teksPengesah(b.jenis)}` },
-        { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}` },
+        { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}${
+          /* bagian 464: pengajuan yang angkanya sudah bergeser pasti ditolak saat disahkan. */
+          b.basi ? `<div>${lencanaDash('angka sudah berubah — tolak', 'merah')}</div>` : ''}` },
         { judul: 'Cabang', render: (b) => b.cabang ? `<span class="lencana">${esc(b.cabang)}</span>` : '—' },
         { judul: 'Oleh', render: (b) => `${esc(b.peminta || '—')}<div class="meta-kecil">${esc(waktuTampil(b.waktu))}</div>` },
         { judul: 'Nilai', angka: true, render: (b) => b.nilai === null || b.nilai === undefined ? '—' : rp(b.nilai) },
