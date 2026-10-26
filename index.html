@@ -726,7 +726,7 @@
             <li><strong>Jual</strong> — cari produk di kolom pencarian (nama, SKU, merek, atau tipe HP), atur qty/satuan, lalu Bayar.</li>
             <li><strong>Bayar</strong> — isi jumlah yang diterima per metode. Kolom Jumlah tidak pernah terisi otomatis; itu memang uang yang benar-benar diterima, dipakai untuk menghitung kembalian.</li>
             <li><strong>Catat kas laci</strong> di menu Kas &amp; Bank setiap kali uang keluar/masuk laci di luar penjualan — ongkos kirim, beli galon, setoran ke bank.</li>
-            <li><strong>Tutup shift</strong> di akhir giliran, isi uang fisik di laci apa adanya — selisih (kalau ada) tercatat, bukan disembunyikan.</li>
+            <li><strong>Tutup shift</strong> di akhir giliran, isi uang fisik di laci apa adanya — selisih (kalau ada) tercatat, bukan disembunyikan. Di daftar shift (menu Shift, tab Per shift di Laporan Penjualan, dan Laporan shift pulsa) shift yang sudah ditutup berlencana <strong>diterima</strong> (hijau) bila setorannya sudah diterima di Kas &amp; Bank, atau <strong>belum disetor</strong> (kuning) bila belum. Shift yang lacinya kosong tidak berlencana.</li>
           </ol>
           <p class="petunjuk"><strong>Kolom angka:</strong> begitu disentuh, isinya langsung terpilih — ketik saja angkanya, tidak perlu menghapus <strong>0</strong> yang sudah ada lebih dulu. Kolom rupiah memberi titik ribuan sendiri sambil diketik (<em>1250000</em> menjadi <em>1.250.000</em>); titik itu hanya untuk dibaca, yang tersimpan tetap angkanya.</p>
           <p class="petunjuk">Nota tersimpan &amp; tercetak seketika walau internet mati. Sinkronisasi ke server terjadi di belakang layar; kasir tidak pernah menunggunya.</p>
@@ -1045,7 +1045,7 @@
         <div class="kartu">
           <h3>B10. Pengguna, Cabang, Setting, Audit, Arsip</h3>
           <ul style="margin:0 0 0 18px;padding:0">
-            <li><strong>Pengguna</strong> — akun login, peran &amp; hak aksesnya, dan pendaftaran perangkat kasir. Perubahan izin baru terbaca setelah orangnya keluar lalu masuk lagi.</li>
+            <li><strong>Pengguna</strong> — akun login, peran &amp; hak aksesnya, dan pendaftaran perangkat kasir. Perangkat baru <strong>hanya disetujui, ditolak, diblokir, atau dihapus Owner</strong> — di menu Persetujuan atau Perangkat Terdaftar; centang <code>user · setujui</code> di peran lain tidak membukanya. Perubahan izin baru terbaca setelah orangnya keluar lalu masuk lagi.</li>
             <li><strong>Cabang</strong> — setiap cabang punya berkas database sendiri; itulah sebabnya kasir cabang A tidak pernah menunggu cabang B.</li>
             <li><strong>Setting</strong> — nama usaha, kop &amp; footer struk, lebar kertas, PPN, dan lainnya. Berlaku untuk <strong>seluruh cabang</strong>.</li>
             <li><strong>Audit</strong> — jejak kejadian terakhir beserta pelakunya. Tidak bisa dihapus dari dalam aplikasi. Kartu <strong>Galat aplikasi</strong> menyebut perangkat asal tiap galat, supaya perangkat yang belum dimuat ulang cepat ketahuan.</li>

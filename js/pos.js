@@ -1319,6 +1319,26 @@ function resolvePenjualPemasang(nota, daftarPetugas) {
  * baris jadi dinding warna, dan yang menandai semuanya sama saja dengan yang
  * tidak menandai apa pun.
  */
+/**
+ * Lencana setoran shift kasir & pulsa (bagian 462). `status` dari server:
+ * 'DITERIMA', 'BELUM', atau '' — kosong (shift berjalan, laci kosong, atau
+ * tidak diketahui) tidak dilencanai sama sekali, seperti lencanaStok yang
+ * normal: tanda di setiap baris berhenti berarti apa-apa.
+ */
+function lencanaSetoran(status, teksSaja) {
+  /* teksSaja: teks berwarna tanpa pil, MENGGANTIKAN kata TUTUP — untuk tabel
+     Laporan pulsa, yang di laptop 1280 px tidak punya sisa satu piksel pun:
+     pil "belum disetor" melebarkannya 59 px (keputusan pemilik, bagian 462). */
+  if (teksSaja) {
+    if (status === 'DITERIMA') return '<span class="teks-setoran hijau">diterima</span>';
+    if (status === 'BELUM') return '<span class="teks-setoran kuning">belum disetor</span>';
+    return '';
+  }
+  if (status === 'DITERIMA') return ' <span class="lencana hijau">diterima</span>';
+  if (status === 'BELUM') return ' <span class="lencana kuning">belum disetor</span>';
+  return '';
+}
+
 function lencanaStok(qty, stokMin, opsi) {
   const o = opsi || {};
   const min = Number(stokMin) || 0;

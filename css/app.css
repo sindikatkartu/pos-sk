@@ -1014,6 +1014,11 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 .lencana:empty { display: none; }
 .lencana.hijau  { color: var(--sukses);     border-color: var(--sukses-garis);  background: var(--sukses-lembut); }
 .lencana.kuning { color: var(--peringatan); border-color: var(--peringatan-garis);  background: var(--peringatan-lembut); }
+/* Status setoran tanpa pil, menggantikan kata TUTUP di Laporan pulsa (bagian 462):
+   tabelnya sudah pas di 1280 px, pil tidak muat. Boleh terlipat. */
+.teks-setoran { font-size: var(--fs-12); font-weight: 600; }
+.teks-setoran.hijau  { color: var(--sukses); }
+.teks-setoran.kuning { color: var(--peringatan); }
 .lencana.merah  { color: var(--bahaya);     border-color: var(--bahaya-garis);  background: var(--bahaya-lembut); }
 
 /* Deret pecahan rupiah di layar pembayaran. Sasarannya jari, bukan kursor:

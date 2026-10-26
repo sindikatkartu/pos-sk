@@ -288,9 +288,10 @@ const MENU = [
   { id: 'dashboard',  label: 'Dashboard',  grup: 'Ringkasan',  izin: ['laporan_penjualan', 'lihat'], admin: true, backoffice: true },
   /* PERSETUJUAN (bagian 305): satu kotak untuk semua keputusan yang menunggu —
      diskon, void, perangkat, akun baru, pembelian. Terbuka bagi pemegang salah
-     satu hak putusnya; Owner (`*`) selalu. */
+     satu hak putusnya; Owner (`*`) selalu. Perangkat tidak disebut: hanya
+     Owner yang memutusnya, bukan pemegang user·setujui (bagian 163). */
   { id: 'persetujuan', label: 'Persetujuan', grup: 'Ringkasan', izin: ['void', 'setujui'],
-    izinAtau: [['void', 'setujui'], ['user', 'setujui'], ['setting', 'ubah'], ['pembelian', 'setujui']], admin: true, backoffice: true },
+    izinAtau: [['void', 'setujui'], ['setting', 'ubah'], ['pembelian', 'setujui']], admin: true, backoffice: true },
   /* `lihatSaja`: peran mode lihat cukup punya kasir·lihat (Head Admin, bagian 257). */
   { id: 'kasir',      label: 'Kasir',      grup: 'Penjualan',  izin: ['kasir', 'buat'], lihatSaja: ['kasir', 'lihat'] },
   /* "Nota Shift Ini", bukan "Riwayat": isinya hanya nota shift berjalan — riwayat
@@ -4614,7 +4615,7 @@ async function muatDaftarShift() {
         <td>${esc(r.id_shift)}</td>
         <td>${kasirTampil(r)}</td>
         <td>${esc(waktuTampil(r.buka))}</td>
-        <td>${r.tutup ? esc(waktuTampil(r.tutup)) : '<span class="lencana hijau">berjalan</span>'}</td>
+        <td>${r.tutup ? esc(waktuTampil(r.tutup)) + lencanaSetoran(r.setoran) : '<span class="lencana hijau">berjalan</span>'}</td>
         <td class="angka">${r.tutup ? r.jumlah_nota : '—'}</td>
         <td class="angka">${r.tutup ? rp(r.total_penjualan) : '—'}</td>
         <td class="angka">${r.tutup
@@ -5704,7 +5705,7 @@ const KOLOM_LAP = {
        menampilkan `2026-08-24 20:10` — ISO mentah, satu-satunya bentuk
        tanggal yang berbeda dari seluruh aplikasi. */
     { judul: 'Buka', render: x => esc(waktuTampil(x.buka)) },
-    { judul: 'Tutup', render: x => esc(x.tutup ? waktuTampil(x.tutup) : '—') },
+    { judul: 'Tutup', render: x => x.tutup ? esc(waktuTampil(x.tutup)) + lencanaSetoran(x.setoran) : '—' },
     { judul: 'Nota', angka: true, render: x => x.jumlah_nota },
     { judul: 'Penjualan', angka: true, render: x => rp(x.total_penjualan) },
     { judul: 'Kas awal', angka: true, render: x => rp(x.kas_awal) },

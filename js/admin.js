@@ -5338,8 +5338,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                persis seperti yang masih berlaku. */
             { judul: 'Status', render: r => lencanaStatusBeli(r.status) },
             { judul: '', render: r => [
-                /* Periksa membuka rinciannya — keputusannya diambil sambil melihat barisnya. */
-                r.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui')
+                /* Periksa membuka rinciannya — keputusannya diambil sambil melihat barisnya.
+                   Yang dicatat akun ini sendiri tidak bisa ia periksa (bagian 461). */
+                r.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui') && !r.dicatat_sendiri
                   ? tombolBaris('utama', 'Periksa', IKON.setujui, `data-periksa-beli="${esc(r.uuid)}"`) : '',
                 !['DIBATALKAN', 'DITOLAK'].includes(r.status) && bolehIzin('pembelian', 'hapus')
                   ? tombolBaris('bahaya', 'Batal', IKON.batal, `data-batal-pembelian="${esc(r.uuid)}"`) : ''
@@ -5380,7 +5381,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const item = d.item || [];
     const janggal = item.filter(i => i.sebab_janggal);
     const bolehBatal = !['DIBATALKAN', 'DITOLAK'].includes(d.status) && bolehIzin('pembelian', 'hapus');
-    const bolehPeriksa = d.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui');
+    const bolehPeriksa = d.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui') && !d.dicatat_sendiri;
 
     bukaDokumen(`Pembelian ${d.no_dokumen || '(tanpa nomor)'}`, `
       <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.nama_supplier || '—')} ·
@@ -6601,6 +6602,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     } catch (e) { galat('#isiPeran', e); }
   }
 
+  /* Menyetujui/memblokir/menghapus perangkat KHUSUS Owner (bagian 163, 463) — kembaran
+     `_bolehPutusPerangkat` di 03_Auth.gs. Bukan izin: centang user·setujui di
+     peran lain tidak membukanya. */
+  function bolehPutusPerangkat() {
+    return String(APP_STATE.user?.peran || '') === 'OWNER';
+  }
+
   async function muatPerangkat() {
     memuat('#isiPerangkat');
     try {
@@ -6787,7 +6795,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 butir.push(['', 'Ganti nama', IKON.ubah, `data-nama-perangkat="${id}"`, 'Ganti nama perangkat'],
                   ['', 'Tetapkan meja', IKON.meja, `data-meja-perangkat="${id}"`, 'Tetapkan meja (lini usaha)']);
               }
-              if (bolehIzin('user', 'setujui')) {
+              /* Setujui/Blokir KHUSUS Owner, bukan izin user·setujui (bagian 163) —
+                 server menolak selain Owner, jadi tombolnya pun tidak digambar. */
+              if (bolehPutusPerangkat()) {
                 if (r.status !== 'DISETUJUI') butir.push(['sukses', 'Setujui', IKON.setujui,
                   `data-perangkat="${id}" data-status="DISETUJUI"`, 'Setujui perangkat']);
                 if (r.status !== 'DIBLOKIR') butir.push(['bahaya', 'Blokir', IKON.blokir,
@@ -6797,11 +6807,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                  Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
                  jebakan, bukan tombol; yang masih hidup diblokir dulu, dan
                  langkah itulah yang memutus aksesnya. */
-              const adaHapus = bolehIzin('user', 'hapus') && r.status !== 'DISETUJUI';
+              const adaHapus = bolehIzin('user', 'hapus') && bolehPutusPerangkat() && r.status !== 'DISETUJUI';   // Owner saja (bagian 463)
               if (adaHapus) butir.push(['bahaya', 'Hapus', IKON.hapus, `data-hapus-perangkat="${id}"`, 'Hapus perangkat']);
               if (!butir.length) return '';
               if (butir.length === 1) { const [g, , j, a, t] = butir[0]; return tombolIkon(g, t, j, a); }
-              const menunggu = r.status === 'MENUNGGU' && bolehIzin('user', 'setujui');
+              const menunggu = r.status === 'MENUNGGU' && bolehPutusPerangkat();
               return menuTindakan({ id: 'menuBarisPerangkat' + idAman(r.id_perangkat),
                 idTombol: 'btnBarisPerangkat' + idAman(r.id_perangkat), kunci: 'baris-perangkat', baris: true,
                 tanda: menunggu ? 'perlu' : adaHapus ? 'bahaya' : '',
@@ -6881,11 +6891,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${modul.map(m => `<tr>
               <td>${esc(m)}</td>
               ${aksi.map(a => `<td style="text-align:center">
-                <input type="checkbox" data-izin="${esc(m)}" data-aksi="${esc(a)}" ${punya(m, a) ? 'checked' : ''}></td>`).join('')}
+                <input type="checkbox" data-izin="${esc(m)}" data-aksi="${esc(a)}" ${punya(m, a) ? 'checked' : ''}${m === 'user' && (a === 'setujui' || a === 'hapus') ? ' disabled title="Khusus Owner"' : ''}></td>`).join('')}
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
+      <p class="petunjuk">Kotak <code>user · setujui</code> dan <code>user · hapus</code> terkunci: perangkat hanya disetujui, diblokir, atau dihapus Owner.</p>
 
       <label style="margin-top:14px">Izin khusus</label>
       <div class="petak-flag">
@@ -8236,7 +8247,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <td class="kanan" data-l="Saldo akhir">${rp(r.saldo_akhir_total)}</td>
               <td class="kanan" data-l="Selisih kas">${(+r.selisih || 0) !== 0 ? rp(r.selisih) : '—'}</td>
               <td class="kanan" data-l="Reward">${rp(r.total_reward)}</td>
-              <td data-l="Status">${esc(String(r.status))}${(+r.koreksi || 0) > 0
+              <td data-l="Status">${lencanaSetoran(r.setoran, true) || esc(String(r.status))}${(+r.koreksi || 0) > 0
                 /* Tanda "diedit" ala WhatsApp (bagian 260); diklik = riwayatnya. */
                 ? ` <button type="button" class="tanda-diedit" data-riwayat-koreksi="${esc(String(r.id_shift))}"
                     title="Angka shift ini sudah dikoreksi ${+r.koreksi} kali — klik untuk melihat riwayatnya">diedit</button>` : ''}${r.catatan
