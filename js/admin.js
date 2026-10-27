@@ -395,14 +395,14 @@ const Admin = (() => {
    * runtime, jadi urutannya aman. */
   /* Sejak bagian 262 lewat Rangka.pasang (pos.js): bentuk ASLI layar ini yang
      diingat; rangka umum di bawah hanya untuk pembukaan pertama. */
-  const memuat = (el) => Rangka.pasang($(el), `
+  const memuat = (el, opsi) => Rangka.pasang($(el), `
     <div class="kartu"><div class="rangka-alat">
       ${['260px', '160px', '140px'].map(w =>
         `<span class="rangka tinggi" style="width:${w}"></span>`).join('')}
     </div></div>
     <div class="kartu" aria-busy="true" aria-label="Memuat">
       ${rangkaBaris(8, ['90%', '72%', '84%', '66%'])}
-    </div>`, el);
+    </div>`, el, opsi);
 
   /**
    * RANGKA (skeleton) — bentuk layar yang sedang datang, bukan kata "Memuat…".
@@ -735,7 +735,73 @@ const Admin = (() => {
     if (layar) await muat(layar);
   }
 
+  /* PITA HASIL (bagian 472). Pemilik: pesan "harus di ok baru hilang, kalau
+     tiba2 hilang sendiri begitu bagaimana saya bisa membaca dan memahami".
+     Nama dan tanda tangan `toast()` TETAP — 267 pemanggil tidak disentuh.
+
+     Pita masuk ke SATU tumpukan tetap di bawah header (#pitaTumpuk), di luar
+     isi layar: alur "simpan → pesan → muat ulang daftar" mengganti isi kartu,
+     dan pita di dalam kartu akan terhapus sebelum terbaca. Saat modal terbuka
+     tumpukan yang sama melayang di atas tirai (CSS :has) — tidak ada yang
+     dipindah, jadi menutup modal lewat jalan mana pun (Escape menyapu semua
+     tirai) tidak pernah membuang pesan yang belum di-OK.
+
+     Layar Kasir tanpa modal TETAP kotak singkat yang hilang sendiri: pita + OK
+     memotong alur scan (keputusan pemilik). Paling banyak 3 pita, terbaru di
+     atas; pesan yang sama persis tidak ditumpuk dua kali. */
   function toast(teks, jenis = 'sukses') {
+    const tumpuk = $('#pitaTumpuk');
+    const diKasir = $('#layarKasir')?.classList.contains('aktif') && !document.querySelector('.tirai.tampil');
+    if (!tumpuk || diKasir) return toastSingkat(teks, jenis);
+    const isi = String(teks ?? '');
+    /* Pesan PROSES ("Menyimpan…", "Mengambil foto…") bukan hasil: tampil sebagai
+       info, dan digantikan pesan apa pun yang datang sesudahnya — dibiarkan
+       berupa centang hijau, ia terbaca "tersimpan" di samping pita galatnya
+       (peninjau rilis, bagian 472). */
+    const proses = isi.endsWith('…');
+    if (proses) jenis = 'info';
+    tumpuk.querySelectorAll('.pita-hasil').forEach((p) => {
+      if (p.dataset.proses === '1' || (p.dataset.teks === isi && p.dataset.jenis === jenis)) p.remove();
+    });
+    const [judul, ket] = pecahPesan(isi);
+    const el = document.createElement('div');
+    el.className = 'pita-hasil ' + jenis;
+    el.dataset.teks = isi;
+    el.dataset.jenis = jenis;
+    if (proses) el.dataset.proses = '1';
+    el.setAttribute('role', jenis === 'galat' ? 'alert' : 'status');
+    const ikon = jenis === 'galat' ? IKON.hasilGalat : jenis === 'info' ? IKON.tentang : IKON.hasilOk;
+    el.innerHTML = `<svg class="ikon-svg ikon" viewBox="0 0 24 24" aria-hidden="true">${ikon}</svg>`
+      + `<div><strong></strong>${ket ? '<small></small>' : ''}</div>`
+      + '<button type="button" class="tombol" data-pita-ok>OK</button>';
+    el.querySelector('strong').textContent = judul;
+    if (ket) el.querySelector('small').textContent = ket;
+    el.querySelector('[data-pita-ok]').addEventListener('click', () => el.remove());
+    tumpuk.prepend(el);
+    /* Lebih dari 3: yang terlama dibuang — tapi galat paling akhir, supaya
+       rentetan pesan sukses tidak mendorong keluar galat yang belum terbaca. */
+    while (tumpuk.children.length > 3) {
+      const semua = [...tumpuk.children];
+      (semua.reverse().find((p) => p.dataset.jenis !== 'galat') || tumpuk.lastElementChild).remove();
+    }
+  }
+
+  /** Judul tebal + keterangan kecil: dipecah di " — " pertama, kalau tidak ada
+   *  di ": " pertama ("Gagal menyimpan: <alasan server>"). Titik penutup judul
+   *  dibuang; teks tanpa pemisah seluruhnya jadi judul. */
+  function pecahPesan(t) {
+    const i = t.indexOf(' — ') >= 0 ? t.indexOf(' — ') : t.indexOf(': ');
+    const lebar = i >= 0 ? (t.indexOf(' — ') >= 0 ? 3 : 2) : 0;
+    /* Tanpa lookbehind regex: Safari iOS < 16.4 menolak mem-parse SELURUH
+       berkas karenanya (peninjau rilis). "…" satu karakter, jadi aman. */
+    let judul = (i > 0 ? t.slice(0, i) : t).trim();
+    if (judul.endsWith('.') && !judul.endsWith('..')) judul = judul.slice(0, -1);
+    const ket = i > 0 ? t.slice(i + lebar).trim() : '';
+    return [judul, ket];
+  }
+
+  /** Kotak singkat lama — Kasir tanpa modal, dan halaman tanpa #pitaTumpuk. */
+  function toastSingkat(teks, jenis = 'sukses') {
     let el = $('#toast');
     if (!el) {
       el = document.createElement('div');
@@ -3110,6 +3176,39 @@ const Admin = (() => {
     return luas.length ? luas : DB.all('produk');
   };
 
+  /* KATALOG SELURUH CABANG untuk layar Back Office yang bekerja atas cabang
+     selain cabang perangkat (bagian 465: Stok semua cabang, pemindai Opname,
+     pemilih Retur Jual/Beli). Katalog perangkat disaring cabang aktifnya
+     (apiTarikMaster → bolehDijualDi), jadi SKU khusus cabang lain tidak pernah
+     ada di sana — dari SK01, voucher khusus SKG01 "tidak dikenal". Sumbernya
+     daftar layar Produk bila sudah termuat; kalau belum, ditarik SEKALI (mode
+     ramping) dan diingat selama halaman hidup. Gagal = null: pemanggil tetap
+     jalan dengan katalog perangkat. */
+  let katalogLuas = null;
+  const produkAktif = (p) => p && p.aktif !== false && String(p.aktif).toLowerCase() !== 'false';
+  async function katalogSemuaCabang() {
+    const luas = (cacheProduk || []).filter(produkAktif);
+    if (luas.length) return luas;
+    if (katalogLuas) return katalogLuas;
+    try { katalogLuas = ((await API.daftarProduk({ ramping: true })).produk || []).filter(produkAktif); return katalogLuas; }
+    catch (e) { return null; }
+  }
+  /** true bila kolom `cabang` produk (kosong/'*' = semua, atau daftar berkoma) mencakup `kode`. */
+  const produkDiCabang = (v, kode) => {
+    const c = String(v == null ? '' : v).trim();
+    if (!c || c === '*' || c.toLowerCase() === 'semua') return true;
+    return c.toUpperCase().split(/[,;\s]+/).indexOf(String(kode || '').trim().toUpperCase()) !== -1;
+  };
+  /** Katalog perangkat + produk cabang `kode` yang tidak ada di sana. Cabang perangkat = katalog perangkat saja. */
+  async function katalogUntukCabang(kode) {
+    const lokal = await DB.all('produk');
+    if (!kode || kode === APP_STATE.cabang) return lokal;
+    const luas = await katalogSemuaCabang();
+    if (!luas) return lokal;
+    const ada = new Set(lokal.map((p) => String(p.sku)));
+    return lokal.concat(luas.filter((p) => !ada.has(String(p.sku)) && produkDiCabang(p.cabang, kode)));
+  }
+
   /** Satu baris keranjang dari sebuah produk, atau null kalau tak punya kode. */
   function barisStikerDari(p) {
     const kode = Label.kodeProduk(p);
@@ -4897,10 +4996,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function muatStokSemuaCabang(katStok = '') {
     memuat('#isiStok');
     try {
-      const [stokMentah, produk, waktu] = await Promise.all([
+      const [stokMentah, produkLokal, waktu] = await Promise.all([
         DB.all('stok_cabang'), DB.all('produk'),
         DB.kvGet('stok_cabang_diperbarui', '')
       ]);
+      /* SKU khusus cabang lain tidak ada di katalog perangkat (bagian 465):
+         tanpa ini barisnya hilang dan jumlah per cabang di kotak atas kurang.
+         Jaringan hanya disentuh bila memang ada yang hilang; tanpa jaringan,
+         barisnya tetap ada dengan SKU sebagai namanya. */
+      let produk = produkLokal;
+      const adaLokal = new Set(produkLokal.map((p) => String(p.sku)));
+      const hilang = [...new Set(stokMentah.map((r) => String(r.sku)).filter((k) => !adaLokal.has(k)))];
+      if (hilang.length) {
+        const luas = await katalogSemuaCabang();
+        const peta = new Map((luas || []).map((p) => [String(p.sku), p]));
+        produk = produkLokal.concat(hilang.map((k) => peta.get(k) || { sku: k, nama: k }));
+      }
       const cabang = APP_STATE.daftarCabangSemua.slice().sort(urutNama);
       const rows = barisStokLintas(stokMentah, produk, cabang);
 
@@ -8528,7 +8639,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const cabang = $('#susCabang').value;
     m._susulan = null; $('#btnSimpanSusulan').disabled = true;
     if (!cabang) { w.innerHTML = '<p class="petunjuk">Pilih cabangnya dulu.</p>'; return; }
-    memuat('#susIsi');
+    memuat('#susIsi', { sekali: true, tanpaLayar: true });   // pop-up berisian (bagian 470)
     let st;
     try { st = await API.shiftPulsaAktif({ cabang }); }
     catch (e) { return galat('#susIsi', e); }
@@ -10666,7 +10777,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $('#opPindai')?.focus();
     const barcode = new Map(), sku = new Map(), nama = new Map();
     try {
-      (await DB.all('produk')).forEach(p => {
+      /* Katalog cabang OPNAME, bukan cabang perangkat (bagian 465). */
+      (await katalogUntukCabang(cabangDari('opname'))).forEach(p => {
         const kodeSku = String(p.sku || '');
         if (!kodeSku) return;
         sku.set(kodeSku.toLowerCase(), { sku: kodeSku, kode: '' });
@@ -11010,7 +11122,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div id="pesanRetur"></div>
       <button class="tombol sukses besar" id="btnSimpanRetur" style="margin-top:12px">Proses retur</button>`;
 
-    await muatDaftarPilihProduk();
+    await muatDaftarPilihProduk('retur');
     hitungRetur();
   }
 
@@ -11018,8 +11130,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      nota yang sudah ada dan tidak boleh menunggu jaringan hanya untuk mengisi
      daftar pilihan. Konsekuensinya salinan ini tidak membawa stok maupun harga
      beli terakhir — pemilihnya sudah menyembunyikan keduanya kalau kosong. */
-  async function muatDaftarPilihProduk() {
-    daftarPilihProduk = await DB.all('produk');
+  async function muatDaftarPilihProduk(layar) {
+    /* Cabang yang dipilih di layar, bukan cabang perangkat (bagian 465). Jaringan
+       hanya disentuh bila keduanya berbeda — retur di cabang sendiri tetap tidak
+       menunggu apa pun. */
+    daftarPilihProduk = await katalogUntukCabang(cabangDari(layar));
     lengkapiTipeBaris();
   }
 
@@ -11226,7 +11341,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     /* Dimuat juga saat retur berasal dari faktur: barisnya memang tidak lewat
        pemilih, tapi tipe HP-nya tetap perlu ditempelkan ke keterangan baris. */
-    await muatDaftarPilihProduk();
+    await muatDaftarPilihProduk('returbeli');
     if (!beli) tambahBarisRb();
     hitungReturBeli();
   }
@@ -11710,9 +11825,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <!-- ⋮ selalu paling kanan (bar-alat-menu: saringan kiri, aksi kanan). -->
           <div class="bar-alat bar-alat-menu"><div class="saringan"><span class="wadah-periode" id="wadahPeriodeProd"></span></div>
             <div class="aksi">${menuProduksi()}</div></div>
-          <p class="petunjuk">Voucher &amp; perdana kosong di-inject memakai saldo aplikasi operator, lalu masuk stok
-             sebagai barang siap jual. Modal per unit = harga bahan (FIFO) + modal paket. Yang gagal di-inject
-             dicatat sebagai barang rusak.</p>
+          <p class="petunjuk">Voucher &amp; perdana kosong di-inject memakai saldo aplikasi operator. Barang jadinya
+             masuk stok siap jual sesudah diterima Admin Stok. Modal per unit = harga bahan (FIFO) + modal paket −
+             cashback. Yang gagal di-inject dicatat sebagai barang rusak.</p>
         </div>
         <div id="hasilProduksi"></div>`;
       bingkaiTab(w, $('#tabProduksi'));
@@ -11754,8 +11869,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!apl.length) return '<div class="pesan info">Belum ada aplikasi saldo. Tambahkan lewat ⋮ → Tambah aplikasi.</div>';
     return `<div class="kartu" id="kartuProduksi"><h3>Catat produksi</h3>
       <!-- Barang jadi selebar penuh, lalu EMPAT isian di .petak-4 (4 / 2 x 2 / 1),
-           lalu modal & catatan berdua — tidak ada isian yatim di baris terakhir
-           (uji-ruang kategori 3). -->
+           lalu modal paket & cashback berdua, lalu catatan selebar penuh — tidak
+           ada isian yatim di baris terakhir (uji-ruang kategori 3). -->
       <div class="grup"><label>Barang jadi</label>
         <div class="baris-anak" data-anak="prod" style="margin:0">${barisPilihProduk(1)}</div></div>
       <div class="petak petak-4">
@@ -11768,8 +11883,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
       <div class="petak petak-4">
         <div class="grup"><label for="prodModal">Modal paket per unit</label><input type="text" class="uang" id="prodModal" inputmode="numeric" autocomplete="off"></div>
-        <div class="grup"><label for="prodCatatan">Catatan</label><input type="text" id="prodCatatan" maxlength="120" autocomplete="off"></div>
+        <div class="grup"><label for="prodCashback">Cashback (total)</label><input type="text" class="uang" id="prodCashback" inputmode="numeric" autocomplete="off"></div>
       </div>
+      <div class="grup"><label for="prodCatatan">Catatan</label><input type="text" id="prodCatatan" maxlength="120" autocomplete="off"></div>
       <p class="petunjuk" id="prodPerkiraan">Pilih barang jadi, isi jumlah dan modal paketnya.</p>
       <div class="aksi"><button class="tombol utama" id="btnSimpanProduksi">${ikonAlat('simpan')}<span>Simpan produksi</span></button></div>
     </div>`;
@@ -11778,8 +11894,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function siapkanFormProduksi() {
     if (!$('#kartuProduksi')) return;
     lepasUuidDokumen('produksi');            // dokumen BARU — lihat uuidDokumen()
-    try { daftarPilihProduk = (await DB.all('produk')).filter((p) => String(p.kategori || '').trim() !== KATEGORI_BAHAN); }
-    catch (e) { daftarPilihProduk = []; }
+    /* Dari server, disaring cabang PRODUKSI — bukan katalog perangkat, yang
+       disaring cabang aktif perangkat: dari Back Office SKU khusus SKG01 tidak
+       pernah ada di sana (bagian 465). */
+    const jadi = Array.isArray(prodData?.jadi) ? prodData.jadi : await DB.all('produk').catch(() => []);
+    daftarPilihProduk = jadi.filter((p) => String(p.kategori || '').trim() !== KATEGORI_BAHAN);
   }
 
   /** Perkiraan sebelum simpan — yang menentukan tetap server (FIFO bisa memakai lebih dari satu lapisan). */
@@ -11795,14 +11914,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     const jadi = Number($('#prodJadi')?.value) || 0, gagal = Number($('#prodGagal')?.value) || 0;
     const modal = angkaDari(modalEl?.value || '') || 0;
+    const cashback = angkaDari($('#prodCashback')?.value || '') || 0;
     const b = d.bahan.find((x) => x.sku === $('#prodBahan')?.value);
     const a = d.aplikasi.find((x) => x.kode === $('#prodAplikasi')?.value);
     if (!sku || !jadi || !b) { el.textContent = 'Pilih barang jadi, isi jumlah dan modal paketnya.'; return; }
-    const inject = jadi * modal, bahan = jadi * b.hpp_depan, perUnit = (inject + bahan) / jadi;
-    const kurang = a && inject > a.saldo;
-    el.innerHTML = `Perkiraan modal per unit <strong>${rp(Math.round(perUnit))}</strong> (bahan ${rp(b.hpp_depan)} + paket ${rp(modal)}) ·
+    const inject = jadi * modal, bahan = jadi * b.hpp_depan, perUnit = (inject + bahan - cashback) / jadi;
+    const kurang = a && inject > a.saldo, lebih = cashback > inject + bahan;
+    el.innerHTML = `Perkiraan modal per unit <strong>${rp(Math.round(perUnit))}</strong> (bahan ${rp(b.hpp_depan)} + paket ${rp(modal)}${cashback ? ` − cashback ${rp(Math.round(cashback / jadi))}` : ''}) ·
       inject ${rp(inject)}${a ? ` dari saldo ${esc(a.nama)} ${rp(a.saldo)}` : ''} · bahan terpakai ${jadi + gagal} dari stok ${b.qty}
-      ${kurang ? '<br><strong>Saldo aplikasi kurang — catat isi saldonya dulu di tab Saldo aplikasi.</strong>' : ''}`;
+      <br>Sesudah disimpan, barang jadi <strong>menunggu diterima</strong> Admin Stok sebelum masuk stok siap jual.
+      ${kurang ? '<br><strong>Saldo aplikasi kurang — catat isi saldonya dulu di tab Saldo aplikasi.</strong>' : ''}
+      ${lebih ? '<br><strong>Cashback melebihi modal produksi — periksa angkanya.</strong>' : ''}`;
   }
 
   async function simpanProduksi(btn) {
@@ -11811,7 +11933,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       uuid: uuidDokumen('produksi'),
       sku_jadi: sku, sku_bahan: $('#prodBahan').value, kode_aplikasi: $('#prodAplikasi').value,
       qty_jadi: Number($('#prodJadi').value), qty_gagal: Number($('#prodGagal').value || 0),
-      modal_paket: angkaDari($('#prodModal').value || ''), catatan: ($('#prodCatatan').value || '').trim()
+      modal_paket: angkaDari($('#prodModal').value || ''), cashback: angkaDari($('#prodCashback').value || '') || 0,
+      catatan: ($('#prodCatatan').value || '').trim()
     };
     if (!sku) return toast('Pilih barang jadinya dari daftar.', 'galat');
     if (!(p.qty_jadi > 0)) return toast('Isi jumlah jadi.', 'galat');
@@ -11819,9 +11942,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const jadiNama = $('#kartuProduksi .cari-prd')?.value || sku;
     const apl = prodData.aplikasi.find((a) => a.kode === p.kode_aplikasi), bhn = prodData.bahan.find((b) => b.sku === p.sku_bahan);
     if (!(await tanya('Simpan produksi ini?',
-      `<p class="petunjuk"><strong>${esc(jadiNama)}</strong> × ${p.qty_jadi} masuk stok ${esc(prodData.cabang)}.</p>
+      `<p class="petunjuk"><strong>${esc(jadiNama)}</strong> × ${p.qty_jadi} menunggu diterima Admin Stok, lalu masuk stok ${esc(prodData.cabang)}.</p>
        <p class="petunjuk">Bahan ${esc(bhn ? bhn.nama : p.sku_bahan)} keluar ${p.qty_jadi + p.qty_gagal}${p.qty_gagal ? ' (' + p.qty_gagal + ' gagal → barang rusak)' : ''}.<br>
-         Inject ${esc(apl ? apl.nama : p.kode_aplikasi)}: ${rp(p.modal_paket)} × ${p.qty_jadi} = <strong>${rp(p.modal_paket * p.qty_jadi)}</strong>.</p>`,
+         Inject ${esc(apl ? apl.nama : p.kode_aplikasi)}: ${rp(p.modal_paket)} × ${p.qty_jadi} = <strong>${rp(p.modal_paket * p.qty_jadi)}</strong>.
+         ${p.cashback ? `<br>Cashback ${rp(p.cashback)} kembali ke saldo ${esc(apl ? apl.nama : p.kode_aplikasi)} dan mengurangi modal.` : ''}</p>`,
       { ya: 'Simpan produksi' }))) return;
     btn.disabled = true;
     try {
@@ -11829,7 +11953,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       lepasUuidDokumen('produksi');
       /* Kiriman ulang yang sudah tersimpan dijawab "duplikat" tanpa angka. */
       toast(r.duplikat ? 'Produksi ini sudah tersimpan sebelumnya.'
-        : `Produksi ${r.no_dokumen || ''} tersimpan — ${p.qty_jadi} unit masuk stok, modal ${rpTeks(r.modal_satuan)}/unit.`, 'sukses');
+        : `Produksi ${r.no_dokumen || ''} tersimpan — ${p.qty_jadi} unit menunggu diterima Admin Stok, modal ${rpTeks(r.modal_satuan)}/unit.`, 'sukses');
       await muatHasilProduksi();
     } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
   }
@@ -11839,19 +11963,35 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     return `<div class="kartu laporan-uang"><div class="bar-alat"><h3>Riwayat produksi</h3></div>
       ${tabel([
         { judul: 'Tanggal', render: (x) => `${esc(tglTampil(x.tanggal))}<div class="meta-kecil">${esc(x.no_dokumen)}</div>` },
-        { judul: 'Barang jadi', render: (x) => `${esc(x.nama_jadi)}${x.batal ? ' ' + lencanaDash('dibatalkan', 'merah') : ''}<div class="meta-kecil">${esc(x.nama_bahan)}</div>` },
+        { judul: 'Barang jadi', render: (x) => `${esc(x.nama_jadi)}${lencanaProduksi(x)}<div class="meta-kecil">${esc(x.nama_bahan)}</div>` },
         { judul: 'Jadi', angka: true, render: (x) => x.qty_jadi },
         { judul: 'Gagal', angka: true, render: (x) => x.qty_gagal || '—' },
         { judul: 'Aplikasi', render: (x) => esc(x.nama_aplikasi || '—') },
         { judul: 'Modal/unit', angka: true, render: (x) => rp(x.modal_satuan) },
         { judul: 'Nilai', angka: true, render: (x) => rp(x.nilai_jadi) },
         { judul: 'Oleh', render: (x) => esc(x.nama_user || x.id_user) },
-        { judul: '', kelas: 'sel-menu', render: (x) => bolehUbah && !x.batal
-            ? menuTindakan({ id: 'menuProd' + idAman(x.uuid), idTombol: 'btnProd' + idAman(x.uuid), kunci: 'baris-prod', baris: true, tanda: 'bahaya',
-                isi: butirBaris('', 'Rincian', IKON.tampil, `data-prod-rincian="${esc(x.uuid)}"`) +
-                     butirBaris('bahaya', 'Batalkan', IKON.batal, `data-prod-batal="${esc(x.uuid)}"`) })
-            : tombolBaris('', 'Rincian', IKON.tampil, `data-prod-rincian="${esc(x.uuid)}"`) }
+        { judul: '', kelas: 'sel-menu', render: (x) => {
+            /* Terima/Tolak mengikuti gerbang server per baris (boleh_putus): izin
+               produksi·setujui dan bukan catatan sendiri (bagian 465). Titik ⋮
+               kuning = ada yang menunggu keputusan pembacanya. */
+            const batal = bolehUbah && !x.batal;
+            if (!x.boleh_putus && !batal) return tombolBaris('', 'Rincian', IKON.tampil, `data-prod-rincian="${esc(x.uuid)}"`);
+            return menuTindakan({ id: 'menuProd' + idAman(x.uuid), idTombol: 'btnProd' + idAman(x.uuid), kunci: 'baris-prod', baris: true,
+              tanda: x.boleh_putus ? 'perlu' : 'bahaya',
+              isi: butirBaris('', 'Rincian', IKON.tampil, `data-prod-rincian="${esc(x.uuid)}"`) +
+                   (x.boleh_putus ? butirBaris('', 'Terima', IKON.terima, `data-prod-terima="${esc(x.uuid)}"`) +
+                                    butirBaris('bahaya', 'Tolak', IKON.batal, `data-prod-tolak="${esc(x.uuid)}"`) : '') +
+                   (batal ? butirBaris('bahaya', 'Batalkan', IKON.batal, `data-prod-batal="${esc(x.uuid)}"`) : '') });
+          } }
       ], d.produksi, { kosong: 'Belum ada produksi pada periode ini.' })}</div>`;
+  }
+
+  /* Lencana keadaan baris produksi (bagian 465). */
+  function lencanaProduksi(x) {
+    if (x.ditolak) return ' ' + lencanaDash('ditolak', 'merah');
+    if (x.batal) return ' ' + lencanaDash('dibatalkan', 'merah');
+    if (x.menunggu) return ' ' + lencanaDash('menunggu diterima', 'kuning');
+    return '';
   }
 
   function rincianProduksi(u) {
@@ -11864,19 +12004,58 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${baris('Barang jadi', esc(x.nama_jadi) + ' × ' + x.qty_jadi)}
         ${baris('Bahan terpakai', esc(x.nama_bahan) + ' · ' + rp(x.nilai_bahan))}
         ${baris('Inject ' + (x.nama_aplikasi || ''), rp(x.modal_paket) + ' × ' + x.qty_jadi + ' = ' + rp(x.nilai_inject))}
+        ${baris('Cashback', x.cashback ? '− ' + rp(x.cashback) : '—')}
         ${baris('Gagal inject', x.qty_gagal ? x.qty_gagal + ' · ' + rp(x.nilai_gagal) + ' (beban rusak)' : '—')}
         ${baris('Modal per unit', rp(x.modal_satuan))}
         ${baris('Nilai masuk stok', '<strong>' + rp(x.nilai_jadi) + '</strong>')}
       </tbody></table></div>
-      ${x.batal ? '<div class="pesan peringatan">Produksi ini sudah dibatalkan.</div>' : ''}`);
+      ${x.ditolak ? `<div class="pesan peringatan">Ditolak${x.nama_penolak ? ' oleh ' + esc(x.nama_penolak) : ''}: ${esc(x.alasan_tolak)}</div>`
+        : x.batal ? '<div class="pesan peringatan">Produksi ini sudah dibatalkan.</div>'
+        : x.menunggu ? '<div class="pesan info">Menunggu diterima Admin Stok — belum masuk stok siap jual.</div>'
+        : x.nama_penerima ? `<p class="petunjuk">Diterima oleh ${esc(x.nama_penerima)}.</p>` : ''}`);
+  }
+
+  async function terimaProduksi(u) {
+    const x = (prodData?.produksi || []).find((p) => p.uuid === u);
+    if (!x) return;
+    if (!(await tanya('Terima produksi ' + (x.no_dokumen || '') + '?',
+      `<p class="petunjuk"><strong>${esc(x.nama_jadi)}</strong> × ${x.qty_jadi} masuk stok ${esc(prodData.cabang)} dan bisa dijual,
+       modal ${rp(x.modal_satuan)}/unit. Terima hanya bila jumlah fisiknya sesuai catatan; kalau tidak, Tolak.</p>`,
+      { ya: 'Terima' }))) return;
+    try {
+      await API.terimaProduksi({ uuid: u });
+      toast(`${x.nama_jadi} × ${x.qty_jadi} diterima — sudah masuk stok.`, 'sukses');
+      await muatHasilProduksi();
+      /* Lewat peristiwa, bukan tarikLencanaNav: fungsi itu milik app.js (bagian 465). */
+      document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+
+  async function tolakProduksi(u) {
+    const x = (prodData?.produksi || []).find((p) => p.uuid === u);
+    if (!x) return;
+    const alasan = await tanya('Tolak produksi ' + (x.no_dokumen || '') + '?',
+      `<p class="petunjuk">Produksinya dibatalkan: bahan kembali ke stok, saldo ${esc(x.nama_aplikasi || 'aplikasi')} dikembalikan
+       ${rp(x.nilai_inject)}${x.cashback ? ' dan cashback ' + rp(x.cashback) + ' dibalik' : ''}. Pencatatnya mencatat ulang yang benar.</p>`,
+      { isian: 'Alasan penolakan (minimal 5 karakter)', minimal: 5, ya: 'Tolak', jenis: 'bahaya' });
+    if (!alasan) return;
+    try {
+      await API.tolakProduksi({ uuid: u, alasan });
+      toast('Produksi ditolak dan dibatalkan.', 'sukses');
+      await muatHasilProduksi();
+      /* Lewat peristiwa, bukan tarikLencanaNav: fungsi itu milik app.js (bagian 465). */
+      document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));
+    } catch (e) { toast(e.message, 'galat'); }
   }
 
   async function batalProduksi(u) {
     const x = (prodData?.produksi || []).find((p) => p.uuid === u);
     if (!x) return;
     const alasan = await tanya('Batalkan produksi ' + (x.no_dokumen || '') + '?',
-      `<p class="petunjuk">${esc(x.nama_jadi)} × ${x.qty_jadi} dicabut dari stok, bahan kembali, dan saldo ${esc(x.nama_aplikasi || 'aplikasi')}
-       dikembalikan ${rp(x.nilai_inject)}. Hanya bisa selama barang jadinya belum terjual.</p>`,
+      `<p class="petunjuk">${x.menunggu ? esc(x.nama_jadi) + ' × ' + x.qty_jadi + ' belum diterima, jadi tidak ada stok yang dicabut. B'
+                                     : esc(x.nama_jadi) + ' × ' + x.qty_jadi + ' dicabut dari stok, b'}ahan kembali, dan saldo ${esc(x.nama_aplikasi || 'aplikasi')}
+       dikembalikan ${rp(x.nilai_inject)}${x.cashback ? ' (cashback ' + rp(x.cashback) + ' dibalik)' : ''}.
+       ${x.menunggu ? '' : 'Hanya bisa selama barang jadinya belum terjual.'}</p>`,
       { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5, ya: 'Batalkan', jenis: 'bahaya' });
     if (!alasan) return;
     try { await API.batalProduksi({ uuid: u, alasan }); toast('Produksi dibatalkan.', 'sukses'); await muatHasilProduksi(); }
@@ -12002,7 +12181,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ---------- Tab Laporan ---------- */
   function ringkasProduksi(d) {
-    const sah = d.produksi.filter((x) => !x.batal);
+    /* Hanya produksi BERTANGGAL di rentang: yang menunggu dari periode lain ikut
+       di Riwayat (antrean), tidak di laporan — tanpa ini ia terhitung dua kali,
+       di bulannya dan di bulan ia ditunggu (peninjau-rilis bagian 465). */
+    const sah = d.produksi.filter((x) => !x.batal && x.tanggal >= d.dari && x.tanggal <= d.sampai);
     const perBarang = {};
     sah.forEach((x) => {
       const g = perBarang[x.sku_jadi] || (perBarang[x.sku_jadi] = { nama: x.nama_jadi, kali: 0, jadi: 0, gagal: 0, nilai: 0 });
@@ -12015,10 +12197,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       return { nama: a.nama, isi: bersih('INJECT'), pakai: -(bersih('PRODUKSI') + bersih('PRODUKSI_BATAL')),
                cocok: bersih('INJECT_COCOK'), saldo: a.saldo };
     });
-    const tot = (k) => sah.reduce((s, x) => s + x[k], 0);
+    const tot = (k) => sah.reduce((s, x) => s + (x[k] || 0), 0);
     return { sah, perBarang: Object.values(perBarang).sort((a, b) => b.nilai - a.nilai), perApl,
              dok: sah.length, jadi: tot('qty_jadi'), gagal: tot('qty_gagal'), bahan: tot('nilai_bahan'),
-             inject: tot('nilai_inject'), nilai: tot('nilai_jadi'), rusak: tot('nilai_gagal') };
+             inject: tot('nilai_inject'), cashback: tot('cashback'), nilai: tot('nilai_jadi'), rusak: tot('nilai_gagal'),
+             menunggu: sah.filter((x) => x.menunggu).length };
   }
 
   function htmlLaporanProduksi(d) {
@@ -12029,10 +12212,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
     return `<div class="kartu"><div class="bar-alat"><h3>${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}</h3></div>
         <div class="petak petak-4">
-          ${kotak('Unit jadi', r.jadi.toLocaleString('id-ID'), r.dok + ' produksi · ' + r.gagal + ' gagal')}
+          ${kotak('Unit jadi', r.jadi.toLocaleString('id-ID'), r.dok + ' produksi · ' + r.gagal + ' gagal' + (r.menunggu ? ' · ' + r.menunggu + ' menunggu diterima' : ''))}
           ${kotak('Nilai barang jadi', rp(r.nilai), 'rata-rata ' + rpTeks(r.jadi ? Math.round(r.nilai / r.jadi) : 0) + '/unit')}
           ${kotak('Bahan terpakai', rp(r.bahan), 'beban rusak ' + rpTeks(r.rusak))}
-          ${kotak('Modal inject', rp(r.inject), 'dari saldo aplikasi')}
+          ${kotak('Modal inject', rp(r.inject), r.cashback ? 'cashback ' + rpTeks(r.cashback) : 'dari saldo aplikasi')}
         </div></div>
       <div class="kartu laporan-uang"><div class="bar-alat"><h3>Per barang jadi</h3></div>
         ${tabel([
@@ -12067,7 +12250,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <tbody>${baris.map((b) => `<tr>${b.map((v, i) => `<td${i ? ' class="angka"' : ''}>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const isi = `<h1>Laporan produksi ${esc(d.cabang)}</h1><p class="sub">${esc(tglTampil(d.dari))} – ${esc(tglTampil(d.sampai))}</p>
       <p>${r.dok} produksi · ${r.jadi} unit jadi · ${r.gagal} gagal · nilai barang jadi ${esc(rpTeks(r.nilai))}
-         (bahan ${esc(rpTeks(r.bahan))} + inject ${esc(rpTeks(r.inject))}) · beban rusak ${esc(rpTeks(r.rusak))}</p>
+         (bahan ${esc(rpTeks(r.bahan))} + inject ${esc(rpTeks(r.inject))} − cashback ${esc(rpTeks(r.cashback))}) · beban rusak ${esc(rpTeks(r.rusak))}</p>
       <h3>Per barang jadi</h3>${tb(['Barang jadi', 'Produksi', 'Jadi', 'Gagal', 'Modal rata-rata', 'Nilai'],
         r.perBarang.map((x) => [x.nama, x.kali, x.jadi, x.gagal, rpTeks(Math.round(x.nilai / x.jadi)), rpTeks(x.nilai)]))}
       <h3>Saldo aplikasi</h3>${tb(['Aplikasi', 'Isi saldo', 'Dipakai produksi', 'Cocokkan', 'Saldo sekarang'],
@@ -12081,7 +12264,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (prodTerpasang) return;
     prodTerpasang = true;
     document.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-tabprod], [data-prod-aksi], #btnSimpanProduksi, [data-prod-rincian], [data-prod-batal], ' +
+      const t = e.target.closest('[data-tabprod], [data-prod-aksi], #btnSimpanProduksi, [data-prod-rincian], [data-prod-batal], [data-prod-terima], [data-prod-tolak], ' +
         '[data-prod-isi], [data-prod-cocok], [data-prod-ubah], #btnSimpanIsiSaldo, #btnSimpanCocok, #btnSimpanApl');
       if (!t) return;
       if (t.dataset.tabprod) return pilihTabProduksi(t.dataset.tabprod);
@@ -12090,6 +12273,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnSimpanProduksi') return simpanProduksi(t);
       if (t.dataset.prodRincian) return rincianProduksi(t.dataset.prodRincian);
       if (t.dataset.prodBatal) return batalProduksi(t.dataset.prodBatal);
+      if (t.dataset.prodTerima) return terimaProduksi(t.dataset.prodTerima);
+      if (t.dataset.prodTolak) return tolakProduksi(t.dataset.prodTolak);
       if (t.dataset.prodIsi) return bukaIsiSaldo(t.dataset.prodIsi);
       if (t.dataset.prodCocok) return bukaCocokSaldo(t.dataset.prodCocok);
       if (t.dataset.prodUbah) return bukaAplikasi(t.dataset.prodUbah);
@@ -13320,7 +13505,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!tombol.id) tombol.id = 'btnSelisih' + idAman(sh.id_shift);
     m.setAttribute('aria-labelledby', tombol.id);
     tutupMenuLain();
-    m.innerHTML = isiPopSelisih(sh, null).replace('</table>', '</table><div class="ps-catatan">Memuat rincian\u2026</div>');
+    m.innerHTML = isiPopSelisih(sh, null).replace('</table>', '</table><div class="ps-catatan" aria-busy="true" aria-label="Memuat rincian"><span class="rangka" style="width:60%"></span></div>');   // bagian 470
     m.hidden = false;
     letakkanMenuBaris(tombol, m);
     let lap = null, gagal = false;

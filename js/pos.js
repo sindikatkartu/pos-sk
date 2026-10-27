@@ -613,7 +613,8 @@ const Rangka = (() => {
     Object.keys(localStorage).filter((k) => /^possk_rangka_/.test(k) && k !== KUNCI).forEach((k) => localStorage.removeItem(k));
   } catch (e) { /* diblokir: biarkan */ }
   const kelasLebar = () => (window.innerWidth < 620 ? 'hp' : window.innerWidth < 1024 ? 'tab' : 'pc');
-  const kunci = (nama) => (document.querySelector('.layar.aktif')?.id || '') + '|' + nama + '|' + kelasLebar();
+  /* Pop-up (tanpaLayar, bagian 470) sama bentuknya dari layar mana pun ia dibuka. */
+  const kunci = (nama, tanpaLayar) => (tanpaLayar ? '' : (document.querySelector('.layar.aktif')?.id || '')) + '|' + nama + '|' + kelasLebar();
   const baca = () => { try { return JSON.parse(localStorage.getItem(KUNCI) || '{}'); } catch (e) { return {}; } };
   const tulis = (k, b) => {
     try {
@@ -798,10 +799,16 @@ const Rangka = (() => {
    * `umum` (html rangka lama). Lalu rekam bentuk ASLI tiap kali isinya tenang —
    * tanpa rangka tersisa, bukan kotak galat, layar & lebar yang sama — selama
    * 15 dtk (sebagian layar menggambar bagiannya menyusul).
+   *
+   * opsi (bagian 470), untuk pop-up yang isinya diubah TANGAN orang sesudah
+   * datang (form Koreksi, kartu daftar koreksi): `sekali` = berhenti merekam
+   * begitu bentuk pertama tersimpan — yang ditambah orang sesudahnya bukan
+   * bentuk laporannya; `tanpaLayar` = kunci tanpa id layar aktif.
    */
-  function pasang(w, umum, nama) {
+  function pasang(w, umum, nama, opsi) {
     if (!w) return;
-    const k = kunci(nama || w.id || '');
+    const o = opsi || {};
+    const k = kunci(nama || w.id || '', o.tanpaLayar);
     w.dataset.rangka = nama || w.id || '';   // penanda wadah berangka (dibaca uji-rangka)
     const s = baca()[k];
     w.innerHTML = s && s.b && s.b.b && s.b.b.length ? gambar(s.b) : umum;
@@ -813,10 +820,12 @@ const Rangka = (() => {
       if (Date.now() > selesai) { obs.disconnect(); w._rekamRangka = null; return; }
       t = setTimeout(() => {
         if (w.querySelector('.rangka, [aria-busy="true"]')) return;
-        if (!w.isConnected || w.offsetParent === null || kunci(nama || w.id || '') !== k) return;
+        if (!w.isConnected || w.offsetParent === null || kunci(nama || w.id || '', o.tanpaLayar) !== k) return;
         if (w.querySelector(':scope > .pesan.galat')) return;
         const b = ukur(w);
-        if (b.b.length) tulis(k, b);
+        if (!b.b.length) return;
+        tulis(k, b);
+        if (o.sekali) { obs.disconnect(); w._rekamRangka = null; }
       }, 350);
     });
     obs.observe(w, { childList: true, subtree: true });
@@ -1598,6 +1607,9 @@ var IKON_SUMBER = {
   arsip     : 'archive',
   akun      : 'circle-user',
   tentang   : 'info',
+  /* pita hasil aksi (bagian 472); jenis info memakai `tentang` */
+  hasilOk   : 'circle-check',
+  hasilGalat: 'circle-alert',
   bantuan   : 'circle-help',
   pengaturan: 'smartphone',
   /* --- Tindakan: tombol dan bar alat --- */
@@ -1736,6 +1748,8 @@ var IKON = {
   arsip     : '<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
   akun      : '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3"/><path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662"/>',
   tentang   : '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  hasilOk   : '<circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/>',
+  hasilGalat: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   /* Bantuan: tanda tanya dalam lingkaran — dibedakan dari Tentang
      (huruf "i") supaya dua menu berdekatan tidak terlihat sama sekilas. */
   bantuan   : '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',

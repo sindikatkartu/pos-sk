@@ -31,7 +31,9 @@
   --garis:       rgba(31,30,29,.30);
   --garis-halus: rgba(31,30,29,.15);
   --garis-kuat:  rgba(31,30,29,.45);
-  --garis-tombol: rgba(31,30,29,.30);
+  /* Tepi tombol ≥ 3:1 terhadap --panel (bagian 469): 30 % = 1,89:1, tombol
+     polos nyaris tak terlihat. 50 % = 3,15 terang · 3,22 kertas · 3,62 gelap. */
+  --garis-tombol: rgba(31,30,29,.50);
 
   /* --- teks ---
      18,4:1 · 10,9:1 · 5,0:1 di atas kanvas. Tersier digelapkan seujung kuku dari
@@ -199,7 +201,7 @@ html[data-tema="gelap"] {
   --garis:       rgba(222,220,209,.30);
   --garis-halus: rgba(222,220,209,.15);
   --garis-kuat:  rgba(222,220,209,.45);
-  --garis-tombol: rgba(222,220,209,.20);
+  --garis-tombol: rgba(222,220,209,.50);
 
   /* 12,6:1 · 7,3:1 · 4,7:1 di atas kartu. Ada uji yang MENGHITUNGnya. */
   --teks:       #faf9f5;
@@ -288,7 +290,7 @@ html[data-tema="gelap"] { color-scheme: dark; }
   --garis: rgba(31,30,29,.30);
   --garis-halus: rgba(31,30,29,.15);
   --garis-kuat: rgba(31,30,29,.45);
-  --garis-tombol: rgba(31,30,29,.30);
+  --garis-tombol: rgba(31,30,29,.50);
   --teks: #141413;
   --teks-2: #3d3d3a;
   --teks-redup: #706f69;
@@ -1165,6 +1167,13 @@ main { flex: 1; overflow: hidden; position: relative; }
 }
 .tanda-diedit:hover, .tanda-diedit:focus-visible { color: var(--utama); }
 .aksi-baris { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+/* Kartu koreksi Laporan shift (bagian 467): Batal + "Tambahkan ke daftar" tidak
+   muat berdampingan di HP tanpa teksnya terlipat — bertumpuk selebar kartu,
+   tombol utama di atas. */
+@media (max-width: 620px) {
+  .aksi-koreksi { flex-direction: column-reverse; }
+  .aksi-koreksi .tombol { width: 100%; justify-content: center; }
+}
 .pratinjau-koreksi { margin-top: 10px; }
 .riwayat-koreksi { padding: 10px 0; border-bottom: 1px solid var(--garis); }
 .riwayat-koreksi:last-child { border-bottom: 0; }
@@ -1437,12 +1446,15 @@ main { flex: 1; overflow: hidden; position: relative; }
    supaya tetap terbaca di atas latar apa pun), dan bayangan setipis satu piksel. */
 .tombol {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 14px; background: var(--panel-2); color: var(--teks);
+  padding: 10px 14px; background: var(--panel-3); color: var(--teks);
   font-weight: 500; font-size: var(--fs-14); border: 1px solid var(--garis-tombol);
   box-shadow: var(--bayang-1); transition: background .08s, border-color .08s;
 }
-.tombol:hover { background: var(--panel-3); border-color: var(--garis-kuat); }
-.tombol:active { background: var(--tombol-tekan); box-shadow: none; transition: none; }
+/* Isi --panel-3 (bagian 469): --panel-2 di atas kartu 1,08:1 = tak terlihat.
+   Sorot satu langkah lebih dalam; tepinya TETAP — --garis-kuat (45 %) kini lebih
+   pucat daripada tepi diam (50 %), jadi tepi akan memudar saat disentuh. */
+.tombol:hover { background: var(--tombol-tekan); }
+.tombol:active { background: var(--tombol-tekan); box-shadow: none; transition: none; filter: brightness(.95); }
 .tombol.utama  { background: var(--utama-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.utama:hover  { background: var(--utama-gelap); }
 .tombol.sukses { background: var(--sukses-tombol); border-color: var(--garis-tombol); color: #fff; }
@@ -1450,7 +1462,7 @@ main { flex: 1; overflow: hidden; position: relative; }
 /* Tombol bahaya Primer: DIAM ia hanya tombol biasa berteks merah; baru berubah
    merah penuh saat disentuh. Deretan tombol "Hapus" jadi tidak berteriak-teriak
    di dalam formulir, tapi niatnya tetap terbaca jelas. */
-.tombol.bahaya { background: var(--panel-2); border-color: var(--garis-tombol); color: var(--bahaya); }
+.tombol.bahaya { background: var(--panel-3); border-color: var(--garis-tombol); color: var(--bahaya); }
 .tombol.bahaya:hover { background: var(--bahaya-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.bahaya:hover .ikon-svg { color: #fff; }
 .tombol.utama:active, .tombol.sukses:active, .tombol.bahaya:active { filter: brightness(.95); }
@@ -3238,6 +3250,35 @@ html[data-tema="gelap"] .tab-jendela { --jalur: var(--bg); }
 #toast.tampil { transform: translate(-50%, 0); }
 #toast.sukses { background: var(--sukses-tombol); color: #fff; }
 #toast.galat  { background: var(--bahaya-tombol); color: #fff; }
+/* 'info' dulu tanpa aturan — kotaknya tanpa latar, nyaris tak terlihat (bagian 472). */
+#toast.info   { background: var(--panel); color: var(--teks); border: 1px solid var(--garis); }
+
+/* PITA HASIL AKSI (bagian 472): tetap tampil sampai OK. Tumpukan tetap di bawah
+   header, di luar <main> — mendorong isi layar, tidak menutupinya. Saat modal
+   terbuka, dan di layar Kasir (tata letaknya tidak boleh bergeser), tumpukan
+   yang SAMA melayang di atas — tidak ada pita yang dipindah atau dibuang. */
+.pita-tumpuk:empty { display: none; }
+.pita-tumpuk { display: flex; flex-direction: column; gap: 8px; padding: 12px 18px 0; }
+body:has(.tirai.tampil) .pita-tumpuk,
+body:has(#layarKasir.aktif) .pita-tumpuk {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 130;
+  width: min(560px, calc(100vw - 32px)); padding: 0;
+}
+body:has(.tirai.tampil) .pita-hasil,
+body:has(#layarKasir.aktif) .pita-hasil { box-shadow: var(--bayang-4); }
+.pita-hasil {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px;
+  border: 1px solid var(--garis); border-left: 4px solid var(--sukses); border-radius: 10px;
+  background: var(--panel-2); color: var(--teks);
+}
+.pita-hasil.galat { border-left-color: var(--bahaya); }
+.pita-hasil.info  { border-left-color: var(--utama); }
+.pita-hasil .ikon { width: 20px; height: 20px; flex: none; color: var(--sukses); }
+.pita-hasil.galat .ikon { color: var(--bahaya); }
+.pita-hasil.info .ikon  { color: var(--utama); }
+.pita-hasil > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.pita-hasil small { color: var(--teks-redup); font-size: var(--fs-13); }
+.pita-hasil .tombol { flex: none; min-height: 40px; min-width: 56px; justify-content: center; }
 
 input.sudah-hitung {
   border-color: var(--sukses); background: var(--sukses-lembut); font-weight: 700;
@@ -3998,7 +4039,7 @@ button.bahaya.sibuk::after { color: var(--bahaya); }
    Dipasang `pasangPenandaSibuk()` di app.js, dan HANYA dari klik orang.
    Sinkronisasi latar tidak pernah menyalakannya. */
 body.tunggu { cursor: progress; }
-body.tunggu button:not(.sibuk),
+body.tunggu button:not(.sibuk):not([data-pita-ok]),
 body.tunggu a[href],
 body.tunggu select,
 body.tunggu summary,
@@ -4011,7 +4052,7 @@ body.tunggu input[type="file"] {
 }
 /* Redupnya MENYUSUL 350 ms (bagian 262): klik sudah ditahan sejak detik
    pertama oleh aturan di atas; yang ditunda hanya tampilannya. */
-body.tunggu-redup button:not(.sibuk),
+body.tunggu-redup button:not(.sibuk):not([data-pita-ok]),
 body.tunggu-redup a[href],
 body.tunggu-redup select,
 body.tunggu-redup summary,
@@ -4021,7 +4062,9 @@ body.tunggu-redup input[type="radio"],
 body.tunggu-redup input[type="file"] { opacity: .45; }
 /* MENYIMPAN (bagian 433): + kotak ketik, area teks, baris yang bisa diklik —
    di back office saja; Kasir tidak ikut. */
-body.tunggu:not(:has(#layarKasir.aktif)) :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift, #popSelisih, #popStiker) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]) { pointer-events: none; }
+/* label + #tiraiTanya (bagian 466): label pembungkus memfokuskan isiannya, dan
+   isian Tanya ("alasan …") bisa diketik saat simpan — penyapu uji-beku-popup. */
+body.tunggu:not(:has(#layarKasir.aktif)) :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift, #tiraiTanya, #popSelisih, #popStiker) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, label, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]) { pointer-events: none; }
 body.tunggu-redup :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea) { opacity: .45; }
 
 /* MEMUAT & MENCETAK (bagian 433): .memuat dipasang api.js pada WADAHNYA
@@ -4144,7 +4187,7 @@ body.tunggu-redup .sisi button:not(.sibuk) { opacity: .62; }
     --kertas-grafik: #ffffff;
   }
   .sisi, .tirai-sisi, .bar-atas, .tanpa-cetak,
-  .aksi-modal, .ekspor, #toast, #pegangan { display: none !important; }
+  .aksi-modal, .ekspor, #toast, .pita-tumpuk, #pegangan { display: none !important; }
   body, #app, .isi, .layar, .kartu { background: #fff !important; color: #000 !important; }
   .isi { margin: 0 !important; padding: 0 !important; }
   .kartu {

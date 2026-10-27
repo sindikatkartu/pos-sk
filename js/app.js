@@ -2602,9 +2602,15 @@ function bukaPilihPelanggan() {
  * server saat sinkron. Kosong atau '*' = semua cabang.
  */
 function produkDijualDiSini(p) {
-  /* Bahan produksi (bagian 445) bukan barang dagangan: voucher/perdana kosong
-     hanya keluar lewat modul Produksi. */
-  if (String(p?.kategori || '').trim() === 'Bahan Produksi') return false;
+  /* Bahan produksi (bagian 445) keluar lewat modul Produksi — dan di cabang
+     produksi SAJA juga dijual ke grosir, misalnya voucher zero (bagian 465).
+     Syaratnya di sini, bukan di kolom cabang SKU: bahan yang SKU-nya berlaku
+     semua cabang tetap tidak muncul di Kasir toko lain. Bawaan SKG01 sama
+     dengan cabangProduksi() di server. */
+  if (String(p?.kategori || '').trim() === 'Bahan Produksi') {
+    const produksi = String(APP_STATE.setting?.cabang_produksi || 'SKG01').trim().toUpperCase();
+    if (String(APP_STATE.cabang || '').trim().toUpperCase() !== produksi) return false;
+  }
   const c = String(p?.cabang || '').trim();
   if (!c || c === '*') return true;
   const kini = String(APP_STATE.cabang || '').trim().toUpperCase();
@@ -4629,7 +4635,7 @@ async function muatDaftarShift() {
 
 async function bukaLaporanShift(idShift, cabang) {
   $('#lapShiftJudul').textContent = 'Laporan shift ' + idShift;
-  Rangka.pasang($('#lapShiftIsi'), rangkaDaftar(7, ['76%', '58%', '68%', '50%']));   // bagian 262
+  Rangka.pasang($('#lapShiftIsi'), rangkaLapShift(), 'lapShiftIsi', { sekali: true, tanpaLayar: true });   // bagian 262, 470
   $('#tiraiLapShift').classList.add('tampil');
   try {
     /* Cabang barisnya ikut (bagian 274): shift cabang lain tidak ada di
@@ -4720,7 +4726,9 @@ function formKoreksiKasShift(idShift, cabang, k) {
       <label>Kas fisik yang benar
         <input type="text" class="uang" id="koreksiKasFisik" autocomplete="off" placeholder="${esc(ribuan(+k.fisik || 0))}"></label>
       <div class="pesan galat rapat sembunyi" id="pesanKoreksiKas"></div>
-      <button class="tombol" type="button" id="btnKoreksiKas">${ikonTambahDaftar()}<span>Tambahkan ke daftar</span></button>
+      <div class="aksi-baris aksi-koreksi">
+        <button class="tombol utama" type="button" id="btnKoreksiKas">${ikonTambahDaftar()}<span>Tambahkan ke daftar</span></button>
+      </div>
     </div>
   </div>`;
 }
@@ -4755,6 +4763,15 @@ function barisKoreksiBayar(pilihan, metode, jumlah) {
   </div>`;
 }
 
+/* Batas bagian TUNAI disebut hanya bila berlaku, dengan sebabnya (bagian 467).
+   boleh_koreksi = tunai boleh dikoreksi; form ini hanya tampil untuk yang
+   berizin, jadi shift tutup + tidak boleh = setorannya sudah diterima. */
+function kalimatBatasTunai(d) {
+  if (d.boleh_koreksi) return '';
+  return d.berjalan ? ' Shift masih berjalan — bagian tunai dikoreksi sesudah shift ditutup.'
+    : ' Setoran sudah diterima — bagian tunai tidak bisa dikoreksi lagi.';
+}
+
 function formKoreksiBayar(uuid) {
   const L = lapShiftKini; if (!L) return;
   const n = L.d.nota.find((x) => x.uuid === uuid); if (!n) return;
@@ -4766,14 +4783,15 @@ function formKoreksiBayar(uuid) {
       data-uuid="${esc(uuid)}" data-total="${total}">
     <h4 style="margin:0 0 6px">Koreksi pembayaran · ${esc(n.no_nota)}</h4>
     <p class="petunjuk">Sekarang: ${esc(n.bayar.map((b) => labelMetode(b.metode) + ' ' + ribuan(b.jumlah)).join(' + '))}.
-      Ganti cara bayarnya; jumlahnya harus tetap ${rp(total)}. Barang, stok, dan poin tidak berubah.
-      Yang menyentuh TUNAI hanya untuk shift yang sudah ditutup dan setorannya belum diterima.</p>
+      Ganti cara bayarnya; jumlahnya harus tetap ${rp(total)}. Barang, stok, dan poin tidak berubah.${esc(kalimatBatasTunai(L.d))}</p>
     <div id="barisKoreksiBayar">${n.bayar.map((b) => barisKoreksiBayar(pilihan, b.metode, b.jumlah)).join('')}</div>
     <button class="tombol kecil" type="button" data-koreksi-bayar-tambah="1">
       <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.tambah}</svg><span>Tambah baris</span></button>
     <div class="pesan galat rapat sembunyi" id="pesanKoreksiBayar"></div>
-    <button class="tombol" type="button" data-koreksi-bayar-batal="1">Batal</button>
-    <button class="tombol" type="button" id="btnKoreksiBayar">${ikonTambahDaftar()}<span>Tambahkan ke daftar</span></button>
+    <div class="aksi-baris aksi-koreksi">
+      <button class="tombol" type="button" data-koreksi-bayar-batal="1"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.batal}</svg><span>Batal</span></button>
+      <button class="tombol utama" type="button" id="btnKoreksiBayar">${ikonTambahDaftar()}<span>Tambahkan ke daftar</span></button>
+    </div>
   </div>`;
   w._pilihan = pilihan;
   w.scrollIntoView({ block: 'nearest' });
@@ -4872,14 +4890,14 @@ function gambarDrafKoreksi() {
     <div class="gulir-x"><table>
       <tr><th>Yang dikoreksi</th><th>Sebelum</th><th>Sesudah</th><th></th></tr>
       ${butir.map(([label, lama, baru, attr]) => `<tr><td>${esc(label)}</td><td>${esc(lama)}</td><td>${esc(baru)}</td>
-        <td><button class="tombol kecil" type="button" ${attr}><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.hapus}</svg><span>Buang</span></button></td></tr>`).join('')}
+        <td><button class="tombol kecil" type="button" title="Buang dari daftar" ${attr}><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.hapus}</svg><span>Buang</span></button></td></tr>`).join('')}
     </table></div>
     ${L.d.berjalan ? '' : `<p class="petunjuk">Kas sistem ${rp(h.sistemLama)} → <strong>${rp(h.sistemBaru)}</strong> ·
       selisih ${rp(h.selisihLama)} → <strong>${rp(h.selisihBaru)}</strong></p>`}
     <label>Alasan
       <input type="text" id="koreksiAlasan" autocomplete="off" placeholder="mis. kasir salah pilih bank" value="${esc(L.draf.alasan)}"></label>
     <div class="pesan galat rapat sembunyi" id="pesanDrafKoreksi"></div>
-    <button class="tombol utama" type="button" id="btnSimpanKoreksi"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.setujui}</svg><span>${owner ? 'Simpan' : 'Ajukan ke Owner'} (${butir.length} koreksi)</span></button>
+    <div class="aksi-baris aksi-koreksi"><button class="tombol utama" type="button" id="btnSimpanKoreksi"><svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.setujui}</svg><span>${owner ? 'Simpan' : 'Ajukan ke Owner'} (${butir.length} koreksi)</span></button></div>
   </div>`;
 }
 
@@ -5342,6 +5360,18 @@ const rangkaDaftar = (n, lebar) => `<div class="kartu" aria-busy="true" aria-lab
     `<div class="rangka-baris"><span class="rangka" style="width:${lebar[i % lebar.length]}"></span></div>`).join('')}
   </div>`;
 
+/* Cadangan pembukaan pertama Laporan shift (bagian 470): berbentuk dokumen —
+   kepala, kartu kas, dua tabel — bukan daftar 7 garis (307 px vs asli ±700 di PC). */
+const rangkaLapShift = () => {
+  const baris = (w) => `<div class="rangka-baris"><span class="rangka" style="width:${w}"></span></div>`;
+  const teks = (w) => `<p class="petunjuk" style="margin:0 0 6px"><span class="rangka" style="width:${w}"></span></p>`;
+  const tabel = (n) => `<div style="margin-bottom:16px">${baris('100%')}${Array.from({ length: n }, (_, i) =>
+    baris(['88%', '74%', '82%', '68%'][i % 4])).join('')}</div>`;
+  return `<div aria-busy="true" aria-label="Memuat laporan shift">${teks('46%')}${teks('38%')}
+    <div class="kartu" style="margin:10px 0 16px">${['62%', '70%', '58%', '48%', '66%', '44%'].map(baris).join('')}</div>
+    ${teks('120px')}${tabel(2)}${teks('140px')}${tabel(3)}</div>`;
+};
+
 const rangkaLaporan = () => `
   <div class="petak petak-4" aria-busy="true" aria-label="Memuat laporan">
     ${Array.from({ length: 4 }, () => `<div class="kartu statistik">
@@ -5534,7 +5564,8 @@ function isiDokumenPelanggan(pel, d, cetak) {
 async function bukaDokumenPelanggan(kode) {
   const pel = ((LAP.data.pelanggan || {}).pelanggan || []).find(x => x.kode === kode);
   if (!pel) return;
-  Admin.modal(pel.nama, '<p class="petunjuk" id="dokPelangganIsi">Memuat nota…</p>');
+  /* Rangka, bukan kata "Memuat…" (bagian 470). */
+  Admin.modal(pel.nama, '<div id="dokPelangganIsi">' + rangkaDaftar(6, ['88%', '70%', '82%', '64%']) + '</div>');
   let d;
   try {
     d = await API.laporanNota({ dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang,
@@ -6870,7 +6901,9 @@ async function tampilkanBukuBesar() {
                      PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
                      LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa',
                      /* bagian 445 */
-                     PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject' };
+                     PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject',
+                     /* bagian 465 */
+                     PRODUKSI_TERIMA: 'Terima produksi' };
     const baris = (b) => `<tr>
       <td data-l="Tanggal">${esc(tglTampil(b.tanggal))}<span class="petunjuk" style="display:block">${esc(b.no_jurnal)}</span></td>
       <td data-l="Sumber">${esc(SUMBER[b.sumber] || b.sumber)}</td>

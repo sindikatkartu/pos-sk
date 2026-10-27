@@ -233,6 +233,9 @@
             aria-controls="popoverLonceng" aria-label="Persetujuan"></button>
     <div class="popover-lonceng" id="popoverLonceng" role="menu" hidden></div>
   </header>
+  <!-- Pita hasil aksi (bagian 472): diisi Admin.toast, tetap sampai OK. Di luar
+       <main> supaya muat ulang isi layar tidak menghapusnya. -->
+  <div class="pita-tumpuk" id="pitaTumpuk"></div>
 
   <main>
 
@@ -715,6 +718,7 @@
           <p>Halaman ini tersimpan di dalam aplikasi, jadi <strong>tetap terbaca walau internet mati</strong>. Isinya dua bagian: <strong>Bagian A</strong> untuk kasir, <strong>Bagian B</strong> untuk pemilik &amp; back office.</p>
           <p class="petunjuk">Menu yang tidak Anda lihat di sisi kiri berarti peran Anda memang tidak diberi aksesnya — itu bukan kerusakan. Kalau menu yang biasanya ada tiba-tiba hilang, keluar lalu masuk lagi supaya izin terbaru terbaca.</p>
           <p class="petunjuk">Saat layar back office <strong>memuat, menyimpan, atau mencetak</strong>, tombol dan isian di layar itu meredup dan tidak bisa diketuk sampai selesai — supaya tidak ada yang tertekan dua kali. Menu di sisi kiri tetap bisa dipakai untuk pindah layar. Layar Kasir tidak ikut meredup.</p>
+          <p class="petunjuk">Hasil sebuah tindakan (tersimpan, gagal, ditolak) muncul sebagai <strong>pita pesan di bawah judul layar</strong>, dan <strong>tetap di sana sampai tombol OK ditekan</strong> — tidak hilang sendiri, jadi sempat dibaca. Paling banyak tiga pita, yang terbaru di atas. Pita tetap ada walau Anda pindah layar atau menutup jendela. Di layar Kasir, pesan singkat tetap muncul sebentar lalu hilang sendiri supaya tidak mengganggu scan.</p>
           <p class="petunjuk">Beberapa layar dibagi menjadi <strong>tab</strong> di bagian atasnya — Mitra (Pelanggan · Supplier), Cabang (Cabang · Meja &amp; lini usaha), Poin &amp; Performa, dan Perangkat &amp; Printer. Tab yang terakhir dibuka diingat selama aplikasi terbuka.</p>
         </div>
 
@@ -742,6 +746,7 @@
             <li>Angka stok berwarna <strong>kuning</strong> berarti sudah menyentuh stok minimum barang itu, <strong>merah</strong> berarti habis. Saat habis, baris hijau <strong>ada di …</strong> menyebut cabang mana yang masih punya, tanpa perlu ditekan.</li>
             <li>Tombol <strong>⋯</strong> pada baris keranjang membuka detail item: qty, satuan, harga satuan, dan diskon baris.</li>
             <li><strong>Bulatan biru berangka</strong> di pojok kartu produk = jumlah barang itu yang sudah di keranjang (satuan dasar: 1 lusin + 2 pcs tertulis 14). Berguna saat keranjang diturunkan di HP — tidak perlu membukanya untuk tahu apa yang sudah masuk.</li>
+            <li><strong>Bahan produksi</strong> (kategori Bahan Produksi, mis. voucher zero) hanya tampil di Kasir <strong>cabang produksi (SKG01)</strong> dan bisa dijual di sana dengan harga grosir. Di cabang lain barang itu memang tidak muncul.</li>
           </ul>
         </div>
 

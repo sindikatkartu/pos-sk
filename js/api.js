@@ -59,6 +59,14 @@ const API = (() => {
    * Bacaan timer (sinkron 5 menit, lencana, cek diskon) tidak lahir dari
    * tindakan, jadi layar tidak membeku sendiri secara berkala — penyakit yang
    * sudah pernah terjadi (lihat _sibukOrang di atas). Batas keras 60 detik.
+   *
+   * Dua jalur yang dulu lolos (penyapu uji-beku-popup, bagian 466):
+   * (1) rantai muat layar (API.tugas baca:true) SELALU membekukan wadahnya —
+   *     ia hanya dipakai memuat layar, tidak pernah oleh timer, sedangkan muat
+   *     awal / bukaLayar dari kode lahir tanpa ketukan dan dulu menggambar
+   *     rangka di atas kendali yang hidup;
+   * (2) tulisan orang yang SELESAI menyegarkan jendela gestur — muat ulang
+   *     sesudah Simpan yang 2–4 detik dulu jatuh di luar 1,5 detik.
    */
   const JENDELA_GESTUR = 1500, BATAS_MEMUAT = 60000;
   let _gestur = 0, _bacaOrang = 0;
@@ -259,7 +267,10 @@ const API = (() => {
     'cek_diskon', 'daftar_diskon_minta', 'batal_diskon',
     /* bagian 445: bacaan modul Produksi, dan tiga tulisan yang servernya menjaga
        duplikat per uuid dokumen (mutasi_stok / jurnal). */
-    'data_produksi', 'simpan_produksi', 'isi_saldo_inject', 'cocok_saldo_inject'
+    'data_produksi', 'simpan_produksi', 'isi_saldo_inject', 'cocok_saldo_inject',
+    /* bagian 465: Terima yang diulang dijawab duplikat — baris antrean sudah
+       DITERIMA, tidak ada lapisan kedua. */
+    'terima_produksi'
   ]);
   /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
      ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
@@ -316,6 +327,10 @@ const API = (() => {
     /* bagian 445: aplikasi baru melahirkan sub-akun; batal produksi membalik
        stok & jurnal — jawaban yang hilang bukan bukti tidak terjadi. */
     'simpan_aplikasi_inject', 'batal_produksi',
+    /* bagian 465: Tolak membatalkan produksi; ulangan menjawab "sudah
+       diputuskan" untuk penolakan yang sebenarnya berhasil. Terima TIDAK di
+       sini — ulangannya dijawab duplikat, aman diulang. */
+    'tolak_produksi',
     /* bagian 296: ulangan otomatis bisa membuat akun dua kali (kode berikutnya
        berbeda, jadi duplikatnya lolos pemeriksaan kode). */
     'simpan_coa', 'hapus_coa', 'ajukan_coa', 'putus_coa',
@@ -553,6 +568,8 @@ let _pernahJawab = false;
                   _msServer, _galat, _ulang);
       _sibuk--; if (!latar) _sibukOrang--; _kabar();
       if (bacaO) { _bacaOrang--; _akhiriMemuat(wadahMemuat); }
+      /* Muat ulang sesudah tulisan orang = masih tindakan orang (bagian 466). */
+      if (!latar) _gestur = Date.now();
     }
   }
 
@@ -577,7 +594,7 @@ let _pernahJawab = false;
        mengunci lewat panggil(). */
     const latar = opsi.latar === true || opsi.baca === true;
     /* Rantai muat layar dari tindakan orang membekukan wadahnya (bagian 433). */
-    const bacaO = opsi.baca === true && opsi.latar !== true && _dariOrang();
+    const bacaO = opsi.baca === true && opsi.latar !== true;   // selalu dari orang (bagian 466)
     let wadahMemuat = null;
     if (bacaO) { _bacaOrang++; wadahMemuat = _mulaiMemuat(); }
     _sibuk++; if (!latar) _sibukOrang++; _kabar();
@@ -688,6 +705,8 @@ let _pernahJawab = false;
     dataProduksi:          (d) => panggil('data_produksi', d, { timeout: 90000 }),
     simpanProduksi:        (d) => panggil('simpan_produksi', d),
     batalProduksi:         (d) => panggil('batal_produksi', d),
+    terimaProduksi:        (d) => panggil('terima_produksi', d),
+    tolakProduksi:         (d) => panggil('tolak_produksi', d),
     isiSaldoInject:        (d) => panggil('isi_saldo_inject', d),
     cocokSaldoInject:      (d) => panggil('cocok_saldo_inject', d),
     simpanAplikasiInject:  (d) => panggil('simpan_aplikasi_inject', d),
