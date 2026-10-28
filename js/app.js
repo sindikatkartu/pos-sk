@@ -1688,6 +1688,9 @@ function pindahTitikTab(el) {
 
 function bukaLayar(id) {
   layarKini = id;
+  /* Pita hasil back office tidak dibawa ke Kasir (bagian 473): di sana pita
+     melayang, dan tiga pita sisa menutup kotak scan barcode. */
+  if (id === 'kasir') { const pita = $('#pitaTumpuk'); if (pita) pita.innerHTML = ''; }
   sembunyiFlyoutSisi();
   segarkanLencanaNav();
   /* Hash disamakan DI SINI, bukan di penangan klik menu. Layar juga dibuka

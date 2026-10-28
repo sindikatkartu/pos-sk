@@ -3261,8 +3261,14 @@ html[data-tema="gelap"] .tab-jendela { --jalur: var(--bg); }
 .pita-tumpuk { display: flex; flex-direction: column; gap: 8px; padding: 12px 18px 0; }
 body:has(.tirai.tampil) .pita-tumpuk,
 body:has(#layarKasir.aktif) .pita-tumpuk {
-  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 130;
-  width: min(560px, calc(100vw - 32px)); padding: 0;
+  /* Padding 8 px + lebar 16 px lebih besar: ruang bayangan pita di dalam kotak
+     yang digulir (overflow memotong bayangan di tepinya); lebar & letak pita
+     sendiri tetap sama (bagian 473). */
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 130;
+  width: min(576px, calc(100vw - 16px)); padding: 4px 8px 12px; box-sizing: border-box;
+  /* Layar pendek (HP landscape 390 px): tiga pita memakan 65 % layar dan
+     menutup pop-up. Dibatasi 40 % tinggi layar, sisanya digulir (bagian 473). */
+  max-height: 40vh; overflow-y: auto;
 }
 body:has(.tirai.tampil) .pita-hasil,
 body:has(#layarKasir.aktif) .pita-hasil { box-shadow: var(--bayang-4); }
