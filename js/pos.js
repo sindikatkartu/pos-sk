@@ -840,6 +840,17 @@ const Rangka = (() => {
  *  karena app.js (Kasir, Shift) dan admin.js (Shift pulsa) sama-sama memakainya. */
 function modeLihat() { return !!(typeof APP_STATE !== 'undefined' && APP_STATE.flag && APP_STATE.flag.mode_lihat); }
 
+/**
+ * Nama orang di layar (bagian 22, 483): NAMA yang tampil, kodenya diredupkan di
+ * belakangnya; tanpa nama = kodenya; tanpa keduanya = "—". Memulangkan HTML.
+ * Kertas (A4) memakai namanya saja, bukan penolong ini.
+ */
+function orangTampil(nama, id) {
+  const n = String(nama || ''), k = String(id || '');
+  if (!n && !k) return '—';
+  return esc(n || k) + (n && k && n !== k ? ' <span class="kode-redup">' + esc(k) + '</span>' : '');
+}
+
 function urutNama(a, b) {
   const x = String(a == null ? '' : a), y = String(b == null ? '' : b);
   return _KOLATOR ? _KOLATOR.compare(x, y) : (x < y ? -1 : x > y ? 1 : 0);

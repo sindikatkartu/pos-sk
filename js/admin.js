@@ -5498,7 +5498,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.nama_supplier || '—')} ·
         ${lencanaStatusBeli(d.status)}
         ${d.jatuh_tempo ? `<br>Jatuh tempo ${esc(tglTampil(d.jatuh_tempo))}` : ''}
-        ${d.catatan ? `<br>Catatan: ${esc(d.catatan)}` : ''}</p>
+        ${d.catatan ? `<br>Catatan: ${esc(d.catatan)}` : ''}
+        <br>Dicatat oleh ${orangTampil(d.nama_pencatat, d.id_user)}
+        ${(d.jejak || []).map((a) => `<br>${esc(a.keputusan)} ${esc(waktuTampil(a.waktu))} oleh ${orangTampil(a.nama, a.id_user)}`).join('')}
+        ${d.jejak_gagal ? '<br>Pemeriksa tidak terbaca — muat ulang rinciannya.' : ''}</p>
       ${janggal.length ? `<div class="pesan galat">${janggal.length} baris isinya janggal.
         Stok yang masuk berlipat dan modalnya ikut mengecil sebanyak itu juga.
         Dokumen ini perlu DIBATALKAN lalu diketik ulang.</div>` : ''}
@@ -5622,7 +5625,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal('Pembelian baru', `
       <div class="baris3">
         <div class="grup"><label>Tanggal</label><input type="date" id="beliTanggal" value="${tanggalLokal()}"></div>
-        <div class="grup"><label>No dokumen / faktur</label><input type="text" id="beliNo"></div>
+        <div class="grup"><label>No dokumen / faktur</label><input type="text" id="beliNo" placeholder="Kosong = nomor otomatis"></div>
         <div class="grup"><label>Supplier</label><select id="beliSupplier">
           <option value="">—</option>
           ${urutkanOleh(sup.filter(s => s.aktif), s => s.nama).map(s => `<option value="${esc(s.kode)}">${esc(s.nama)}</option>`).join('')}
@@ -5805,7 +5808,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       await Sync.tarikStok();
       await sukses(r?.duplikat
         ? 'Pembelian ini SUDAH tersimpan sebelumnya — kiriman ulang dikenali, tidak dobel.'
-        : 'Pembelian tersimpan, stok & HPP diperbarui.', 'pembelian');
+        : 'Pembelian ' + (r?.no_dokumen || '') + ' tersimpan, stok & HPP diperbarui.', 'pembelian');
     } catch (e) {
       /* Kalimat kedua itu yang mencegah dokumen dobel berikutnya. Yang paling
          mungkin gagal di sini adalah waktu habis pada nota panjang — dan waktu
@@ -6505,7 +6508,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Cabang', kunci: 'cabang' },
       { judul: 'Supplier', render: r => esc(r.nama_supplier) + (r.no_dokumen ? '<br><small>' + esc(r.no_dokumen) + '</small>' : '') },
       { judul: 'Metode', render: r => {
-          const ket = [r.referensi, r.dibatalkan ? 'batal: ' + r.alasan_batal : ''].filter(Boolean).join(' · ');
+          const ket = [r.referensi, r.nama_user ? 'oleh ' + r.nama_user : '', r.dibatalkan ? 'batal: ' + r.alasan_batal : ''].filter(Boolean).join(' · ');
           return esc(labelMetode(r.metode)) + (ket ? '<br><small>' + esc(ket) + '</small>' : '');
         } },
       { judul: 'Nominal', angka: true, render: r => rp(r.jumlah) },
@@ -10012,8 +10015,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaDokumen(`Transfer ${t.no_dokumen}`, `
       <p class="petunjuk">${esc(t.cabang_asal)} → ${esc(t.cabang_tujuan)} ·
         <span class="lencana ${LENCANA_TRANSFER[t.status] || ''}">${esc(t.status)}</span><br>
-        Dikirim ${esc(waktuTampil(t.tanggal_kirim))} oleh ${esc(t.user_kirim)}
-        ${t.tanggal_terima ? `<br>Diterima ${esc(waktuTampil(t.tanggal_terima))} oleh ${esc(t.user_terima)}` : ''}
+        Dikirim ${esc(waktuTampil(t.tanggal_kirim))} oleh ${orangTampil(t.nama_kirim, t.user_kirim)}
+        ${t.tanggal_terima ? `<br>Diterima ${esc(waktuTampil(t.tanggal_terima))} oleh ${orangTampil(t.nama_terima, t.user_terima)}` : ''}
         ${t.catatan ? `<br>Catatan: ${esc(t.catatan)}` : ''}
         ${t.catatan_terima ? `<br>Catatan terima: ${esc(t.catatan_terima)}` : ''}</p>
       ${tabel([
@@ -10085,9 +10088,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${infoBaris('No dokumen', `<strong>${esc(t.no_dokumen)}</strong>`)}
         ${infoBaris('Status', esc(t.status))}
         ${infoBaris('Dari', esc(t.cabang_asal) + ' &rarr; ' + esc(t.cabang_tujuan))}
-        ${infoBaris('Dikirim', esc(waktuTampil(t.tanggal_kirim)) + ' oleh ' + esc(t.user_kirim))}
+        ${infoBaris('Dikirim', esc(waktuTampil(t.tanggal_kirim)) + ' oleh ' + esc(t.nama_kirim || t.user_kirim))}
         ${t.tanggal_terima
-            ? infoBaris('Diterima', esc(waktuTampil(t.tanggal_terima)) + ' oleh ' + esc(t.user_terima))
+            ? infoBaris('Diterima', esc(waktuTampil(t.tanggal_terima)) + ' oleh ' + esc(t.nama_terima || t.user_terima))
             : ''}
         ${t.catatan ? infoBaris('Catatan kirim', esc(t.catatan)) : ''}
         ${t.catatan_terima ? infoBaris('Catatan terima', esc(t.catatan_terima)) : ''}
@@ -10102,9 +10105,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            Owner / Head Admin, dikosongkan untuk ditandatangani tangan. */ ''}
       <table class="ttd"><tr>
         <td><div class="peran">Pengirim</div><div class="cab">${esc(t.cabang_asal)}</div><div class="garis"></div>
-          <div class="nama">${esc(t.user_kirim || '')}&nbsp;</div></td>
+          <div class="nama">${esc(t.nama_kirim || t.user_kirim || '')}&nbsp;</div></td>
         <td><div class="peran">Penerima</div><div class="cab">${esc(t.cabang_tujuan)}</div><div class="garis"></div>
-          <div class="nama">${esc(t.tanggal_terima ? (t.user_terima || '') : '')}&nbsp;</div></td>
+          <div class="nama">${esc(t.tanggal_terima ? (t.nama_terima || t.user_terima || '') : '')}&nbsp;</div></td>
         <td><div class="peran">Disetujui</div><div class="cab">Owner / Head Admin</div><div class="garis"></div>
           <div class="nama">&nbsp;</div></td>
       </tr></table>
@@ -10918,6 +10921,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const punyaNilai = d.nilai_selisih !== undefined;
 
     bukaDokumen(`Hasil opname — ${d.no_dokumen}`, `
+      <p class="petunjuk">Dibuka ${esc(waktuTampil(d.waktu_buka))} oleh ${orangTampil(d.nama_user, d.id_user)}</p>
       <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(130px,100%),1fr))">
         <div class="kartu statistik"><div class="label">Dihitung</div><div class="nilai">${d.item.length}</div></div>
         <div class="kartu statistik"><div class="label">Cocok</div>
@@ -11005,7 +11009,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <h3>Riwayat retur</h3>
           ${tabel([
             { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))}<div class="meta-kecil">${esc(r.jam)}</div>` },
-            { judul: 'No dokumen', kunci: 'no_dokumen' },
+            { judul: 'No dokumen', render: r => `${esc(r.no_dokumen)}<div class="meta-kecil">oleh ${orangTampil(r.nama_user, r.id_user)}</div>` },
             { judul: 'Nota asal', render: r => esc(r.no_nota_asal || 'tanpa nota') },
             { judul: 'Jenis', render: r => `<span class="lencana ${r.jenis === 'TUKAR' ? 'kuning' : ''}">${esc(r.jenis)}</span>` },
             { judul: 'Nilai retur', angka: true, render: r => rp(r.nilai_retur) },
@@ -11262,7 +11266,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <h3>Riwayat retur pembelian</h3>
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
-            { judul: 'No dokumen', kunci: 'no_dokumen' },
+            { judul: 'No dokumen', render: r => `${esc(r.no_dokumen)}<div class="meta-kecil">oleh ${orangTampil(r.nama_user, r.id_user)}</div>` },
             { judul: 'Supplier', kunci: 'nama_supplier' },
             { judul: 'Faktur asal', render: r => esc(r.no_dok_pembelian || '—') },
             { judul: 'Klaim', angka: true, render: r => rp(r.nilai_klaim) },
@@ -12794,7 +12798,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (!peta.has(id)) {
         peta.set(id, { id, jenis, no: u.indexOf(jenis + '-') === 0 && i > 0 ? ket.slice(0, i) : '',
                        tanggal: k.tanggal, kode_cabang: k.kode_cabang, akun_kas: k.akun_kas,
-                       nama_akun_kas: k.nama_akun_kas || k.akun_kas, baris: [], total: 0 });
+                       nama_akun_kas: k.nama_akun_kas || k.akun_kas, baris: [], total: 0,
+                       id_user: k.id_user || '', nama_user: k.nama_user || '' });
       }
       const d = peta.get(id);
       d.baris.push(Object.assign({}, k, { ket: i > 0 && d.no ? ket.slice(i + 3) : ket }));
@@ -12842,7 +12847,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!d) return toast('Dokumen itu tidak ada lagi di daftar.', 'galat');
     const c = DOK_KAS[d.jenis];
     bukaDokumen(c.label + (d.no ? ' ' + d.no : ''), `
-      <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.kode_cabang || '')} · ${esc(d.nama_akun_kas)}</p>
+      <p class="petunjuk">${esc(tglTampil(d.tanggal))} · ${esc(d.kode_cabang || '')} · ${esc(d.nama_akun_kas)}
+        <br>Dibuat oleh ${orangTampil(d.nama_user, d.id_user)}</p>
       <div class="gulir-x"><table class="tabel"><thead><tr><th>Akun</th><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
         <tbody>${d.baris.map((b) => `<tr><td data-l="Akun">${esc(b.nama_akun || b.kode_akun)}</td>
           <td data-l="Keterangan">${esc(b.ket || '')}</td><td class="kanan" data-l="Nominal">${rp(Math.abs(+b.jumlah || 0))}</td>
@@ -12874,7 +12880,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </table>
       <p class="catatan">Terbilang: <em>${esc(terbilang(d.total))}</em></p>
       <table class="ttd"><tr>${c.peran.map((p) => `<td><div class="peran">${esc(p)}</div><div class="garis"></div>
-        <div class="nama">${esc(p === 'Dibuat' ? (k.user || '') : '')}&nbsp;</div></td>`).join('')}</tr></table>
+        <div class="nama">${esc(p === 'Dibuat' ? (d.nama_user || d.id_user || '') : '')}&nbsp;</div></td>`).join('')}</tr></table>
       <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
         ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
   }
@@ -14001,7 +14007,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Tanggal', render: (x) => esc(tglTampil(x.tanggal)) },
       { judul: 'Jenis', render: (x) => x.jenis === 'POTONG' ? 'Dipotong gaji' : 'Diberikan' },
       { judul: 'Nominal', angka: true, render: (x) => rp(x.jumlah) },
-      { judul: 'Keterangan', render: (x) => esc(x.keterangan) }
+      { judul: 'Keterangan', render: (x) => esc(x.keterangan) },
+      { judul: 'Oleh', render: (x) => esc(x.nama_user || '—') }
     ];
     bukaModal('Riwayat kasbon — ' + p.nama, tabelPolos(kolom, r.riwayat || [], { kosong: 'Belum ada riwayat.' }));
   }
