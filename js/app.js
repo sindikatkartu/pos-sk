@@ -4396,6 +4396,10 @@ async function selesaikanTransaksi() {
        melihat angka ini sama sekali. */
     const arsip = { ...dok, status_sync: 'PENDING', _total: t,
                     _kembali: kembali,
+                    /* Nama kasir untuk struk CETAK ULANG (bagian 488) — perangkat
+                       tidak menyimpan daftar pengguna, dan yang mencetak ulang bisa
+                       kasir lain. Lokal saja, seperti _diterima. */
+                    _nama_kasir: APP_STATE.user?.nama || '',
                     _diterima: APP_STATE.metodeBayar
                       .map(m => ({ metode: m.metode, jumlah: Math.round(Number(m.jumlah) || 0) }))
                       .filter(m => m.jumlah > 0),

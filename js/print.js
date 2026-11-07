@@ -108,7 +108,20 @@ const Struk = (() => {
     out.push(garis);
     out.push(...duaKolom('No', nota.no_nota));
     out.push(...duaKolom(tglCetak(nota.tanggal), nota.jam));
-    out.push(...duaKolom('Kasir', APP_STATE.user.nama));
+    /* Kasir NOTANYA, bukan pengguna yang sedang mencetak (pemilik 8 Nov 2026,
+       bagian 488): cetak ulang oleh kasir lain dulu menyebut namanya sendiri.
+       `_nama_kasir` disimpan di arsip lokal saat penjualan; `nama_kasir` dari
+       nota yang ditarik server. Nota lama tanpa keduanya: arsip lokal TIDAK
+       membawa id_user (server yang mengisinya — temuan peninjau-rilis), jadi
+       kasirnya dikenali dari SHIFT: satu shift satu kasir, nota dari shift yang
+       sedang berjalan = yang login. Shift lain: baris TIDAK dicetak — kosong
+       lebih baik daripada nama yang salah. Tanpa uuid (uji cetak) = yang login. */
+    const login = APP_STATE.user || {};
+    const samaKasir = !nota.uuid ||
+      (nota.id_user ? nota.id_user === login.id_user
+                    : !!nota.id_shift && nota.id_shift === APP_STATE.idShift);
+    const kasir = nota._nama_kasir || nota.nama_kasir || (samaKasir ? login.nama : '');
+    if (kasir) out.push(...duaKolom('Kasir', kasir));
     /* SELURUH yang terlibat, termasuk tim per baris — bukan hanya klaim nota.
        Angka poinnya sengaja TIDAK dicetak: itu angka internal toko, dan struk
        adalah kertas milik pelanggan. Yang perlu terbaca di sini cuma namanya,
