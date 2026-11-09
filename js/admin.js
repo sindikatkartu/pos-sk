@@ -10242,14 +10242,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const JENIS_PS = { diskon: ['Diskon', 'kuning'], void: ['Void', 'merah'], perangkat: ['Perangkat', 'biru'],
                      coa: ['Akun baru', ''], pembelian: ['Pembelian', 'hijau'], koreksi: ['Koreksi', ''] };
   let _butirPs = [], _timerPs = null;
-  async function muatPersetujuan() {
+  /* cepat = dibuka/disegarkan orang (bagian 492); detak 20 dtk tanpa cepat. */
+  async function muatPersetujuan(cepat) {
     const w = $('#isiPersetujuan');
     if (!w) return;
     if (!w.innerHTML) memuat('#isiPersetujuan');
     /* `kunci` = jenis + id: id perangkat & id pengajuan bisa saja sama rupanya. */
     let pengesah = {};
     try {
-      const k = (await API.kotakPersetujuan()) || {};
+      const k = (await API.kotakPersetujuan({ cepat: cepat === true })) || {};
       pengesah = k.pengesah || {};
       _butirPs = (k.butir || []).map((b) => Object.assign({ kunci: b.jenis + '-' + b.id }, b));
     } catch (e) { galat('#isiPersetujuan', e); return; }
@@ -10317,7 +10318,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       toast(setuju ? (jenis === 'koreksi' ? 'Disahkan — koreksinya sudah tertulis.' : 'Disetujui.') : (jenis === 'perangkat' ? 'Perangkat diblokir.' : 'Ditolak.'));
     } catch (x) { toast(x.message, 'galat'); }
     document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));   // pendengarnya di document (app.js)
-    await muatPersetujuan();
+    await muatPersetujuan(true);
   }
 
   /* Pencari nota untuk pengajuan. Bentuknya sengaja sama dengan formVoid() —
@@ -14089,7 +14090,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
       case 'pembatalan': return muatPembatalan();
-      case 'persetujuan': return muatPersetujuan();
+      case 'persetujuan': return muatPersetujuan(true);
     }
   }
 

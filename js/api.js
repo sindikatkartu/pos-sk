@@ -710,7 +710,9 @@ let _pernahJawab = false;
     isiSaldoInject:        (d) => panggil('isi_saldo_inject', d),
     cocokSaldoInject:      (d) => panggil('cocok_saldo_inject', d),
     simpanAplikasiInject:  (d) => panggil('simpan_aplikasi_inject', d),
-    kotakPersetujuan:  () => panggil('kotak_persetujuan', {}, { latar: true }),
+    /* cepat = orang membuka layarnya: server memramuat serentak (bagian 492).
+       Muat ulang otomatis & lonceng TANPA cepat — kuota Sheets API bersama. */
+    kotakPersetujuan:  (o) => panggil('kotak_persetujuan', o && o.cepat === true ? { cepat: true } : {}, { latar: true }),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
