@@ -1547,7 +1547,11 @@ function mulaiLencanaNav() {
   /* clearInterval dulu: login kedua di tab yang sama akan menumpuk timer, dan
      timer yang menumpuk melipatgandakan permintaan tanpa satu pun tanda. */
   if (timerLencana) clearInterval(timerLencana);
-  tarikLencanaNav(false);
+  /* bangunNav() → bukaLayar() → segarkanLencanaNav() BARU SAJA menarik
+     (bagian 497): sampai v1.365 di sini ditarik lagi tanpa syarat — dua
+     tarikan lencana_nav yang sama (3,5 + 6,4 dtk server) pada detik yang sama
+     dengan dasbor. Ditarik hanya bila belum ada tarikan semenit terakhir. */
+  if (Date.now() - _lencanaTerakhir >= 60000) tarikLencanaNav(false);
   /* PENYETUJU diperiksa tiap 60 detik SELAMA layarnya terlihat (bagian 305):
      kasir yang menunggu persetujuan diskon berdiri di depan pembeli, dan 5
      menit terlalu lama. Yang lain tetap 5 menit. Tab tersembunyi = tidak ada
@@ -2231,7 +2235,10 @@ async function mulaiSesi(d) {
   pasangTabKerugian();
   Sync.mulai();
   Sync.tarikStok();
-  Sync.tarikStokSemuaCabang();
+  /* Ditunda 15 detik (bagian 497): stok cabang lain boleh basi asal jamnya
+     tertulis (bagian 156), dan simpanan sesi sebelumnya masih ada di IndexedDB
+     — tidak perlu berebut lantai server dengan dasbor pada detik pertama. */
+  setTimeout(() => Sync.tarikStokSemuaCabang(true), 15000);
   mulaiLencanaNav();
   await periksaShift();
   await gambarProduk('');

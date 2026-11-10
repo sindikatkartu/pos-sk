@@ -1060,7 +1060,21 @@ const Admin = (() => {
      "Tidak tersedia"; kartu lain tetap tergambar. */
   const GRUP_MONITOR = [['shift'], ['permintaan'], ['utang'], ['transfer', 'audit', 'perangkat'], ['retur_void'], ['opname']];
   const kunciMonitor = (b) => (b === 'perangkat' ? 'perangkat_menunggu' : b);
+  /* SATU permintaan sejak bagian 497: server mengerjakan tujuh daftar itu
+     dari satu pramuat serentak (bukan lagi berurutan — sebab bagian 263
+     memecahnya), jadi enam permintaan paralel tinggal membayar enam lantai
+     Apps Script ±2,3 dtk. Bentuk jawabannya sama dengan gabungan enam kelompok:
+     blok yang gagal di server tetap null → kartunya "Tidak tersedia" (263).
+     Jalur mundur: permintaan tunggalnya GAGAL TOTAL (jaringan, batas waktu,
+     server lama yang membalas bentuk lain) → enam kelompok seperti dulu. */
   async function ambilMonitorParalel(opsi) {
+    try {
+      const m = await API.dashboard({ ...paramDash(), bagian: 'monitor' }, opsi);
+      if (m && m.bagian === 'monitor') return m;
+    } catch (e) { /* jalur mundur di bawah */ }
+    return ambilMonitorKelompok(opsi);
+  }
+  async function ambilMonitorKelompok(opsi) {
     const hasil = await Promise.allSettled(GRUP_MONITOR.map((g) =>
       API.dashboard({ ...paramDash(), bagian: 'monitor', blok: g.join(',') }, opsi)));
     const m = { bagian: 'monitor' };
