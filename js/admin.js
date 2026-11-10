@@ -5425,10 +5425,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kustomDari = $('#beliDari')?.value || '', kustomSampai = $('#beliSampai')?.value || '';
     const r0 = Periode.rentang(nilaiP) || { dari: kustomDari, sampai: kustomSampai };
     const semua = bolehPilihCabang() && (cabangLayar.pembelian || '*') === '*';
-    memuat('#isiPembelian');
-    try {
-      const rows = await API.daftarPembelian({ cabang: semua ? '*' : cabangDari('pembelian'), dari: r0.dari, sampai: r0.sampai });
+    /* Data terakhir dulu (bagian 500): simpanan per cabang + rentang. */
+    const parBeli = { cabang: semua ? '*' : cabangDari('pembelian'), dari: r0.dari, sampai: r0.sampai };
+    await muatTersimpan('#isiPembelian', 'pembelian', 'daftar_beli', parBeli, () => API.daftarPembelian(parBeli), (rows) => {
       rows.forEach((r) => { if (r.cabang) cabangBeli[r.uuid] = r.cabang; });
+      /* Kendali Periode yang sedang diisi orang DIBAWA melewati gambar ulang
+         (bagian 500): daftar digambar dua kali (simpanan, lalu jawaban server),
+         dan gambar kedua tidak boleh menimpa Kustom yang sedang diisi selagi
+         jawabannya di jalan. ELEMENNYA yang dipindah, bukan nilainya disalin:
+         pemulih tanggal akhir (bagian 444) memegang elemen itu, dan tanggal
+         akhir kosong pada elemen baru tidak akan pernah dipulihkannya. Kendali
+         yang tidak diubah digambar dari nilai awal pemuatan — juga saat
+         kendalinya sudah tertimpa rangka (tanpa simpanan). */
+      const selL = $('#beliPeriode'), kusL = $('#beliPeriodeKustom');
+      const tengahIsi = !!selL && (selL.value !== nilaiP ||
+        ($('#beliDari')?.value || '') !== kustomDari || ($('#beliSampai')?.value || '') !== kustomSampai);
       $('#isiPembelian').innerHTML = `
         <div class="kartu">
           <div class="bar-alat dua-kendali">
@@ -5473,8 +5484,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], rows, { kosong: 'Tidak ada pembelian di periode ini',
                      dataAttr: r => `data-rincian-beli="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
+      if (tengahIsi) { $('#beliPeriode').replaceWith(selL); if (kusL) $('#beliPeriodeKustom').replaceWith(kusL); }
       Periode.pasang(PERIODE_BELI, () => API.tugas(() => muatPembelian(), { baca: true }));
-    } catch (e) { galat('#isiPembelian', e); }
+    });
   }
 
   /**
@@ -6340,6 +6352,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== DATA TERAKHIR DULU di menu akuntansi (bagian 369) ====================
      Pola Laporan (bagian 365, denganSimpananLap di pos.js) untuk Kas & Bank,
+     dan sejak bagian 500 tujuh layar daftar (Transfer, Permintaan, Pembatalan,
+     Opname, Retur, Retur ke supplier, Pembelian — jenis berawalan daftar_),
      Piutang, Utang, Aset Tetap, Gaji, Kasbon, Akun perkiraan, Ringkasan Gabungan.
      Bedanya: hampir tiap baris di sini punya tombol yang MENGIRIM angka dari
      data yang dimuat. Selama angka lama tampil wadahnya ber-data-basi, dan
@@ -9897,9 +9911,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   };
 
   async function muatTransfer() {
-    memuat('#isiTransfer');
-    try {
-      const rows = await API.daftarTransfer({});
+    /* Data terakhir dulu (bagian 500): simpanan per cabang sesi. */
+    await muatTersimpan('#isiTransfer', 'transfer', 'daftar_transfer', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarTransfer({}), (rows) => {
       const menunggu = rows.filter(r => r.bisa_diterima);
 
       $('#isiTransfer').innerHTML = `
@@ -9959,7 +9972,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                      dataAttr: r => `data-detail-transfer="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
       $('#isiTransfer')._rows = rows;
-    } catch (e) { galat('#isiTransfer', e); }
+    });
   }
 
   async function formKirimTransfer() {
@@ -10177,9 +10190,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const _takPecah = (isi) => '<span style="white-space:nowrap">' + isi + '</span>';
 
   async function muatPembatalan() {
-    memuat('#isiPembatalan');
-    try {
-      const rows = await API.daftarMintaVoid({});
+    /* Data terakhir dulu (bagian 500): simpanan per cabang sesi; saringan cabang layar dihitung saat menggambar. */
+    await muatTersimpan('#isiPembatalan', 'pembatalan', 'daftar_void', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarMintaVoid({}), (rows) => {
       const bolehPutus = bolehIzin('void', 'setujui');
       const bolehAjukan = bolehIzin('void', 'buat');
 
@@ -10242,7 +10254,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
           ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan pembatalan' })}
         </div>`;
-    } catch (e) { galat('#isiPembatalan', e); }
+    });
   }
 
   /* ==================== PERSETUJUAN (bagian 305) ====================
@@ -10353,9 +10365,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   async function muatPermintaan() {
-    memuat('#isiPermintaan');
-    try {
-      const rows = await API.daftarPermintaan({});
+    /* Data terakhir dulu (bagian 500): simpanan per cabang sesi. */
+    await muatTersimpan('#isiPermintaan', 'permintaan', 'daftar_permintaan', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarPermintaan({}), (rows) => {
       /* Antrean gudang: yang HARUS dikerjakan orang yang sedang membuka layar
          ini. Disaring dengan `bisa_diproses` dari server — bukan dengan
          menghitung status di sini — supaya aturan siapa-boleh-apa hanya tinggal
@@ -10407,7 +10418,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], rows, { kosong: 'Belum ada permintaan barang' })}
         </div>`;
       $('#isiPermintaan')._rows = rows;
-    } catch (e) { galat('#isiPermintaan', e); }
+    });
   }
 
   async function formPermintaanBaru() {
@@ -10601,9 +10612,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   });
 
   async function muatOpname() {
-    memuat('#isiOpname');
-    try {
-      const rows = await API.daftarOpname({ cabang: cabangDari('opname') });
+    /* Data terakhir dulu (bagian 500): simpanan per cabang layar. */
+    await muatTersimpan('#isiOpname', 'opname', 'daftar_opname', { cabang: cabangDari('opname') }, () => API.daftarOpname({ cabang: cabangDari('opname') }), (rows) => {
       const berjalan = rows.find(r => r.status === 'DRAFT' || r.status === 'REVIEW');
       const punyaNilai = rows.some(r => r.nilai_selisih !== undefined);
 
@@ -10642,7 +10652,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 r.status === 'POSTED' || r.status === 'DIBATALKAN' ? 'Lihat' : 'Lanjutkan'}</button>` }
           ], rows, { kosong: 'Belum pernah opname' })}
         </div>`;
-    } catch (e) { galat('#isiOpname', e); }
+    });
   }
 
   async function wizardOpname() {
@@ -11003,9 +11013,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   let notaTerpilih = null;
 
   async function muatRetur() {
-    memuat('#isiRetur');
-    try {
-      const rows = await API.daftarRetur({ cabang: cabangDari('retur') });
+    /* Data terakhir dulu (bagian 500): simpanan per cabang layar. */
+    await muatTersimpan('#isiRetur', 'retur', 'daftar_retur', { cabang: cabangDari('retur') }, () => API.daftarRetur({ cabang: cabangDari('retur') }), (rows) => {
       $('#isiRetur').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
@@ -11034,7 +11043,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Alasan', kunci: 'alasan' }
           ], rows, { kosong: 'Belum ada retur' })}
         </div>`;
-    } catch (e) { galat('#isiRetur', e); }
+    });
   }
 
   /**
@@ -11260,9 +11269,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   let beliTerpilih = null;
 
   async function muatReturbeli() {
-    memuat('#isiReturbeli');
-    try {
-      const rows = await API.daftarReturBeli({ cabang: cabangDari('returbeli') });
+    /* Data terakhir dulu (bagian 500): simpanan per cabang layar. */
+    await muatTersimpan('#isiReturbeli', 'returbeli', 'daftar_returbeli', { cabang: cabangDari('returbeli') }, () => API.daftarReturBeli({ cabang: cabangDari('returbeli') }), (rows) => {
       $('#isiReturbeli').innerHTML = `
         <div class="kartu">
           <div class="bar-alat">
@@ -11293,7 +11301,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 r.penyelesaian === 'POTONG_UTANG' ? 'potong utang' : 'uang kembali'}</span>` }
           ], rows, { kosong: 'Belum ada retur pembelian' })}
         </div>`;
-    } catch (e) { galat('#isiReturbeli', e); }
+    });
   }
 
   function formReturBeli() {
@@ -14220,6 +14228,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const d = t.dataset;
 
       /* --- modal --- */
+      /* Tombol Selesai hasil retur ber-data-tutup (supaya modalnya selalu bisa
+         ditutup), jadi cabangnya HARUS di atas cabang data-tutup: di bawahnya
+         klik berhenti di tutupModal dan daftarnya tidak dimuat ulang (bagian 500). */
+      if (t.id === 'btnSelesaiReturBeli') { tutupModal(); return muat('returbeli'); }
+      if (t.id === 'btnSelesaiRetur')   { tutupModal(); return muat('retur'); }
       if (d.tutup) return tutupModal();
       if (d.hapusBaris) return t.closest('.baris-anak').remove();
       if (d.tabm) {
@@ -15553,7 +15566,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         }
         return;
       }
-      if (t.id === 'btnSelesaiReturBeli') { tutupModal(); return muat('returbeli'); }
 
       /* --- arsip --- */
       if (t.id === 'btnHitungUlangArsip') return API.tugas(() => muatArsip(true), { baca: true });   // bagian 258
@@ -15696,7 +15708,6 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnTambahBarisRt')  return tambahBarisRetur('rt');
       if (t.id === 'btnTambahBarisRp')  return tambahBarisRetur('rp');
       if (t.id === 'btnSimpanRetur')    return simpanRetur();
-      if (t.id === 'btnSelesaiRetur')   { tutupModal(); return muat('retur'); }
       if (t.id === 'btnCariNota') {
         const q = nilai('returCari');
         if (!q) return;

@@ -2072,7 +2072,9 @@ if (typeof module !== 'undefined' && module.exports) {
  * sudah termuat). Penggambar yang menggambar ulang dari data yang SAMA
  * (cabang Gaji, cari Akun perkiraan) memulihkan tandanya (`pulihkanTandaBasi`).
  * Dipakai juga oleh menu akuntansi (admin.js muatTersimpan, bagian 369).
- * Simpanan ≤ 12 laporan, ≤ 150.000 karakter per laporan dan ≤ 900.000 seluruhnya
+ * Simpanan ≤ 24 laporan (12 sampai bagian 500 — delapan layar daftar ikut
+ * memakainya dan saling menggusur dengan laporan), ≤ 150.000 karakter per
+ * laporan dan ≤ 900.000 seluruhnya
  * (peninjau-rilis: 20 × 400 KB melewati kuota localStorage, dan kuota penuh
  * ikut mematikan antrean galat klien & simpanan lain). Penulisan yang gagal
  * membuang kunci ini seluruhnya. Dibuang saat keluar akun.
@@ -2084,7 +2086,7 @@ if (typeof module !== 'undefined' && module.exports) {
 /* Rangka umum (rangkaLaporan milik app.js tidak terlihat dari sini). */
 const RANGKA_LAP_UMUM = '<div class="kartu" aria-busy="true" aria-label="Memuat">' +
   ['92%', '78%', '86%', '70%'].map((l) => '<div class="rangka-baris"><span class="rangka" style="width:' + l + '"></span></div>').join('') + '</div>';
-const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 12, BATAS_LAP = 150000, TOTAL_LAP = 900000;
+const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 24, BATAS_LAP = 150000, TOTAL_LAP = 900000;
 const kunciLap = (jenis, par) => {
   const f = APP_STATE.flag || {};
   return JSON.stringify([(APP_STATE.user || {}).id_user || '', typeof CONFIG !== 'undefined' ? CONFIG.VERSI : '',
@@ -2096,7 +2098,10 @@ function bacaSimpanLap(jenis, par) {
 }
 function tulisSimpanLap(jenis, par, data) {
   try {
-    if (JSON.stringify(data).length > BATAS_LAP) return;
+    /* Terlalu besar untuk disimpan: simpanan LAMANYA ikut dihapus (bagian
+       500) — kalau tidak, daftar yang tumbuh melewati batas menampilkan
+       simpanan terakhirnya yang kecil dulu, selamanya. */
+    if (JSON.stringify(data).length > BATAS_LAP) { buangSimpanLap(jenis, par); return; }
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}'); } catch (e) { s = {}; }
     s[kunciLap(jenis, par)] = { data, waktu: Date.now() };
@@ -2116,6 +2121,26 @@ function buangSimpanLap(jenis, par) {
     const s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}');
     delete s[kunciLap(jenis, par)];
     localStorage.setItem(SIMPAN_LAP, JSON.stringify(s));
+  } catch (e) { try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ } }
+}
+/** Simpanan layar DAFTAR (jenis berawalan daftar_, bagian 500) dibuang sesudah
+ *  tulisan SENDIRI — dipanggil dari SATU pintu, panggil() di api.js, untuk
+ *  setiap aksi yang bukan bacaan: muat ulang sesudah "Terima barang" tidak boleh
+ *  sekilas menampilkan daftar sebelum tindakan itu. Semua daftar sekaligus —
+ *  satu tulisan mengubah lebih dari satu daftar (permintaan disiapkan =
+ *  transfer baru). Simpanan laporan tidak ikut. */
+let _genDaftar = 0;   // naik tiap pembuangan: jawaban daftar yang dikirim sebelumnya tidak disimpan
+function buangSimpanDaftar() {
+  _genDaftar++;
+  try {
+    const s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}');
+    let ubah = false;
+    Object.keys(s).forEach((k) => {
+      let jenis = '';
+      try { jenis = String(JSON.parse(k)[3]); } catch (e) { /* kunci asing: biarkan */ }
+      if (jenis.indexOf('daftar_') === 0) { delete s[k]; ubah = true; }
+    });
+    if (ubah) localStorage.setItem(SIMPAN_LAP, JSON.stringify(s));
   } catch (e) { try { localStorage.removeItem(SIMPAN_LAP); } catch (e2) { /* diblokir */ } }
 }
 function tandaLap(w, waktu, galat) {
@@ -2151,6 +2176,7 @@ async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
     try { gambar(s.data, false); tandaLap(w, s.waktu); w.dataset.basi = '1'; w.dataset.basiWaktu = String(s.waktu); }
     catch (e) { buangSimpanLap(jenis, par); s = null; Rangka.pasang(w, RANGKA_LAP_UMUM); }
   }
+  const gen = _genDaftar;
   let d;
   try { d = await ambil(); }
   catch (e) {
@@ -2158,7 +2184,9 @@ async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
     if (masihSah()) tandaLap(w, s.waktu, e.message);
     return s.data;
   }
-  tulisSimpanLap(jenis, par, d);
+  /* Daftar yang dimintakan SEBELUM tulisan sendiri selesai bisa memuat keadaan
+     pra-tulisan: tidak disimpan (bagian 500), supaya tidak tampil lagi nanti. */
+  if (jenis.indexOf('daftar_') !== 0 || gen === _genDaftar) tulisSimpanLap(jenis, par, d);
   if (masihSah()) { gambar(d, true); lepasBasi(w); }
   return d;
 }

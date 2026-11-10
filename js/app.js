@@ -4610,18 +4610,25 @@ function gambarPilihCabangShift() {
   </select>`;
 }
 
+let _tiketDaftarShift = 0;
 async function muatDaftarShift() {
   const wadah = $('#isiRiwayatShift');
   if (!wadah) return;
   siapkanRentangShift();
   gambarPilihCabangShift();
   const lintas = bolehCabangShift();
-  Rangka.pasang(wadah, rangkaDaftar(6, ['88%', '70%', '82%', '64%']));   // bentuk asli diingat (bagian 262)
+  /* Data terakhir dulu (bagian 500): simpanan per rentang + cabang. Nomor
+     panggilan: jawaban yang sudah disusul (rentang/cabang diganti) tidak digambar. */
+  const par = { dari: $('#shiftDari').value, sampai: $('#shiftSampai').value,
+    cabang: lintas ? cabangShift : String(APP_STATE.cabang || '') };
+  const tiket = ++_tiketDaftarShift;
+  const sah = () => tiket === _tiketDaftarShift && document.contains(wadah);
+  if (!bacaSimpanLap('daftar_shift', par)) Rangka.pasang(wadah, rangkaDaftar(6, ['88%', '70%', '82%', '64%']));   // bentuk asli diingat (bagian 262)
   try {
-    const d = await API.daftarShift({ dari: $('#shiftDari').value, sampai: $('#shiftSampai').value,
-      ...(lintas ? { cabang: cabangShift } : {}) });
+    await denganSimpananLap(wadah, 'daftar_shift', par,
+      () => API.daftarShift({ dari: par.dari, sampai: par.sampai, ...(lintas ? { cabang: par.cabang } : {}) }), (d) => {
     /* Kolom Cabang hanya bila yang tampil bisa lebih dari satu cabang. */
-    const kolCabang = lintas && cabangShift === '*';
+    const kolCabang = lintas && par.cabang === '*';
     const rows = d.shift || [];
     if (!rows.length) {
       wadah.innerHTML = '<p style="color:var(--teks-redup)">Tidak ada shift pada rentang ini.</p>';
@@ -4644,7 +4651,8 @@ async function muatDaftarShift() {
               style="padding:6px 10px;font-size:var(--fs-13)">Laporan</button></td>
       </tr>`).join('')}</table></div>
       ${d.boleh_semua ? '' : '<p class="petunjuk">Anda hanya melihat shift Anda sendiri.</p>'}`;
-  } catch (e) { wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+    }, sah);
+  } catch (e) { if (sah()) wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
 async function bukaLaporanShift(idShift, cabang) {

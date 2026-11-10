@@ -141,6 +141,10 @@ const API = (() => {
   ]);
   /** Apakah permintaan ini mengunci layar: dari orang DAN bukan sekadar membaca. */
   const mengunci = (aksi, opsi) => opsi.latar !== true && !HANYA_BACA.has(aksi);
+  /* Bacaan yang SENGAJA di luar HANYA_BACA tetapi tidak menulis apa pun di
+     server (apiKotakPersetujuan, 11_Admin.gs): dipanggil lonceng tiap layar
+     dibuka, jadi tidak boleh ikut membuang simpanan daftar (bagian 500). */
+  const BACA_LAIN = new Set(['kotak_persetujuan']);
 
   /**
    * JEJAK WAKTU per aksi — bahan diagnosa, bukan hiasan.
@@ -570,6 +574,13 @@ let _pernahJawab = false;
       if (bacaO) { _bacaOrang--; _akhiriMemuat(wadahMemuat); }
       /* Muat ulang sesudah tulisan orang = masih tindakan orang (bagian 466). */
       if (!latar) _gestur = Date.now();
+      /* Simpanan layar daftar (bagian 500) dibuang DI SINI, bukan di tiap
+         tombol: setiap aksi yang bukan bacaan dan sudah DIKIRIM — juga yang
+         gagal, sebab jawaban yang hilang bukan bukti tulisannya tidak masuk.
+         Yang offline dilempar sebelum try, jadi tidak sampai ke sini. Titik
+         per tombol selalu ada yang terlewat (persetujuan, setoran kas,
+         opname): daftar lama tampil lagi sesudah tindakannya sendiri. */
+      if (!HANYA_BACA.has(aksi) && !BACA_LAIN.has(aksi) && typeof buangSimpanDaftar === 'function') buangSimpanDaftar();
     }
   }
 
