@@ -2161,8 +2161,11 @@ function tandaLap(w, waktu, galat) {
  * terkunci), lalu ambil() dari server, simpan, gambar(data, true). masihSah()
  * false = layar/tab/periode sudah berganti: hasilnya disimpan, tidak digambar.
  * Tanpa simpanan dan server gagal: lempar, seperti dulu.
+ * ringkas(data) (opsional, bagian 500): bentuk yang DISIMPAN bila jawaban utuhnya
+ * terlalu besar; gambar() wajib bisa menggambar kedua bentuk. Yang digambar
+ * dari server tetap jawaban utuh.
  */
-async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
+async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah, ringkas) {
   /* Wadahnya DITANDAI selama angka lama tampil (bagian 369), bukan hanya
      tandanya: layar seperti Akun perkiraan menggambar ulang dari data yang
      sama (kotak cari) dan tanda di dalamnya ikut hilang, sedangkan angkanya
@@ -2186,7 +2189,7 @@ async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah) {
   }
   /* Daftar yang dimintakan SEBELUM tulisan sendiri selesai bisa memuat keadaan
      pra-tulisan: tidak disimpan (bagian 500), supaya tidak tampil lagi nanti. */
-  if (jenis.indexOf('daftar_') !== 0 || gen === _genDaftar) tulisSimpanLap(jenis, par, d);
+  if (jenis.indexOf('daftar_') !== 0 || gen === _genDaftar) tulisSimpanLap(jenis, par, ringkas ? ringkas(d) : d);
   if (masihSah()) { gambar(d, true); lepasBasi(w); }
   return d;
 }

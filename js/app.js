@@ -4966,6 +4966,10 @@ async function simpanDrafKoreksi(btn) {
 }
 
 async function periksaShift() {
+  /* Daftar riwayat DULU, tanpa menunggu shift_aktif (bagian 500): ia tidak
+     memakai jawabannya, dan di toko penantian itu ±3,6 dtk — simpanan daftar
+     yang sudah ada baru tergambar sesudahnya. */
+  muatDaftarShift();
   try {
     const d = await API.shiftAktif();
     APP_STATE.idShift = d.aktif ? d.id_shift : null;
@@ -4979,7 +4983,6 @@ async function periksaShift() {
      ditutup" — angka yang justru dipakai saat serah terima laci. */
   if (APP_STATE.idShift) APP_STATE.hasilTutupShift = null;
   gambarKeadaanShift();
-  muatDaftarShift();
 }
 
 /**

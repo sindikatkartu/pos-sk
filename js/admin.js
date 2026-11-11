@@ -6364,13 +6364,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      dengan kode akun baru). */
   const _tiketMuat = {};
   const naikTiket = (kunci) => (_tiketMuat[kunci] = (_tiketMuat[kunci] || 0) + 1);
-  async function muatTersimpan(sel, kunci, jenis, par, ambil, gambar, sahTambahan) {
+  async function muatTersimpan(sel, kunci, jenis, par, ambil, gambar, sahTambahan, ringkas) {
     const w = $(sel);
     if (!w) return;
     const tiket = naikTiket(kunci);
     const sah = () => _tiketMuat[kunci] === tiket && document.contains(w) && (!sahTambahan || sahTambahan());
     if (!bacaSimpanLap(jenis, par)) memuat(sel);
-    try { await denganSimpananLap(w, jenis, par, ambil, gambar, sah); }
+    try { await denganSimpananLap(w, jenis, par, ambil, gambar, sah, ringkas); }
     catch (e) { if (sah()) galat(sel, e); }
   }
 
@@ -9910,9 +9910,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     DIKIRIM: 'kuning', DITERIMA: 'hijau', SELISIH: 'merah', DIBATALKAN: ''
   };
 
+  /* Yang DISIMPAN hanya sampul tiap dokumen (bagian 500): rincian barangnya
+     91 % ukuran jawaban (diukur 259 ribu karakter untuk 48 dokumen) dan
+     membuatnya melewati batas simpanan, padahal daftar hanya memajang
+     jumlahnya. Rincian, Terima, dan Cetak membaca jawaban UTUH dari server —
+     selama sampul yang tampil, klik di wadahnya ditolak (data-basi). */
+  const sampulTransfer = (rows) => rows.map((r) => ({ ...r, item: [], jml_item: r.item.length,
+    jml_pcs: r.item.reduce((a, i) => a + i.qty_kirim, 0) }));
+  const jmlItemTransfer = (r) => r.jml_item ?? r.item.length;
+  const jmlPcsTransfer = (r) => r.jml_pcs ?? r.item.reduce((a, i) => a + i.qty_kirim, 0);
+
   async function muatTransfer() {
     /* Data terakhir dulu (bagian 500): simpanan per cabang sesi. */
-    await muatTersimpan('#isiTransfer', 'transfer', 'daftar_transfer', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarTransfer({}), (rows) => {
+    await muatTersimpan('#isiTransfer', 'transfer', 'daftar_transfer', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarTransfer({}), (rows, segar) => {
       const menunggu = rows.filter(r => r.bisa_diterima);
 
       $('#isiTransfer').innerHTML = `
@@ -9935,8 +9945,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'No dokumen', kunci: 'no_dokumen' },
             { judul: 'Dari', kunci: 'cabang_asal' },
             { judul: 'Dikirim', render: r => esc(waktuTampil(r.tanggal_kirim)) },
-            { judul: 'Item', render: r => r.item.length + ' baris · ' +
-                r.item.reduce((a, i) => a + i.qty_kirim, 0) + ' pcs' },
+            { judul: 'Item', render: r => jmlItemTransfer(r) + ' baris · ' + jmlPcsTransfer(r) + ' pcs' },
             { judul: '', render: r => `<button class="tombol kecil sukses" data-terima-transfer="${esc(r.uuid)}">Terima barang</button>` }
           ], menunggu)}
         </div>` : ''}
@@ -9953,7 +9962,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'No dokumen', kunci: 'no_dokumen',
               render: r => `<span class="tautan-baris">${esc(r.no_dokumen || '(tanpa nomor)')}</span>` },
             { judul: 'Rute', render: r => `${esc(r.cabang_asal)} → ${esc(r.cabang_tujuan)}` },
-            { judul: 'Item', render: r => String(r.item.length) },
+            { judul: 'Item', render: r => String(jmlItemTransfer(r)) },
             { judul: 'Status', render: r => `<span class="lencana ${LENCANA_TRANSFER[r.status] || ''}">${esc(r.status)}</span>` },
             ...(rows[0]?.nilai_hpp !== undefined ? [{ judul: 'Nilai', angka: true, render: r => rp(r.nilai_hpp) }] : []),
             /* Cetak LANGSUNG di baris (bagian 262) — dulu hanya di dalam jendela
@@ -9971,8 +9980,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                         rincian. */
                      dataAttr: r => `data-detail-transfer="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
-      $('#isiTransfer')._rows = rows;
-    });
+      /* Sampul TIDAK menimpa baris utuh (bagian 500): jendela rincian hidup di
+         luar wadah ini, jadi Cetak-nya tetap bisa ditekan selagi sampul tampil —
+         dan dari sampul ia mencetak dokumen tanpa barang. */
+      if (segar !== false) $('#isiTransfer')._rows = rows;
+    }, null, sampulTransfer);
   }
 
   async function formKirimTransfer() {
