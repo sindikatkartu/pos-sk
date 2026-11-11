@@ -143,8 +143,11 @@ const API = (() => {
   const mengunci = (aksi, opsi) => opsi.latar !== true && !HANYA_BACA.has(aksi);
   /* Bacaan yang SENGAJA di luar HANYA_BACA tetapi tidak menulis apa pun di
      server (apiKotakPersetujuan, 11_Admin.gs): dipanggil lonceng tiap layar
-     dibuka, jadi tidak boleh ikut membuang simpanan daftar (bagian 500). */
-  const BACA_LAIN = new Set(['kotak_persetujuan']);
+     dibuka, jadi tidak boleh ikut membuang simpanan daftar (bagian 500).
+     Tujuh berikutnya (bagian 501) juga tidak mengubah data daftar mana pun:
+     membuka kunci layar dengan PIN, ekspor, dan lima bacaan pulsa/bank/impor. */
+  const BACA_LAIN = new Set(['kotak_persetujuan', 'buka_kunci', 'ekspor', 'keadaan_pulsa', 'pratinjau_pulsa',
+    'rekon_bank', 'template_impor', 'baca_berkas_impor']);
 
   /**
    * JEJAK WAKTU per aksi — bahan diagnosa, bukan hiasan.

@@ -2079,17 +2079,26 @@ if (typeof module !== 'undefined' && module.exports) {
  * ikut mematikan antrean galat klien & simpanan lain). Penulisan yang gagal
  * membuang kunci ini seluruhnya. Dibuang saat keluar akun.
  *
- * Kuncinya memuat VERSI aplikasi dan dua hak yang mengubah isi laporan
- * (lintas cabang, harga modal): simpanan berbentuk lama dari rilis sebelumnya
- * tidak pernah digambar penggambar baru, dan hak yang dicabut di tengah sesi
- * tidak menampilkan angka yang kini tidak boleh dilihat. */
+ * Kuncinya memuat nomor SKEMA_LAP (bagian 501 — BUKAN versi aplikasi, jadi
+ * deploy TIDAK membuang simpanan) dan dua hak yang mengubah isi laporan
+ * (lintas cabang, harga modal). Mengubah bentuk jawaban yang disimpan atau
+ * penggambarnya WAJIB menaikkan SKEMA_LAP, supaya simpanan berbentuk lama
+ * tidak digambar penggambar baru; hak yang dicabut di tengah sesi tidak
+ * menampilkan angka yang kini tidak boleh dilihat. */
 /* Rangka umum (rangkaLaporan milik app.js tidak terlihat dari sini). */
 const RANGKA_LAP_UMUM = '<div class="kartu" aria-busy="true" aria-label="Memuat">' +
   ['92%', '78%', '86%', '70%'].map((l) => '<div class="rangka-baris"><span class="rangka" style="width:' + l + '"></span></div>').join('') + '</div>';
 const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 24, BATAS_LAP = 150000, TOTAL_LAP = 900000;
+/* Nomor SKEMA, bukan versi aplikasi (bagian 501): dengan versi di kuncinya
+   setiap deploy mengosongkan simpanan, padahal bentuk datanya hampir tidak
+   pernah berubah. NAIKKAN angka ini bila bentuk jawaban yang disimpan atau
+   penggambarnya berubah sehingga simpanan lama tidak boleh digambar lagi.
+   Entri berkunci lain (skema lama, versi lama) dibersihkan saat menulis. */
+const SKEMA_LAP = 1;
+const kunciSkemaKini = (k) => { try { return JSON.parse(k)[1] === 'S' + SKEMA_LAP; } catch (e) { return false; } };
 const kunciLap = (jenis, par) => {
   const f = APP_STATE.flag || {};
-  return JSON.stringify([(APP_STATE.user || {}).id_user || '', typeof CONFIG !== 'undefined' ? CONFIG.VERSI : '',
+  return JSON.stringify([(APP_STATE.user || {}).id_user || '', 'S' + SKEMA_LAP,
     (f.akses_lintas_cabang ? 'L' : '') + (f.lihat_harga_modal ? 'M' : ''), jenis, par]);
 };
 function bacaSimpanLap(jenis, par) {
@@ -2104,6 +2113,7 @@ function tulisSimpanLap(jenis, par, data) {
     if (JSON.stringify(data).length > BATAS_LAP) { buangSimpanLap(jenis, par); return; }
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SIMPAN_LAP) || '{}'); } catch (e) { s = {}; }
+    Object.keys(s).forEach((k) => { if (!kunciSkemaKini(k)) delete s[k]; });
     s[kunciLap(jenis, par)] = { data, waktu: Date.now() };
     const urut = () => Object.keys(s).sort((a, b) => s[a].waktu - s[b].waktu);
     while (Object.keys(s).length > MAKS_LAP) delete s[urut()[0]];
