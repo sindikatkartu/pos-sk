@@ -2088,6 +2088,20 @@ if (typeof module !== 'undefined' && module.exports) {
 /* Rangka umum (rangkaLaporan milik app.js tidak terlihat dari sini). */
 const RANGKA_LAP_UMUM = '<div class="kartu" aria-busy="true" aria-label="Memuat">' +
   ['92%', '78%', '86%', '70%'].map((l) => '<div class="rangka-baris"><span class="rangka" style="width:' + l + '"></span></div>').join('') + '</div>';
+/* Kode data (status, aksi audit, tipe mutasi: HURUF_BESAR) ditampilkan sebagai kata rapi (bagian 505) —
+   "DIKIRIM" → "Dikirim", "VOID_PENJUALAN" → "Void penjualan". Hanya untuk TAMPILAN: nilai datanya,
+   saringan, dan perbandingan tetap memakai kodenya. Yang bukan kode huruf besar dipulangkan apa adanya. */
+const KODE_RAPI = { OK: 'OK', VOID_JUAL: 'Void nota', POSTED: 'Posted', DRAFT: 'Draft', REVIEW: 'Review', OPNAME: 'Stok opname' };
+/* Singkatan di dalam kode tetap huruf besar: "RESET_PIN" → "Reset PIN", bukan "Reset pin". */
+const SINGKATAN_KODE = /\b(pin|hpp|coa|sku|qris|ppn|fifo|id)\b/g;
+function kodeRapi(k) {
+  const t = String(k == null ? '' : k);
+  if (Object.prototype.hasOwnProperty.call(KODE_RAPI, t)) return KODE_RAPI[t];
+  /* Tanpa angka: "SK01" atau "TG01030006" itu kode cabang/barang, bukan kata — jangan diubah. */
+  if (!/^[A-Z]+(_[A-Z]+)*$/.test(t) || t.length < 3) return t;
+  const s = t.toLowerCase().replace(/_/g, ' ').replace(SINGKATAN_KODE, (m) => m.toUpperCase());
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 24, BATAS_LAP = 150000, TOTAL_LAP = 900000;
 /* Nomor SKEMA, bukan versi aplikasi (bagian 501): dengan versi di kuncinya
    setiap deploy mengosongkan simpanan, padahal bentuk datanya hampir tidak

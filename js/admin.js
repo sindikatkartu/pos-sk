@@ -984,7 +984,7 @@ const Admin = (() => {
       try { params = JSON.parse(btn.dataset.params || '{}'); } catch (e) {}
       const d = await API.ekspor({ jenis: btn.dataset.ekspor, format: btn.dataset.format, ...params });
       unduhBase64(d.nama, d.mime, d.base64);
-      toast('Berkas ' + d.nama + ' diunduh.');
+      toast('Berkas ' + d.nama + ' di-download.');
     } catch (e) { toast(e.message, 'galat'); }
     // innerHTML, bukan textContent: labelnya berisi ikon SVG yang harus kembali utuh.
     pemicu.disabled = false; pemicu.innerHTML = semula;
@@ -1358,7 +1358,7 @@ const Admin = (() => {
     { id: 'kartuTransfer',   judul: 'Transfer barang',   izin: ['transfer', 'lihat'],   tabel: 'transfer',   kaki: '50 terbaru' },
     { id: 'kartuReturVoid',  judul: 'Retur jual & void', izin: ['retur', 'lihat'],      tabel: 'retur_void', kaki: '50 terbaru' },
     { id: 'kartuAudit',      judul: 'Aktivitas terakhir', izin: ['audit', 'lihat'],     tabel: 'audit',      kaki: '50 terbaru' },
-    { id: 'kartuOpnameUtang', judul: 'Opname & utang',   izin: ['opname', 'lihat'],     tabel: 'opname_utang', kaki: 'semua' },
+    { id: 'kartuOpnameUtang', judul: 'Stok opname & utang', izin: ['opname', 'lihat'],     tabel: 'opname_utang', kaki: 'semua' },
     { id: 'kartuShift',      judul: 'Shift hari ini',    izin: ['shift', 'lihat'],      tabel: 'shift',      kaki: '30 hari' }
   ];
   const kartuMonitorBoleh = () => KARTU_MONITOR.filter(k => bolehIzin(k.izin[0], k.izin[1]));
@@ -1417,17 +1417,17 @@ const Admin = (() => {
            22 Sep 2026. Ada penjaga di uji.js untuk polanya. */ ''}
         <div class="ringkas-dash">${lencanaDash(rv.retur.n + ' retur · ' + rpTeks(rv.retur.nilai), 'abu')}${lencanaDash(rv.void.n + ' void · ' + rpTeks(rv.void.nilai), rv.void.n ? 'merah' : 'abu')}</div>
         ${barisDash(rv.daftar.slice(0, 4).map(x => [
-          esc(x.no) + ' · ' + x.jenis, esc(x.id_user), esc(x.alasan || '')]), 'Tidak ada retur maupun void')}`,
+          esc(x.no) + ' · ' + esc(x.jenis), esc(x.id_user), esc(x.alasan || '')]), 'Tidak ada retur maupun void')}`,
       { id: 'kartuReturVoid', tabel: 'retur_void', kaki: '50 terbaru' }));
 
     if ($('#kartuAudit')) ganti('kartuAudit', kartuDaftarDash('Aktivitas terakhir', 'log audit ' + cap,
       la === null || la === undefined ? '<div class="dr-kosong">Tidak tersedia</div>'
-        : barisDash(la.slice(0, 5).map(x => [esc(x.aksi) + ' · ' + esc(x.id_entitas || x.entitas), esc(x.id_user), esc(jamDari(x.waktu))]), 'Belum ada catatan'),
+        : barisDash(la.slice(0, 5).map(x => [esc(kodeRapi(x.aksi)) + ' · ' + esc(x.id_entitas || x.entitas), esc(x.id_user), esc(jamDari(x.waktu))]), 'Belum ada catatan'),
       { id: 'kartuAudit', tabel: 'audit', kaki: '50 terbaru' }));
 
-    if ($('#kartuOpnameUtang')) ganti('kartuOpnameUtang', kartuDaftarDash('Opname & utang', cap, `
-        <div class="dr-judul">Opname belum diposting</div>
-        ${barisDash((op || []).slice(0, 2).map(x => [esc(x.no_dokumen) + ' · ' + esc(x.cabang) + ' · ' + esc(x.status), x.jumlah_selisih + ' selisih', 'sejak ' + esc(waktuRingkas(x.waktu_buka))]), op === null ? 'Tidak tersedia' : 'Tidak ada')}
+    if ($('#kartuOpnameUtang')) ganti('kartuOpnameUtang', kartuDaftarDash('Stok opname & utang', cap, `
+        <div class="dr-judul">Stok opname belum diposting</div>
+        ${barisDash((op || []).slice(0, 2).map(x => [esc(x.no_dokumen) + ' · ' + esc(x.cabang) + ' · ' + esc(kodeRapi(x.status)), x.jumlah_selisih + ' selisih', 'sejak ' + esc(waktuRingkas(x.waktu_buka))]), op === null ? 'Tidak tersedia' : 'Tidak ada')}
         <div class="dr-judul">Utang ke supplier</div>
         ${ut ? barisDash([
           ['Belum jatuh tempo', '<strong>' + rp(ut.belum) + '</strong>'],
@@ -1529,11 +1529,11 @@ const Admin = (() => {
         break;
       case 'audit':
         judul = 'Aktivitas terakhir · 50 catatan';
-        kolom = [{ judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) }, { judul: 'Pengguna', kunci: 'id_user' }, { judul: 'Aksi', kunci: 'aksi' }, { judul: 'Entitas', render: r => esc(r.entitas) + (r.id_entitas ? ' · ' + esc(r.id_entitas) : '') }];
+        kolom = [{ judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) }, { judul: 'Pengguna', kunci: 'id_user' }, { judul: 'Aksi', render: r => esc(kodeRapi(r.aksi)) }, { judul: 'Entitas', render: r => esc(r.entitas) + (r.id_entitas ? ' · ' + esc(r.id_entitas) : '') }];
         baris = mon.audit || [];
         break;
       case 'opname_utang':
-        judul = 'Opname belum diposting & utang per supplier';
+        judul = 'Stok opname belum diposting & utang per supplier';
         kolom = [{ judul: 'Jenis', kunci: 'jenis' }, { judul: 'Keterangan', kunci: 'ket' }, { judul: 'Status / jatuh tempo', kunci: 'st' }, { judul: 'Nilai', angka: true, kunci: 'nilai' }];
         baris = (mon.opname || []).map(o => ({ jenis: 'opname', ket: o.no_dokumen + ' · ' + o.cabang + ' · ' + (o.id_user || ''), st: labelStatus(o.status) + ' · sejak ' + waktuTampil(o.waktu_buka), nilai: o.jumlah_selisih + ' selisih' }))
           .concat(((mon.utang && mon.utang.daftar) || []).map(u => ({ jenis: 'utang', ket: u.nama_supplier, st: u.hari_telat > 0 ? 'telat ' + u.hari_telat + ' hari' : 'jatuh tempo ' + tglTampil(u.jatuh_tempo), nilai: rp(u.sisa) })));
@@ -4687,12 +4687,12 @@ const Admin = (() => {
         </select>
       </div>
       <p class="petunjuk">Kolom yang dikenali: <code id="imporKolom">${esc(KOLOM_IMPOR[entitas])}</code></p>
-      <button class="tombol kecil" id="btnTemplateImpor">${ikonAlat('ekspor')}<span>Unduh template Excel</span></button>
+      <button class="tombol kecil" id="btnTemplateImpor">${ikonAlat('ekspor')}<span>Download template Excel</span></button>
 
       <hr style="border:none;border-top:1px solid var(--garis);margin:16px 0">
 
       <div class="grup">
-        <label>Cara 1 — unggah berkas Excel (.xlsx) atau CSV</label>
+        <label>Cara 1 — upload berkas Excel (.xlsx) atau CSV</label>
         <input type="file" id="imporBerkas" accept=".xlsx,.xls,.csv">
       </div>
       <div class="grup">
@@ -4749,7 +4749,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       baris = barisBerkas.filter(r => r.some(c => String(c).trim() !== ''));
       judul = baris[0].map(h => String(h).trim().toLowerCase());
     } else {
-      if (!teks) return toast('Unggah berkas atau tempel datanya dulu.', 'galat');
+      if (!teks) return toast('Upload berkas atau tempel datanya dulu.', 'galat');
       pisah = teks.includes('\t') ? '\t' : ',';
       baris = teks.split(/\r?\n/).filter(b => b.trim()).map(b => b.split(pisah));
       judul = baris[0].map(h => String(h).trim().toLowerCase());
@@ -5390,7 +5390,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div style="max-height:360px;overflow:auto">
         ${tabel([
           { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))}<div class="meta-kecil">${esc(String(r.waktu).substring(0, 8))}</div>` },
-          { judul: 'Tipe', render: r => `<span class="lencana ${r.qty > 0 ? 'hijau' : 'kuning'}">${esc(r.tipe)}</span>` },
+          { judul: 'Tipe', render: r => `<span class="lencana ${r.qty > 0 ? 'hijau' : 'kuning'}">${esc(kodeRapi(r.tipe))}</span>` },
           { judul: 'Qty', kunci: 'qty', angka: true },
           { judul: 'Saldo', kunci: 'saldo', angka: true },
           { judul: 'Lapisan terpakai', render: r => r.lapisan
@@ -6060,7 +6060,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const rows = w._rows || [];
     w.innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Petugas / pramuniaga</h3><div style="flex:1"></div>
+          <div class="bar-alat"><h3>Daftar petugas</h3><div style="flex:1"></div>
             ${bolehIzin('petugas', 'buat') ? tombolTambah('btnPetugasBaru', 'Petugas') : ''}
             ${menuTindakan({ id: 'menuPetugas', kunci: 'petugas', idTombol: 'btnMenuPetugas',
                 isi: butirNonaktif('petugas', hitungMati(rows)) })}</div>
@@ -6279,9 +6279,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              baru terukur karena Poin kini memuat sendiri saat dibuka). -->
         <div class="petak petak-4">
           <div class="kartu statistik"><div class="label">Petugas</div><div class="nilai">${r.petugas}</div></div>
-          <div class="kartu statistik"><div class="label">Nota terklaim</div><div class="nilai">${r.nota}</div></div>
+          <div class="kartu statistik"><div class="label">Nota diklaim</div><div class="nilai">${r.nota}</div></div>
           <div class="kartu statistik"><div class="label">Total poin</div><div class="nilai">${r.poin}</div></div>
-          <div class="kartu statistik"><div class="label">Omzet terklaim</div><div class="nilai">${rp(r.omzet)}</div></div>
+          <div class="kartu statistik"><div class="label">Omzet diklaim</div><div class="nilai">${rp(r.omzet)}</div></div>
         </div>
 
         <div class="kartu" data-tab-isi="cabang">
@@ -6297,7 +6297,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Petugas', angka: true, kunci: 'petugas' }
           ], cabang, { kosong: 'Belum ada penjualan pada rentang tanggal ini' })}
           ${takTerklaim > 0 ? `<p class="petunjuk"><strong>${rp(takTerklaim)}</strong> dari omzet
-             di atas <strong>belum terklaim</strong> — nota terjual tanpa petugas, jadi tidak
+             di atas <strong>belum diklaim</strong> — nota terjual tanpa petugas, jadi tidak
              muncul di peringkat petugas mana pun. Omzet cabang dibaca dari penjualan, omzet
              petugas dari klaim; selisih inilah bedanya.</p>` : ''}
         </div>
@@ -6646,6 +6646,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       Kode biasa ("1-1201") tidak berubah. */
   const idAman = (s) => String(s).replace(/[^A-Za-z0-9-]/g, (c) => '_' + c.codePointAt(0).toString(16) + '_');
 
+  /* Nama modul, aksi, dan izin khusus di layar Peran (bagian 505): dulu tampil sebagai nama kodenya
+     (laporan_penjualan, void transaksi). Yang tidak terdaftar: huruf awal besar, garis bawah jadi spasi. */
+  const LABEL_IZIN = { kasir: 'Kasir', penjualan: 'Penjualan', retur: 'Retur Jual', void: 'Void Nota', produk: 'Produk', harga: 'Harga',
+    stok: 'Stok', opname: 'Stok Opname', transfer: 'Transfer Barang', permintaan: 'Permintaan Barang', pembelian: 'Pembelian',
+    utang: 'Utang', pelanggan: 'Pelanggan', supplier: 'Supplier', petugas: 'Petugas', piutang: 'Piutang', kas: 'Kas & Bank',
+    shift: 'Shift', laporan_penjualan: 'Laporan Penjualan', laporan_stok: 'Laporan Stok', laporan_keuangan: 'Laporan Keuangan',
+    laporan_poin: 'Poin & Performa', pulsa: 'Pulsa', laporan_pulsa: 'Laporan Pulsa', gaji: 'Gaji', produksi: 'Produksi',
+    user: 'Pengguna', cabang: 'Cabang', setting: 'Pengaturan Sistem', audit: 'Audit',
+    void_transaksi: 'Void langsung (tanpa pengajuan)', kelola_akun_perkiraan: 'Kelola Akun Perkiraan (COA)' };
+  const labelIzin = (k) => { const t = String(k == null ? '' : k); if (LABEL_IZIN[t]) return LABEL_IZIN[t];
+    const s = t.replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
+
   const tombolBaris = (gaya, label, jalur, atribut, judul) =>
     `<button class="tombol kecil ${gaya}" title="${esc(judul || label)}" ${atribut}>` +
     `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${jalur}</svg><span>${esc(label)}</span></button>`;
@@ -6914,7 +6926,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 const kunci = terkunciMenit(r);
                 return `<span class="lencana ${
                   r.status === 'DISETUJUI' ? 'hijau' : (r.status === 'DIBLOKIR' ? 'merah' : 'kuning')
-                  }">${esc(r.status)}</span>` +
+                  }">${esc(kodeRapi(r.status))}</span>` +
                   (kunci > 0
                     ? ` <span class="lencana merah">terkunci ${kunci} menit lagi</span>` +
                       `<div class="meta-kecil">${num(r.gagal_login)}\u00d7 PIN salah</div>`
@@ -7042,25 +7054,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="grup"><label>Keterangan</label><input type="text" id="rKet" value="${esc(p?.keterangan || '')}"></div>
 
       <label>Matriks izin</label>
-      <p class="petunjuk">Menu di bilah atas hanya muncul bila izin yang dibutuhkannya tercentang. Contoh: menu Produk butuh <code>produk · buat</code>, jadi peran yang hanya punya <code>produk · lihat</code> tetap bisa berjualan tanpa melihat menu master produk.</p>
+      <p class="petunjuk">Menu di bilah atas hanya muncul bila izin yang dibutuhkannya tercentang. Contoh: menu Produk butuh <strong>Produk · Buat</strong>, jadi peran yang hanya punya <strong>Produk · Lihat</strong> tetap bisa berjualan tanpa melihat menu master produk.</p>
       <div class="matriks">
         <table>
-          <thead><tr><th>Modul</th>${aksi.map(a => `<th style="text-align:center">${esc(a)}</th>`).join('')}</tr></thead>
+          <thead><tr><th>Modul</th>${aksi.map(a => `<th style="text-align:center">${esc(labelIzin(a))}</th>`).join('')}</tr></thead>
           <tbody>
             ${modul.map(m => `<tr>
-              <td>${esc(m)}</td>
+              <td>${esc(labelIzin(m))}</td>
               ${aksi.map(a => `<td style="text-align:center">
                 <input type="checkbox" data-izin="${esc(m)}" data-aksi="${esc(a)}" ${punya(m, a) ? 'checked' : ''}${m === 'user' && (a === 'setujui' || a === 'hapus') ? ' disabled title="Khusus Owner"' : ''}></td>`).join('')}
             </tr>`).join('')}
           </tbody>
         </table>
       </div>
-      <p class="petunjuk">Kotak <code>user · setujui</code> dan <code>user · hapus</code> terkunci: perangkat hanya disetujui, diblokir, atau dihapus Owner.</p>
+      <p class="petunjuk">Kotak <strong>Pengguna · Setujui</strong> dan <strong>Pengguna · Hapus</strong> terkunci: perangkat hanya disetujui, diblokir, atau dihapus Owner.</p>
 
       <label style="margin-top:14px">Izin khusus</label>
       <div class="petak-flag">
         ${flag.map(f => `<label class="cek">
-          <input type="checkbox" data-flag="${esc(f)}" ${p?.flag?.[f] ? 'checked' : ''}> ${esc(f.replace(/_/g, ' '))}</label>`).join('')}
+          <input type="checkbox" data-flag="${esc(f)}" ${p?.flag?.[f] ? 'checked' : ''}> ${esc(labelIzin(f))}</label>`).join('')}
       </div>
       <div class="grup" style="max-width:220px;margin-top:12px">
         <label>Batas diskon maksimal (%)</label>
@@ -7570,8 +7582,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ${d.accurate_neraca.seimbang === false
             ? `<p class="pesan galat"><strong>Neraca ini tidak seimbang.</strong>
                Aset tidak sama dengan liabilitas ditambah ekuitas. Berkasnya lolos
-               waktu diunggah, jadi barisnya kemungkinan berubah sesudah itu —
-               unggah ulang ekspornya sebelum angka ini dipakai.</p>`
+               waktu di-upload, jadi barisnya kemungkinan berubah sesudah itu —
+               upload ulang ekspornya sebelum angka ini dipakai.</p>`
             : d.accurate_neraca.seimbang === null
               ? `<p class="pesan peringatan">Keseimbangannya <strong>tidak bisa
                  diperiksa</strong>: salah satu baris totalnya tidak ketemu di berkas.
@@ -7580,7 +7592,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <p class="petunjuk">${esc(d.accurate_neraca.berkas || '')} ·
              ${esc(waktuTampil(d.accurate_neraca.diunggah))}</p>
         ` : `
-          <p class="petunjuk">Belum ada berkas neraca untuk periode ini. Unggahnya
+          <p class="petunjuk">Belum ada berkas neraca untuk periode ini. Upload-nya
              di <strong>menu Accurate</strong>. Laba rugi menjawab berapa yang
              dihasilkan; neraca menjawab apa yang dimiliki dan dihutangi — dan hanya
              neraca yang bisa membuktikan pembukuannya utuh.</p>`}
@@ -7664,7 +7676,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      Dua kolom dengan dua id pernah dipakai dan bekerja, tapi berarti dua
      penangan, dua id, dan dua tempat yang bisa lupa diperbarui. */
   const tombolUnggahAcc = (jenis, label) =>
-    `<button class="tombol kecil" data-unggahacc="${jenis}">${esc(label || ('Unggah ' + (jenis === 'NERACA' ? 'Neraca' : 'Laba Rugi')))}</button>`;
+    `<button class="tombol kecil" data-unggahacc="${jenis}">${esc(label || ('Upload ' + (jenis === 'NERACA' ? 'Neraca' : 'Laba Rugi')))}</button>`;
 
   /* Berkas dikirim base64 TELANJANG, tanpa awalan "data:…;base64,". Awalan
      yang ikut terkirim membuat Utilities.base64Decode melempar, dan galatnya
@@ -7757,7 +7769,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            punya berkas: ${esc(h.menggantikan.gagal)}.</p>`
         : h.menggantikan
           ? `<p class="pesan peringatan">Ini <strong>menggantikan</strong>
-             ${esc(h.menggantikan.berkas)} yang diunggah
+             ${esc(h.menggantikan.berkas)} yang di-upload
              ${esc(waktuTampil(h.menggantikan.diunggah))}. Yang lama tidak dihapus,
              cuma tidak dipakai lagi.</p>`
           : ''}
@@ -7837,7 +7849,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="saring-baris">
             <span class="wadah-periode" id="wadahPeriodeAcc"></span>
           </div>
-          <p class="petunjuk">Unggah hasil ekspor <strong>Excel</strong> Laba Rugi dan
+          <p class="petunjuk">Upload hasil ekspor <strong>Excel</strong> Laba Rugi dan
              Neraca dari Accurate, satu kali tiap bulan. Angkanya dipakai menu
              <strong>Ringkasan Gabungan</strong> — layar itu sengaja tidak punya tombol
              apa pun, karena rapor tidak menerima masukan.</p>
@@ -7892,7 +7904,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="gulir-x">
         <table class="tabel">
           <thead><tr><th>Bulan</th><th>Laba Rugi</th><th>Neraca</th>
-            <th>Terakhir diunggah</th></tr></thead>
+            <th>Terakhir di-upload</th></tr></thead>
           <tbody>${riwayat.map((r) => {
             const berjalan = r.periode === BULAN_BERJALAN();
             const lr = (r.ada || []).indexOf('LR') !== -1;
@@ -7904,7 +7916,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 r.periode === kini ? ' <span class="lencana">dilihat</span>' : ''}</td>
               <td data-l="Laba Rugi">${sel(lr, berjalan)}</td>
               <td data-l="Neraca">${sel(nr, berjalan)}</td>
-              <td data-l="Terakhir diunggah">${waktu ? esc(waktuTampil(waktu)) : '—'}</td>
+              <td data-l="Terakhir di-upload">${waktu ? esc(waktuTampil(waktu)) : '—'}</td>
             </tr>`; }).join('')}</tbody>
         </table>
       </div>
@@ -8406,7 +8418,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               <td class="kanan" data-l="Saldo akhir">${rp(r.saldo_akhir_total)}</td>
               <td class="kanan" data-l="Selisih kas">${(+r.selisih || 0) !== 0 ? rp(r.selisih) : '—'}</td>
               <td class="kanan" data-l="Reward">${rp(r.total_reward)}</td>
-              <td data-l="Status">${lencanaSetoran(r.setoran, true) || esc(String(r.status))}${(+r.koreksi || 0) > 0
+              <td data-l="Status">${lencanaSetoran(r.setoran, true) || esc(kodeRapi(r.status))}${(+r.koreksi || 0) > 0
                 /* Tanda "diedit" ala WhatsApp (bagian 260); diklik = riwayatnya. */
                 ? ` <button type="button" class="tanda-diedit" data-riwayat-koreksi="${esc(String(r.id_shift))}"
                     title="Angka shift ini sudah dikoreksi ${+r.koreksi} kali — klik untuk melihat riwayatnya">diedit</button>` : ''}${r.catatan
@@ -9003,7 +9015,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            ${esc(waktuTampil(st.buka))} · id <code>${esc(st.id_shift)}</code></p>
         ${bolehBatalShift(st) ? `<p class="petunjuk">Salah buka shift? Tekan <strong>Batalkan shift</strong>
            selagi belum mengisi apa pun — shiftnya dihapus dan tidak ada yang tercatat. Kalau
-           sudah terlanjur mengunggah foto, hapus dulu fotonya di bawah. Jangan ditutup dengan
+           sudah terlanjur meng-upload foto, hapus dulu fotonya di bawah. Jangan ditutup dengan
            saldo 0.</p>` : ''}
       </div>
       <div class="kartu">
@@ -9087,7 +9099,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <input type="file" accept="image/*" capture="environment" id="spsFoto" class="sembunyi">
         <div class="aksi"><button class="tombol" id="btnFotoPulsa">Ambil / pilih foto</button></div>
         <p class="petunjuk">Foto dikecilkan dulu di perangkat sebelum dikirim, jadi tidak
-           menghabiskan kuota. Hanya bisa diunggah selama shift berjalan — foto yang masuk
+           menghabiskan kuota. Hanya bisa di-upload selama shift berjalan — foto yang masuk
            sesudah shift ditutup tidak bisa dibedakan dari yang membetulkan cerita.${bolehBatalShift(st) && foto.length
              ? ' Salah ambil foto, atau salah pilih dari galeri? Tekan <strong>Hapus</strong> di barisnya.' : ''}</p>
       </div>
@@ -9758,7 +9770,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * baris yang sama memaksa orang membacanya satu per satu untuk sadar itu
    * masalah yang sama.
    */
-  const TAB_AUDIT = [['jejak', 'Jejak audit'], ['galat', 'Galat aplikasi']];
+  const TAB_AUDIT = [['jejak', 'Jejak audit'], ['galat', 'Error aplikasi']];
 
   async function muatAudit(tab) {
     const w = $('#isiAudit');
@@ -9801,7 +9813,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'User', kunci: 'id_user' },
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Aksi', render: r => `<span class="lencana ${
-                String(r.aksi).includes('VOID') || String(r.aksi).includes('GAGAL') ? 'merah' : ''}">${esc(r.aksi)}</span>` },
+                String(r.aksi).includes('VOID') || String(r.aksi).includes('GAGAL') ? 'merah' : ''}">${esc(kodeRapi(r.aksi))}</span>` },
             { judul: 'Objek', render: r => `${esc(r.entitas)} ${esc(r.id_entitas)}` },
             { judul: 'Perubahan', render: r => `<span class="meta-kecil">${esc((r.nilai_baru || '').substring(0, 90))}</span>` }
           ], rows, { kosong: 'Belum ada catatan audit' })}
@@ -9839,7 +9851,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       $('#hasilAudit').innerHTML = `
         <div class="kartu">
-          <div class="bar-alat"><h3>Galat aplikasi</h3>
+          <div class="bar-alat"><h3>Error aplikasi</h3>
             <div style="flex:1"></div>
             ${bolehTandai && d.belum ? `<button class="tombol" id="btnGalatSemua">
                 ${ikonAlat('setujui')}<span>Tandai semua diperiksa</span></button>` : ''}</div>
@@ -9980,7 +9992,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               render: r => `<span class="tautan-baris">${esc(r.no_dokumen || '(tanpa nomor)')}</span>` },
             { judul: 'Rute', render: r => `${esc(r.cabang_asal)} → ${esc(r.cabang_tujuan)}` },
             { judul: 'Item', render: r => String(jmlItemTransfer(r)) },
-            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_TRANSFER[r.status] || ''}">${esc(r.status)}</span>` },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_TRANSFER[r.status] || ''}">${esc(kodeRapi(r.status))}</span>` },
             ...(rows[0]?.nilai_hpp !== undefined ? [{ judul: 'Nilai', angka: true, render: r => rp(r.nilai_hpp) }] : []),
             /* Cetak LANGSUNG di baris (bagian 262) — dulu hanya di dalam jendela
                rinciannya, dan pemilik tidak menemukannya. Pembuat tombol yang
@@ -10074,7 +10086,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!t) return;
     bukaDokumen(`Transfer ${t.no_dokumen}`, `
       <p class="petunjuk">${esc(t.cabang_asal)} → ${esc(t.cabang_tujuan)} ·
-        <span class="lencana ${LENCANA_TRANSFER[t.status] || ''}">${esc(t.status)}</span><br>
+        <span class="lencana ${LENCANA_TRANSFER[t.status] || ''}">${esc(kodeRapi(t.status))}</span><br>
         Dikirim ${esc(waktuTampil(t.tanggal_kirim))} oleh ${orangTampil(t.nama_kirim, t.user_kirim)}
         ${t.tanggal_terima ? `<br>Diterima ${esc(waktuTampil(t.tanggal_terima))} oleh ${orangTampil(t.nama_terima, t.user_terima)}` : ''}
         ${t.catatan ? `<br>Catatan: ${esc(t.catatan)}` : ''}
@@ -10146,7 +10158,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       `<h2>BUKTI TRANSFER ANTAR CABANG</h2>
       <table class="info">
         ${infoBaris('No dokumen', `<strong>${esc(t.no_dokumen)}</strong>`)}
-        ${infoBaris('Status', esc(t.status))}
+        ${infoBaris('Status', esc(kodeRapi(t.status)))}
         ${infoBaris('Dari', esc(t.cabang_asal) + ' &rarr; ' + esc(t.cabang_tujuan))}
         ${infoBaris('Dikirim', esc(waktuTampil(t.tanggal_kirim)) + ' oleh ' + esc(t.nama_kirim || t.user_kirim))}
         ${t.tanggal_terima
@@ -10227,6 +10239,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     await muatTersimpan('#isiPembatalan', 'pembatalan', 'daftar_void', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarMintaVoid({}), (rows) => {
       const bolehPutus = bolehIzin('void', 'setujui');
       const bolehAjukan = bolehIzin('void', 'buat');
+      /* Membatalkan LANGSUNG (bagian 504): syaratnya sama dengan pintu servernya, apiVoidPenjualan —
+         izin penjualan·ubah dan bendera void_transaksi. Yang memegangnya tidak perlu mengajukan. */
+      const bolehLangsung = bolehIzin('penjualan', 'ubah') && !!APP_STATE.flag.void_transaksi;
 
       /* Disaring dengan `bisa_diputus` dari SERVER, bukan dihitung di sini —
          aturan "penyetuju tidak boleh peminta" hanya boleh tinggal di satu
@@ -10243,16 +10258,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ${pilihCabangHtml('pembatalan', true)}
             ${antre.length ? `<span class="lencana kuning">${antre.length} menunggu keputusan</span>` : ''}
             <div style="flex:1"></div>
-            ${bolehAjukan ? tombolTambah('btnAjukanVoid', 'Ajukan pembatalan') : ''}
+            ${bolehLangsung ? '<button class="tombol bahaya" id="btnVoidNota">Void nota</button>'
+              : (bolehAjukan ? tombolTambah('btnAjukanVoid', 'Ajukan void') : '')}
           </div>
-          <p class="petunjuk">${bolehPutus
-            ? `Kasir mengajukan pembatalan dari akunnya sendiri; Anda yang memutuskan. Nota baru benar-benar
-               batal <strong>setelah disetujui</strong> — stok kembali ke lapisan asalnya, jurnal dibalik penuh,
-               piutang dan klaim petugasnya ikut dibatalkan. Tidak bisa diurungkan.`
-            : `Anda tidak membatalkan nota sendiri. Ajukan di sini, lalu admin gudang atau Head Admin yang
-               memutuskan — hasilnya muncul di tabel ini. Selama masih menunggu, pengajuan boleh ditarik.`}</p>
-          <p class="petunjuk">Untuk barang yang <strong>benar terjual lalu dikembalikan</strong>, pakai
-            <strong>Retur</strong>, bukan pembatalan. Pembatalan hanya untuk nota yang memang salah dibuat.</p>
+          <p class="petunjuk"><strong>Void</strong> = membatalkan nota yang salah dibuat: seluruh nota dibalik
+            seolah tidak pernah terjadi — stok kembali ke lapisan asalnya, jurnal dibalik penuh, piutang dan klaim
+            petugasnya ikut batal. Tidak bisa diurungkan.</p>
+          <p class="petunjuk">${bolehLangsung
+            ? `Anda bisa langsung menekan <strong>Void nota</strong>.${bolehPutus ? ` Pengajuan void dari kasir muncul di
+               <em>Menunggu keputusan</em>; notanya baru di-void <strong>setelah disetujui</strong>.` : ''}`
+            : bolehPutus
+            ? `Kasir mengajukan void dari akunnya sendiri; Anda yang memutuskan. Nota baru benar-benar
+               di-void <strong>setelah disetujui</strong>.`
+            : `Anda tidak mem-void nota sendiri. Ajukan di sini, lalu admin gudang atau Head Admin yang
+               memutuskan — hasilnya muncul di tabel ini. Selama masih menunggu, pengajuan boleh ditarik.`}
+            Untuk barang yang <strong>benar terjual lalu dikembalikan</strong>, pakai menu <strong>Retur Jual</strong>,
+            bukan void.</p>
         </div>
         ${/* Pengajuan diskon Owner pindah ke layar Persetujuan (bagian 305). */ ''}
 
@@ -10279,13 +10300,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Diajukan', render: r => `${esc(r.nama_peminta)}
               <div class="meta-kecil">${esc(waktuTampil(r.waktu_minta))}</div>` },
             { judul: 'Alasan', kunci: 'alasan' },
-            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_MINTA_VOID[r.status] || ''}">${esc(r.status)}</span>
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_MINTA_VOID[r.status] || ''}">${esc(kodeRapi(r.status))}</span>
               ${r.status === 'DITOLAK' && r.alasan_tolak
                 ? `<div class="meta-kecil">${esc(r.alasan_tolak)}</div>` : ''}
               ${r.id_penyetuju ? `<div class="meta-kecil">oleh ${esc(r.nama_penyetuju)}</div>` : ''}` },
             { judul: '', render: r => r.bisa_ditarik
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
-          ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan pembatalan' })}
+          ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan void' })}
         </div>`;
     });
   }
@@ -10383,7 +10404,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* Pencari nota untuk pengajuan. Bentuknya sengaja sama dengan formVoid() —
      orang yang sudah terbiasa dengan satu tidak perlu belajar yang lain. */
   function formAjukanVoid() {
-    bukaModal('Ajukan pembatalan nota', `
+    bukaModal('Ajukan void nota', `
       <p class="petunjuk">Cari notanya, lalu tulis alasannya. Pengajuan Anda masuk ke antrean admin gudang
         dan Head Admin — notanya <strong>belum berubah apa pun</strong> sampai mereka menyetujui.</p>
       <div class="grup">
@@ -10429,7 +10450,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Untuk', kunci: 'cabang_tujuan' },
             { judul: 'Diminta', tgl: true, kunci: 'tanggal' },
             { judul: 'Kemajuan', render: r => `${_totalProses(r)} / ${_totalMinta(r)} pcs` },
-            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(r.status)}</span>` },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(kodeRapi(r.status))}</span>` },
             { judul: '', render: r => `<button class="tombol kecil sukses" data-proses-permintaan="${esc(r.uuid)}">Siapkan</button>` }
           ], antre)}
         </div>` : ''}
@@ -10443,7 +10464,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Peminta', kunci: 'nama_peminta' },
             { judul: 'Kemajuan', render: r => `${_totalProses(r)} / ${_totalMinta(r)} pcs
               <div class="meta-kecil">${r.item.length} baris${r.transfer.length ? ' &middot; ' + r.transfer.length + ' transfer' : ''}</div>` },
-            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(r.status)}</span>` },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(kodeRapi(r.status))}</span>` },
             /* Satu aksi = tombol ikon + teks; Detail + Batal = menu ⋮ (bagian 274, 502). */
             { judul: '', render: r => aksiBaris('Pm' + idAman(r.uuid), 'baris-permintaan', [
                 { gaya: '', label: 'Detail', ikon: IKON.tampil, atribut: `data-detail-permintaan="${esc(r.uuid)}"` },
@@ -10575,7 +10596,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!t) return;
     bukaDokumen(`Permintaan ${t.no_dokumen}`, `
       <p class="petunjuk">${esc(t.cabang_asal)} &rarr; ${esc(t.cabang_tujuan)} &middot;
-        <span class="lencana ${LENCANA_PERMINTAAN[t.status] || ''}">${esc(t.status)}</span><br>
+        <span class="lencana ${LENCANA_PERMINTAAN[t.status] || ''}">${esc(kodeRapi(t.status))}</span><br>
         Diminta ${esc(tglTampil(t.tanggal))} oleh ${esc(t.nama_peminta)}
         ${t.catatan ? `<br>Catatan: ${esc(t.catatan)}` : ''}
         ${t.status === 'DIBATALKAN' ? `<br>Dibatalkan ${esc(waktuTampil(t.tanggal_batal))} &mdash; ${esc(t.alasan_batal)}` : ''}</p>
@@ -10593,7 +10614,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${tabel([
         { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
         { judul: 'No dokumen', kunci: 'no_dokumen' },
-        { judul: 'Status transfer', kunci: 'status' }
+        { judul: 'Status transfer', render: r => esc(kodeRapi(r.status)) }
       ], t.transfer, { kosong: 'Belum ada satu pun kiriman' })}`);
   }
 
@@ -10659,21 +10680,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <div style="flex:1"></div>
             ${berjalan
               ? `<button class="tombol utama" data-lanjut-opname="${esc(berjalan.uuid)}">
-                   Lanjutkan ${esc(berjalan.no_dokumen)} (${esc(berjalan.status)})</button>`
-              : tombolTambah('btnOpnameBaru', 'Mulai opname')}
+                   Lanjutkan ${esc(berjalan.no_dokumen)} (${esc(kodeRapi(berjalan.status))})</button>`
+              : tombolTambah('btnOpnameBaru', 'Mulai stok opname')}
           </div>
           <p class="petunjuk">Stok sistem dikunci pada <strong>detik barang itu dihitung</strong>, bukan saat diposting.
-            Jadi toko boleh tetap berjualan selama opname — penjualan yang terjadi setelah suatu barang dihitung
+            Jadi toko boleh tetap berjualan selama stok opname — penjualan yang terjadi setelah suatu barang dihitung
             tidak akan muncul sebagai selisih palsu. Saat posting, sistem hanya menambahkan selisihnya,
             bukan menimpa stok dengan angka fisik.</p>
         </div>
 
         <div class="kartu">
-          <h3>Riwayat opname</h3>
+          <h3>Riwayat stok opname</h3>
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'No dokumen', kunci: 'no_dokumen' },
-            { judul: 'Cakupan', render: r => `<span class="lencana">${esc(r.cakupan)}</span>${
+            { judul: 'Cakupan', render: r => `<span class="lencana">${esc(kodeRapi(r.cakupan))}</span>${
                 r.buta ? ' <span class="lencana kuning">buta</span>' : ''}` },
             { judul: 'Item', kunci: 'jumlah_item', angka: true },
             { judul: 'Selisih', angka: true, render: r => r.jumlah_selisih
@@ -10682,7 +10703,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 : (r.nilai_selisih < 0
                     ? rp(r.nilai_selisih)   /* minus merah penuh lewat rp() (bagian 256) */
                     : (r.nilai_selisih > 0 ? `<span style="color:var(--sukses)">+ ${rp(r.nilai_selisih)}</span>` : '—')) }] : []),
-            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_OPNAME[r.status] || ''}">${esc(r.status)}</span>` },
+            { judul: 'Status', render: r => `<span class="lencana ${LENCANA_OPNAME[r.status] || ''}">${esc(kodeRapi(r.status))}</span>` },
             { judul: '', render: r => `<button class="tombol kecil" data-lanjut-opname="${esc(r.uuid)}">${
                 r.status === 'POSTED' || r.status === 'DIBATALKAN' ? 'Lihat' : 'Lanjutkan'}</button>` }
           ], rows, { kosong: 'Belum pernah opname' })}
@@ -10752,7 +10773,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         "menyesuaikan" hitungan agar cocok itu besar — dan selisih yang sebenarnya jadi tidak pernah ketahuan.
         Angkanya bukan sekadar disembunyikan di layar; server memang tidak mengirimkannya sama sekali.</p>
 
-      <div class="grup"><label>Catatan</label><input type="text" id="opCatatan" placeholder="mis. opname rutin akhir bulan"></div>
+      <div class="grup"><label>Catatan</label><input type="text" id="opCatatan" placeholder="mis. stok opname rutin akhir bulan"></div>
       <div id="pesanOpname"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnMulaiOpname">${ikonAlat('jalankan')}<span>Mulai menghitung</span></button>`);
@@ -10783,7 +10804,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     bukaModal(`Menghitung — ${d.no_dokumen}`, `
       <div class="bar-alat">
-        <span class="lencana">${esc(d.cakupan)}</span>
+        <span class="lencana">${esc(kodeRapi(d.cakupan))}</span>
         ${d.buta ? '<span class="lencana kuning">mode buta</span>' : ''}
         <span class="lencana" id="opProgres">${d.item.length} / ${semua.length} dihitung</span>
         <div style="flex:1"></div>
@@ -10825,7 +10846,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          Letaknya paling kiri, bukan setelah tombol merah: jalan keluar harus
          berada di tempat mata mencarinya, dan yang menghancurkan tidak boleh. */
       `<button class="tombol" id="btnTutupHitung">Tutup</button>
-       <button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>
+       <button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan stok opname</button>
        <button class="tombol" id="btnSimpanHitungan" data-uuid="${esc(d.uuid)}">Simpan sementara</button>
        <button class="tombol utama" id="btnSelesaiHitung" data-uuid="${esc(d.uuid)}">${ikonAlat('setujui')}<span>Selesai menghitung</span></button>`);
     siapkanPindai();
@@ -10980,7 +11001,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const cocok = d.item.length - selisih.length;
     const punyaNilai = d.nilai_selisih !== undefined;
 
-    bukaDokumen(`Hasil opname — ${d.no_dokumen}`, `
+    bukaDokumen(`Hasil stok opname — ${d.no_dokumen}`, `
       <p class="petunjuk">Dibuka ${esc(waktuTampil(d.waktu_buka))} oleh ${orangTampil(d.nama_user, d.id_user)}</p>
       <div class="petak" style="grid-template-columns:repeat(auto-fit,minmax(min(130px,100%),1fr))">
         <div class="kartu statistik"><div class="label">Dihitung</div><div class="nilai">${d.item.length}</div></div>
@@ -11015,7 +11036,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              oleh ${esc(d.nama_user_posting || d.id_user_posting || '—')}${
                d.nama_user_posting && d.id_user_posting
                  ? ` <span class="kode-redup">${esc(d.id_user_posting)}</span>` : ''
-             }. Untuk mengoreksi, buat opname baru.</div>`
+             }. Untuk mengoreksi, buat stok opname baru.</div>`
         : (d.boleh_posting
             ? `<div class="grup" style="margin-top:12px"><label>Catatan posting</label>
                  <input type="text" id="opCatatanPosting" placeholder="mis. sudah dicek ulang bersama kepala cabang"></div>`
@@ -11025,7 +11046,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ? ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>')
         : `<button class="tombol" data-tutup="1">Nanti dulu</button>
            ${bolehIzin('opname', 'hapus')
-             ? `<button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan opname</button>` : ''}
+             ? `<button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan stok opname</button>` : ''}
            ${d.boleh_posting ? `<button class="tombol sukses" id="btnPostingOpname" data-uuid="${esc(d.uuid)}">
              Posting &amp; sesuaikan stok</button>` : ''}`);
     /* Batalkan di layar REVIEW (bagian 386, titipan sesi data bagian 383):
@@ -11055,14 +11076,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat">
             ${pilihCabangHtml('retur')}
             <div style="flex:1"></div>
-            ${bolehIzin('penjualan', 'ubah') && APP_STATE.flag.void_transaksi
-              ? '<button class="tombol bahaya" id="btnVoidNota">Void nota</button>' : ''}
             ${tombolTambah('btnReturBaru', 'Retur baru')}
           </div>
-          <p class="petunjuk"><strong>Retur berbeda dengan Void.</strong> Void dipakai bila transaksinya memang salah — seluruh nota
-            dibalik seolah tidak pernah terjadi. Retur dipakai bila transaksinya benar dan pelanggan mengembalikan barang belakangan;
-            penjualannya tetap tercatat, dan nilainya muncul di Laba Rugi sebagai <em>Retur Penjualan</em> — angka yang justru perlu
-            Anda pantau, karena retur yang tinggi menandakan masalah kualitas barang.</p>
+          ${/* Bagian 504: void nota hanya ada di menu Void Nota — dulu tombolnya menumpang di sini, sedangkan
+               menunya bernama "Pembatalan": satu tindakan terbaca sebagai dua urusan. */ ''}
+          <p class="petunjuk"><strong>Retur</strong> dipakai bila barangnya benar terjual lalu dikembalikan — sebagian atau seluruhnya,
+            kapan pun; penjualannya tetap tercatat dan nilainya muncul di Laba Rugi sebagai <em>Retur Penjualan</em>. Kalau notanya
+            memang <strong>salah dibuat</strong> dan harus di-void (dibatalkan seluruhnya), itu bukan retur: buka menu <strong>Void Nota</strong>.</p>
         </div>
         <div class="kartu">
           <h3>Riwayat retur</h3>
@@ -11082,16 +11102,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   /**
-   * Void memakai pencarian nota yang sama persis dengan Retur (API.cariNota) —
+   * Void langsung (tombol "Void nota" di menu Void Nota, bagian 504) memakai pencarian nota yang sama persis dengan Retur (API.cariNota) —
    * server sudah hanya mengembalikan nota berstatus AKTIF, jadi hasil pencarian
    * di sini tidak akan pernah menawarkan nota yang sudah dibatalkan sebelumnya.
    */
+  /* Cabang pencarian (bagian 504, temuan peninjau): layar Void Nota boleh menampilkan "Semua cabang",
+     tetapi nota dicari dan di-void PER cabang. Jendelanya memajang cabangnya sendiri — pilihan bagi yang
+     lintas cabang, lencana bagi yang tidak — supaya "tidak ditemukan" tidak pernah tanpa sebab. */
+  const cabangVoid = () => { const el = $('#voidCabang'); return (el && (el.value || el.dataset.cabang)) || cabangDari('pembatalan'); };
   function formVoid() {
+    const cabAwal = cabangDari('pembatalan');
+    const pilihCab = bolehPilihCabang()
+      ? `<select id="voidCabang" class="kendali-tetap" aria-label="Cabang nota">${daftarKodeCabang().map((k) =>
+          `<option value="${esc(k)}"${k === cabAwal ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select>`
+      : `<span class="lencana" id="voidCabang" data-cabang="${esc(cabAwal)}">Cabang ${esc(cabAwal)}</span>`;
     bukaModal('Void nota', `
       <p class="petunjuk">Void membalik <strong>seluruh</strong> nota seolah tidak pernah terjadi — stok kembali ke
         lapisan asal, jurnal dibalik penuh, dan piutang terkait ikut dibatalkan. Klaim petugas pada nota ini juga
         ditandai dibatalkan. Tindakan ini tidak bisa diurungkan; pakai hanya bila transaksinya memang salah, bukan
-        untuk barang yang dikembalikan pelanggan (pakai Retur untuk itu).</p>
+        untuk barang yang dikembalikan pelanggan (pakai menu Retur Jual untuk itu).</p>
+      <div class="grup">
+        <label>Cabang nota</label>
+        ${pilihCab}
+      </div>
       <div class="grup">
         <label>Cari nota (nomor nota atau nama pelanggan)</label>
         <div style="display:flex;gap:8px">
@@ -11311,7 +11344,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="bar-alat">
             ${pilihCabangHtml('returbeli')}
             <div style="flex:1"></div>
-            ${tombolTambah('btnReturBeliBaru', 'Retur ke supplier')}
+            ${tombolTambah('btnReturBeliBaru', 'Retur beli baru')}
           </div>
           <p class="petunjuk">Ada dua angka yang dicatat terpisah, dan biasanya memang berbeda:
             <strong>nilai klaim</strong> (harga beli asli — yang ditagihkan ke supplier) dan
@@ -11321,7 +11354,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             besar tidak lagi cocok dengan kartu stok.</p>
         </div>
         <div class="kartu">
-          <h3>Riwayat retur pembelian</h3>
+          <h3>Riwayat retur beli</h3>
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
             { judul: 'No dokumen', render: r => `${esc(r.no_dokumen)}<div class="meta-kecil">oleh ${orangTampil(r.nama_user, r.id_user)}</div>` },
@@ -11334,7 +11367,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                     r.selisih_nilai > 0 ? '+' : ''}${rp(r.selisih_nilai)}</span>` : '—' },
             { judul: 'Penyelesaian', render: r => `<span class="lencana">${
                 r.penyelesaian === 'POTONG_UTANG' ? 'potong utang' : 'uang kembali'}</span>` }
-          ], rows, { kosong: 'Belum ada retur pembelian' })}
+          ], rows, { kosong: 'Belum ada retur beli' })}
         </div>`;
     });
   }
@@ -11342,7 +11375,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function formReturBeli() {
     lepasUuidDokumen('retur_beli');  // dokumen BARU — lihat uuidDokumen()
     beliTerpilih = null;
-    bukaModal('Retur ke supplier', `
+    bukaModal('Retur beli baru', `
       <div class="grup">
         <label>Cari faktur pembelian (nomor dokumen atau nama supplier)</label>
         <div style="display:flex;gap:8px">
@@ -11399,7 +11432,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <span>Nilai klaim ke supplier</span><span id="rbTotal">Rp 0</span></div>
       </div>
       <div id="pesanReturBeli"></div>
-      <button class="tombol sukses besar" id="btnSimpanReturBeli" style="margin-top:12px">Proses retur pembelian</button>`;
+      <button class="tombol sukses besar" id="btnSimpanReturBeli" style="margin-top:12px">Proses retur beli</button>`;
 
     /* Dimuat juga saat retur berasal dari faktur: barisnya memang tidak lewat
        pemilih, tapi tipe HP-nya tetap perlu ditempelkan ke keterangan baris. */
@@ -11453,7 +11486,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Kapasitas', angka: true, render: b => b.galat ? '—' : b.persen + '%' },
             { judul: 'Status', render: b => b.galat
                 ? `<span class="lencana merah">galat</span>`
-                : `<span class="lencana ${warna[b.status]}">${esc(b.status)}</span>` },
+                : `<span class="lencana ${warna[b.status]}">${esc(kodeRapi(b.status))}</span>` },
             { judul: 'Sheet terbesar', render: b => (b.terbesar || []).slice(0, 3)
                 .map(x => `${esc(x.sheet)}${x.baris === null || x.baris === undefined ? ''
                   : ` (${new Intl.NumberFormat(CONFIG.LOCALE).format(x.baris)} baris)`}`)
@@ -11525,7 +11558,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <ul style="margin:8px 0 0 18px">${d.peringatan.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
       ${d.cabang.map(c => `<div class="kartu" style="background:var(--bg)">
         <strong>${esc(c.cabang)}</strong>
-        <span class="lencana ${c.status === 'OK' ? 'hijau' : (c.status === 'GAGAL' ? 'merah' : 'kuning')}">${esc(c.status)}</span>
+        <span class="lencana ${c.status === 'OK' ? 'hijau' : (c.status === 'GAGAL' ? 'merah' : 'kuning')}">${esc(kodeRapi(c.status))}</span>
         ${c.pesan ? `<div class="petunjuk">${esc(c.pesan)}</div>` : ''}
         ${c.sheet && c.sheet.length ? tabel([
           { judul: 'Sheet', kunci: 'nama' },
@@ -11713,7 +11746,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     w.innerHTML = `
       ${(d.minta || []).length ? kartuMintaCoa(d) : ''}
       <div class="kartu laporan-uang">
-        <div class="bar-alat"><h3>Bagan akun</h3>
+        <div class="bar-alat"><h3>Daftar Akun Perkiraan (COA)</h3>
           <span class="satuan-uang">akun laba-rugi: bulan berjalan</span>
           <div style="flex:1"></div>
           ${d.boleh_ubah ? tombolTambah('btnCoaTambah', 'Tambah akun') : ''}
@@ -12225,7 +12258,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <label>Nama aplikasi *<input type="text" id="aplNama" maxlength="40" value="${esc(a?.nama || '')}" placeholder="mis. Sidiva"></label>
       <label>Operator<input type="text" id="aplOperator" maxlength="80" value="${esc(a?.operator || '')}" placeholder="mis. Smartfren · XL · Axis"></label>
       ${a ? `<label class="cek"><input type="checkbox" id="aplAktif"${a.aktif ? ' checked' : ''}> Aktif dipakai produksi</label>` :
-            '<p class="petunjuk">Aplikasi baru mendapat akun saldonya sendiri di Akun Perkiraan (di bawah 1-1560 Saldo Deposit Inject).</p>'}`,
+            '<p class="petunjuk">Aplikasi baru mendapat akun saldonya sendiri di Akun Perkiraan (COA) (di bawah 1-1560 Saldo Deposit Inject).</p>'}`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanApl" data-kode="${esc(kode || '')}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
@@ -12433,7 +12466,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <td class="kanan" data-l="Per bulan">${rp(a.per_bulan)}</td>
       <td class="kanan" data-l="Akumulasi">${rp(a.akumulasi)}</td>
       <td class="kanan" data-l="Nilai buku"><strong>${rp(a.nilai_buku)}</strong></td>
-      <td data-l="Keadaan">${a.status !== 'AKTIF' ? lencanaDash(esc(a.status), 'redup')
+      <td data-l="Keadaan">${a.status !== 'AKTIF' ? lencanaDash(esc(kodeRapi(a.status)), 'redup')
         : (a.habis ? lencanaDash('habis disusutkan', 'redup') : '')}</td>
       <!-- nowrap: dua tombol di sel tanpa lebar akan membungkus ke bawah,
            dan baris tabelnya jadi setinggi dua tombol. -->
@@ -13055,7 +13088,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* Label sumber jurnal = peta Buku Besar (app.js tampilkanBukuBesar) + sumber
      yang sering menyentuh rekening bank. Kode di luar peta tampil apa adanya. */
   const LABEL_SUMBER_KAS = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
-    RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer', PENYESUAIAN: 'Penyesuaian',
+    RETUR_BELI: 'Retur beli', OPNAME: 'Stok opname', TRANSFER: 'Transfer', PENYESUAIAN: 'Penyesuaian',
     PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk', LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun',
     PULSA: 'Pulsa', UTANG: 'Bayar utang', PIUTANG: 'Pelunasan piutang', GAJI: 'Gaji', VOID: 'Void',
     SALDO_AWAL: 'Saldo awal', PEMBELIAN_BATAL: 'Pembelian batal',
@@ -13167,7 +13200,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const boleh = bolehIzin('kas', 'ubah') && !kunci;
     $('#isiRekon').innerHTML = `
       <p class="petunjuk">${esc(d.akun ? d.akun.nama : d.kode_akun)} · ${esc(bulanTeks(d.periode))} · buku GABUNGAN semua cabang.
-        ${kunci ? `<strong>Dikunci</strong> ${esc(waktuTampil(r.waktu))} — tidak bisa diubah.` : (r ? (r.status === 'DIBUKA' ? 'Kuncinya dibuka — kunci ulang sesudah dibetulkan.' : 'Draf tersimpan.') : '')}
+        ${kunci ? `<strong>Dikunci</strong> ${esc(waktuTampil(r.waktu))} — tidak bisa diubah.` : (r ? (r.status === 'DIBUKA' ? 'Kuncinya dibuka — kunci ulang sesudah dibetulkan.' : 'Draft tersimpan.') : '')}
         ${/* Pengingat kunci ulang, semua bulan akun ini (bagian 458). */ (d.dibuka || []).length
           ? '<br>' + lencanaDash('Belum dikunci ulang: ' + d.dibuka.map(bulanTeks).join(', '), 'kuning') : ''}
         ${d.lalu_status && d.lalu_status !== 'KUNCI' ? '<br>Rekonsiliasi bulan lalu belum dikunci — baris tertundanya belum terbawa ke sini.' : ''}</p>
@@ -13195,7 +13228,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td class="kanan" data-l="Keluar">${+b.kredit ? rp(b.kredit) : ''}</td></tr>`).join('')
           || '<tr><td colspan="6">Tidak ada mutasi di bulan ini.</td></tr>'}</tbody></table></div>
       ${boleh ? `<div class="aksi">
-        <button class="tombol" id="btnRekonSimpan">Simpan draf</button>
+        <button class="tombol" id="btnRekonSimpan">Simpan draft</button>
         <button class="tombol utama" id="btnRekonKunci" disabled>Kunci rekonsiliasi</button></div>
       <p class="petunjuk">Centang baris yang SUDAH muncul di mutasi bank. Kunci aktif hanya bila selisihnya 0; baris yang
          belum cocok terbawa ke bulan berikutnya.</p>` : ''}
@@ -13215,14 +13248,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try {
       const r = await API.simpanRekonBank({ kode_akun: akunRekon, periode: rekonData.periode,
         saldo_bank: angkaDari($('#rekonSaldoBank').value), cocok: [...h.set], kunci: !!kunci });
-      toast(kunci ? 'Rekonsiliasi dikunci.' : 'Draf rekonsiliasi tersimpan (selisih ' + rpTeks(r.selisih) + ').');
+      toast(kunci ? 'Rekonsiliasi dikunci.' : 'Draft rekonsiliasi tersimpan (selisih ' + rpTeks(r.selisih) + ').');
       await muatRekon();
     } catch (e) { toast(e.message, 'galat'); }
   }
   /* Buka kunci (bagian 457): Owner saja, dengan alasan — server memeriksa ulang. */
   async function bukaKunciRekon() {
     const alasan = await tanya('Buka kunci rekonsiliasi ' + akunRekon + ' ' + bulanTeks(rekonData.periode) + '?',
-      `<p class="petunjuk">Status kembali draf; centang dan saldo bank tetap. Dokumen bertanggal bulan ini yang menyentuh
+      `<p class="petunjuk">Status kembali draft; centang dan saldo bank tetap. Dokumen bertanggal bulan ini yang menyentuh
          rekening ini bisa masuk lagi sampai dikunci ulang. Alasannya tercatat.</p>`,
       { ya: 'Buka kunci', isian: 'alasan, mis. ada transfer yang tertinggal', minimal: 5 });
     if (alasan === null) return;
@@ -13806,7 +13839,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ? `<span class="petunjuk" style="display:block;margin:0">sisa ${esc(rpTeks(sisaKb(s.kode_petugas)))}</span>` : '') },
       { judul: 'Diterima', angka: true, render: (s) => `<strong>${rp(s.diterima)}</strong>` },
       { judul: 'Status', render: (s) => s.status === 'DIBAYAR'
-          ? lencanaDash('Dibayar', 'hijau') : lencanaDash('Draf', '') },
+          ? lencanaDash('Dibayar', 'hijau') : lencanaDash('Draft', '') },
       { judul: 'Aksi', render: (s) => `<div style="display:flex;gap:6px;white-space:nowrap">${
           s.status === 'DIBAYAR'
             ? tombolBaris('', 'Cetak', IKON.cetak, `data-cetak-slip="${esc(s.id_slip)}"`, 'Cetak slip gaji')
@@ -13911,7 +13944,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              <tr><td>Potongan kasbon</td><td class="kanan">${rp(s.potongan_kasbon)}</td></tr>
              <tr><td><strong>Diserahkan</strong></td><td class="kanan"><strong>${rp(s.diterima)}</strong></td></tr>
              <tr><td>Dari</td><td class="kanan">${esc(dari)}</td></tr></tbody></table>
-           <p class="petunjuk">Belum yakin? Tekan Batal dan periksa lewat Ubah — slip Draf aman diubah kapan saja.</p>`,
+           <p class="petunjuk">Belum yakin? Tekan Batal dan periksa lewat Ubah — slip Draft aman diubah kapan saja.</p>`,
           { ya: 'Ya, bayar', jenis: 'bahaya' }))) return;
     /* Cap waktu slip yang angkanya tampil di konfirmasi: server menolak bila
        slipnya sudah diubah sejak dimuat (bagian 371). */
@@ -15573,9 +15606,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!item.length) return toast('Isi minimal satu barang (qty > 0).', 'galat');
         if (!nilai('rbAlasan')) return toast('Alasan retur wajib diisi.', 'galat');
         /* Konfirmasi (bagian 245): stok keluar dan utang/kas supplier bergerak. */
-        if (!(await tanya('Proses retur pembelian?',
+        if (!(await tanya('Proses retur beli?',
               `<p class="petunjuk">${item.reduce((a, i) => a + i.qty, 0)} pcs keluar dari stok dan dikembalikan ke supplier, dan jurnalnya dicatat.
-                 Retur pembelian tidak bisa dibatalkan dari layar.</p>`,
+                 Retur beli tidak bisa dibatalkan dari layar.</p>`,
               { ya: 'Proses retur' }))) return;
         t.disabled = true;
         try {
@@ -15588,7 +15621,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             alasan: nilai('rbAlasan')
           });
           await Sync.tarikStok();
-          bukaModal('Retur pembelian selesai — ' + r.no_dokumen, `
+          bukaModal('Retur beli selesai — ' + r.no_dokumen, `
             <div class="pesan sukses">Tercatat dan sudah dibukukan.</div>
             <table>
               <tr><td>Nilai klaim ke supplier</td><td class="angka"><strong>${rp(r.total_klaim)}</strong></td></tr>
@@ -15709,7 +15742,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (t.id === 'btnPostingOpname') {
-        if (!(await tanya('Posting opname?',
+        if (!(await tanya('Posting stok opname?',
               '<p class="petunjuk">Stok disesuaikan dan selisihnya dibukukan. Tindakan ini tidak bisa dibatalkan.</p>',
               { ya: 'Posting', jenis: 'bahaya' }))) return;
         t.disabled = true;
@@ -15720,8 +15753,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           await Sync.tarikStok();
           await Sync.tarikStokSemuaCabang();
           await sukses(r.tanpa_selisih
-            ? 'Opname diposting — tidak ada selisih.'
-            : `Opname diposting. ${r.item_disesuaikan} barang disesuaikan.`, 'opname');
+            ? 'Stok opname diposting — tidak ada selisih.'
+            : `Stok opname diposting. ${r.item_disesuaikan} barang disesuaikan.`, 'opname');
         } catch (x) {
           $('#pesanReview').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
           t.disabled = false;
@@ -15729,14 +15762,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (d.batalOpname) {
-        const alasan = await tanya('Batalkan opname ini?',
+        const alasan = await tanya('Batalkan stok opname ini?',
           '<p class="petunjuk">Hitungan yang sudah masuk tetap tersimpan, tapi opnamenya tidak diposting.</p>',
           { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
-            ya: 'Batalkan opname', jenis: 'bahaya' });
+            ya: 'Batalkan stok opname', jenis: 'bahaya' });
         if (!alasan) return;
         try {
           await API.batalOpname({ uuid: d.batalOpname, cabang: cabangDari('opname'), alasan });
-          await sukses('Opname dibatalkan.', 'opname');
+          await sukses('Stok opname dibatalkan.', 'opname');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
@@ -15801,10 +15834,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.ajukanVoidNota) {
         const nota = ($('#hasilCariNotaAjukan')._rows || []).find(x => x.uuid === d.ajukanVoidNota);
         if (!nota) return;
-        const alasan = await tanya(`Ajukan pembatalan nota ${nota.no_nota}?`,
+        const alasan = await tanya(`Ajukan void nota ${nota.no_nota}?`,
           `<div class="pesan info">Senilai ${rp(nota.total)}. Notanya <strong>belum berubah apa pun</strong>
              sampai admin menyetujui. Alasan ini yang mereka baca.</div>`,
-          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5, ya: 'Kirim pengajuan' });
+          { isian: 'Alasan void (minimal 5 karakter)', minimal: 5, ya: 'Kirim pengajuan' });
         if (!alasan) return;
         try {
           await API.ajukanVoid({ uuid: uuidDokumen('ajukanVoid'), uuid_penjualan: nota.uuid,
@@ -15819,16 +15852,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.psTolak) return putusPersetujuan(d.psJenis, d.psTolak, false);
       if (d.psBuka) return bukaLayar(d.psBuka);
       if (d.setujuiVoid) {
-        const ya = await tanya('Setujui pembatalan nota ini?',
+        const ya = await tanya('Setujui void nota ini?',
           `<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali
              ke lapisan asalnya, jurnal dibalik penuh, piutang dan klaim petugasnya ikut dibatalkan.
              Tidak bisa diurungkan.</div>`,
-          { ya: 'Setujui & batalkan nota', jenis: 'bahaya' });
+          { ya: 'Setujui & void nota', jenis: 'bahaya' });
         if (!ya) return;
         try {
           await API.putusMintaVoid({ uuid: d.setujuiVoid, setuju: true });
           await Sync.tarikStok();
-          await sukses('Nota dibatalkan.', 'pembatalan');
+          await sukses('Nota di-void.', 'pembatalan');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
@@ -15863,9 +15896,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         if (!q) return;
         $('#hasilCariNotaVoid').innerHTML = '<div class="pesan info">Mencari…</div>';
         try {
-          const rows = await API.cariNota({ cari: q, cabang: cabangDari('retur') });
+          const cab = cabangVoid();
+          const rows = await API.cariNota({ cari: q, cabang: cab });
           if (!rows.length) {
-            $('#hasilCariNotaVoid').innerHTML = '<div class="pesan galat">Nota tidak ditemukan di cabang ini.</div>';
+            $('#hasilCariNotaVoid').innerHTML = `<div class="pesan galat">Nota tidak ditemukan di cabang ${esc(cab)}.</div>`;
             return;
           }
           $('#hasilCariNotaVoid').innerHTML = `<div style="max-height:200px;overflow:auto">${tabel([
@@ -15875,6 +15909,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: '', render: r => `<button class="tombol kecil bahaya" data-void-nota="${esc(r.uuid)}">Void</button>` }
           ], rows)}</div>`;
           $('#hasilCariNotaVoid')._rows = rows;
+          $('#hasilCariNotaVoid')._cabang = cab;
         } catch (x) {
           $('#hasilCariNotaVoid').innerHTML = `<div class="pesan galat">${esc(x.message)}</div>`;
         }
@@ -15890,13 +15925,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const alasan = await tanya(`Void nota ${nota.no_nota}?`,
           `<div class="pesan peringatan">Senilai ${rp(nota.total)}. Seluruh nota dibalik —
              stok, jurnal, dan piutang terkait. Tidak bisa diurungkan.</div>`,
-          { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5,
+          { isian: 'Alasan void (minimal 5 karakter)', minimal: 5,
             ya: 'Void nota', jenis: 'bahaya' });
         if (!alasan) return;
         try {
-          await API.voidPenjualan({ uuid: nota.uuid, alasan, cabang: cabangDari('retur') });
+          await API.voidPenjualan({ uuid: nota.uuid, alasan, cabang: $('#hasilCariNotaVoid')._cabang || cabangDari('pembatalan') });
           await Sync.tarikStok();
-          await sukses('Nota ' + nota.no_nota + ' dibatalkan (void).', 'retur');
+          await sukses('Nota ' + nota.no_nota + ' di-void.', 'pembatalan');
         } catch (x) {
           toast(x.message, 'galat');
         }

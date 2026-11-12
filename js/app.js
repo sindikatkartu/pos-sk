@@ -329,8 +329,8 @@ const MENU = [
      pengajuannya sendiri, admin gudang & Head Admin melihat antrean yang harus
      DIPUTUSKANNYA — dan mereka tidak pernah boleh membuatnya. Digantung pada
      `.buat`, seluruh antrean itu tersembunyi dari orang yang justru bertugas
-     mengerjakannya. Pola yang sama persis dipakai menu Permintaan. */
-  { id: 'pembatalan', label: 'Pembatalan', grup: 'Penjualan',  izin: ['void', 'lihat'],              admin: true },
+     mengerjakannya. Pola yang sama persis dipakai menu Permintaan Barang. */
+  { id: 'pembatalan', label: 'Void Nota', grup: 'Penjualan',  izin: ['void', 'lihat'],              admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
   /* "Transfer Barang": bertabrakan dengan tab "Transfer bank" (uang) di Kas & Bank. */
@@ -338,8 +338,8 @@ const MENU = [
   // Permintaan digantung pada `permintaan.lihat`, bukan `.buat`: admin gudang
   // MEMPROSES permintaan tanpa pernah boleh membuatnya, dan menu yang digantung
   // pada `.buat` akan menyembunyikan seluruh daftar pekerjaannya.
-  { id: 'permintaan', label: 'Permintaan', grup: 'Persediaan', izin: ['permintaan', 'lihat'],        admin: true, backoffice: true },
-  { id: 'opname',     label: 'Opname',     grup: 'Persediaan', izin: ['opname', 'buat'],             admin: true, backoffice: true },
+  { id: 'permintaan', label: 'Permintaan Barang', grup: 'Persediaan', izin: ['permintaan', 'lihat'],        admin: true, backoffice: true },
+  { id: 'opname',     label: 'Stok Opname', grup: 'Persediaan', izin: ['opname', 'buat'],             admin: true, backoffice: true },
   /* Modul Produksi voucher/perdana (bagian 445): bertanda modul seperti Pulsa. */
   { id: 'produksi',   label: 'Produksi',   grup: 'Persediaan', izin: ['produksi', 'lihat'],          admin: true, backoffice: true, modul: true },
   { id: 'pembelian',  label: 'Pembelian',  grup: 'Persediaan', izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
@@ -381,7 +381,7 @@ const MENU = [
   { id: 'poin',       label: 'Poin & Performa', grup: 'Laporan',    izin: ['laporan_poin', 'lihat'],      admin: true, backoffice: true },
   /* Akun Perkiraan (bagian 296): Owner menambah/mengubah, Akunting mengajukan,
      peran lain dengan Laporan Keuangan·lihat hanya melihat. */
-  { id: 'coa',        label: 'Akun Perkiraan', grup: 'Akuntansi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  { id: 'coa',        label: 'Akun Perkiraan (COA)', grup: 'Akuntansi', izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   /* Jurnal & Tutup Buku (bagian 306): yang MENCATAT dan MENGUNCI pembukuan,
      dipisah dari Laporan Keuangan yang hanya membaca. Izinnya tetap izin yang
      dulu membuka tab Jurnal — tidak ada peran yang kehilangan atau mendapat
@@ -4708,13 +4708,13 @@ async function bukaLaporanShift(idShift, cabang) {
 
       <h4 style="margin:16px 0 6px">Nota
         <span class="petunjuk" style="font-weight:400">· ${p.jumlah_nota} aktif${
-          p.jumlah_void ? ', ' + p.jumlah_void + ' dibatalkan' : ''} · ${rp(p.total)}</span></h4>
+          p.jumlah_void ? ', ' + p.jumlah_void + ' void' : ''} · ${rp(p.total)}</span></h4>
       ${d.nota.length ? `<div class="gulir-x"><table>
         <tr><th>No Nota</th><th>Jam</th><th>Metode</th><th class="angka">Total</th><th>Status</th>${d.boleh_koreksi_bayar ? '<th></th>' : ''}</tr>
         ${d.nota.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
           <td>${esc(labelMetodeGabung(n.metode))}</td><td class="angka">${rp(n.total)}</td>
           <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
-            : `<span class="lencana merah">batal</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
+            : `<span class="lencana merah">void</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
           ${d.boleh_koreksi_bayar ? `<td data-aksi-nota="${esc(n.uuid)}">${d.koreksi_menunggu ? '' : aksiKoreksiBayar(n, false)}</td>` : ''}
         </tr>`).join('')}</table></div>
         <div id="wadahKoreksiBayar"></div>` : '<p class="petunjuk">Belum ada nota.</p>'}
@@ -5814,7 +5814,7 @@ const KOLOM_LAP = {
     { judul: 'Jatuh tempo', render: x => esc(x.jatuh_tempo ? tglTampil(x.jatuh_tempo) : '—') },
     { judul: 'Nominal', angka: true, render: x => rp(x.jumlah) },
     { judul: 'Sisa', angka: true, render: x => rp(x.sisa) },
-    { judul: 'Status', render: x => esc(x.status) }
+    { judul: 'Status', render: x => esc(kodeRapi(x.status)) }
   ],
   nota: (d) => [
     { judul: 'No nota', render: x => esc(x.no_nota) },
@@ -5854,7 +5854,7 @@ const KOLOM_LAP = {
         return `<span class="${v < 0 ? 'bahaya' : 'peringatan'}">${rp(v)}</span>`;
       } },
     { judul: 'Status', render: x => x.status === 'BUKA'
-        ? '<span class="lencana kuning">BUKA</span>' : esc(x.status) }
+        ? '<span class="lencana kuning">Buka</span>' : esc(kodeRapi(x.status)) }
   ],
   petugas: (d) => [
     { judul: 'Kode', render: x => esc(x.kode) },
@@ -5884,10 +5884,10 @@ const KOLOM_LAP = {
     { judul: 'Kasir', render: x => esc(x.nama_kasir) },
     { judul: 'Shift', render: x => esc(x.id_shift || '—') },
     { judul: 'Nilai', angka: true, render: x => rp(x.total) },
-    { judul: 'Dibatalkan oleh', render: x => esc(x.dibatalkan_oleh || '—') },
+    { judul: 'Di-void oleh', render: x => esc(x.dibatalkan_oleh || '—') },
     /* Server mengirim `yyyy-MM-dd HH:mm:ss`; yang tampil harus DD/MM/YYYY
        seperti seluruh aplikasi. */
-    { judul: 'Waktu batal', render: x => esc(x.dibatalkan_pada ? waktuTampil(x.dibatalkan_pada) : '—') },
+    { judul: 'Waktu void', render: x => esc(x.dibatalkan_pada ? waktuTampil(x.dibatalkan_pada) : '—') },
     { judul: 'Alasan', render: x => esc(x.alasan_batal || '—') }
   ],
   voidItem: () => [
@@ -5921,7 +5921,7 @@ function angkaRingkasLaporan(d) {
   }
   daftar.push(
     { label: 'Diskon', nilai: rp(r.diskon), ekor: '' },
-    { label: 'Nota batal', nilai: r.jumlah_batal, ekor: r.jumlah_batal ? rp(r.nilai_batal) : '' },
+    { label: 'Nota void', nilai: r.jumlah_batal, ekor: r.jumlah_batal ? rp(r.nilai_batal) : '' },
     { label: 'Piutang lahir', nilai: rp(pi.total),
       ekor: pi.sisa ? `<span class="delta turun">${rp(pi.sisa)} belum lunas</span>` : 'lunas semua' }
   );
@@ -5934,7 +5934,7 @@ function angkaNotaLaporan(d) {
     { label: 'Nota', nilai: r.nota || 0, ekor: d.terpotong ? 'daftar dipotong' : '' },
     { label: 'Barang keluar', nilai: r.item || 0, ekor: '' },
     { label: 'Omzet', nilai: rp(r.total || 0), ekor: r.diskon ? 'diskon ' + rp(r.diskon) : '' },
-    { label: 'Nota batal', nilai: r.batal || 0, ekor: r.batal ? rp(r.nilai_batal) : 'tidak ada' }
+    { label: 'Nota void', nilai: r.batal || 0, ekor: r.batal ? rp(r.nilai_batal) : 'tidak ada' }
   ];
 }
 
@@ -5970,10 +5970,10 @@ function angkaVoidLaporan(d) {
     perOrang[k] = (perOrang[k] || 0) + 1;
   });
   return [
-    { label: 'Nota dibatalkan', nilai: rows.length, ekor: '' },
+    { label: 'Nota void', nilai: rows.length, ekor: '' },
     { label: 'Nilai', nilai: rp(nilai), ekor: '' },
     { label: 'Barang kembali', nilai: rows.reduce((a, b) => a + (b.item || []).length, 0), ekor: 'baris nota' },
-    { label: 'Pembatal', nilai: Object.keys(perOrang).length,
+    { label: 'Pelaku void', nilai: Object.keys(perOrang).length,
       ekor: Object.keys(perOrang).slice(0, 2).map(k => esc(k) + ' ' + perOrang[k] + 'x').join(' · ') }
   ];
 }
@@ -6017,7 +6017,7 @@ function gambarLapRingkas(w, d) {
       </div></div>
       ${tabel('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
       ${tabel('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.')}
-      ${tabel('Nota dibatalkan', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang dibatalkan.')}
+      ${tabel('Nota void', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang di-void.')}
       ${tabel('Piutang yang lahir di periode ini', KOLOM_LAP.piutang(), pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.')}`;
 
   /* Grafik digambar SESUDAH innerHTML, bukan disisipkan sebagai teks: wadahnya
@@ -6136,8 +6136,8 @@ function gambarLapVoid(w, d) {
   const rows = d.nota || [];
   w.innerHTML = `
     ${petakAngka(angkaVoidLaporan(d), 'petak-4')}
-    ${lapTabel('Riwayat void', KOLOM_LAP.void(), rows, 'Tidak ada nota yang dibatalkan pada rentang ini.')}
-    ${lapTabel('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(rows),
+    ${lapTabel('Riwayat void', KOLOM_LAP.void(), rows, 'Tidak ada nota yang di-void pada rentang ini.')}
+    ${lapTabel('Barang pada nota yang di-void', KOLOM_LAP.voidItem(), barisItemVoid(rows),
                'Tidak ada rincian barang.')}`;
 }
 
@@ -6425,7 +6425,7 @@ function catatanMasalahKerugian(d) {
     (m.cabang && m.cabang !== '*' ? ' cabang ' + esc(m.cabang) : '') + ' — ' + esc(m.pesan) +
     '. Angka di bawah belum memuat bagian itu.'));
   if (d.terpotong && d.terpotong.opname) {
-    b.push('Daftar opname menyentuh batas ' + KR_BATAS_OPNAME +
+    b.push('Daftar stok opname menyentuh batas ' + KR_BATAS_OPNAME +
            ' dokumen per cabang — dokumen yang lebih lama mungkin belum ikut terhitung.');
   }
   if (d.terpotong && d.terpotong.retur) {
@@ -6470,7 +6470,7 @@ function catatanRisikoKerugian(d) {
      Kalimat di bawah ini wajib terbaca di KEDUANYA. */
   return '<div class="kartu catatan">' + ufuk + '<p><strong>Bagian ini belum menjadi kerugian.</strong> ' +
     'Barangnya masih ada dan masih tercatat penuh di persediaan pada harga modal. ' +
-    'Ia baru menjadi kerugian kalau benar-benar dihapusbukukan — lewat opname atau ' +
+    'Ia baru menjadi kerugian kalau benar-benar dihapusbukukan — lewat stok opname atau ' +
     'penghapusan barang — dan itu keputusan yang diambil orang, bukan hitungan yang ' +
     'boleh dijalankan sendiri oleh laporan.</p>' + minus + '</div>';
 }
@@ -6494,8 +6494,8 @@ function gambarLapKerugian(w, d) {
   w.innerHTML = `
     ${catatanMasalahKerugian(d)}
     ${petakAngka(angkaKerugianLaporan(d), 'petak-4')}
-    ${lapTabel('Susut opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
-               d.opname || [], 'Tidak ada opname yang diposting pada rentang ini.')}
+    ${lapTabel('Susut stok opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
+               d.opname || [], 'Tidak ada stok opname yang diposting pada rentang ini.')}
     ${lapTabel('Barang rusak dari retur · akun 5-1300 Barang Rusak / Hilang', KOLOM_LAP.rusak(),
                d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.')}
     ${catatanRisikoKerugian(d)}
@@ -6573,7 +6573,7 @@ const CETAK_LAP_BAGIAN = {
       tabelCetakLaporan('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.') +
       tabelCetakLaporan('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 50), 'Belum ada penjualan.') +
       tabelCetakLaporan('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.') +
-      tabelCetakLaporan('Nota dibatalkan', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang dibatalkan.') +
+      tabelCetakLaporan('Nota void', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang di-void.') +
       tabelCetakLaporan('Piutang yang lahir di periode ini', KOLOM_LAP.piutang(), pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.');
   },
   nota: (d) => kotakCetakLaporan(angkaNotaLaporan(d)) +
@@ -6586,8 +6586,8 @@ const CETAK_LAP_BAGIAN = {
     tabelCetakLaporan('Per petugas', KOLOM_LAP.petugas(d), d.petugas || [], 'Belum ada klaim petugas pada rentang ini.') +
     tabelCetakLaporan('Per cabang', KOLOM_LAP.petugasCabang(), d.per_cabang || [], 'Tidak ada data.'),
   void: (d) => kotakCetakLaporan(angkaVoidLaporan(d)) +
-    tabelCetakLaporan('Riwayat void', KOLOM_LAP.void(), d.nota || [], 'Tidak ada nota yang dibatalkan pada rentang ini.') +
-    tabelCetakLaporan('Barang pada nota yang dibatalkan', KOLOM_LAP.voidItem(), barisItemVoid(d.nota || []), 'Tidak ada rincian barang.'),
+    tabelCetakLaporan('Riwayat void', KOLOM_LAP.void(), d.nota || [], 'Tidak ada nota yang di-void pada rentang ini.') +
+    tabelCetakLaporan('Barang pada nota yang di-void', KOLOM_LAP.voidItem(), barisItemVoid(d.nota || []), 'Tidak ada rincian barang.'),
   pelanggan: (d) => kotakCetakLaporan(angkaPelangganLaporan(d)) +
     tabelCetakLaporan('Per pelanggan', KOLOM_LAP.pelanggan(), urutPelangganLaporan(d), 'Belum ada pelanggan terdaftar yang berbelanja pada rentang ini.') +
     `<p class="sub">Umum (tanpa pelanggan, tidak ikut peringkat): ${(d.umum || {}).nota || 0} nota · bersih ${rp((d.umum || {}).bersih || 0)}</p>`,
@@ -6607,8 +6607,8 @@ const CETAK_LAP_BAGIAN = {
    mati tanpa kalimat "ini belum kerugian" adalah halaman yang bisa dibaca
    sebagai tagihan kerugian oleh siapa pun yang menerimanya. */
 const isiCetakKerugian = (d) => kotakCetakLaporan(angkaKerugianLaporan(d)) +
-    tabelCetakLaporan('Susut opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
-                      d.opname || [], 'Tidak ada opname yang diposting pada rentang ini.') +
+    tabelCetakLaporan('Susut stok opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
+                      d.opname || [], 'Tidak ada stok opname yang diposting pada rentang ini.') +
     tabelCetakLaporan('Barang rusak dari retur · akun 5-1300 Barang Rusak / Hilang', KOLOM_LAP.rusak(),
                       d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.') +
     catatanRisikoKerugian(d) + kotakCetakLaporan(angkaRisikoLaporan(d)) +
@@ -6694,7 +6694,7 @@ async function jalankanCetakLaporan() {
  * diingat setiap kali bentuk tombolnya berubah.
  */
 const tombolUnduh = (jenis, par) => `<div class="kartu"><div class="bar-alat">
-  <strong>Unduh laporan ini</strong><div style="flex:1"></div>
+  <strong>Download laporan ini</strong><div style="flex:1"></div>
   ${Admin.tombolEkspor(jenis, par)}
 </div></div>`;
 
@@ -6922,7 +6922,7 @@ async function tampilkanBukuBesar() {
 
     const d = h.d;
     const SUMBER = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
-                     RETUR_BELI: 'Retur beli', OPNAME: 'Opname', TRANSFER: 'Transfer',
+                     RETUR_BELI: 'Retur beli', OPNAME: 'Stok opname', TRANSFER: 'Transfer',
                      PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
                      LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa',
                      /* bagian 445 */
@@ -8728,10 +8728,10 @@ function pasangEvent() {
   });
   $('#btnTutupBuku').addEventListener('click', async () => {
     const periode = $('#jrnPeriode').value;
-    if (!(await Admin.tanya(`Kunci periode ${periode}?`,
+    if (!(await Admin.tanya(`Tutup buku periode ${periode}?`,
           '<p class="petunjuk">Setelah dikunci, tidak ada transaksi baru yang bisa masuk'
           + ' ke periode itu — koreksi harus lewat periode berjalan.</p>',
-          { ya: 'Kunci periode', jenis: 'bahaya' }))) return;
+          { ya: 'Tutup buku', jenis: 'bahaya' }))) return;
     try {
       await API.tutupBuku({ periode });
       Admin.toast('Periode ' + periode + ' dikunci.');
