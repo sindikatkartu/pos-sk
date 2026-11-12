@@ -2160,8 +2160,14 @@ function tandaLap(w, waktu, galat) {
   const jam = (tanggalLokal(tgl) === tanggalLokal() ? '' : tglTampil(tanggalLokal(tgl)) + ' ') +
     tgl.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
   const ada = w.querySelector(':scope > .lap-basi-tanda');
+  /* Gagal diperbarui (bagian 502): tandanya membawa tombol Coba lagi — dulu
+     wadahnya terkunci sampai menunya dibuka ulang, dan kalimatnya menyebut
+     "laporan" di layar daftar. Galatnya dicatat di wadah supaya tanda yang
+     dipulihkan sesudah gambar ulang tetap tanda GAGAL, bukan "sedang diperbarui". */
+  if (galat) w.dataset.basiGalat = String(galat); else delete w.dataset.basiGalat;
   const html = galat
-    ? 'Angka tersimpan pukul ' + esc(jam) + ' — gagal diperbarui: ' + esc(galat) + '. Buka ulang laporan untuk mencoba lagi.'
+    ? 'Angka tersimpan pukul ' + esc(jam) + ' — gagal diperbarui: ' + esc(galat) + '. ' +
+      '<button type="button" class="tombol kecil" data-coba-lap="1">Coba lagi</button>'
     : 'Angka tersimpan pukul ' + esc(jam) + ' — sedang diperbarui…';
   if (ada) { ada.innerHTML = html; ada.classList.toggle('galat', !!galat); return; }
   w.insertAdjacentHTML('afterbegin', '<p class="petunjuk lap-basi-tanda" role="status">' + html + '</p>');
@@ -2189,28 +2195,39 @@ async function denganSimpananLap(w, jenis, par, ambil, gambar, masihSah, ringkas
     try { gambar(s.data, false); tandaLap(w, s.waktu); w.dataset.basi = '1'; w.dataset.basiWaktu = String(s.waktu); }
     catch (e) { buangSimpanLap(jenis, par); s = null; Rangka.pasang(w, RANGKA_LAP_UMUM); }
   }
-  const gen = _genDaftar;
-  let d;
-  try { d = await ambil(); }
-  catch (e) {
-    if (!s) throw e;
-    if (masihSah()) tandaLap(w, s.waktu, e.message);
-    return s.data;
-  }
-  /* Daftar yang dimintakan SEBELUM tulisan sendiri selesai bisa memuat keadaan
-     pra-tulisan: tidak disimpan (bagian 500), supaya tidak tampil lagi nanti. */
-  if (jenis.indexOf('daftar_') !== 0 || gen === _genDaftar) tulisSimpanLap(jenis, par, ringkas ? ringkas(d) : d);
-  if (masihSah()) { gambar(d, true); lepasBasi(w); }
-  return d;
+  /* Satu jalan untuk tarikan pertama DAN Coba lagi (bagian 502). */
+  const segarkan = async (ulang) => {
+    const gen = _genDaftar;
+    let d;
+    try { d = await ambil(); }
+    catch (e) {
+      if (!s) throw e;
+      if (masihSah()) {
+        w._cobaLap = () => { if (!masihSah()) return; tandaLap(w, s.waktu);
+          /* Penggambar yang melempar di jalur ini tidak boleh meninggalkan "sedang diperbarui" selamanya. */
+          segarkan(true).catch((x) => { if (masihSah()) tandaLap(w, s.waktu, (x && x.message) || 'gagal menggambar'); }); };
+        tandaLap(w, s.waktu, e.message);
+      }
+      return s.data;
+    }
+    /* Daftar yang dimintakan SEBELUM tulisan sendiri selesai bisa memuat keadaan
+       pra-tulisan: tidak disimpan (bagian 500), supaya tidak tampil lagi nanti. */
+    if (jenis.indexOf('daftar_') !== 0 || gen === _genDaftar) tulisSimpanLap(jenis, par, ringkas ? ringkas(d) : d);
+    /* Argumen ketiga: ini jawaban Coba lagi — penggambar yang biasanya menyerahkan
+       gambar segar ke pemanggilnya (tab Laporan Penjualan) wajib menggambar sendiri. */
+    if (masihSah()) { gambar(d, true, ulang === true); lepasBasi(w); }
+    return d;
+  };
+  return segarkan();
 }
 
 /** Lepas kunci angka lama dari wadah — wajib di jalur yang mengganti isinya
  *  dengan angka SEGAR tanpa lewat denganSimpananLap (bagian 369). */
-function lepasBasi(w) { if (w) { delete w.dataset.basi; delete w.dataset.basiWaktu; } }
+function lepasBasi(w) { if (w) { delete w.dataset.basi; delete w.dataset.basiWaktu; delete w.dataset.basiGalat; w._cobaLap = null; } }
 /** Penggambar ulang dari data yang sama selagi angkanya masih lama: tandanya
  *  ikut terhapus innerHTML, kuncinya tidak — pulihkan tandanya. */
 function pulihkanTandaBasi(w) {
-  if (w && w.dataset.basi && w.dataset.basiWaktu && !w.querySelector(':scope > .lap-basi-tanda')) tandaLap(w, +w.dataset.basiWaktu);
+  if (w && w.dataset.basi && w.dataset.basiWaktu && !w.querySelector(':scope > .lap-basi-tanda')) tandaLap(w, +w.dataset.basiWaktu, w.dataset.basiGalat || '');
 }
 
 /* PENJAGA KLIK selama angka lama tampil (bagian 369). Di menu akuntansi hampir
@@ -2226,6 +2243,8 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   if (!basi) return;
   e.preventDefault();
   e.stopImmediatePropagation();
+  /* Satu-satunya klik yang diloloskan: Coba lagi di tanda gagal (bagian 502). */
+  if (e.target.closest('.lap-basi-tanda [data-coba-lap]') && typeof basi._cobaLap === 'function') { basi._cobaLap(); return; }
   try { Admin.toast('Tunggu angka terbaru — yang tampil masih angka tersimpan.', 'info'); } catch (x) { /* toast belum siap */ }
 }, true);
 

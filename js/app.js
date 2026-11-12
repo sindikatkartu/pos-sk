@@ -5627,7 +5627,7 @@ async function gambarTabLaporan(tab) {
     if (!bacaSimpanLap('lap_' + tab, par)) Rangka.pasang(w, rangkaLaporan());   // bentuk asli diingat (bagian 262)
     try {
       await denganSimpananLap(w, 'lap_' + tab, par, () => tarikTabLaporan(tab),
-        (d, segar) => { if (!segar) gambar(w, d); }, () => !tiketLaporanBasi(tiket));
+        (d, segar, ulang) => { if (!segar || ulang) gambar(w, d); }, () => !tiketLaporanBasi(tiket));
     } catch (e) {
       if (tiketLaporanBasi(tiket)) return;
       w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
@@ -8908,7 +8908,14 @@ function pasangEvent() {
     if (e.key === 'F2') { e.preventDefault(); $('#inpCari').focus(); $('#inpCari').select(); }
     if (e.key === 'F12') { e.preventDefault(); bukaBayar(); }
     if (e.key === 'F9' && $('#layarKasir').classList.contains('aktif')) { e.preventDefault(); $('#btnTahan').click(); }
-    if (e.key === 'Escape') $$('.tirai').forEach(t => t.classList.remove('tampil'));
+    if (e.key === 'Escape') {
+      /* Modal hasil retur (bagian 502): Escape = Selesai, supaya daftarnya ikut
+         dimuat ulang — dulu Escape menutup tanpa memuat dan daftar lama menetap. */
+      const selesai = document.querySelector('#tiraiUmum.tampil #btnSelesaiRetur, #tiraiUmum.tampil #btnSelesaiReturBeli');
+      /* Selama body.tunggu kliknya ditolak penjaga tindakan — Escape tetap menutup seperti dulu. */
+      if (selesai && !document.body.classList.contains('tunggu')) { e.preventDefault(); selesai.click(); return; }
+      $$('.tirai').forEach(t => t.classList.remove('tampil'));
+    }
     if (e.key === 'Enter' && $('#tiraiBayar').classList.contains('tampil')
         && !$('#btnSelesaikan').disabled && e.target.tagName !== 'SELECT') {
       e.preventDefault(); selesaikanTransaksi();

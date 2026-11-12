@@ -2872,6 +2872,8 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 .lap-basi-tanda { margin: 0 0 var(--irama); }
 .lap-basi-tanda.galat { color: var(--bahaya); }
 [data-basi] :is(button, select, input, a.tombol) { pointer-events: none; opacity: .5; }
+/* Coba lagi di tanda gagal tetap bisa ditekan (bagian 502). */
+[data-basi] .lap-basi-tanda button[data-coba-lap] { pointer-events: auto; opacity: 1; margin-left: 6px; }
 .petak.laporan-sempit { max-width: 1180px; }
 /* Baris selang-seling: mata tidak meleset baris saat menyeberang dari nama
    ke angka. Warnanya --panel-2, jadi ikut tema gelap (bagian 205: latar

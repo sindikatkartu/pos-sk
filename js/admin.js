@@ -330,7 +330,7 @@ const Admin = (() => {
        mewarnai titiknya (bagian 274). Arti warnanya ikut ditulis di label,
        supaya tidak hanya terbaca oleh yang bisa membedakan warna. */
     const kata = o.tanda === 'perlu' ? 'Tindakan lain — ada permintaan menunggu'
-      : o.tanda === 'bahaya' ? 'Tindakan lain — termasuk Hapus' : 'Tindakan lain';
+      : o.tanda === 'bahaya' ? 'Tindakan lain — termasuk Hapus atau Batal' : 'Tindakan lain';
     return `<div class="menu-lain${o.baris ? ' menu-baris' : ''}">
       <button class="tombol${o.tanda ? ' tanda-' + o.tanda : ''}" id="${o.idTombol}" aria-haspopup="menu" aria-expanded="false"
               aria-controls="${o.id}" data-menu-kunci="${esc(o.kunci || '')}"
@@ -5473,14 +5473,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                tapi tidak pernah tergambar, jadi dokumen yang dibatalkan terlihat
                persis seperti yang masih berlaku. */
             { judul: 'Status', render: r => lencanaStatusBeli(r.status) },
-            { judul: '', render: r => [
+            { judul: '', render: r => {
                 /* Periksa membuka rinciannya — keputusannya diambil sambil melihat barisnya.
-                   Yang dicatat akun ini sendiri tidak bisa ia periksa (bagian 461). */
-                r.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui') && !r.dicatat_sendiri
-                  ? tombolBaris('utama', 'Periksa', IKON.setujui, `data-periksa-beli="${esc(r.uuid)}"`) : '',
-                !['DIBATALKAN', 'DITOLAK'].includes(r.status) && bolehIzin('pembelian', 'hapus')
-                  ? tombolBaris('bahaya', 'Batal', IKON.batal, `data-batal-pembelian="${esc(r.uuid)}"`) : ''
-              ].join(' ') }
+                   Yang dicatat akun ini sendiri tidak bisa ia periksa (bagian 461).
+                   Dua aksi di satu baris masuk menu ⋮ (bagian 274, 502). */
+                const periksa = r.status === 'MENUNGGU' && bolehIzin('pembelian', 'setujui') && !r.dicatat_sendiri;
+                return aksiBaris('Beli' + idAman(r.uuid), 'baris-beli', [
+                  periksa && { gaya: 'utama', label: 'Periksa', ikon: IKON.setujui, atribut: `data-periksa-beli="${esc(r.uuid)}"` },
+                  !['DIBATALKAN', 'DITOLAK'].includes(r.status) && bolehIzin('pembelian', 'hapus') &&
+                    { gaya: 'bahaya', label: 'Batal', ikon: IKON.batal, atribut: `data-batal-pembelian="${esc(r.uuid)}"` }
+                ], periksa ? 'perlu' : 'bahaya');
+              } }
           ], rows, { kosong: 'Tidak ada pembelian di periode ini',
                      dataAttr: r => `data-rincian-beli="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
@@ -6646,6 +6649,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const tombolBaris = (gaya, label, jalur, atribut, judul) =>
     `<button class="tombol kecil ${gaya}" title="${esc(judul || label)}" ${atribut}>` +
     `<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${jalur}</svg><span>${esc(label)}</span></button>`;
+
+  /**
+   * Aksi satu baris (bagian 274, 502): SATU aksi = tombolBaris, LEBIH DARI
+   * SATU = menu ⋮ berisi butirBaris. Atributnya sama di kedua bentuk, jadi
+   * penangan kliknya tidak berubah. aksi: [{gaya, label, ikon, atribut, judul}]
+   * — yang kosong (syaratnya tidak terpenuhi) dilewati. tanda: 'perlu' | 'bahaya'.
+   */
+  const aksiBaris = (id, kunci, aksi, tanda) => {
+    const ada = aksi.filter(Boolean);
+    if (!ada.length) return '';
+    if (ada.length === 1) return tombolBaris(ada[0].gaya, ada[0].label, ada[0].ikon, ada[0].atribut, ada[0].judul);
+    return menuTindakan({ id: 'menu' + id, idTombol: 'btn' + id, kunci, baris: true, tanda,
+      isi: ada.map((a) => butirBaris(a.gaya === 'bahaya' ? 'bahaya' : '', a.label, a.ikon, a.atribut, a.judul)).join('') });
+  };
 
   /**
    * Umur dalam KATA, bukan tanggal.
@@ -9968,16 +9985,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             /* Cetak LANGSUNG di baris (bagian 262) — dulu hanya di dalam jendela
                rinciannya, dan pemilik tidak menemukannya. Pembuat tombol yang
                sama dengan Batal, supaya setinggi. */
-            { judul: '', render: r => `<div class="aksi-baris">${tombolBaris('', 'Cetak', IKON.cetak,
-                `data-cetak-transfer="${esc(r.uuid)}"`, 'Cetak bukti transfer dengan kolom tanda tangan')}${
-              r.status === 'DIKIRIM' && r.cabang_asal === APP_STATE.cabang && bolehIzin('transfer', 'hapus')
-                ? tombolBaris('bahaya', 'Batal', IKON.batal, `data-batal-transfer="${esc(r.uuid)}"`) : ''}</div>` }
+            /* Baris yang juga bisa dibatalkan memakai menu ⋮ (bagian 274, 502);
+               yang hanya bisa dicetak tetap memajang tombol Cetak-nya. */
+            { judul: '', render: r => `<div class="aksi-baris">${aksiBaris('Tf' + idAman(r.uuid), 'baris-transfer', [
+                { gaya: '', label: 'Cetak', ikon: IKON.cetak, atribut: `data-cetak-transfer="${esc(r.uuid)}"`,
+                  judul: 'Cetak bukti transfer dengan kolom tanda tangan' },
+                r.status === 'DIKIRIM' && r.cabang_asal === APP_STATE.cabang && bolehIzin('transfer', 'hapus') &&
+                  { gaya: 'bahaya', label: 'Batal', ikon: IKON.batal, atribut: `data-batal-transfer="${esc(r.uuid)}"` }
+              ], 'bahaya')}</div>` }
           ], rows, { kosong: 'Belum ada transfer',
                      /* Tombol "Detail" dibuang, digantikan klik pada barisnya —
                         diminta pemilik 7 Sep 2026, disamakan dengan Pembelian.
-                        Tombol Batal TETAP tombol: `closest()` mengambil leluhur
-                        TERDEKAT, jadi menekannya tidak berubah jadi membuka
-                        rincian. */
+                        Batal TETAP <button> (tombol atau butir menu ⋮):
+                        `closest()` mengambil leluhur TERDEKAT, jadi menekannya
+                        tidak berubah jadi membuka rincian. */
                      dataAttr: r => `data-detail-transfer="${esc(r.uuid)}" class="baris-klik"` })}
         </div>`;
       /* Sampul TIDAK menimpa baris utuh (bagian 500): jendela rincian hidup di
@@ -10423,10 +10444,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Kemajuan', render: r => `${_totalProses(r)} / ${_totalMinta(r)} pcs
               <div class="meta-kecil">${r.item.length} baris${r.transfer.length ? ' &middot; ' + r.transfer.length + ' transfer' : ''}</div>` },
             { judul: 'Status', render: r => `<span class="lencana ${LENCANA_PERMINTAAN[r.status] || ''}">${esc(r.status)}</span>` },
-            { judul: '', render: r => `
-              <button class="tombol kecil" data-detail-permintaan="${esc(r.uuid)}">Detail</button>
-              ${r.bisa_dibatalkan && bolehIzin('permintaan', 'hapus')
-                ? `<button class="tombol kecil bahaya" data-batal-permintaan="${esc(r.uuid)}">Batal</button>` : ''}` }
+            /* Satu aksi = tombol ikon + teks; Detail + Batal = menu ⋮ (bagian 274, 502). */
+            { judul: '', render: r => aksiBaris('Pm' + idAman(r.uuid), 'baris-permintaan', [
+                { gaya: '', label: 'Detail', ikon: IKON.tampil, atribut: `data-detail-permintaan="${esc(r.uuid)}"` },
+                r.bisa_dibatalkan && bolehIzin('permintaan', 'hapus') &&
+                  { gaya: 'bahaya', label: 'Batal', ikon: IKON.batal, atribut: `data-batal-permintaan="${esc(r.uuid)}"` }
+              ], 'bahaya') }
           ], rows, { kosong: 'Belum ada permintaan barang' })}
         </div>`;
       $('#isiPermintaan')._rows = rows;
@@ -14211,6 +14234,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          `button` karena itu tidak boleh hilang dari sini: tanpa dia, menekan
          Batal berubah jadi membuka rincian dan pembatalannya tidak pernah
          jalan. */
+      /* Tepi menu ⋮ baris (bagian 502): popovernya anak DOM baris-klik, jadi klik
+         di padding-nya — bukan di butirnya — tidak boleh terbaca sebagai klik baris. */
+      if (e.target.closest('.menu-baris .popover-menu') && !e.target.closest('button')) return;
       const t = e.target.closest('button, [data-tutup], tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]');
       if (!t) return;
 
