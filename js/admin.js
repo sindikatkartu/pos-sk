@@ -10236,8 +10236,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   async function muatPembatalan() {
     /* Data terakhir dulu (bagian 500): simpanan per cabang sesi; saringan cabang layar dihitung saat menggambar. */
-    await muatTersimpan('#isiPembatalan', 'pembatalan', 'daftar_void', { cabang: String(APP_STATE.cabang || '') }, () => API.daftarMintaVoid({}), (rows) => {
-      const bolehPutus = bolehIzin('void', 'setujui');
+    /* Bagian 506: daftar pengajuan dijaga void·lihat di server. Pemegang void LANGSUNG tanpa izin itu
+       tetap boleh masuk (menunya terbuka lewat izinBendera) — daftarnya tidak diminta dan tidak digambar. */
+    const bolehLihat = bolehIzin('void', 'lihat');
+    await muatTersimpan('#isiPembatalan', 'pembatalan', 'daftar_void', { cabang: String(APP_STATE.cabang || '') }, () => bolehLihat ? API.daftarMintaVoid({}) : Promise.resolve([]), (rows) => {
+      const bolehPutus = bolehLihat && bolehIzin('void', 'setujui');
       const bolehAjukan = bolehIzin('void', 'buat');
       /* Membatalkan LANGSUNG (bagian 504): syaratnya sama dengan pintu servernya, apiVoidPenjualan —
          izin penjualan·ubah dan bendera void_transaksi. Yang memegangnya tidak perlu mengajukan. */
@@ -10292,7 +10295,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], antre, { kosong: 'Tidak ada yang menunggu keputusan Anda' })}
         </div>` : ''}
 
-        <div class="kartu">
+        ${bolehLihat ? `<div class="kartu">
           <h3>${bolehPutus ? 'Riwayat pengajuan' : 'Pengajuan saya'}</h3>
           ${tabel([
             { judul: 'Nota', render: r => _takPecah(esc(r.no_nota)) },
@@ -10307,7 +10310,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: '', render: r => r.bisa_ditarik
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
           ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan void' })}
-        </div>`;
+        </div>` : ''}`;
     });
   }
 

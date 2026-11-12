@@ -330,7 +330,11 @@ const MENU = [
      DIPUTUSKANNYA — dan mereka tidak pernah boleh membuatnya. Digantung pada
      `.buat`, seluruh antrean itu tersembunyi dari orang yang justru bertugas
      mengerjakannya. Pola yang sama persis dipakai menu Permintaan Barang. */
-  { id: 'pembatalan', label: 'Void Nota', grup: 'Penjualan',  izin: ['void', 'lihat'],              admin: true },
+  /* Bagian 506: `izinBendera` = pintu kedua, [modul, aksi, bendera]. Pemegang void LANGSUNG
+     (penjualan·ubah + bendera void_transaksi — syarat apiVoidPenjualan) melihat menunya walau
+     tanpa void·lihat; layarnya lalu hanya memajang tombol Void nota, tanpa daftar pengajuan. */
+  { id: 'pembatalan', label: 'Void Nota', grup: 'Penjualan',  izin: ['void', 'lihat'],
+    izinBendera: [['penjualan', 'ubah', 'void_transaksi']],                                  admin: true },
   { id: 'produk',     label: 'Produk',     grup: 'Persediaan', izin: ['produk', 'buat'],             admin: true, backoffice: true },
   { id: 'stok',       label: 'Stok',       grup: 'Persediaan', izin: ['laporan_stok', 'lihat'],      admin: true, backoffice: true },
   /* "Transfer Barang": bertabrakan dengan tab "Transfer bank" (uang) di Kas & Bank. */
@@ -1101,6 +1105,7 @@ const svgIkon = (id) =>
    satu izinnya untuk melihat menunya. Isi layarnya sendiri yang menyaring lagi. */
 const menuTampil = () => MENU.filter(m =>
   !m.izin || (m.izinAtau || [m.izin]).some(i => bolehIzin(i[0], i[1])) ||
+  (m.izinBendera || []).some(i => bolehIzin(i[0], i[1]) && !!(APP_STATE.flag || {})[i[2]]) ||
   (m.lihatSaja && modeLihat() && bolehIzin(m.lihatSaja[0], m.lihatSaja[1])));
 
 /** Kelompokkan menu yang sudah disaring hak akses, menurut URUT_GRUP. */
