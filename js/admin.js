@@ -12687,7 +12687,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!a) return;
     bukaModal('Lepas aset', borangLepas(a),
       `<button class="tombol" data-tutup="1">Batal</button>
-       <button class="tombol bahaya" data-lepas-simpan="${esc(kode)}">Lepaskan</button>`);
+       <button class="tombol utama" data-lepas-simpan="${esc(kode)}">Lanjut</button>`);
     const coa = await DB.kvGet('coa', []);
     const kas = (coa || []).filter((c) =>
       (c.transaksi === true || String(c.transaksi) === 'true') &&
