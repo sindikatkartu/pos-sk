@@ -11740,7 +11740,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const menuBaris = (a) => {
       const id = esc(a.kode), bisaHapus = !a.sistem && !a.dipakai && !a.anak;
       const isi = butirBaris('', 'Ubah nama', IKON.ubah, `data-coa-ubah="${id}"`) +
-        (!a.sistem ? butirBaris('', a.aktif ? 'Nonaktifkan' : 'Aktifkan', IKON.nonaktif, `data-coa-aktif="${id}" data-coa-jadi="${a.aktif ? '0' : '1'}"`) : '') +
+        (!a.sistem ? butirBaris(a.aktif ? 'bahaya' : '', a.aktif ? 'Nonaktifkan' : 'Aktifkan', IKON.nonaktif, `data-coa-aktif="${id}" data-coa-jadi="${a.aktif ? '0' : '1'}"`) : '') +
         (bisaHapus ? butirBaris('bahaya', 'Hapus', IKON.hapus, `data-coa-hapus="${id}"`, 'Hapus akun yang belum pernah dipakai') : '');
       return menuTindakan({ id: 'menuCoa' + idAman(a.kode), idTombol: 'btnCoa' + idAman(a.kode), kunci: 'baris-coa',
         baris: true, tanda: bisaHapus ? 'bahaya' : '', isi });
@@ -14395,7 +14395,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const ya = await tanya((aktif ? 'Aktifkan' : 'Nonaktifkan') + ' akun ' + d.coaAktif + '?',
           aktif ? '<p>Akun ini bisa dipilih lagi saat mencatat transaksi.</p>'
                 : '<p>Akun tidak bisa dipilih lagi untuk transaksi baru. Jurnal lama tetap utuh dan tetap terbaca di laporan.</p>',
-          { ya: aktif ? 'Aktifkan' : 'Nonaktifkan' });
+          { ya: aktif ? 'Aktifkan' : 'Nonaktifkan', jenis: aktif ? '' : 'bahaya' });
         if (!ya) return;
         await API.simpanCoa({ kode: d.coaAktif, aktif });
         toast('Akun ' + d.coaAktif + (aktif ? ' diaktifkan.' : ' dinonaktifkan.'));
