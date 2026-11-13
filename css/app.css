@@ -4005,9 +4005,10 @@ button.sibuk::after {
 }
 /* Pemintalnya putih HANYA di tombol yang latarnya memang padat berwarna. */
 button.utama.sibuk::after, button.sukses.sibuk::after { color: #fff; }
-/* `.bahaya` bukan tombol padat: latarnya --panel-2 (nyaris putih) dengan tulisan
+/* SELAGI KASIR AKTIF `.bahaya` bukan tombol padat: latarnya netral dengan tulisan
    merah, dan baru menjadi merah padat saat :hover — yang tidak pernah terjadi
-   selagi berputar, sebab .sibuk mematikan pointer-events. Dulu ia ikut diberi
+   selagi berputar, sebab .sibuk mematikan pointer-events. (Di luar Kasir ia merah
+   padat sejak bagian 507 — aturan di bawahnya.) Dulu ia ikut diberi
    pemintal putih bersama .utama/.sukses, jadi putih-di-atas-putih: tombolnya
    SUDAH berputar, hanya tidak terlihat sama sekali. Itulah yang terbaca sebagai
    "Tutup shift tidak punya efek menunggu seperti tombol lain" — padahal
