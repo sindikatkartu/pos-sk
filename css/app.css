@@ -1466,6 +1466,12 @@ main { flex: 1; overflow: hidden; position: relative; }
 .tombol.bahaya:hover { background: var(--bahaya-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.bahaya:hover .ikon-svg { color: #fff; }
 .tombol.utama:active, .tombol.sukses:active, .tombol.bahaya:active { filter: brightness(.95); }
+/* Bagian 507 (pemilik 13 Nov 2026: "bikin yang terang dan mencolok… supaya tahu itu tombol"):
+   di LUAR Kasir tombol bahaya merah penuh sejak diam — abu-abu berteks merah tidak terbaca
+   sebagai tombol di sebelah tombol netral. Tiga aturan di atas tetap berlaku selagi Kasir aktif
+   (layar Kasir tidak diutak-atik), termasuk jendela yang dibuka dari sana. */
+body:not(:has(#layarKasir.aktif)) .tombol.bahaya { background: var(--bahaya-tombol); border-color: var(--garis-tombol); color: #fff; }
+body:not(:has(#layarKasir.aktif)) .tombol.bahaya:hover { filter: brightness(.9); }
 /* Tombol peringatan: SATU-SATUNYA jalan keluar dari keadaan yang menghalangi.
    Berbeda dari `.bahaya`, yang diam sampai disentuh — di sini justru tombolnya
    yang harus paling terlihat, karena tidak ada pekerjaan lain yang bisa
@@ -4007,6 +4013,8 @@ button.utama.sibuk::after, button.sukses.sibuk::after { color: #fff; }
    "Tutup shift tidak punya efek menunggu seperti tombol lain" — padahal
    penandanya jalan, cuma tak kasatmata. Pakai warna tulisannya sendiri. */
 button.bahaya.sibuk::after { color: var(--bahaya); }
+/* Di luar Kasir tombol bahaya kini merah padat (bagian 507): pemintalnya ikut putih. */
+body:not(:has(#layarKasir.aktif)) button.tombol.bahaya.sibuk::after { color: #fff; }
 @keyframes putar { to { transform: rotate(360deg); } }
 
 /* Selama satu TINDAKAN ORANG berjalan, hanya tombol yang sedang bekerja yang

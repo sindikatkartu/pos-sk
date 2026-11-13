@@ -3398,7 +3398,7 @@ const Admin = (() => {
           skala <strong>100%</strong>, header/footer dimatikan.</p>
       </div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
-       <button class="tombol" id="btnKosongkanLabel">Kosongkan</button>
+       <button class="tombol bahaya" id="btnKosongkanLabel">Kosongkan</button>
        <button class="tombol utama" id="btnCetakLabel">${ikonAlat('cetak')}<span>Cetak</span></button>`);
 
     $('#modalUmum')._label = { ukuran: u };
@@ -9073,7 +9073,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             <tbody>${keluarBaris.length ? keluarBaris.map((x, i) => `<tr>
               <td data-l="Keterangan"><input type="text" class="spsKel" data-kel="keterangan" data-i="${i}" value="${esc(x.keterangan || '')}" placeholder="mis. beli plastik"></td>
               <td data-l="Nominal"><input type="text" class="kanan uang spsKel" data-kel="jumlah" data-i="${i}" value="${rp0(x.jumlah)}"></td>
-              <td><button class="tombol kecil" data-hapuskel="${i}" title="Hapus">Hapus</button></td>
+              <td><button class="tombol kecil bahaya" data-hapuskel="${i}" title="Hapus">Hapus</button></td>
             </tr>`).join('') : `<tr><td colspan="3">Belum ada pengeluaran.</td></tr>`}</tbody>
           </table>
         </div>
@@ -10244,14 +10244,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const bolehAjukan = bolehIzin('void', 'buat');
       /* Membatalkan LANGSUNG (bagian 504): syaratnya sama dengan pintu servernya, apiVoidPenjualan —
          izin penjualan·ubah dan bendera void_transaksi. Yang memegangnya tidak perlu mengajukan. */
-      const bolehLangsung = bolehIzin('penjualan', 'ubah') && !!APP_STATE.flag.void_transaksi;
+      /* penjualan·lihat: jendelanya mencari nota lewat apiCariNota, yang menuntut izin itu (bagian 506). */
+      const bolehLangsung = bolehIzin('penjualan', 'ubah') && bolehIzin('penjualan', 'lihat') && !!APP_STATE.flag.void_transaksi;
 
       /* Disaring dengan `bisa_diputus` dari SERVER, bukan dihitung di sini —
          aturan "penyetuju tidak boleh peminta" hanya boleh tinggal di satu
          tempat. Pola yang sama dipakai layar Permintaan. */
       /* Saringan cabang (bagian 262): '*' = semua. */
       const cabP = bolehPilihCabang() ? (cabangLayar.pembatalan || '*') : '*';
-      const rowsC = cabP === '*' ? rows : rows.filter(r => String(r.cabang) === cabP);
+      /* Tanpa void·lihat baris dari simpanan lama pun tidak dipakai (bagian 506) — izinnya bisa baru saja dicabut. */
+      const rowsC = !bolehLihat ? [] : cabP === '*' ? rows : rows.filter(r => String(r.cabang) === cabP);
       const antre = rowsC.filter(r => r.bisa_diputus);
       const riwayat = rowsC.filter(r => !r.bisa_diputus);
 
@@ -13025,7 +13027,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <td data-l="Akun"><select data-dok="akun">${opsiLawan}</select></td>
         <td data-l="Keterangan"><input type="text" data-dok="ket" maxlength="100" placeholder="boleh kosong"></td>
         <td data-l="Nominal"><input type="text" inputmode="numeric" class="uang" data-dok="jumlah" placeholder="0"></td>
-        <td><button class="tombol kecil" type="button" data-hapus-dok="1" title="Hapus baris">Hapus</button></td></tr></template>`,
+        <td><button class="tombol kecil bahaya" type="button" data-hapus-dok="1" title="Hapus baris">Hapus</button></td></tr></template>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanDok">${ikonAlat('simpan')}<span>Simpan ${cfg.label.toLowerCase()}</span></button>`);
     tambahBarisDok();
