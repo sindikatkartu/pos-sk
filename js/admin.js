@@ -9451,7 +9451,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     mdr_qris: 'Potongan QRIS', auto_jurnal: 'Posting jurnal otomatis',
     klaim_petugas_wajib: 'Wajib klaim petugas',
     toko_grosir: 'Toko grosir',
-    bank_aktif: 'Rekening bank aktif'
+    bank_aktif: 'Rekening bank aktif',
+    teks_berjalan: 'Pesan', teks_berjalan_warna: 'Warna',
+    teks_berjalan_tebal: 'Huruf tebal'
   };
 
   /* Keterangan sebaris di bawah kotak isian. */
@@ -9468,7 +9470,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     mdr_qris: 'Dicatat sebagai beban di jurnal.',
     tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
     toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir dan boleh menerima transfer; toko lain hanya pelanggan eceran, tunai & QRIS. Kosong = tidak dipisah.',
-    bank_aktif: 'Kode akun bank yang dipakai, pisahkan dengan koma: 1-1201 BCA, 1-1202 BNI, 1-1203 BRI, 1-1204 Mandiri. Hanya rekening ini yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Kosong = BCA & BRI.'
+    bank_aktif: 'Kode akun bank yang dipakai, pisahkan dengan koma: 1-1201 BCA, 1-1202 BNI, 1-1203 BRI, 1-1204 Mandiri. Hanya rekening ini yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Kosong = BCA & BRI.',
+    teks_berjalan: 'Tampil di bilah atas layar Kasir semua toko, di tablet & PC (tidak di HP). Pindah baris dipisah tanda •. Kosong = tidak tampil.'
   };
 
   /* Baris kedua di dalam kartu sakelar: apa yang terjadi kalau ia dinyalakan. */
@@ -9476,7 +9479,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     pkp: 'PPN dihitung per nota.',
     izinkan_stok_minus: 'Nota tetap jalan, selisihnya ditandai untuk opname.',
     auto_jurnal: 'Setiap transaksi langsung masuk jurnal.',
-    klaim_petugas_wajib: 'Nota ditolak bila belum ada petugas yang mengklaimnya.'
+    klaim_petugas_wajib: 'Nota ditolak bila belum ada petugas yang mengklaimnya.',
+    teks_berjalan_tebal: 'Teks berjalan dicetak tebal.'
   };
 
   /* Satuan yang duduk DI DALAM kotak. Ditulis di label, ia terbaca sebagai
@@ -9495,11 +9499,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      berlabel mentah `klaim_petugas_wajib` — dan servernya membaca nilainya
      dengan `String(x) === 'true'`, sehingga apa pun yang diketik selain kata
      itu berarti mati, tanpa satu pun galat. */
-  const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'auto_jurnal', 'klaim_petugas_wajib'];
+  const SETTING_BOOL = ['pkp', 'izinkan_stok_minus', 'auto_jurnal', 'klaim_petugas_wajib', 'teks_berjalan_tebal'];
 
   /* SETELAN BERTEKS PANJANG (bagian 344): kepala & kaki pesan WhatsApp draft
      grosir boleh beberapa baris — kotak satu baris membuang baris barunya. */
-  const SETTING_PANJANG = ['wa_draft_kepala', 'wa_draft_kaki'];
+  const SETTING_PANJANG = ['wa_draft_kepala', 'wa_draft_kaki', 'teks_berjalan'];
 
   /* SETELAN YANG DIBUANG. Membuangnya dari benih di 00_Config.gs saja tidak
      cukup: barisnya SUDAH ada di sheet toko yang berjalan sejak Agustus, dan
@@ -9520,7 +9524,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      ketik — dan yang terjadi kemudian bukan galat melainkan tema yang diam-diam
      tidak berubah, tanpa satu pun petunjuk kenapa. */
   const SETTING_PILIHAN = {
-    tema: [['terang', 'Terang'], ['gelap', 'Gelap']]
+    tema: [['terang', 'Terang'], ['gelap', 'Gelap']],
+    /* Bagian 511: sama dengan WARNA_TEKS_BERJALAN di app.js (dijaga uji). */
+    teks_berjalan_warna: [['biasa', 'Biasa'], ['biru', 'Biru'], ['hijau', 'Hijau'],
+                          ['kuning', 'Kuning'], ['merah', 'Merah']]
   };
 
   /* IKON LAYAR SETTING. Digambar sebaris, sama seperti `tombolIkon` di atas:
@@ -9554,7 +9561,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       kunci: ['izinkan_stok_minus', 'klaim_petugas_wajib', 'mdr_qris', 'toko_grosir', 'bank_aktif'] },
     { judul: 'Tampilan', ikon: 'tampilan',
       ket: 'Berlaku untuk semua perangkat yang masuk.',
-      kunci: ['tema'] }
+      kunci: ['tema'] },
+    { judul: 'Teks berjalan', ikon: 'megafon',
+      ket: 'Pesan yang berjalan di bilah atas layar Kasir.',
+      kunci: ['teks_berjalan', 'teks_berjalan_warna', 'teks_berjalan_tebal'] }
   ];
 
   /* SETELAN YANG NILAINYA BERGANTUNG PADA SETELAN LAIN. Kuncinya diredupkan
@@ -9622,10 +9632,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const tombol = SETTING_PILIHAN[r.kunci].map(([v, t]) =>
         `<button type="button" class="${String(r.nilai) === v ? 'pas' : ''}"` +
         ` data-segmen="${esc(r.kunci)}" data-segmen-nilai="${esc(v)}">` +
-        `${ikonSetting(v)}<span>${esc(t)}</span></button>`).join('');
+        (r.kunci === 'teks_berjalan_warna'
+          ? `<i class="titik-warna tw-${esc(v)}" aria-hidden="true"></i>` : ikonSetting(v)) +
+        `<span>${esc(t)}</span></button>`).join('');
       return `<div class="grup"><label>${esc(label)}</label>
         <input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
-        <div class="segmen">${tombol}</div>${bantu}</div>`;
+        <div class="segmen${r.kunci === 'teks_berjalan_warna' ? ' segmen-warna' : ''}">${tombol}</div>${bantu}</div>`;
     }
     if (SETTING_BOOL.includes(r.kunci)) {
       return `<label class="cek kartu-cek set-cek">

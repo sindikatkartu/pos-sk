@@ -2317,9 +2317,53 @@ function terapkanTema(nilai) {
   }
 }
 
+/**
+ * TEKS BERJALAN di bilah atas (bagian 511). Satu pesan pemilik dari setelan
+ * `teks_berjalan`, berjalan kanan ke kiri di wadah `.isi-tengah` antara judul
+ * layar dan lencana. Tidak menambah baris: tinggi bilah tetap.
+ *
+ * Kosong = wadahnya kembali jadi pengisi ruang biasa. TIDAK disembunyikan:
+ * wadah itu yang mendorong lencana ke kanan, dan tanpa dia lencananya
+ * menempel di judul.
+ *
+ * Isi hanya ditulis ulang bila TEKSNYA berubah. Fungsi ini dipanggil tiap
+ * tarikan master (5 menit); menulis ulang tiap kali memulai putarannya dari
+ * awal, dan pesan panjang tidak pernah terbaca sampai ujung.
+ */
+const WARNA_TEKS_BERJALAN = ['biasa', 'biru', 'hijau', 'kuning', 'merah'];
+
+function terapkanTeksBerjalan(st) {
+  const wadah = document.querySelector('.bar-atas .isi-tengah');
+  if (!wadah) return;
+  const bar = wadah.parentNode;
+  const teks = String(st.teks_berjalan || '').split(/\r?\n/)
+    .map(s => s.trim()).filter(Boolean).join(' • ');
+  if (!teks) {
+    wadah.className = 'isi-tengah';
+    wadah.removeAttribute('role');
+    delete wadah.dataset.teks;
+    wadah.innerHTML = '';
+    bar.classList.remove('ada-teks');
+    return;
+  }
+  const w = String(st.teks_berjalan_warna || '');
+  const warna = WARNA_TEKS_BERJALAN.includes(w) ? w : 'biasa';
+  wadah.className = 'isi-tengah teks-berjalan tw-' + warna +
+    (String(st.teks_berjalan_tebal) === 'true' ? ' tebal' : '');
+  bar.classList.add('ada-teks');
+  if (wadah.dataset.teks === teks) return;
+  wadah.dataset.teks = teks;
+  wadah.setAttribute('role', 'marquee');
+  /* Kecepatan tetap kira-kira 8 huruf per detik; pesan pendek tidak melesat. */
+  wadah.style.setProperty('--durasi', Math.max(12, Math.round(teks.length * 0.12)) + 's');
+  wadah.innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">' + IKON.megafon +
+    '</svg><div class="rel"><span>' + esc(teks) + '</span></div>';
+}
+
 function bacaSettingKeState() {
   const st = APP_STATE.setting || {};
   terapkanTema(st.tema);
+  terapkanTeksBerjalan(st);
   APP_STATE.pkp = String(st.pkp) === 'true';
   APP_STATE.tarifPpn = Number(st.tarif_ppn || 0);
   const brs = $('#brsPpn');

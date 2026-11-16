@@ -975,6 +975,47 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 }
 .bar-atas .isi-tengah { flex: 1 1 auto; min-width: 0; }
 .lencana-grup { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+
+/* TEKS BERJALAN (bagian 511): pesan pemilik di wadah .isi-tengah, di antara
+   judul dan lencana. Tidak menambah baris. Berjalan terus, tidak berhenti saat
+   disentuh (keputusan pemilik); hanya setelan OS "kurangi gerak" yang
+   membuatnya diam. HANYA di layar Kasir (pemilik 16 Nov 2026: "hanya dilayar
+   kasir aja"), dan tidak di HP, tegak maupun miring: petugas memakai tablet &
+   PC, dan di HP bilah atas tidak punya ruang. Di luar keduanya wadahnya tetap
+   jadi pengisi ruang yang mendorong lencana ke kanan. */
+.bar-atas .isi-tengah.teks-berjalan {
+  flex: 1 1 0; min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 8px;
+  margin: 0 14px; font-size: var(--fs-13); font-weight: 400; color: var(--teks);
+}
+.teks-berjalan > .ikon-svg { width: 16px; height: 16px; flex: none; }
+.teks-berjalan .rel { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }
+.teks-berjalan .rel span {
+  display: inline-block; padding-left: 100%;
+  animation: teksLari var(--durasi, 20s) linear infinite;
+}
+@keyframes teksLari { to { transform: translateX(-100%); } }
+.teks-berjalan.tw-biru   { color: var(--utama); }
+.teks-berjalan.tw-hijau  { color: var(--sukses); }
+.teks-berjalan.tw-kuning { color: var(--peringatan); }
+.teks-berjalan.tw-merah  { color: var(--bahaya); }
+.teks-berjalan.tebal .rel { font-weight: 700; }
+/* Judul, lencana, dan lonceng tidak boleh menyusut demi teksnya: tanpa ini
+   judul terpotong jadi "Dashbo…". Hanya selagi teksnya tampil. */
+@media (min-width: 621px) and (min-height: 501px) {
+  body:has(#layarKasir.aktif) .bar-atas.ada-teks h1,
+  body:has(#layarKasir.aktif) .bar-atas.ada-teks .lencana-grup,
+  body:has(#layarKasir.aktif) .bar-atas.ada-teks > .tombol-ikon { flex: none; }
+}
+body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan { flex: 1 1 auto; margin: 0; }
+body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan > * { display: none; }
+@media (max-width: 620px), (max-height: 500px) {
+  .bar-atas .isi-tengah.teks-berjalan { flex: 1 1 auto; margin: 0; }
+  .bar-atas .isi-tengah.teks-berjalan > * { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .teks-berjalan .rel { text-overflow: ellipsis; }
+  .teks-berjalan .rel span { display: inline; padding-left: 0; animation: none; }
+}
 #btnLaci { display: none; }
 
 /* Lencana = "Label" Primer: pil bertepi tipis, latar transparan, warna dibawa
@@ -4320,6 +4361,18 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
   box-shadow: var(--bayang-1); }
 .segmen button:focus-visible { outline: none; box-shadow: var(--cincin); }
 .segmen .ikon-svg { width: 16px; height: 16px; }
+/* Pilihan warna teks berjalan (bagian 511): titik berwarna aslinya. */
+.titik-warna { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--teks); }
+.titik-warna.tw-biru   { background: var(--utama); }
+.titik-warna.tw-hijau  { background: var(--sukses); }
+.titik-warna.tw-kuning { background: var(--peringatan); }
+.titik-warna.tw-merah  { background: var(--bahaya); }
+/* Lima pilihan berjajar butuh 415 px; kolom isian Pengaturan cuma ±280 px di
+   PC dan 328 px di HP, dan kartu sebelahnya menimpa yang meluber. Kelimanya
+   dibagi rata mengisi kolomnya, titik di atas nama — muat dari 250 px. */
+.segmen.segmen-warna { width: 100%; }
+.segmen.segmen-warna button { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center;
+  gap: 4px; padding: 6px 2px; font-size: var(--fs-13); }
 /* Pilihan struk di layar Bayar (bagian 344): label dan segmen sebaris, segmen
    mengisi sisanya dengan tiga tombol sama lebar. */
 .byr-struk { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; }
