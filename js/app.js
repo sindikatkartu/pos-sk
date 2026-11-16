@@ -2318,9 +2318,10 @@ function terapkanTema(nilai) {
 }
 
 /**
- * TEKS BERJALAN di bilah atas (bagian 511). Satu pesan pemilik dari setelan
+ * TEKS BERJALAN di bilah atas (bagian 511). Pesan-pesan pemilik dari setelan
  * `teks_berjalan`, berjalan kanan ke kiri di wadah `.isi-tengah` antara judul
- * layar dan lencana. Tidak menambah baris: tinggi bilah tetap.
+ * layar dan lencana. Tidak menambah baris: tinggi bilah tetap. Sejak bagian
+ * 514 tiap pesan membawa warna levelnya sendiri, satu putaran warna-warni.
  *
  * Kosong = wadahnya kembali jadi pengisi ruang biasa. TIDAK disembunyikan:
  * wadah itu yang mendorong lencana ke kanan, dan tanpa dia lencananya
@@ -2330,15 +2331,15 @@ function terapkanTema(nilai) {
  * tarikan master (5 menit); menulis ulang tiap kali memulai putarannya dari
  * awal, dan pesan panjang tidak pernah terbaca sampai ujung.
  */
-const WARNA_TEKS_BERJALAN = ['biasa', 'biru', 'hijau', 'kuning', 'merah'];
-
+/* LEVEL_WARNA_PESAN & uraiTeksBerjalan tinggal di pos.js (bagian 514):
+   layar Pengaturan (admin.js) memakainya juga, dan admin.js tidak boleh
+   bergantung pada fungsi app.js. */
 function terapkanTeksBerjalan(st) {
   const wadah = document.querySelector('.bar-atas .isi-tengah');
   if (!wadah) return;
   const bar = wadah.parentNode;
-  const teks = String(st.teks_berjalan || '').split(/\r?\n/)
-    .map(s => s.trim()).filter(Boolean).join(' • ');
-  if (!teks) {
+  const pesan = uraiTeksBerjalan(st.teks_berjalan, st.teks_berjalan_warna);
+  if (!pesan.length) {
     wadah.className = 'isi-tengah';
     wadah.removeAttribute('role');
     delete wadah.dataset.teks;
@@ -2346,18 +2347,21 @@ function terapkanTeksBerjalan(st) {
     bar.classList.remove('ada-teks');
     return;
   }
-  const w = String(st.teks_berjalan_warna || '');
-  const warna = WARNA_TEKS_BERJALAN.includes(w) ? w : 'biasa';
-  wadah.className = 'isi-tengah teks-berjalan tw-' + warna +
+  wadah.className = 'isi-tengah teks-berjalan' +
     (String(st.teks_berjalan_tebal) === 'true' ? ' tebal' : '');
   bar.classList.add('ada-teks');
-  if (wadah.dataset.teks === teks) return;
-  wadah.dataset.teks = teks;
+  const kunci = pesan.map((p) => p.warna + '|' + p.teks).join('\n');
+  if (wadah.dataset.teks === kunci) return;
+  wadah.dataset.teks = kunci;
   wadah.setAttribute('role', 'marquee');
   /* Kecepatan tetap kira-kira 8 huruf per detik; pesan pendek tidak melesat. */
-  wadah.style.setProperty('--durasi', Math.max(12, Math.round(teks.length * 0.12)) + 's');
+  const panjang = pesan.map((p) => p.teks).join(' • ').length;
+  wadah.style.setProperty('--durasi', Math.max(12, Math.round(panjang * 0.12)) + 's');
+  /* Ikon dan pemisah • berwarna biasa; hanya pesannya yang berwarna level. */
   wadah.innerHTML = '<svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">' + IKON.megafon +
-    '</svg><div class="rel"><span>' + esc(teks) + '</span></div>';
+    '</svg><div class="rel"><span>' +
+    pesan.map((p) => '<span class="tw-' + p.warna + '">' + esc(p.teks) + '</span>').join(' • ') +
+    '</span></div>';
 }
 
 function bacaSettingKeState() {

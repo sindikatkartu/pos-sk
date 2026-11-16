@@ -9471,7 +9471,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
     toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir dan boleh menerima transfer; toko lain hanya pelanggan eceran, tunai & QRIS. Kosong = tidak dipisah.',
     bank_aktif: 'Kode akun bank yang dipakai, pisahkan dengan koma: 1-1201 BCA, 1-1202 BNI, 1-1203 BRI, 1-1204 Mandiri. Hanya rekening ini yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Kosong = BCA & BRI.',
-    teks_berjalan: 'Tampil di bilah atas layar Kasir semua toko, di tablet & PC (tidak di HP). Pindah baris dipisah tanda •. Kosong = tidak tampil.'
+    teks_berjalan: 'Tampil berurutan di bilah atas layar Kasir semua toko, di tablet & PC (tidak di HP), dipisah tanda •. Warna titik = level pesannya. Semua kosong = tidak tampil.'
   };
 
   /* Baris kedua di dalam kartu sakelar: apa yang terjadi kalau ia dinyalakan. */
@@ -9503,7 +9503,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* SETELAN BERTEKS PANJANG (bagian 344): kepala & kaki pesan WhatsApp draft
      grosir boleh beberapa baris — kotak satu baris membuang baris barunya. */
-  const SETTING_PANJANG = ['wa_draft_kepala', 'wa_draft_kaki', 'teks_berjalan'];
+  const SETTING_PANJANG = ['wa_draft_kepala', 'wa_draft_kaki'];
 
   /* SETELAN YANG DIBUANG. Membuangnya dari benih di 00_Config.gs saja tidak
      cukup: barisnya SUDAH ada di sheet toko yang berjalan sejak Agustus, dan
@@ -9524,11 +9524,64 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      ketik — dan yang terjadi kemudian bukan galat melainkan tema yang diam-diam
      tidak berubah, tanpa satu pun petunjuk kenapa. */
   const SETTING_PILIHAN = {
-    tema: [['terang', 'Terang'], ['gelap', 'Gelap']],
-    /* Bagian 511: sama dengan WARNA_TEKS_BERJALAN di app.js (dijaga uji). */
-    teks_berjalan_warna: [['biasa', 'Biasa'], ['biru', 'Biru'], ['hijau', 'Hijau'],
-                          ['kuning', 'Kuning'], ['merah', 'Merah']]
+    tema: [['terang', 'Terang'], ['gelap', 'Gelap']]
   };
+
+  /* LEVEL PESAN BERJALAN (bagian 514, pemilik 17 Nov 2026: "sekali jalan bisa
+     warna warni sesuai level urgensi"). Nilainya nama WARNA, sama dengan
+     LEVEL_WARNA_PESAN di pos.js (dijaga uji); nama level hanya di layar, jadi
+     mengganti namanya kelak tidak mengubah data. */
+  const LEVEL_PESAN_JALAN = [['biasa', 'Info'], ['biru', 'Kabar'], ['hijau', 'Baik'],
+                             ['kuning', 'Perhatian'], ['merah', 'Penting']];
+  /* Warna baris lama yang belum berawalan = setelan `teks_berjalan_warna`
+     (bagian 511). Diisi muatSistem sebelum layar digambar. */
+  let _warnaPesanLama = 'biasa';
+
+  /** Satu baris penyunting: teks, tombol hapus, lima level. */
+  const barisPesanJalan = (p) => `<div class="pj-baris" data-pj>
+      <input type="text" class="pj-teks" value="${esc(p.teks)}" placeholder="Tulis pesan…" aria-label="Isi pesan">
+      <button type="button" class="tombol-ikon pj-hapus" data-pj-hapus title="Hapus pesan" aria-label="Hapus pesan">
+        <svg class="ikon-svg" viewBox="0 0 24 24" aria-hidden="true">${IKON.hapus}</svg></button>
+      <div class="segmen segmen-warna" role="group" aria-label="Level pesan">${LEVEL_PESAN_JALAN.map(([v, t]) =>
+        `<button type="button" class="${p.warna === v ? 'pas' : ''}" data-pj-level="${v}">` +
+        `<i class="titik-warna tw-${v}" aria-hidden="true"></i><span>${t}</span></button>`).join('')}</div>
+    </div>`;
+
+  /**
+   * Penyunting pesan berjalan. Nilainya dititipkan ke <input type=hidden
+   * data-setting>, sama seperti kendali bersegmen: penyimpan dan jejak
+   * perubahan tidak perlu tahu bentuk kendalinya.
+   */
+  function isianPesanJalan(r) {
+    const pesan = uraiTeksBerjalan(r.nilai, _warnaPesanLama);
+    return `<div class="grup set-pesan-jalan"><label>${esc(LABEL_SETTING[r.kunci] || r.kunci)}</label>
+      <input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
+      <div class="pj-daftar">${(pesan.length ? pesan : [{ warna: 'biasa', teks: '' }]).map(barisPesanJalan).join('')}</div>
+      <button type="button" class="tombol kecil" data-pj-tambah>${ikonAlat('tambah')}<span>Tambah pesan</span></button>
+      <span class="set-bantu">${esc(BANTU_SETTING[r.kunci] || '')}</span></div>`;
+  }
+
+  /**
+   * Tulis ulang isian tersembunyi dari baris-baris penyunting.
+   *
+   * Baris yang levelnya SAMA dengan warna lama ditulis TANPA awalan, bentuk
+   * bagian 511. Dua sebab: tablet yang belum Ctrl+Shift+R membaca bentuk itu
+   * dengan benar (awalan baginya teks mentah "biru|Promo"), dan menyentuh
+   * penyunting tanpa mengubah apa pun tidak menghitung perubahan palsu.
+   * Teks yang kebetulan diawali "kata|" tetap diberi awalan, supaya tidak
+   * terbaca sebagai level (temuan peninjau-rilis, bagian 514).
+   */
+  function rakitPesanJalan() {
+    const isi = $('#isiSistem [data-setting="teks_berjalan"]');
+    if (!isi) return;
+    isi.value = $$('#isiSistem [data-pj]').map((b) => {
+      const teks = b.querySelector('.pj-teks').value.replace(/\s+/g, ' ').trim();
+      const btn = b.querySelector('[data-pj-level].pas');
+      const lv = btn ? btn.dataset.pjLevel : 'biasa';
+      if (!teks) return '';
+      return lv === _warnaPesanLama && !/^[a-z]+\|/.test(teks) ? teks : lv + '|' + teks;
+    }).filter(Boolean).join('\n');
+  }
 
   /* IKON LAYAR SETTING. Digambar sebaris, sama seperti `tombolIkon` di atas:
      aplikasi harus tetap utuh saat internet mati, jadi tidak ada satu pun ikon
@@ -9622,6 +9675,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <p class="set-baca">${ikonSetting('gembok')}<span class="lencana hijau">${esc(r.nilai)}</span>
         <span class="set-bantu">ditetapkan mesin persediaan, tidak bisa diubah</span></p></div>`;
     }
+    if (r.kunci === 'teks_berjalan') return isianPesanJalan(r);
+    /* Warnanya kini per pesan (bagian 514). Setelan lama tetap dititipkan,
+       tersembunyi: ia warna baris lama yang belum berawalan, dan nilainya
+       tidak boleh hilang saat Simpan menyapu semua [data-setting]. */
+    if (r.kunci === 'teks_berjalan_warna') {
+      return `<input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">`;
+    }
     if (SETTING_PILIHAN[r.kunci]) {
       /* Kendali bersegmen, bukan <select>: dua pilihan yang keduanya sudah
          terlihat tidak perlu dibuka dulu untuk diketahui isinya.
@@ -9632,12 +9692,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const tombol = SETTING_PILIHAN[r.kunci].map(([v, t]) =>
         `<button type="button" class="${String(r.nilai) === v ? 'pas' : ''}"` +
         ` data-segmen="${esc(r.kunci)}" data-segmen-nilai="${esc(v)}">` +
-        (r.kunci === 'teks_berjalan_warna'
-          ? `<i class="titik-warna tw-${esc(v)}" aria-hidden="true"></i>` : ikonSetting(v)) +
-        `<span>${esc(t)}</span></button>`).join('');
+        ikonSetting(v) + `<span>${esc(t)}</span></button>`).join('');
       return `<div class="grup"><label>${esc(label)}</label>
         <input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
-        <div class="segmen${r.kunci === 'teks_berjalan_warna' ? ' segmen-warna' : ''}">${tombol}</div>${bantu}</div>`;
+        <div class="segmen">${tombol}</div>${bantu}</div>`;
     }
     if (SETTING_BOOL.includes(r.kunci)) {
       return `<label class="cek kartu-cek set-cek">
@@ -9714,6 +9772,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const rows = (await API.daftarSetting())
         .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
         .filter(r => !SETTING_DIBUANG.includes(r.kunci));
+      _warnaPesanLama = String((rows.find(r => r.kunci === 'teks_berjalan_warna') || {}).nilai || 'biasa');
       $('#isiSistem').innerHTML = `
         <div class="kartu"><p class="petunjuk">Setelan toko: nama usaha, pajak, struk, dan tampilan. Perubahan berlaku untuk seluruh cabang dan sampai ke perangkat kasir dalam beberapa menit.</p></div>
         ${/* SATU KARTU PER KELOMPOK, bukan satu kartu besar yang dibagi garis.
@@ -9763,8 +9822,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          ulang setiap kali menunya dibuka, dan pendengar yang ditambahkan akan
          menumpuk — hitungan perubahannya tetap benar, tapi jumlah pemanggilan
          per ketikan naik terus sepanjang sesi. */
-      $('#isiSistem').oninput = segarkanJejakSetting;
-      $('#isiSistem').onchange = segarkanJejakSetting;
+      /* Penyunting pesan berjalan dirakit HANYA bila yang diketik miliknya:
+         merakit pada ketikan lain mengubah nilai lama tanpa awalan jadi
+         berawalan, dan jejaknya menghitung perubahan yang tidak dibuat orang. */
+      const ketik = (e) => {
+        if (e.target.closest('[data-pj]')) rakitPesanJalan();
+        segarkanJejakSetting();
+      };
+      $('#isiSistem').oninput = ketik;
+      $('#isiSistem').onchange = ketik;
       _awalSetting = bacaSetting();
       segarkanJejakSetting();
     } catch (e) { galat('#isiSistem', e); }
@@ -15952,6 +16018,32 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         } catch (x) {
           toast(x.message, 'galat');
         }
+        return;
+      }
+
+      /* --- setting: penyunting pesan berjalan (bagian 514) --- */
+      if (d.pjLevel) {
+        t.closest('[data-pj]').querySelectorAll('[data-pj-level]')
+          .forEach(b => b.classList.toggle('pas', b === t));
+        rakitPesanJalan();
+        segarkanJejakSetting();
+        return;
+      }
+      if ('pjHapus' in d) {
+        /* Baris terakhir dikosongkan, bukan dibuang: penyunting tanpa satu
+           baris pun tidak menunjukkan di mana mengetik pesan berikutnya. */
+        const baris = t.closest('[data-pj]');
+        if ($$('#isiSistem [data-pj]').length > 1) baris.remove();
+        else baris.querySelector('.pj-teks').value = '';
+        rakitPesanJalan();
+        segarkanJejakSetting();
+        return;
+      }
+      if ('pjTambah' in d) {
+        /* Baris kosong tidak mengubah nilai — dirakit nanti saat diketik. */
+        $('#isiSistem .pj-daftar').insertAdjacentHTML('beforeend', barisPesanJalan({ warna: 'biasa', teks: '' }));
+        const baru = $$('#isiSistem .pj-daftar .pj-teks');
+        baru[baru.length - 1].focus();
         return;
       }
 

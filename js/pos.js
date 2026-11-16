@@ -418,6 +418,29 @@ function tanggalTambahHari(tglYmd, hari) {
   return tanggalLokal(new Date(b[0], b[1] - 1, b[2] + (Math.round(Number(hari)) || 0)));
 }
 
+/** TEKS BERJALAN (bagian 511, 514). NAMANYA SENGAJA BARU: app.min.js v1.379
+    menyatakan `const WARNA_TEKS_BERJALAN` di tingkat teratas. Bila sebuah
+    perangkat sempat memuat app.min.js lama bersama pos.min.js ini, nama yang
+    sama dinyatakan dua kali dan peramban menolak SELURUH app.min.js — Kasir
+    mati, bukan cuma teksnya (temuan peninjau-rilis, bagian 514). */
+const LEVEL_WARNA_PESAN = ['biasa', 'biru', 'hijau', 'kuning', 'merah'];
+
+/**
+ * Urai `teks_berjalan` jadi daftar pesan {warna, teks} (bagian 514). Satu baris
+ * satu pesan, berbentuk `merah|Stok opname`. Awalan yang BUKAN warna dikenal
+ * tidak diurai — tanda | di tengah kalimat tetap teks. Baris tanpa awalan
+ * (bentuk bagian 511) memakai `bawaan`: setelan lama `teks_berjalan_warna`.
+ * Dipakai bilah atas Kasir (app.js) dan penyunting Pengaturan (admin.js).
+ */
+function uraiTeksBerjalan(nilai, bawaan) {
+  const awal = LEVEL_WARNA_PESAN.includes(String(bawaan || '')) ? String(bawaan) : 'biasa';
+  return String(nilai || '').split(/\r?\n/).map((baris) => {
+    const m = /^([a-z]+)\|(.*)$/.exec(baris.trim());
+    return m && LEVEL_WARNA_PESAN.includes(m[1])
+      ? { warna: m[1], teks: m[2].trim() } : { warna: awal, teks: baris.trim() };
+  }).filter((p) => p.teks);
+}
+
 /* ==================== TAMPILAN TANGGAL ====================
  * Tanggal DISIMPAN sebagai teks `yyyy-MM-dd` dan dibandingkan sebagai teks di
  * seluruh backend (`String(x.tanggal) >= dari`). Format itu TIDAK boleh diubah —

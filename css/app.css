@@ -989,19 +989,21 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 }
 .teks-berjalan > .ikon-svg { width: 16px; height: 16px; flex: none; }
 .teks-berjalan .rel { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }
-.teks-berjalan .rel span {
+.teks-berjalan .rel > span {
   display: inline-block; padding-left: 100%;
   animation: teksLari var(--durasi, 20s) linear infinite;
 }
 @keyframes teksLari { to { transform: translateX(-100%); } }
-/* Selector warna wajib selengkap aturan dasar di atas (.bar-atas .isi-tengah
-   .teks-berjalan, yang memasang color: var(--teks)) ditambah kelas warnanya.
-   Versi pendek .teks-berjalan.tw-biru kalah specificity dan kelima pilihan
-   tampil sebagai teks biasa — terbit begitu di v1.378.0 (bagian 512). */
-.bar-atas .isi-tengah.teks-berjalan.tw-biru   { color: var(--utama); }
-.bar-atas .isi-tengah.teks-berjalan.tw-hijau  { color: var(--sukses); }
-.bar-atas .isi-tengah.teks-berjalan.tw-kuning { color: var(--peringatan); }
-.bar-atas .isi-tengah.teks-berjalan.tw-merah  { color: var(--bahaya); }
+/* Warna PER PESAN (bagian 514): dipasang langsung pada <span class="tw-…">
+   tiap pesan, jadi aturan dasar wadah (color: var(--teks)) hanya mewarnai ikon
+   dan pemisah •. Di v1.378.0 warnanya dipasang di WADAH dan kalah
+   specificity oleh aturan dasar itu (bagian 512); di span sendiri soal itu
+   tidak ada lagi — yang menjaganya uji-lencana-atas, yang mengukur warna
+   tampil tiap pesan. */
+.bar-atas .isi-tengah.teks-berjalan .rel .tw-biru   { color: var(--utama); }
+.bar-atas .isi-tengah.teks-berjalan .rel .tw-hijau  { color: var(--sukses); }
+.bar-atas .isi-tengah.teks-berjalan .rel .tw-kuning { color: var(--peringatan); }
+.bar-atas .isi-tengah.teks-berjalan .rel .tw-merah  { color: var(--bahaya); }
 .teks-berjalan.tebal .rel { font-weight: 700; }
 /* Judul, lencana, dan lonceng tidak boleh menyusut demi teksnya: tanpa ini
    judul terpotong jadi "Dashbo…". Hanya selagi teksnya tampil. */
@@ -1018,7 +1020,7 @@ body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan > * { disp
 }
 @media (prefers-reduced-motion: reduce) {
   .teks-berjalan .rel { text-overflow: ellipsis; }
-  .teks-berjalan .rel span { display: inline; padding-left: 0; animation: none; }
+  .teks-berjalan .rel > span { display: inline; padding-left: 0; animation: none; }
 }
 #btnLaci { display: none; }
 
@@ -4387,6 +4389,20 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 #btnKirimWa.sembunyi, #btnKirimWaSukses.sembunyi { display: none; }
 /* Kepala & kaki pesan WhatsApp di Pengaturan Sistem: selebar kelompoknya. */
 .set-panjang { grid-column: 1 / -1; }
+/* Penyunting pesan berjalan (bagian 514): selebar kartu. Di HP & tablet tegak
+   teks + hapus sebaris, lima level di bawahnya; di layar lebar ketiganya
+   sebaris, hapus paling kanan. */
+.set-pesan-jalan { grid-column: 1 / -1; }
+.pj-daftar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.pj-baris { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pj-baris .pj-teks { flex: 1 1 200px; min-width: 0; }
+.pj-baris .pj-hapus { flex: none; width: 40px; height: 40px; color: var(--bahaya); }
+.pj-baris .segmen.segmen-warna { flex: 1 1 100%; }
+@media (min-width: 900px) {
+  .pj-baris { flex-wrap: nowrap; }
+  .pj-baris .segmen.segmen-warna { flex: 0 0 360px; order: 2; }
+  .pj-baris .pj-hapus { order: 3; }
+}
 .set-panjang textarea { width: 100%; min-height: 72px; resize: vertical; }
 
 /* Setelan yang tidak berlaku saat induknya mati DIREDUPKAN, bukan dikosongkan:
