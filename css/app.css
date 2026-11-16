@@ -994,10 +994,14 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
   animation: teksLari var(--durasi, 20s) linear infinite;
 }
 @keyframes teksLari { to { transform: translateX(-100%); } }
-.teks-berjalan.tw-biru   { color: var(--utama); }
-.teks-berjalan.tw-hijau  { color: var(--sukses); }
-.teks-berjalan.tw-kuning { color: var(--peringatan); }
-.teks-berjalan.tw-merah  { color: var(--bahaya); }
+/* Selector warna wajib selengkap aturan dasar di atas (.bar-atas .isi-tengah
+   .teks-berjalan, yang memasang color: var(--teks)) ditambah kelas warnanya.
+   Versi pendek .teks-berjalan.tw-biru kalah specificity dan kelima pilihan
+   tampil sebagai teks biasa — terbit begitu di v1.378.0 (bagian 512). */
+.bar-atas .isi-tengah.teks-berjalan.tw-biru   { color: var(--utama); }
+.bar-atas .isi-tengah.teks-berjalan.tw-hijau  { color: var(--sukses); }
+.bar-atas .isi-tengah.teks-berjalan.tw-kuning { color: var(--peringatan); }
+.bar-atas .isi-tengah.teks-berjalan.tw-merah  { color: var(--bahaya); }
 .teks-berjalan.tebal .rel { font-weight: 700; }
 /* Judul, lencana, dan lonceng tidak boleh menyusut demi teksnya: tanpa ini
    judul terpotong jadi "Dashbo…". Hanya selagi teksnya tampil. */
