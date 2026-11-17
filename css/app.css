@@ -982,13 +982,26 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
    membuatnya diam. HANYA di layar Kasir (pemilik 16 Nov 2026: "hanya dilayar
    kasir aja"), dan tidak di HP, tegak maupun miring: petugas memakai tablet &
    PC, dan di HP bilah atas tidak punya ruang. Di luar keduanya wadahnya tetap
-   jadi pengisi ruang yang mendorong lencana ke kanan. */
+   jadi pengisi ruang yang mendorong lencana ke kanan.
+   KOTAK SENDIRI (bagian 515): tanpa batas, huruf yang lewat di kiri menempel ke
+   judul dan terbaca sebagai lanjutannya ("Kasir ris atau Tunai kak?"). Latar,
+   garis, dan sudut memisahkannya; tepi .rel memudar 24 px supaya huruf masuk
+   dan keluar kotak tidak terpotong tajam (mask hanya membaca transparansi —
+   "black" di situ bukan warna yang tampil). Di luar Kasir & di HP kotaknya
+   DIHAPUS lagi di bawah — wadahnya tetap ada sebagai pengisi ruang, dan tanpa
+   itu yang tersisa kotak kosong. */
 .bar-atas .isi-tengah.teks-berjalan {
   flex: 1 1 0; min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 8px;
-  margin: 0 14px; font-size: var(--fs-13); font-weight: 400; color: var(--teks);
+  margin: 0 24px; font-size: var(--fs-13); font-weight: 400; color: var(--teks);
+  height: 32px; padding: 0 12px; background: var(--panel-2);
+  border: 1px solid var(--garis-halus); border-radius: 8px;
 }
 .teks-berjalan > .ikon-svg { width: 16px; height: 16px; flex: none; }
-.teks-berjalan .rel { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }
+.teks-berjalan .rel {
+  flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap;
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 24px, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(90deg, transparent, black 24px, black calc(100% - 24px), transparent);
+}
 .teks-berjalan .rel > span {
   display: inline-block; padding-left: 100%;
   animation: teksLari var(--durasi, 20s) linear infinite;
@@ -1012,14 +1025,21 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
   body:has(#layarKasir.aktif) .bar-atas.ada-teks .lencana-grup,
   body:has(#layarKasir.aktif) .bar-atas.ada-teks > .tombol-ikon { flex: none; }
 }
-body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan { flex: 1 1 auto; margin: 0; }
+body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan {
+  flex: 1 1 auto; margin: 0; padding: 0; height: auto; background: none; border: 0;
+}
 body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan > * { display: none; }
 @media (max-width: 620px), (max-height: 500px) {
-  .bar-atas .isi-tengah.teks-berjalan { flex: 1 1 auto; margin: 0; }
+  .bar-atas .isi-tengah.teks-berjalan {
+    flex: 1 1 auto; margin: 0; padding: 0; height: auto; background: none; border: 0;
+  }
   .bar-atas .isi-tengah.teks-berjalan > * { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .teks-berjalan .rel { text-overflow: ellipsis; }
+  /* Teks DIAM mulai tepat di tepi kiri .rel — tepi memudar (bagian 515) di sana
+     menghapus tiga huruf pertamanya dan elipsis di kanan. Mask dimatikan;
+     kotaknya sendiri sudah cukup memisahkan dari judul (temuan peninjau). */
+  .teks-berjalan .rel { text-overflow: ellipsis; -webkit-mask-image: none; mask-image: none; }
   .teks-berjalan .rel > span { display: inline; padding-left: 0; animation: none; }
 }
 #btnLaci { display: none; }
