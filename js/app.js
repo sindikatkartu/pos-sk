@@ -6773,6 +6773,7 @@ let jrnDimuat = false;
  */
 function pilihTabKeu(tab) {
   const peta = { labarugi: tampilkanLabaRugi, neraca: tampilkanNeraca,
+                 neracasaldo: tampilkanNeracaSaldo,   /* bagian 518 */
                  bukubesar: tampilkanBukuBesar, kerugian: tampilkanKerugianKeu };
   $$('#tabKeu button').forEach(b => b.classList.toggle('aktif', b.dataset.tabKeu === tab));
   if (!tab) return;
@@ -7071,6 +7072,47 @@ async function tampilkanNeraca() {
   try {
     await denganSimpananLap(w, 'neraca', par, () => API.neraca(par), gambarNeraca,
       () => tiket === _keuTiket && keuTerakhir === tampilkanNeraca);
+  } catch (e) { if (tiket === _keuTiket) w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+}
+
+/* NERACA SALDO (bagian 518): per akun saldo awal, mutasi debit/kredit, saldo
+   akhir satu bulan — dari apiNeracaSaldo, yang membaca jalur Neraca. Saldo
+   menurut saldo normal akunnya, seperti Neraca. Kakinya: saldo akhir sisi
+   debit = sisi kredit; yang timpang DITAMPILKAN sebagai galat, tidak disembunyikan. */
+async function tampilkanNeracaSaldo() {
+  const w = $('#hasilKeuangan');
+  const tiket = ++_keuTiket;
+  const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+  if (!bacaSimpanLap('neraca_saldo', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
+  const gambarNS = (d) => {
+    const baris = (a) => `<tr${a.hitungan ? ' style="color:var(--teks-redup)" title="Dihitung, bukan akun di buku: laba Januari s.d. bulan lalu"' : ''}>
+      <td data-l="Kode">${esc(a.kode)}</td><td data-l="Akun">${esc(a.nama)}</td>
+      <td class="angka" data-l="Saldo awal">${rp(a.saldo_awal)}</td>
+      <td class="angka" data-l="Debit">${a.debit ? rp(a.debit) : ''}</td>
+      <td class="angka" data-l="Kredit">${a.kredit ? rp(a.kredit) : ''}</td>
+      <td class="angka" data-l="Saldo akhir"><strong>${rp(a.saldo_akhir)}</strong></td></tr>`;
+    w.innerHTML = tombolUnduh('neraca_saldo', par) + `
+      <div class="pesan ${d.seimbang ? 'sukses' : 'galat'}">
+        ${d.seimbang ? '✓ Neraca saldo seimbang — saldo akhir sisi debit sama dengan sisi kredit'
+                     : '✗ Neraca saldo TIDAK seimbang — selisih ' + rp(d.selisih)}
+      </div>
+      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Neraca saldo — ${esc(d.periode)} · ${esc(d.cabang)}</h3></div>
+      <div class="gulir-x"><table>
+        <thead><tr><th>Kode</th><th>Akun</th><th class="kanan">Saldo awal</th>
+          <th class="kanan">Debit</th><th class="kanan">Kredit</th><th class="kanan">Saldo akhir</th></tr></thead>
+        <tbody>${d.akun.map(baris).join('')}
+          <tr class="tebal pisah"><td data-l=""></td><td data-l="">Jumlah mutasi</td><td data-l=""></td>
+            <td class="angka" data-l="Debit">${rp(d.total_debit)}</td>
+            <td class="angka" data-l="Kredit">${rp(d.total_kredit)}</td><td data-l=""></td></tr>
+          <tr class="tebal"><td data-l=""></td><td data-l="">Saldo akhir sisi debit / kredit</td><td data-l=""></td>
+            <td class="angka" data-l="Sisi debit">${rp(d.saldo_debit)}</td>
+            <td class="angka" data-l="Sisi kredit">${rp(d.saldo_kredit)}</td><td data-l=""></td></tr>
+        </tbody></table></div>
+      ${d.akun.length ? '' : '<p class="petunjuk">Belum ada saldo maupun mutasi di periode ini.</p>'}</div>`;
+  };
+  try {
+    await denganSimpananLap(w, 'neraca_saldo', par, () => API.neracaSaldo(par), gambarNS,
+      () => tiket === _keuTiket && keuTerakhir === tampilkanNeracaSaldo);
   } catch (e) { if (tiket === _keuTiket) w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 

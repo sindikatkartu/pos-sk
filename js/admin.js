@@ -1804,14 +1804,25 @@ const Admin = (() => {
     const semua = urut.reduce((a, k) => a + total[k], 0);
     if (!semua) return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', kosongCab('Belum ada pembayaran'));
     const warna = (k) => WARNA_METODE_DASH[k] || '#6e7781';
-    const batang = (nama, o, tot) => `<div class="bar100-cab"><strong>${esc(nama)}</strong><div class="isi">${tot > 0
+    const isi = (nama, o, tot) => `<div class="isi">${tot > 0
       ? urut.filter(k => o[k] > 0).map(k => `<span style="width:${(o[k] / tot * 100).toFixed(2)}%;background:${warna(k)}" title="${esc(nama + ' · ' + labelMetodeDash(k) + ' ' + Math.round(o[k] / tot * 100) + '% · ' + rpTeks(o[k]))}"></span>`).join('')
-      : '<span class="kosong"></span>'}</div><span class="nil">${esc(jtDash(tot))}</span></div>`;
+      : '<span class="kosong"></span>'}</div>`;
+    /* Rincian metode per cabang (bagian 516): CSS hanya menampilkannya di atas
+       1100 px, tempat tinggi kartu dikunci kartu Tren (bagian 336) — di sana
+       ruang di antara batang memang kosong. Tablet & HP: sentuh batangnya. */
+    const rinci = (o) => `<div class="rinci">${urut.filter(k => o[k] > 0).map(k =>
+      `<span><i style="background:${warna(k)}"></i>${esc(labelMetodeDash(k))} ${esc(jtDash(o[k]))}</span>`).join('')}</div>`;
+    /* TANPA DONAT & BARIS TOTAL (bagian 516, pemilik memilih B): keduanya
+       menggambar angka yang sama. Gantinya angka total, satu batang tebal, dan
+       legenda nama · persen · nominal (persen di legenda, bukan di dalam batang:
+       putih di atas biru/oranye metode kurang dari 4,5:1). */
     return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', `
-      <div class="kas-donat">${donatCab(urut.map(k => ({ l: labelMetodeDash(k) + ' ' + rpTeks(total[k]), v: total[k], c: warna(k) })), jtDash(semua), 'kas masuk', 120)}
-        <div class="leg-cab">${urut.map(k => `<span><i style="background:${warna(k)}"></i><span class="nm">${esc(labelMetodeDash(k))}</span><b>${Math.round(total[k] / semua * 100)}%</b><small>${esc(rpTeks(total[k]))}</small></span>`).join('')}</div></div>
-      ${per.map(x => batang(x.cabang, x.o, x.tot)).join('')}
-      <div class="bar100-total">${batang('Total', total, semua)}</div>`);
+      <div class="kas-ringkas">
+        <div class="kas-angka"><span class="sub-besar">${rp(semua)}</span><small>kas masuk · ${per.length} cabang</small></div>
+        ${isi('Total', total, semua)}
+        <div class="leg-cab">${urut.map(k => `<span><i style="background:${warna(k)}"></i><span class="nm">${esc(labelMetodeDash(k))}</span><b>${Math.round(total[k] / semua * 100)}%</b><small>${esc(rpTeks(total[k]))}</small></span>`).join('')}</div>
+      </div>
+      ${per.map(x => `<div class="bar100-cab"><strong>${esc(x.cabang)}</strong>${isi(x.cabang, x.o, x.tot)}<span class="nil">${esc(jtDash(x.tot))}</span>${x.tot > 0 ? rinci(x.o) : ''}</div>`).join('')}`);
   }
 
   function kartuPiutangCab() {
@@ -11681,6 +11692,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    */
   /* + rekening per bank 1-1201..1-1204 (bagian 289). */
   const AKUN_KAS = ['1-1100', '1-1150', '1-1200', '1-1210', '1-1201', '1-1202', '1-1203', '1-1204'];
+  /* Salinan `AKUN_MODAL_SAH` (00_Config.gs, bagian 517): Modal Pemilik & Prive —
+     dokumen kas yang memuatnya dari selain Owner diajukan dulu. Dikunci penjaga. */
+  const AKUN_MODAL_SAH = ['3-1100', '3-1200'];
   /* Yang ditawarkan di layar: bank aktif saja (bagian 317). AKUN_KAS tetap
      katalog penuh — dokumen lama berakun BNI/Mandiri tetap terbaca. */
   /* 1-1200 Bank (umum) DITUTUP (bagian 430, titipan sesi data bagian 427:
@@ -12527,12 +12541,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            lebar — 137 px, sementara Rp9.999.999.999 butuh 141 px. Konsolidasi
            memakainya untuk PERSENTASE, yang memang pendek. -->
       <div class="petak-mini" style="grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))">
-        ${kotak('Harga perolehan', d.total_perolehan, d.aset.length + ' aset')}
+        ${kotak('Harga perolehan', d.total_perolehan, d.aset.filter((a) => !a.dimuka).length + ' aset')}
         ${kotak('Akumulasi', d.total_akumulasi, 'sudah dijurnal')}
         ${kotak('Nilai buku', d.total_nilai_buku, 'sisa di buku')}
       </div>
       <p class="petunjuk">${kabar}</p>
-    </div>`;
+    </div>${/* Ringkasan DIPISAH (pemilik, bagian 518): biaya dibayar di muka punya
+       kartunya sendiri, hanya bila ada isinya. Tiga kotak, sama dengan di atas. */
+      d.dimuka && d.dimuka.jumlah ? `<div class="kartu">
+      <div class="bar-alat"><h3>Biaya dibayar di muka</h3>
+        </div>
+      <div class="petak-mini" style="grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr))">
+        ${kotak('Jumlah dibayar', d.dimuka.total_dibayar, d.dimuka.jumlah + ' catatan')}
+        ${kotak('Sudah diamortisasi', d.dimuka.total_amortisasi, 'sudah jadi beban')}
+        ${kotak('Sisa', d.dimuka.total_sisa, 'belum jadi beban')}
+      </div>
+    </div>` : ''}`;
 
     /* Kode, kategori, dan TANGGAL PEROLEHAN jadi satu baris keterangan di
        bawah namanya. Sebelas kolom membuat tanggalnya pecah dua baris di PC
@@ -12541,7 +12565,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        sendiri. */
     const baris = (a) => `<tr>
       <td data-l="Aset"><strong>${esc(a.nama)}</strong>
-        <span class="petunjuk" style="display:block">${esc(a.kode)}${a.kategori ? ' · ' + esc(a.kategori) : ''} · <span style="white-space:nowrap">diperoleh ${esc(tglTampil(a.tanggal_perolehan))}</span></span></td>
+        <span class="petunjuk" style="display:block">${esc(a.kode)}${a.kategori && !a.dimuka ? ' · ' + esc(a.kategori) : ''} · <span style="white-space:nowrap">${a.dimuka ? 'dibayar' : 'diperoleh'} ${esc(tglTampil(a.tanggal_perolehan))}</span></span></td>
       <td data-l="Cabang">${esc(a.kode_cabang)}</td>
       <td class="kanan" data-l="Harga">${rp(a.harga_perolehan)}</td>
       <td class="kanan" data-l="Residu">${rp(a.nilai_residu)}</td>
@@ -12550,7 +12574,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <td class="kanan" data-l="Akumulasi">${rp(a.akumulasi)}</td>
       <td class="kanan" data-l="Nilai buku"><strong>${rp(a.nilai_buku)}</strong></td>
       <td data-l="Keadaan">${a.status !== 'AKTIF' ? lencanaDash(esc(kodeRapi(a.status)), 'redup')
-        : (a.habis ? lencanaDash('habis disusutkan', 'redup') : '')}</td>
+        : (a.habis ? lencanaDash(a.dimuka ? 'habis diamortisasi' : 'habis disusutkan', 'redup')
+        : (a.dimuka ? lencanaDash('dibayar di muka', 'biru') : ''))}</td>
       <!-- nowrap: dua tombol di sel tanpa lebar akan membungkus ke bawah,
            dan baris tabelnya jadi setinggi dua tombol. -->
       <td class="sel-menu">${bolehIzin('laporan_keuangan', 'ubah') ? (
@@ -12559,7 +12584,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            menawarkan Lepas lagi — melepas dua kali mengkreditkan asetnya dua
            kali dan neraca timpang sebesar satu aset — jadi tinggal satu
            tombol Ubah, tanpa menu. */
-        a.status === 'AKTIF'
+        /* Biaya dibayar di muka tidak dilepas (bagian 518) — tinggal Ubah. */
+        a.status === 'AKTIF' && !a.dimuka
           ? menuTindakan({ id: 'menuAset' + idAman(a.kode), idTombol: 'btnAset' + idAman(a.kode), kunci: 'baris-aset', baris: true,
               isi: butirBaris('', 'Ubah', IKON.ubah, `data-edit-aset="${esc(a.kode)}"`, 'Ubah aset') +
                    butirBaris('bahaya', 'Lepas', IKON.lepas, `data-lepas-aset="${esc(a.kode)}"`, 'Lepas aset — dijual, dihibahkan, atau dibuang') })
@@ -12597,24 +12623,37 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          dan baru akan dihitung dari dua dasar berbeda, dan totalnya tidak akan pernah
          bertemu dengan akumulasinya. Nama, kategori, dan catatannya tetap bisa.</p>`
       : '';
+    /* Biaya dibayar di muka (bagian 518) menumpang borang ini. Jenisnya dipilih
+       HANYA untuk catatan baru — server menolak kategori yang berpindah. */
+    const dm = !!k.dimuka;
+    const jenis = a
+      ? `<input type="hidden" id="asJenis" value="${dm ? 'DIMUKA' : 'TETAP'}">`
+      : `<label>Jenis</label>
+      <input type="hidden" id="asJenis" value="TETAP">
+      <div class="segmen" role="group" aria-label="Jenis catatan">
+        <button type="button" class="pas" data-jenis-aset="TETAP">Aset tetap</button>
+        <button type="button" data-jenis-aset="DIMUKA">Biaya dibayar di muka</button></div>`;
     return `<div class="baris-form">
-      <label>Nama aset</label>
-      <input type="text" id="asNama" value="${esc(k.nama || '')}" placeholder="Etalase kaca depan">
-      <label>Kategori</label>
-      <input type="text" id="asKategori" value="${esc(k.kategori || '')}" placeholder="Perabot, Elektronik, Kendaraan">
+      ${jenis}
+      <label>Nama</label>
+      <input type="text" id="asNama" value="${esc(k.nama || '')}" placeholder="${dm ? 'Sewa ruko 2027' : 'Etalase kaca depan'}">
+      <div id="asGrupKategori" ${dm ? 'hidden' : ''}><label>Kategori</label>
+      <input type="text" id="asKategori" value="${esc(dm ? '' : (k.kategori || ''))}" placeholder="Perabot, Elektronik, Kendaraan"></div>
+      <div id="asGrupBeban" ${dm ? '' : 'hidden'}><label>Dibebankan ke</label>
+      <select id="asBeban" data-pilih="${esc(k.akun_beban || '')}"></select></div>
       <label>Cabang</label>
       <select id="asCabang">${daftarKodeCabang().map((c) =>
         `<option value="${esc(c)}" ${k.kode_cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}${
         /* Aset milik kantor (bagian 330): perolehan dan penyusutannya dibukukan ke pusat. */
         (bolehCabangDash() && kodeCabangPusat()) || (kodeCabangPusat() && k.kode_cabang === kodeCabangPusat())
           ? `<option value="${esc(kodeCabangPusat())}" ${k.kode_cabang === kodeCabangPusat() ? 'selected' : ''}>Back Office</option>` : ''}</select>
-      <label>Tanggal perolehan</label>
+      <label id="lblAsTanggal">${dm ? 'Tanggal dibayar' : 'Tanggal perolehan'}</label>
       <input type="date" id="asTanggal" value="${esc(k.tanggal_perolehan || '')}" ${mati}>
-      <label>Harga perolehan</label>
+      <label id="lblAsHarga">${dm ? 'Jumlah dibayar' : 'Harga perolehan'}</label>
       <input type="number" id="asHarga" value="${k.harga_perolehan || ''}" ${mati}>
-      <label>Nilai residu</label>
-      <input type="number" id="asResidu" value="${k.nilai_residu || 0}" ${mati}>
-      <label>Umur manfaat (bulan)</label>
+      <div id="asGrupResidu" ${dm ? 'hidden' : ''}><label>Nilai residu</label>
+      <input type="number" id="asResidu" value="${k.nilai_residu || 0}" ${mati}></div>
+      <label id="lblAsUmur">${dm ? 'Masa manfaat (bulan)' : 'Umur manfaat (bulan)'}</label>
       <input type="number" id="asUmur" value="${k.umur_bulan || ''}" ${mati}>
       <label>Catatan</label>
       <input type="text" id="asCatatan" value="${esc(k.catatan || '')}">
@@ -12631,9 +12670,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   function bukaBorangAset(kode) {
     const a = kode ? (asetData.aset || []).filter((x) => x.kode === kode)[0] : null;
-    bukaModal(kode ? 'Ubah aset' : 'Aset tetap baru', borangAset(a),
+    bukaModal(kode ? (a && a.dimuka ? 'Ubah biaya dibayar di muka' : 'Ubah aset') : 'Aset tetap baru', borangAset(a),
       `<button class="tombol" data-tutup="1">Batal</button>
        <button class="tombol utama" data-simpan-aset="${esc(kode || '')}">Simpan</button>`);
+    isiBebanAset();
     /* Daftar akunnya diisi SESUDAH modalnya ada di DOM, dan berganti tiap
        jawabannya berganti: akun lawan sebuah pembelian tunai adalah kas,
        sementara akun lawan sebuah pemindahan justru tidak boleh kas. */
@@ -12650,14 +12690,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        sebab yang salah. */
     const lama = kode ? (asetData.aset || []).filter((x) => x.kode === kode)[0] : null;
     const kunci = lama && num(lama.akumulasi) > 0;
+    const dm = nilai('asJenis') === 'DIMUKA';
     await API.simpanAset({
       kode: kode || '',
       nama: nilai('asNama'),
-      kategori: nilai('asKategori'),
+      /* Bagian 518: server mengunci akun 1-1700 dan residu 0 untuk DIMUKA. */
+      kategori: dm ? 'DIMUKA' : nilai('asKategori'),
+      akun_beban: dm ? nilai('asBeban') : undefined,
       kode_cabang: nilai('asCabang'),
       tanggal_perolehan: kunci ? lama.tanggal_perolehan : nilai('asTanggal'),
       harga_perolehan: kunci ? lama.harga_perolehan : angka('asHarga'),
-      nilai_residu: kunci ? lama.nilai_residu : angka('asResidu'),
+      nilai_residu: dm ? 0 : (kunci ? lama.nilai_residu : angka('asResidu')),
       umur_bulan: kunci ? lama.umur_bulan : angka('asUmur'),
       catatan: nilai('asCatatan'),
       /* Hanya untuk aset BARU. Servernya juga mengabaikannya saat mengubah,
@@ -12692,6 +12735,33 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ['BEBAN', 'Terlanjur dicatat sebagai beban — pindahkan ke aset'],
     ['SUDAH', 'Sudah benar di buku — jangan jurnal apa pun']
   ];
+
+  /* Akun beban biaya dibayar di muka (bagian 518): Beban & Beban Lain yang bisa
+     dipakai bertransaksi — sama dengan yang diterima server. */
+  async function isiBebanAset() {
+    const sel = $('#asBeban');
+    if (!sel) return;
+    const coa = await DB.kvGet('coa', []);
+    const daftar = (coa || []).filter((c) => (c.transaksi === true || String(c.transaksi) === 'true') &&
+      ['Beban', 'Beban Lain'].includes(c.tipe));
+    const pilih = sel.dataset.pilih || '';
+    sel.innerHTML = '<option value="">— pilih akun beban —</option>' + daftar.map((c) =>
+      `<option value="${esc(c.kode)}" ${c.kode === pilih ? 'selected' : ''}>${esc(c.kode)} — ${esc(c.nama)}</option>`).join('');
+  }
+  /* Ganti jenis di borang BARU: label, kolom residu/kategori, dan akun beban. */
+  function pilihJenisAset(jenis) {
+    const dm = jenis === 'DIMUKA';
+    $('#asJenis').value = dm ? 'DIMUKA' : 'TETAP';
+    $$('[data-jenis-aset]').forEach((b) => b.classList.toggle('pas', b.dataset.jenisAset === $('#asJenis').value));
+    $('#asGrupKategori').hidden = dm;
+    $('#asGrupBeban').hidden = !dm;
+    $('#asGrupResidu').hidden = dm;
+    if (dm) $('#asResidu').value = 0;
+    $('#lblAsTanggal').textContent = dm ? 'Tanggal dibayar' : 'Tanggal perolehan';
+    $('#lblAsHarga').textContent = dm ? 'Jumlah dibayar' : 'Harga perolehan';
+    $('#lblAsUmur').textContent = dm ? 'Masa manfaat (bulan)' : 'Umur manfaat (bulan)';
+    $('#asNama').placeholder = dm ? 'Sewa ruko 2027' : 'Etalase kaca depan';
+  }
 
   async function isiPilihanAset() {
     const sel = $('#asSumber');
@@ -13145,11 +13215,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kePusat = !!kodeCabangPusat() && pilihTanggung === kodeCabangPusat();
     const cab = (!kePusat && pilihTanggung) || (cabangKas !== '*' ? cabangKas : APP_STATE.cabang);
     const namaKas = (($('#dokAkunKas option[value="' + akunKas + '"]') || {}).textContent || akunKas);
+    /* Setor/tarik modal oleh selain Owner menunggu pengesahan Owner (bagian
+       517) — server yang menentukan; kalimat ini hanya memberi tahu lebih dulu. */
+    const ajukan = String(APP_STATE.user?.peran || '') !== 'OWNER' && baris.some((x) => AKUN_MODAL_SAH.includes(x.kode_akun));
     if (!(await tanya('Simpan ' + c.label.toLowerCase() + ' ' + rpTeks(total) + '?',
           `<p class="petunjuk">${baris.length} baris · ${esc(tglTampil(tgl))} · ${kePusat ? 'ditanggung Back Office' : 'ditanggung ' + esc(cab)} ·
              ${_jenisDokKas === 'BKM' ? 'masuk ke' : 'keluar dari'} ${esc(namaKas)}.</p>
-           <p class="petunjuk">Nomor dibuat sistem. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
-             Koreksi balik per baris.</p>`,
+           ${ajukan
+             ? `<p class="petunjuk">Dokumen ini memuat Modal Pemilik atau Prive, jadi diajukan dulu dan baru tercatat
+                 (bernomor dan berjurnal) sesudah disahkan Owner di menu Persetujuan.</p>`
+             : `<p class="petunjuk">Nomor dibuat sistem. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
+                 Koreksi balik per baris.</p>`}`,
           { ya: 'Simpan ' + c.label.toLowerCase() }))) return;
     const b = $('#btnSimpanDok');
     if (b) { b.classList.add('sibuk'); b.disabled = true; }
@@ -13158,7 +13234,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         uuid: _uuidDokKas || (_uuidDokKas = _jenisDokKas + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)), baris });
       _uuidDokKas = null;
       tutupModal();
-      toast(c.label + ' ' + (r.no || '') + ' tersimpan.');
+      toast(r.menunggu ? c.label + ' diajukan — menunggu pengesahan Owner.' : c.label + ' ' + (r.no || '') + ' tersimpan.');
       await muatHasilKas();
     } catch (e) { toast('Gagal menyimpan: ' + e.message, 'galat'); }
     finally { if (b) { b.classList.remove('sibuk'); b.disabled = false; } }
@@ -14757,6 +14833,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         finally { t.disabled = false; }
         return;
       }
+      if (d.jenisAset) return pilihJenisAset(d.jenisAset);   // bagian 518
       if (d.simpanAset !== undefined) {
         /* Tombolnya dimatikan selama simpan. Dua ketukan cepat pada borang
            aset BARU melahirkan dua aset dengan kode berbeda, dan keduanya
@@ -15436,7 +15513,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ya: 'Buat koreksi balik', jenis: 'bahaya' });
         if (!alasan) return;
         try {
-          await API.simpanKas({
+          const rb = await API.simpanKas({
             /* Cabang BARIS yang dikoreksi, bukan tempat adminnya login. */
             cabang: asli.kode_cabang || APP_STATE.cabang, uuid: uuidBalik(asli.uuid),
             tipe: asli.tipe === 'KELUAR' ? 'MASUK' : 'KELUAR',
@@ -15451,7 +15528,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             ditanggung_pusat: /\[Back Office\]\s*$/.test(String(asli.keterangan || '')),
             id_shift: '', luar_laci: true
           });
-          toast('Koreksi balik tercatat.');
+          /* Baris Modal Pemilik/Prive dari selain Owner: diajukan dulu (bagian 517). */
+          toast(rb && rb.menunggu ? 'Koreksi balik diajukan — menunggu pengesahan Owner.' : 'Koreksi balik tercatat.');
           tutupModal();
           await muatHasilKas();
         } catch (x) { toast(x.message, 'galat'); }

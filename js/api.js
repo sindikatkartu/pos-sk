@@ -120,7 +120,7 @@ const API = (() => {
   const HANYA_BACA = new Set([
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
-    'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
+    'laporan_diskon', 'laba_rugi', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset', 'daftar_coa',
@@ -242,7 +242,7 @@ const API = (() => {
     /* pembacaan */
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
-    'laporan_diskon', 'laba_rugi', 'neraca', 'uji_kebenaran', 'ringkasan_dashboard',
+    'laporan_diskon', 'laba_rugi', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
     'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
@@ -729,6 +729,7 @@ let _pernahJawab = false;
     kotakPersetujuan:  (o) => panggil('kotak_persetujuan', o && o.cepat === true ? { cepat: true } : {}, { latar: true }),
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
+    neracaSaldo:     (d) => panggil('neraca_saldo', d, { timeout: 60000 }),   // bagian 518
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
        melewati 90 dtk pada hari yang banyak jurnalnya; batas Apps Script 6 menit. */
     ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 180000 }),

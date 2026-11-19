@@ -2403,9 +2403,7 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .spark-cab { display: inline-flex; justify-content: flex-end; flex: 0 1 92px; min-width: 0; min-height: 24px; }
 .spark-cab svg { width: 100%; max-width: 92px; height: auto; }
 .eg-cab { display: grid; grid-template-columns: minmax(0, 220px) 1fr 1fr; gap: 12px; align-items: stretch; }
-.eg-donat, .kas-donat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-.kas-donat { flex-direction: row; gap: 16px; margin-bottom: 4px; }
-.kas-donat .leg-cab { flex-direction: column; align-items: flex-start; }
+.eg-donat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
 .donat-bungkus { flex: none; line-height: 0; }
 .viz-cab { display: block; overflow: visible; }
 .viz-cab text { font-size: 11px; fill: var(--teks-redup); }
@@ -2445,16 +2443,20 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .bar100-cab .isi { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--garis-halus); }
 .bar100-cab .isi span { height: 100%; }
 .bar100-cab .nil { text-align: right; color: var(--teks-redup); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.bar100-total { border-top: 1px solid var(--garis); margin-top: 6px; }
-/* Legenda Kas masuk (bagian 336): satu metode satu baris — nama, persen, lalu
-   nominalnya di bawah. Dulu "Tunai 67%" dua kata berhimpit di samping donat. */
-/* Lebar legenda 170 px itu PALING LEBAR, bukan tetap: di HP 320 px isi kartu
-   266 px dan donat 120 + celah 16 menyisakan 130 — legenda yang kaku meluber. */
-.kas-donat .leg-cab { gap: 10px; flex: 0 1 170px; min-width: 0; }
-.kas-donat .leg-cab > span { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; column-gap: 8px; width: 100%; color: var(--teks); }
-.kas-donat .leg-cab > span .nm { display: block; }
-.kas-donat .leg-cab > span b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.kas-donat .leg-cab > span small { grid-column: 2 / 4; color: var(--teks-redup); font-size: var(--fs-11); font-variant-numeric: tabular-nums; }
+/* KAS MASUK TANPA DONAT (bagian 516): angka total, satu batang tebal, legenda
+   sebaris per metode (nama · persen · nominal). Donat dan baris Total dulu
+   menggambar angka yang sama dua kali. */
+.kas-ringkas { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; min-width: 0; }
+.kas-angka { display: flex; flex-direction: column; }
+.kas-angka small { color: var(--teks-redup); font-size: var(--fs-12); }
+.kas-ringkas > .isi { display: flex; height: 18px; border-radius: 6px; overflow: hidden; gap: 2px; background: var(--garis-halus); }
+.kas-ringkas > .isi span { height: 100%; }
+.kas-ringkas .leg-cab { justify-content: flex-start; gap: 4px 14px; }
+.kas-ringkas .leg-cab > span { color: var(--teks); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kas-ringkas .leg-cab > span b { font-weight: 600; }
+.kas-ringkas .leg-cab > span small { color: var(--teks-redup); font-size: inherit; }
+/* Rincian metode per cabang: hanya di atas 1100 px (lihat di bawah). */
+.bar100-cab .rinci { display: none; }
 /* JAM RAMAI & KAS MASUK MENGISI TINGGI KARTUNYA (bagian 336) — PC & tablet saja.
    Ketiga kartu sebaris sama tinggi (grid stretch) dan yang menentukan tingginya
    kartu Tren (dua grafik: Ecer, Grosir). Isi dua kartu lain dulu berhenti di
@@ -2464,27 +2466,26 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
   #cabJam .jh:not(.jh-sumbu) { flex: 1 1 0; min-height: 34px; align-items: stretch; }
   #cabJam .jh-baris { height: 100%; }
   #cabJam .ket-cab { margin-top: 8px; }
-  #cabKas .kas-donat .leg-cab { font-size: var(--fs-13); }
+  #cabKas .kas-ringkas .leg-cab { font-size: var(--fs-13); }
   #cabKas .bar100-cab { grid-template-columns: 58px minmax(0, 1fr) 62px; gap: 10px; font-size: var(--fs-13); }
   #cabKas .bar100-cab .isi { height: 16px; border-radius: 8px; }
 }
-/* Tiga kolom: kartu Kas sempit dan tinggi — donat membesar, tiap baris batang
-   mengambil bagian tinggi yang sama. */
+/* Tiga kolom: kartu Kas sempit dan tinggi — tiap baris cabang mengambil bagian
+   tinggi yang sama, dan ruang di bawah batangnya diisi rincian metode
+   (bagian 516; tingginya dikunci kartu Tren, bagian 336). */
 @media (min-width: 1101px) {
-  #cabKas .kas-donat { flex: 1.5 1 0; min-height: 150px; gap: 22px; margin: 0; align-items: center; }
-  #cabKas .kas-donat svg { height: 100%; max-height: 230px; width: auto; flex: none; }
-  #cabKas .isi-cab > .bar100-cab, #cabKas .bar100-total { flex: 1 1 0; margin-top: 0; min-height: 30px; }
-  #cabKas .bar100-total { display: flex; flex-direction: column; justify-content: center; }
-  #cabKas .bar100-total .bar100-cab { margin-top: 0; }
+  #cabKas .kas-ringkas { flex: none; margin-bottom: 8px; }
+  #cabKas .isi-cab > .bar100-cab { flex: 1 1 0; margin-top: 0; min-height: 30px; align-content: center; row-gap: 4px; }
+  #cabKas .bar100-cab .rinci { display: flex; flex-wrap: wrap; gap: 0 12px; grid-column: 2 / 4; font-size: var(--fs-12);
+    color: var(--teks-redup); font-variant-numeric: tabular-nums; }
+  #cabKas .bar100-cab .rinci span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  #cabKas .bar100-cab .rinci i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 }
 /* Dua kolom: kartu Kas selebar layar di baris sendiri — donat kiri, batang kanan. */
 @media (min-width: 621px) and (max-width: 1100px) {
-  /* Kolom kiri minimal 344 px = donat 150 + celah 20 + legenda 170 + 4: lebih
-     sempit dari itu isinya (rata tengah) menjulur ke KIRI keluar kartu. */
-  #cabKas .isi-cab { display: grid; grid-template-columns: minmax(344px, 38%) minmax(0, 1fr); column-gap: 24px; align-content: center; }
-  #cabKas .kas-donat { grid-column: 1; grid-row: 1 / span 6; margin: 0; gap: 20px; }
-  #cabKas .kas-donat svg { width: 150px; height: 150px; flex: none; }
-  #cabKas .isi-cab > .bar100-cab, #cabKas .bar100-total { grid-column: 2; margin-top: 10px; }
+  #cabKas .isi-cab { display: grid; grid-template-columns: minmax(240px, 36%) minmax(0, 1fr); column-gap: 24px; align-content: center; }
+  #cabKas .kas-ringkas { grid-column: 1; grid-row: 1 / span 6; margin: 0; align-self: center; }
+  #cabKas .isi-cab > .bar100-cab { grid-column: 2; margin-top: 10px; }
 }
 .petak-piutang { display: grid; grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(0, 1fr)); font-size: var(--fs-12); font-variant-numeric: tabular-nums; }
 .petak-piutang > span { padding: 6px 4px; border-bottom: 1px solid var(--garis-halus); text-align: right; white-space: nowrap; }
