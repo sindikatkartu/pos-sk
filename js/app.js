@@ -397,7 +397,7 @@ const MENU = [
      modul baru bertanda `sengaja-manual`, jadi instalasi yang sudah berjalan
      tidak ikut berubah dan tiap peran harus dicentang tangan. Yang mengurus
      aset tetap memang orang yang sama dengan yang menutup buku. */
-  { id: 'aset',       label: 'Aset Tetap', grup: 'Akuntansi',  izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
+  { id: 'aset',       label: 'Aset & Amortisasi', grup: 'Akuntansi',  izin: ['laporan_keuangan', 'lihat'], admin: true, backoffice: true },
   /* Gaji & kasbon (bagian 250). Modul izin SENDIRI, bukan menumpang
      laporan_keuangan seperti Aset: gaji orang per orang lebih sempit
      daripada laporan keuangan, dan Akunting yang memegang laporan belum
