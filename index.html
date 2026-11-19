@@ -93,6 +93,8 @@
 
     <button class="tombol sunyi" style="width:100%;margin-top:12px"
             id="btnTukarMode">Masuk dengan password</button>
+    <!-- Absen petugas tanpa login (bagian 519). -->
+    <button type="button" class="tombol absen-login" id="btnAbsenLogin">Absen petugas</button>
   </div>
 </div>
 
@@ -229,6 +231,9 @@
     </div>
     <!-- Lonceng persetujuan (bagian 305) — DI LUAR .lencana-grup: grup itu hanya
          tiga lencana kabar. Isinya digambar app.js dari IKON. -->
+    <!-- Absen petugas (bagian 519): pop-up di atas layar apa pun, kasir tidak
+         tersentuh. Ikon digambar app.js dari IKON.absen. -->
+    <button type="button" class="tombol-ikon absen" id="btnAbsen" aria-label="Absen petugas" title="Absen petugas"></button>
     <button type="button" class="tombol-ikon lonceng" id="btnLonceng" hidden aria-haspopup="menu" aria-expanded="false"
             aria-controls="popoverLonceng" aria-label="Persetujuan"></button>
     <div class="popover-lonceng" id="popoverLonceng" role="menu" hidden></div>
@@ -1010,6 +1015,8 @@
           <p>Menu <strong>Petugas</strong> berbeda dari Pengguna: pramuniaga tidak perlu punya akun login. Isinya nama, peran utama (Penjual/Pemasang), cabang, dan telepon.</p>
           <p><strong>Bobot peran</strong> (bawaan 60 : 40) membagi poin, omzet, dan laba antara penjual dan pemasang bila satu pekerjaan dikerjakan berdua. <strong>Tidak ada tarif per orang</strong> — nilai pekerjaan melekat pada produknya, supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>
           <p class="petunjuk">Peran utama hanya jadi <em>bawaan</em>; peran sesungguhnya pada sebuah nota ditentukan urutan pemilihan kasir. Petugas yang berhenti cukup <strong>dinonaktifkan</strong>, jangan dihapus — klaim lama masih menunjuk ke namanya.</p>
+          <p><strong>Absen petugas</strong> — tombol bergambar orang bercentang di kepala layar (tablet &amp; PC) dan tombol <strong>Absen petugas</strong> di layar masuk. Tidak perlu akun atau PIN: ketuk nama, lalu tekan <strong>Absen masuk</strong> atau <strong>Absen pulang</strong> — foto diambil otomatis dari kamera depan saat tombol itu ditekan. Jamnya jam server, bukan jam tablet. Perangkat tanpa kamera, atau yang izin kameranya ditolak, tidak bisa dipakai absen. Absen hanya jalan di perangkat yang ditandai Owner: menu <strong>Perangkat</strong> → ⋮ → <strong>Boleh absen</strong> (cukup sekali per tablet toko).</p>
+          <p class="petunjuk">Pulang sebelum shift selesai, tablet bertanya <strong>digantikan siapa</strong>: sisa jam shift tercatat sebagai hutang jam kepada teman yang dipilih. Jam shift dan toleransi terlambat diatur di Pengaturan Sistem, kelompok Absensi.</p>
         </div>
 
         <div class="kartu">

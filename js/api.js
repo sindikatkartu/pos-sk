@@ -118,6 +118,7 @@ const API = (() => {
    * namanya wajib ada di AMAN_DIULANG juga — dijaga uji.js.
    */
   const HANYA_BACA = new Set([
+    'absen_siap',
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
     'laporan_diskon', 'laba_rugi', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
@@ -147,7 +148,9 @@ const API = (() => {
      Tujuh berikutnya (bagian 501) juga tidak mengubah data daftar mana pun:
      membuka kunci layar dengan PIN, ekspor, dan lima bacaan pulsa/bank/impor. */
   const BACA_LAIN = new Set(['kotak_persetujuan', 'buka_kunci', 'ekspor', 'keadaan_pulsa', 'pratinjau_pulsa',
-    'rekon_bank', 'template_impor', 'baca_berkas_impor']);
+    'rekon_bank', 'template_impor', 'baca_berkas_impor',
+    /* bagian 519: absen menulis baris absensi saja — tidak ada daftar tersimpan yang memuatnya. */
+    'absen']);
 
   /**
    * JEJAK WAKTU per aksi — bahan diagnosa, bukan hiasan.
@@ -277,7 +280,10 @@ const API = (() => {
     'data_produksi', 'simpan_produksi', 'isi_saldo_inject', 'cocok_saldo_inject',
     /* bagian 465: Terima yang diulang dijawab duplikat — baris antrean sudah
        DITERIMA, tidak ada lapisan kedua. */
-    'terima_produksi'
+    'terima_produksi',
+    /* bagian 519: absen membawa arahnya — masuk/pulang yang diulang
+       memulangkan baris yang sudah ada, tidak menulis kedua kali. */
+    'absen_siap', 'absen'
   ]);
   /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
      ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
@@ -730,6 +736,9 @@ let _pernahJawab = false;
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
     neracaSaldo:     (d) => panggil('neraca_saldo', d, { timeout: 60000 }),   // bagian 518
+    /* Absen petugas (bagian 519): publik, dijaga perangkat. */
+    absenSiap:       (d) => panggil('absen_siap', d),
+    absen:           (d) => panggil('absen', d),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
        melewati 90 dtk pada hari yang banyak jurnalnya; batas Apps Script 6 menit. */
     ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 180000 }),

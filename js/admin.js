@@ -6950,7 +6950,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                     ? '<div><span class="lencana kuning" title="Peramban boleh menghapus data POS di perangkat ini saat ' +
                       'ruang penyimpanan menipis, lalu perangkat harus disetujui ulang. Pasang POS sebagai aplikasi: ' +
                       'di Chrome, ketuk \u22ee \u2192 Instal aplikasi / Tambahkan ke layar utama.">penyimpanan tidak awet</span></div>'
-                    : r.penyimpanan_awet === 'ya' ? '<div class="meta-kecil">penyimpanan awet</div>' : '');
+                    : r.penyimpanan_awet === 'ya' ? '<div class="meta-kecil">penyimpanan awet</div>' : '') +
+                  /* Perangkat absen (bagian 519). */
+                  (r.absen ? '<div><span class="lencana">boleh absen</span></div>' : '');
               } },
             /* Umur dalam KATA di atas, tanggal lengkapnya di bawah. Yang dicari
                orang di sini "masih dipakai atau sudah bisa dibuang", dan itu
@@ -6984,6 +6986,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                   `data-perangkat="${id}" data-status="DISETUJUI"`, 'Setujui perangkat']);
                 if (r.status !== 'DIBLOKIR') butir.push(['bahaya', 'Blokir', IKON.blokir,
                   `data-perangkat="${id}" data-status="DIBLOKIR"`, 'Blokir perangkat']);
+                /* Perangkat absen (bagian 519): Owner saja, dan hanya yang sudah disetujui. */
+                if (r.status === 'DISETUJUI') butir.push(['', r.absen ? 'Cabut absen' : 'Boleh absen', IKON.absen,
+                  `data-absen-perangkat="${id}" data-nilai="${r.absen ? '0' : '1'}"`,
+                  r.absen ? 'Perangkat ini tidak lagi dipakai absen' : 'Perangkat ini boleh dipakai absen petugas']);
               }
               /* Hapus TIDAK muncul untuk yang DISETUJUI — server pun menolaknya.
                  Tombol yang satu-satunya keluaran mungkinnya pesan galat itu
@@ -9464,7 +9470,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     toko_grosir: 'Toko grosir',
     bank_aktif: 'Rekening bank aktif',
     teks_berjalan: 'Pesan', teks_berjalan_warna: 'Warna',
-    teks_berjalan_tebal: 'Huruf tebal'
+    teks_berjalan_tebal: 'Huruf tebal',
+    absen_jam_masuk_pagi: 'Masuk shift pagi', absen_jam_masuk_malam: 'Masuk shift malam',
+    absen_jam_pulang_malam: 'Pulang shift malam', absen_toleransi_menit: 'Toleransi terlambat'
   };
 
   /* Keterangan sebaris di bawah kotak isian. */
@@ -9482,7 +9490,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
     toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir dan boleh menerima transfer; toko lain hanya pelanggan eceran, tunai & QRIS. Kosong = tidak dipisah.',
     bank_aktif: 'Kode akun bank yang dipakai, pisahkan dengan koma: 1-1201 BCA, 1-1202 BNI, 1-1203 BRI, 1-1204 Mandiri. Hanya rekening ini yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Kosong = BCA & BRI.',
-    teks_berjalan: 'Tampil berurutan di bilah atas layar Kasir semua toko, di tablet & PC (tidak di HP), dipisah tanda •. Warna titik = level pesannya. Semua kosong = tidak tampil.'
+    teks_berjalan: 'Tampil berurutan di bilah atas layar Kasir semua toko, di tablet & PC (tidak di HP), dipisah tanda •. Warna titik = level pesannya. Semua kosong = tidak tampil.',
+    absen_jam_masuk_pagi: 'Ditulis JJ:MM. Shift dihitung dari jam masuk yang terdekat.',
+    absen_jam_masuk_malam: 'Sekaligus jam pulang shift pagi. Pulang sebelum jam ini ditandai pulang awal.',
+    absen_jam_pulang_malam: 'Pulang sebelum jam ini ditandai pulang awal.',
+    absen_toleransi_menit: 'Masuk lewat jam masuk + toleransi ini dihitung terlambat.'
   };
 
   /* Baris kedua di dalam kartu sakelar: apa yang terjadi kalau ia dinyalakan. */
@@ -9496,7 +9508,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* Satuan yang duduk DI DALAM kotak. Ditulis di label, ia terbaca sebagai
      bagian dari nama setelannya — "Tarif PPN (%)" adalah nama yang aneh. */
-  const SATUAN_SETTING = { tarif_ppn: '%', mdr_qris: '%', lebar_struk: 'mm' };
+  const SATUAN_SETTING = { tarif_ppn: '%', mdr_qris: '%', lebar_struk: 'mm', absen_toleransi_menit: 'menit' };
 
   /* Contoh isi untuk kotak yang masih kosong. Kotak kosong tanpa contoh tidak
      memberi tahu bentuk isian yang diharapkan. */
@@ -9628,7 +9640,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       kunci: ['tema'] },
     { judul: 'Teks berjalan', ikon: 'megafon',
       ket: 'Pesan yang berjalan di bilah atas layar Kasir.',
-      kunci: ['teks_berjalan', 'teks_berjalan_warna', 'teks_berjalan_tebal'] }
+      kunci: ['teks_berjalan', 'teks_berjalan_warna', 'teks_berjalan_tebal'] },
+    { judul: 'Absensi', ikon: 'absen',
+      ket: 'Jam shift untuk menghitung terlambat dan pulang awal.',
+      kunci: ['absen_jam_masuk_pagi', 'absen_jam_masuk_malam', 'absen_jam_pulang_malam', 'absen_toleransi_menit'] }
   ];
 
   /* SETELAN YANG NILAINYA BERGANTUNG PADA SETELAN LAIN. Kuncinya diredupkan
@@ -15034,6 +15049,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             toast(lini ? 'Meja perangkat disimpan.' : 'Perangkat dilepas dari meja.');
           } catch (x) { toast(x.message, 'galat'); }
         });
+        return;
+      }
+
+      /* Perangkat absen (bagian 519): satu ketukan, bisa dicabut lagi. */
+      if (d.absenPerangkat) {
+        const r = ($('#isiPerangkat')._perangkat || [])
+          .find(x => String(x.id_perangkat) === String(d.absenPerangkat));
+        const boleh = d.nilai === '1';
+        try {
+          await API.ubahPerangkat({ id_perangkat: d.absenPerangkat, nama: r?.nama || '', absen: boleh });
+          await muat('perangkat');
+          toast(boleh ? 'Perangkat ini sekarang boleh dipakai absen petugas.' : 'Perangkat ini tidak lagi dipakai absen.');
+        } catch (x) { toast(x.message, 'galat'); }
         return;
       }
 

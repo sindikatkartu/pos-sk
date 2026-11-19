@@ -4460,3 +4460,28 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
     display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
   }
 }
+/* ==================== ABSEN PETUGAS (bagian 519) ====================
+   Pop-up di atas layar apa pun (Admin.modal). Pratinjau kamera dicerminkan
+   seperti cermin — orang merapikan posisi wajahnya lebih mudah; foto yang
+   disimpan tetap tidak dicerminkan (diambil dari video, bukan dari tampilan). */
+#modalUmum.modal-absen { max-width: 520px; }
+.abs-isi .petunjuk { margin: 0 0 12px; }
+.abs-kamera { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 240px; border-radius: var(--radius);
+  overflow: hidden; background: #111; }
+.abs-kamera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.abs-nama-besar { position: absolute; left: 12px; bottom: 8px; color: #fff; font-weight: 700; font-size: var(--fs-19);
+  text-shadow: 0 1px 4px #000; }
+.abs-grid-nama { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.abs-grid-nama .tombol { min-height: 56px; justify-content: space-between; gap: 8px; text-align: left; }
+.abs-grid-nama .tombol small { color: var(--teks-redup); font-weight: 400; white-space: nowrap; }
+.abs-grid-nama .abs-tanya, .abs-grid-nama > .petunjuk, .abs-grid-nama [data-abs-ganti=""] { grid-column: 1 / -1; margin: 0; }
+.abs-aksi { display: flex; gap: 8px; margin-top: 12px; }
+.abs-aksi #absKirim { flex: 1; min-height: 52px; }
+.abs-hasil { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: var(--radius);
+  border: 1px solid var(--sukses-garis); background: var(--sukses-lembut); }
+.abs-hasil.kuning { border-color: var(--peringatan-garis); background: var(--peringatan-lembut); }
+.abs-hasil strong { font-size: var(--fs-19); }
+.absen-login { width: 100%; margin-top: 8px; }
+/* HP tidak dipakai absen (petugas memakai tablet/PC) dan kepalanya sempit. */
+@media (max-width: 620px) { #btnAbsen { display: none; } }
+

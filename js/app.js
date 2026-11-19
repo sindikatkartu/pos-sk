@@ -1570,6 +1570,192 @@ function mulaiLencanaNav() {
   }, 60000);
 }
 
+/* ==================== ABSEN PETUGAS (bagian 519) ====================
+   Pemilik 20 Nov 2026: tanpa akun & PIN — pilih nama, lalu SATU tombol yang
+   sekaligus mengambil foto dari kamera depan. Tidak ada tombol ambil foto,
+   ulangi, atau galeri. Perangkat tanpa kamera / izin kamera ditolak = absen
+   ditolak. Foto 120×120 hitam-putih JPEG, jam dari server.
+
+   Pop-up memakai Admin.modal di atas layar apa pun: keranjang, nota, dan shift
+   tidak disentuh. Kamera dimatikan begitu modalnya hilang lewat jalan mana
+   pun (Batal, Escape, klik luar, modal lain menimpa) — dijaga pengamat DOM,
+   bukan penangan tiap tombol. */
+const ABSEN_SISI = 120;
+let _absenAliran = null, _absenData = null, _absenPengamat = null;
+/* Giliran pop-up: naik tiap dibuka DAN tiap dibereskan. Kamera butuh 1–3 detik
+   untuk menyala; kalau pop-upnya keburu ditutup, aliran yang datang belakangan
+   milik giliran yang sudah lewat dan langsung dimatikan (peninjau-rilis).
+   Menutup modal hanya mencabut kelas `tampil` — isinya tetap di DOM, jadi
+   "elemennya masih ada" bukan tanda pop-upnya masih terbuka. */
+let _absenGiliran = 0;
+
+function matikanKameraAbsen() {
+  if (_absenAliran) { _absenAliran.getTracks().forEach((t) => t.stop()); _absenAliran = null; }
+}
+/* Pop-up absen hilang (jalan mana pun): kamera mati, gaya & pengamatnya dilepas.
+   Terpisah dari matikanKameraAbsen: sesudah absen berhasil kameranya sudah
+   mati tetapi pop-upnya masih terbuka menunggu OK. */
+function bereskanAbsen() {
+  _absenGiliran++;
+  matikanKameraAbsen();
+  if (_absenPengamat) { _absenPengamat.disconnect(); _absenPengamat = null; }
+  $('#modalUmum').classList.remove('modal-absen');
+  $('#tiraiUmum').removeEventListener('click', klikLuarAbsen);
+  _absenFoto = '';
+}
+/* Klik di luar kotak menutup pop-up absen (titipan bagian 519). Hanya pop-up
+   ini: modal isian lain sengaja tidak menutup saat tirainya tersentuh. */
+function klikLuarAbsen(e) { if (e.target === e.currentTarget) Admin.tutupModal(); }
+
+function pesanKameraAbsen(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') {
+    return 'Izin kamera ditolak. Ketuk ikon gembok di bilah alamat → Kamera → Izinkan, lalu buka Absen lagi.';
+  }
+  return 'Absen hanya dari perangkat berkamera — pakai tablet toko.';
+}
+
+/** Satu bingkai video → kotak tengah 120×120, hitam-putih, JPEG base64. */
+function fotoAbsen(video) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return '';
+  const s = Math.min(vw, vh);
+  const kanvas = document.createElement('canvas');
+  kanvas.width = kanvas.height = ABSEN_SISI;
+  const g = kanvas.getContext('2d');
+  g.drawImage(video, (vw - s) / 2, (vh - s) / 2, s, s, 0, 0, ABSEN_SISI, ABSEN_SISI);
+  const img = g.getImageData(0, 0, ABSEN_SISI, ABSEN_SISI), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const y = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+    d[i] = d[i + 1] = d[i + 2] = y;
+  }
+  g.putImageData(img, 0, 0);
+  return kanvas.toDataURL('image/jpeg', 0.7).replace(/^data:image\/jpeg;base64,/, '');
+}
+
+const arahAbsen = (p) => (!p.masuk ? 'masuk' : !p.pulang ? 'pulang' : '');
+
+function gambarPilihAbsen() {
+  const d = _absenData;
+  $('#absNama').textContent = '';
+  $('#absAksi').hidden = true;
+  $('#absPilih').hidden = false;
+  $('#absPilih').innerHTML = d.petugas.length ? d.petugas.map((p) => `<button type="button" class="tombol" data-abs-kode="${esc(p.kode)}">
+      <span>${esc(p.nama)}</span>${p.masuk ? `<small>${p.pulang ? 'pulang ' + esc(p.pulang) : 'masuk ' + esc(p.masuk)}</small>` : ''}</button>`).join('')
+    : '<p class="petunjuk">Belum ada petugas aktif di cabang ini.</p>';
+}
+
+function pilihNamaAbsen(kode) {
+  const p = _absenData.petugas.find((x) => x.kode === kode);
+  if (!p) return;
+  const arah = arahAbsen(p);
+  $('#absNama').textContent = p.nama;
+  $('#absPilih').hidden = true;
+  $('#absAksi').hidden = false;
+  const b = $('#absKirim');
+  b.dataset.kode = p.kode;
+  b.dataset.arah = arah;
+  b.disabled = !arah;
+  b.textContent = arah ? 'Absen ' + arah + ' — ' + p.nama : 'Sudah masuk ' + p.masuk + ' dan pulang ' + p.pulang;
+}
+
+/* Foto yang sudah diambil disimpan selama pertanyaan "digantikan siapa?"
+   terbuka: jawabannya dikirim ulang dengan foto YANG SAMA, tanpa kamera lagi. */
+let _absenFoto = '';
+
+/** Pulang sebelum shift selesai (hutang jam, pemilik 20 Nov 2026). */
+function tanyaPenggantiAbsen(calon) {
+  $('#absAksi').hidden = true;
+  $('#absPilih').hidden = false;
+  $('#absPilih').innerHTML = `<p class="petunjuk abs-tanya">Pulang sebelum shift selesai — digantikan siapa? Sisa jam shift tercatat sebagai hutang jam kepada teman yang dipilih.</p>` +
+    calon.map((c) => `<button type="button" class="tombol" data-abs-ganti="${esc(c.kode)}"><span>${esc(c.nama)}</span></button>`).join('') +
+    '<button type="button" class="tombol" data-abs-ganti=""><span>Tidak digantikan</span></button>';
+}
+
+async function kirimAbsen(pengganti) {
+  const b = $('#absKirim');
+  const foto = pengganti === undefined ? fotoAbsen($('#absVideo')) : _absenFoto;
+  if (!foto) { $('#absPesan').innerHTML = `<div class="pesan galat">${esc('Kamera belum siap. Tunggu gambarnya muncul, lalu tekan lagi.')}</div>`; return; }
+  _absenFoto = foto;
+  b.disabled = true;
+  $('#absPesan').innerHTML = '';
+  try {
+    const kirim = { id_perangkat: await idPerangkat(), kode_petugas: b.dataset.kode, arah: b.dataset.arah, foto };
+    if (pengganti !== undefined) kirim.pengganti = pengganti;
+    const r = await API.absen(kirim);
+    matikanKameraAbsen();
+    _absenFoto = '';
+    const ket = r.arah === 'masuk'
+      ? (r.status === 'TERLAMBAT' ? 'Terlambat ' + r.terlambat_menit + ' menit' : 'Tepat waktu')
+      : !r.pulang_awal ? 'Selamat beristirahat'
+      : r.pengganti ? 'Digantikan ' + r.pengganti + ' · hutang jam ' + r.hutang_menit + ' menit'
+      : 'Pulang sebelum shift selesai';
+    $('#absIsi').innerHTML = `<div class="abs-hasil ${r.status === 'TERLAMBAT' || r.pulang_awal ? 'kuning' : 'hijau'}">
+        <strong>${esc(r.nama)} — ${esc(r.arah)} ${esc(r.jam)}</strong>
+        <span>${esc(ket)}${r.sudah ? ' · sudah tercatat sebelumnya' : ''}</span></div>`;
+    $('#modalUmum .aksi-modal').innerHTML = '<button type="button" class="tombol utama" data-tutup="1">OK</button>';
+  } catch (e) {
+    b.disabled = false;
+    if (e.kode === 'PENGGANTI') return tanyaPenggantiAbsen((e.detail && e.detail.calon) || []);
+    $('#absPesan').innerHTML = `<div class="pesan galat">${esc(e.message || 'Absen gagal.')}</div>`;
+  }
+}
+
+async function bukaAbsen() {
+  bereskanAbsen();
+  const giliran = _absenGiliran;
+  _absenData = null;
+  Admin.modal('Absen', `<div id="absIsi" class="abs-isi">
+      <p class="petunjuk">Ketuk nama Anda. Foto diambil otomatis saat tombol Absen ditekan.</p>
+      <div class="abs-kamera"><video id="absVideo" autoplay playsinline muted></video>
+        <span class="abs-nama-besar" id="absNama"></span></div>
+      <div id="absPesan"></div>
+      <div id="absPilih" class="abs-grid-nama"><p class="petunjuk">Menyiapkan kamera…</p></div>
+      <div id="absAksi" class="abs-aksi" hidden>
+        <button type="button" class="tombol" id="absGanti">← Ganti nama</button>
+        <button type="button" class="tombol utama" id="absKirim"></button></div>
+    </div>`, '<button type="button" class="tombol" data-tutup="1">Batal</button>');
+  $('#modalUmum').classList.add('modal-absen');
+  const tirai = $('#tiraiUmum');
+  /* #absIsi, bukan #absVideo: sesudah berhasil videonya diganti hasil, dan
+     pop-upnya masih milik absen sampai di-OK. */
+  _absenPengamat = new MutationObserver(() => {
+    if (!tirai.classList.contains('tampil') || !$('#absIsi')) bereskanAbsen();
+  });
+  _absenPengamat.observe(tirai, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+  tirai.addEventListener('click', klikLuarAbsen);
+
+  const tolak = (teks) => {
+    matikanKameraAbsen();
+    $('#absPilih').innerHTML = '';
+    $('#absPesan').innerHTML = `<div class="pesan galat">${esc(teks)}</div>`;
+  };
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return tolak(pesanKameraAbsen(null));
+  const [kam, siap] = await Promise.allSettled([
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false }),
+    API.absenSiap({ id_perangkat: await idPerangkat() })
+  ]);
+  const video = $('#absVideo');
+  if (giliran !== _absenGiliran || !video) {
+    if (kam.status === 'fulfilled') kam.value.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  if (kam.status === 'fulfilled') { _absenAliran = kam.value; video.srcObject = _absenAliran; }
+  if (siap.status === 'rejected') return tolak(siap.reason && siap.reason.message || 'Daftar petugas tidak terbaca.');
+  if (kam.status === 'rejected') return tolak(pesanKameraAbsen(kam.reason));
+  _absenData = siap.value;
+  $('#modalUmum h3').textContent = 'Absen — ' + (_absenData.nama_cabang || _absenData.cabang);
+  gambarPilihAbsen();
+  $('#absIsi').addEventListener('click', (e) => {
+    const n = e.target.closest('[data-abs-kode]');
+    if (n) return pilihNamaAbsen(n.dataset.absKode);
+    const g = e.target.closest('[data-abs-ganti]');
+    if (g) return kirimAbsen(g.dataset.absGanti);
+    if (e.target.closest('#absGanti')) { _absenFoto = ''; return gambarPilihAbsen(); }
+    if (e.target.closest('#absKirim')) kirimAbsen();
+  });
+}
+
 /* ==================== LONCENG (bagian 305) ====================
    Angka keputusan yang menunggu, di kepala SEMUA layar — hanya untuk akun yang
    boleh menyetujui sesuatu. Diklik: daftar ringkas dari kotak_persetujuan;
@@ -7691,6 +7877,12 @@ function pasangEvent() {
     $('#modePassword').classList.toggle('sembunyi', !pin);
     $('#btnTukarMode').textContent = pin ? 'Masuk dengan PIN' : 'Masuk dengan password';
   });
+
+  /* Absen petugas (bagian 519): dari layar login dan dari header. */
+  $('#btnAbsenLogin').innerHTML = svgIkon('absen') + '<span>Absen petugas</span>';
+  $('#btnAbsen').innerHTML = svgIkon('absen');
+  $('#btnAbsenLogin').addEventListener('click', bukaAbsen);
+  $('#btnAbsen').addEventListener('click', bukaAbsen);
 
   /* --- navigasi --- */
   $('#navSisi').addEventListener('click', e => {
