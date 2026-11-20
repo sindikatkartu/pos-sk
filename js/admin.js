@@ -10450,7 +10450,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="bar-alat"><h3>Menunggu keputusan Anda</h3>
         ${_butirPs.length ? `<span class="lencana kuning">${_butirPs.length} menunggu</span>` : ''}</div>
       <p class="petunjuk">Semua yang menunggu keputusan Anda di satu tempat — diskon, void, perangkat, akun baru,
-        koreksi kas &amp; pulsa, dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
+        koreksi kas &amp; pulsa, izin &amp; koreksi absen, dan pembelian. Yang paling lama menunggu di atas. Daftar ini menyegarkan diri selama layarnya terbuka.</p>
       ${tabel([
         { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>${teksPengesah(b.jenis)}` },
         { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}${
@@ -10486,7 +10486,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ? '<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali, jurnal dibalik penuh, piutang dan klaim petugasnya ikut dibatalkan.</div>'
         : jenis === 'diskon' ? '<p class="petunjuk">Kasir bisa langsung menyelesaikan notanya. Berlaku untuk nota itu saja, sekali pakai.</p>'
         /* bagian 443: yang disahkan dijalankan lewat pintu koreksi yang sama, atas data hari ini. */
-        : jenis === 'koreksi' ? '<p class="petunjuk">Koreksinya langsung tertulis beserta jurnal selisihnya. Semua pemeriksaannya diulang atas data saat ini.</p>' : '';
+        : jenis === 'koreksi' ? '<p class="petunjuk">Begitu disahkan langsung tertulis — koreksi kas dan pulsa beserta jurnal selisihnya. Semua pemeriksaannya diulang atas data saat ini.</p>' : '';
       if (!(await tanya('Setujui ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + peringatan, { ya: 'Setujui' }))) return;
     } else if (jenis === 'perangkat') {
       if (!(await tanya('Blokir perangkat ini?', ket + '<p class="petunjuk">Perangkat ini tidak bisa masuk sampai dibuka lagi di menu Perangkat Terdaftar.</p>',
@@ -13891,8 +13891,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* ==================== ABSENSI (bagian 520) ====================
      Server: apps-script/29_Absensi.gs (apiDaftarAbsensi, apiFotoAbsen).
      Menu SENDIRI dengan izin absensi·lihat — bukan tab di Gaji (keputusan
-     pemilik 20 Nov 2026). Layar ini hanya MEMBACA: absennya sendiri dari
-     tombol Absen di tablet toko (app.js, bagian 519).
+     pemilik 20 Nov 2026). Absennya sendiri dari tombol Absen di tablet toko
+     (app.js, bagian 519); dari sini admin berizin absensi·ubah mencatat
+     izin/sakit, mengoreksi, dan membatalkan baris (bagian 521). Owner langsung
+     berlaku; selain Owner jadi pengajuan di menu Persetujuan.
 
      Satu bacaan untuk tiga kartu. Rekap per petugas dihitung di sini dari
      baris yang sama dengan daftar hariannya — bukan hitungan kedua di server
@@ -13922,7 +13924,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               </select></div>
           </div>
           <p class="petunjuk">Kehadiran petugas yang dicatat lewat tombol <strong>Absen</strong> di tablet toko.
-             Tekan <strong>Foto</strong> di satu baris untuk melihat foto saat absen.</p>
+             Foto saat absen ada di kolom <strong>Aksi</strong> tiap baris.</p>
           <div id="ringkasAbsen"></div></div>
         <div id="hasilAbsen"></div>`;
       $('#wadahPeriodeAbsen').innerHTML = Periode.html(PERIODE_ABSEN);
@@ -13949,9 +13951,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
   }
 
+  /** Baris izin/sakit: dicatat admin, tanpa jam (bagian 521). */
+  const tidakHadirAbsen = (r) => r.status === 'IZIN' || r.status === 'SAKIT';
+  /** Baris yang dihitung HADIR: bukan batal, bukan izin/sakit. */
+  const hadirAbsen = (r) => !r.batal && !tidakHadirAbsen(r);
+  /** Baris pertama kolom catatan = keterangan izin/sakit yang ditulis admin. */
+  const ketCatatanAbsen = (r) => String(r.catatan || '').split('\n')[0];
+
   /** Lencana keterangan satu baris harian. */
-  function ketAbsen(r, hariIni) {
+  function ketAbsen(r, hariIni, menunggu) {
     const l = [];
+    const tunggu = menunggu ? '<span class="lencana kuning">menunggu Owner</span>' : '';
+    if (r.batal) {
+      return `<span class="abs-ket"><span class="lencana" title="${esc(r.catatan || '')}">dibatalkan</span></span>`;
+    }
+    if (tidakHadirAbsen(r)) {
+      l.push(`<span class="lencana biru">${r.status === 'SAKIT' ? 'sakit' : 'izin'}</span>`);
+      if (ketCatatanAbsen(r)) l.push(`<span class="lencana">${esc(ketCatatanAbsen(r))}</span>`);
+      return `<span class="abs-ket">${l.join('')}${tunggu}</span>`;
+    }
     l.push(r.status === 'TERLAMBAT'
       ? `<span class="lencana kuning">terlambat ${esc(lamaAbsen(r.terlambat_menit))}</span>`
       : '<span class="lencana hijau">tepat waktu</span>');
@@ -13965,7 +13983,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       l.push(r.tanggal < hariIni ? '<span class="lencana merah">tidak absen pulang</span>'
                                  : '<span class="lencana">belum pulang</span>');
     }
-    return `<span class="abs-ket">${l.join('')}</span>`;
+    if (r.dikoreksi) l.push(`<span class="lencana" title="${esc(r.catatan || '')}">dikoreksi</span>`);
+    return `<span class="abs-ket">${l.join('')}${tunggu}</span>`;
   }
 
   function gambarAbsensi() {
@@ -13974,13 +13993,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const diCabang = (c) => cabangAbsen === '*' || c === cabangAbsen;
     const baris = d.baris.filter((r) => diCabang(r.cabang));
     const hariIni = tanggalLokal(new Date());
-    const telat = baris.filter((r) => r.status === 'TERLAMBAT');
-    const awal = baris.filter((r) => r.pulang_awal);
-    const lupa = baris.filter((r) => !r.pulang && r.tanggal < hariIni);
+    /* Angka kehadiran hanya dari baris HADIR: baris batal dan izin/sakit
+       tampil di daftar, tetapi bukan "kali absen masuk" (bagian 521). */
+    const hadir = baris.filter(hadirAbsen);
+    const telat = hadir.filter((r) => r.status === 'TERLAMBAT');
+    const awal = hadir.filter((r) => r.pulang_awal);
+    const lupa = hadir.filter((r) => !r.pulang && r.tanggal < hariIni);
+    const bolehUbah = bolehIzin('absensi', 'ubah');
+    const tungguBaris = {};
+    (d.menunggu || []).forEach((m) => { if (m.id_baris) tungguBaris[m.id_baris] = true; });
+    const tungguIzin = (d.menunggu || []).filter((m) => !m.id_baris);
     const kotak = (label, isi, ekor) =>
       `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div><div class="mini-nilai">${esc(isi)}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
     $('#ringkasAbsen').innerHTML = `<div class="petak-mini petak-stok-mini" style="margin-top:12px">
-        ${kotak('Catatan hadir', String(baris.length), 'kali absen masuk')}
+        ${kotak('Catatan hadir', String(hadir.length), 'kali absen masuk')}
         ${kotak('Terlambat', String(telat.length), 'total ' + lamaAbsen(telat.reduce((a, r) => a + r.terlambat_menit, 0)))}
         ${kotak('Pulang awal', String(awal.length), awal.filter((r) => r.pengganti).length + ' digantikan teman')}
         ${kotak('Tidak absen pulang', String(lupa.length), 'di hari yang sudah lewat')}
@@ -13988,8 +14014,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     /* Rekap per petugas — dari baris yang sama dengan daftar harian di bawahnya. */
     const peta = {};
-    baris.forEach((r) => {
-      const x = peta[r.kode] || (peta[r.kode] = { kode: r.kode, nama: r.nama, hadir: 0, telat: 0, menit: 0, awal: 0, lupa: 0 });
+    baris.filter((r) => !r.batal).forEach((r) => {
+      const x = peta[r.kode] || (peta[r.kode] = { kode: r.kode, nama: r.nama, hadir: 0, telat: 0, menit: 0, awal: 0, lupa: 0, izin: 0, sakit: 0 });
+      if (tidakHadirAbsen(r)) { x[r.status === 'SAKIT' ? 'sakit' : 'izin'] += 1; return; }
       x.hadir += 1;
       if (r.status === 'TERLAMBAT') { x.telat += 1; x.menit += r.terlambat_menit; }
       if (r.pulang_awal) x.awal += 1;
@@ -13999,6 +14026,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const kolomRekap = [
       { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong>` },
       { judul: 'Hadir', angka: true, render: (r) => esc(r.hadir + ' hari') },
+      { judul: 'Izin', angka: true, render: (r) => esc(r.izin ? r.izin + ' hari' : '—') },
+      { judul: 'Sakit', angka: true, render: (r) => esc(r.sakit ? r.sakit + ' hari' : '—') },
       { judul: 'Terlambat', angka: true, render: (r) => esc(r.telat ? r.telat + ' kali' : '—') },
       { judul: 'Lama terlambat', angka: true, render: (r) => esc(r.telat ? lamaAbsen(r.menit) : '—') },
       { judul: 'Pulang awal', angka: true, render: (r) => esc(r.awal ? r.awal + ' kali' : '—') },
@@ -14011,8 +14040,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Shift', render: (r) => esc(r.shift === 'PAGI' ? 'Pagi' : r.shift === 'MALAM' ? 'Malam' : '—') },
       { judul: 'Masuk', angka: true, render: (r) => esc(r.masuk || '—') },
       { judul: 'Pulang', angka: true, render: (r) => esc(r.pulang || '—') },
-      { judul: 'Keterangan', render: (r) => ketAbsen(r, hariIni) },
-      { judul: 'Aksi', render: (r) => tombolBaris('', 'Foto', IKON.tampil, `data-foto-absensi="${esc(r.id)}"`, 'Lihat foto absen') }
+      { judul: 'Keterangan', render: (r) => ketAbsen(r, hariIni, tungguBaris[r.id]) },
+      /* Lebih dari satu aksi = menu ⋮ (bagian 274); titiknya merah karena
+         memuat Batalkan. Baris izin/sakit tidak punya foto maupun jam. */
+      { judul: 'Aksi', render: (r) => {
+          const bisa = bolehUbah && !r.batal;
+          return aksiBaris('Abs' + idAman(r.id), 'baris-absen', [
+            r.masuk ? { label: 'Foto', ikon: IKON.tampil, atribut: `data-foto-absensi="${esc(r.id)}"`, judul: 'Lihat foto absen' } : null,
+            bisa && hadirAbsen(r) ? { label: 'Koreksi', ikon: IKON.ubah, atribut: `data-koreksi-absensi="${esc(r.id)}"`, judul: 'Koreksi jam, cabang, atau pengganti' } : null,
+            bisa ? { gaya: 'bahaya', label: 'Batalkan', ikon: IKON.batal, atribut: `data-batal-absensi="${esc(r.id)}"`, judul: 'Batalkan catatan ini' } : null
+          ], bisa && r.masuk ? 'bahaya' : '');
+        } }
     ];
     const hutang = d.hutang.filter((h) => h.rinci.some((x) => diCabang(x.cabang)));
     const kolomHutang = [
@@ -14029,7 +14067,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${tabel(kolomRekap, rekap, { kosong: 'Belum ada yang absen pada periode ini.' })}
       </div>
       <div class="kartu">
-        <div class="bar-alat"><h3>Catatan harian</h3></div>
+        <div class="bar-alat"><h3>Catatan harian</h3>
+          ${bolehUbah ? `<div class="kanan">${tombolTambah('btnIzinAbsen', 'Catat izin / sakit')}</div>` : ''}</div>
+        ${tungguIzin.length ? `<p class="petunjuk abs-tunggu">${tungguIzin.map((m) =>
+            `<span class="abs-ket">${lencanaDash('menunggu Owner', 'kuning')}<span>${esc(m.ringkas)}</span></span>`).join('')}</p>` : ''}
         ${tabel(kolomHarian, baris, { kosong: 'Belum ada yang absen pada periode ini.' })}
       </div>
       <div class="kartu">
@@ -14058,6 +14099,109 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <p class="petunjuk">${esc(tglTampil(r.tanggal))} · ${esc(r.cabang)}</p>
       <div class="abs-foto-baris">${satu('Masuk', r.masuk, f.foto_masuk)}${satu('Pulang', r.pulang, f.foto_pulang)}</div>`,
       `<button class="tombol" data-tutup="1">Tutup</button>`);
+  }
+
+  /* ---- izin/sakit, koreksi, batal (bagian 521) ---- */
+
+  /** Sesudah menulis: Owner langsung berlaku, selain Owner jadi pengajuan. */
+  function sesudahTulisAbsen(h, pesanJadi) {
+    tutupModal();
+    toast(h && h.menunggu ? 'Diajukan — menunggu pengesahan Owner di menu Persetujuan.' : pesanJadi, 'sukses');
+    return muatHasilAbsensi();
+  }
+
+  function formIzinAbsen() {
+    const petugas = (absenData && absenData.petugas) || [];
+    bukaModal('Catat izin / sakit', `<div class="baris-form">
+      <label>Petugas</label>
+      <select id="izPetugas">${petugas.map((p) => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.cabang || '*')})</option>`).join('')}</select>
+      <label>Tanggal</label>
+      <input type="date" id="izTanggal" value="${esc(tanggalLokal(new Date()))}">
+      <label>Jenis</label>
+      <select id="izJenis"><option value="IZIN">Izin</option><option value="SAKIT">Sakit</option></select>
+      <label>Keterangan</label>
+      <input type="text" id="izKet" maxlength="200" placeholder="mis. acara keluarga, demam">
+    </div>
+    <p class="petunjuk">Satu catatan untuk satu hari. Petugas yang tercatat izin atau sakit tidak bisa absen di tablet
+       pada hari itu — batalkan catatannya dulu bila ternyata ia datang.</p>`,
+    `<button class="tombol" data-tutup="1">Batal</button>
+     <button class="tombol utama" id="btnSimpanIzinAbsen">Simpan</button>`);
+  }
+
+  async function simpanIzinAbsen() {
+    if (!nilai('izPetugas') || !nilai('izTanggal')) return toast('Pilih petugas dan tanggalnya.', 'galat');
+    const h = await API.catatIzinAbsen({ kode_petugas: nilai('izPetugas'), tanggal: nilai('izTanggal'),
+                                         jenis: nilai('izJenis'), keterangan: nilai('izKet') });
+    return sesudahTulisAbsen(h, 'Izin/sakit dicatat.');
+  }
+
+  /** "07.34" (bentuk layar) → "07:34" untuk kotak jam. Kotak teks JJ:MM seperti
+      setelan jam di Pengaturan Sistem — kotak jam bawaan peramban tidak
+      mengikuti tinggi kendali aplikasi ini. */
+  const jamKotakAbsen = (j) => String(j || '').replace('.', ':');
+
+  function formKoreksiAbsen(id) {
+    const r = ((absenData && absenData.baris) || []).find((x) => x.id === id);
+    if (!r) return;
+    /* Calon pengganti = yang absen masuk pada hari yang sama (server
+       memeriksa cabangnya terhadap cabang yang dipilih di sini). */
+    const teman = absenData.baris.filter((x) => x.tanggal === r.tanggal && x.kode !== r.kode && hadirAbsen(x) && x.masuk)
+      .sort((a, b) => urutNama(a.nama, b.nama));
+    const cabang = daftarKodeCabang();
+    bukaModal('Koreksi absen — ' + r.nama, `<p class="petunjuk">${esc(tglTampil(r.tanggal))} · ${esc(r.cabang)}</p>
+    <div class="baris-form">
+      <label>Jam masuk (JJ:MM)</label>
+      <input type="text" inputmode="numeric" id="koMasuk" maxlength="5" placeholder="07:30" value="${esc(jamKotakAbsen(r.masuk))}">
+      <label>Jam pulang (JJ:MM, kosongkan bila belum pulang)</label>
+      <input type="text" inputmode="numeric" id="koPulang" maxlength="5" placeholder="15:00" value="${esc(jamKotakAbsen(r.pulang))}">
+      <label>Cabang</label>
+      <select id="koCabang">${(cabang.includes(r.cabang) ? cabang : [r.cabang].concat(cabang)).map((c) =>
+        `<option value="${esc(c)}" ${c === r.cabang ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      <label>Digantikan (hanya bila pulang sebelum shift selesai)</label>
+      <select id="koGanti"><option value="">— tidak digantikan —</option>${teman.map((x) =>
+        `<option value="${esc(x.kode)}" ${x.kode === r.pengganti ? 'selected' : ''}>${esc(x.nama)} (${esc(x.cabang)})</option>`).join('')}</select>
+      <label>Alasan koreksi</label>
+      <input type="text" id="koAlasan" maxlength="200" placeholder="mis. lupa absen pulang">
+    </div>
+    <p class="petunjuk">Foto asli tetap tersimpan. Baris ini akan bertanda <strong>dikoreksi</strong>, dan hutang jam
+       dihitung ulang dari jam yang baru.</p>`,
+    `<button class="tombol" data-tutup="1">Batal</button>
+     <button class="tombol utama" id="btnSimpanKoreksiAbsen" data-id="${esc(id)}">Simpan</button>`);
+  }
+
+  async function simpanKoreksiAbsen(id) {
+    const p = { id, masuk: nilai('koMasuk'), pulang: nilai('koPulang'), cabang: nilai('koCabang'),
+                pengganti: nilai('koGanti'), alasan: nilai('koAlasan').trim() };
+    /* Pratinjau dari server: pemeriksaan dan hutang jam sebelum ↔ sesudah
+       dihitung penolong yang sama dengan yang menulis. */
+    const pv = await API.koreksiAbsen(Object.assign({ pratinjau: true }, p));
+    const hutang = (menit, nama) => menit ? lamaAbsen(menit) + ' kepada ' + nama : 'tidak ada';
+    if (!(await tanya('Simpan koreksi ini?',
+          `<p>${esc(pv.ringkas)}</p>
+           <table class="tabel" style="margin:8px 0"><tbody>
+             <tr><td>Hutang jam sekarang</td><td class="kanan">${esc(hutang(pv.hutang_lama, pv.nama_pengganti_lama))}</td></tr>
+             <tr><td><strong>Sesudah koreksi</strong></td><td class="kanan"><strong>${esc(hutang(pv.hutang_baru, pv.nama_pengganti_baru))}</strong></td></tr></tbody></table>`,
+          { ya: 'Ya, simpan' }))) return;
+    return sesudahTulisAbsen(await API.koreksiAbsen(p), 'Catatan absen dikoreksi.');
+  }
+
+  function formBatalAbsen(id) {
+    const r = ((absenData && absenData.baris) || []).find((x) => x.id === id);
+    if (!r) return;
+    bukaModal('Batalkan catatan — ' + r.nama, `<p class="petunjuk">${esc(tglTampil(r.tanggal))} · ${esc(r.cabang)}</p>
+    <div class="baris-form">
+      <label>Alasan pembatalan</label>
+      <input type="text" id="baAlasan" maxlength="200" placeholder="mis. salah ketuk nama">
+    </div>
+    <p class="petunjuk">Catatan ini <strong>tidak dihapus</strong>: tetap tampil bertanda dibatalkan, tetapi tidak
+       dihitung hadir. Petugasnya bisa absen ulang untuk tanggal itu di tablet toko.</p>`,
+    `<button class="tombol" data-tutup="1">Tutup</button>
+     <button class="tombol bahaya" id="btnSimpanBatalAbsen" data-id="${esc(id)}">Ya, batalkan</button>`);
+  }
+
+  async function simpanBatalAbsen(id) {
+    const h = await API.koreksiAbsen({ id, batal: true, alasan: nilai('baAlasan').trim() });
+    return sesudahTulisAbsen(h, 'Catatan absen dibatalkan.');
   }
 
   function bukaRinciHutangJam(kunci) {
@@ -14993,6 +15137,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* --- menu Absensi (bagian 520) --- */
       if (d.fotoAbsensi)           return bukaFotoAbsensi(d.fotoAbsensi);
       if (d.rinciHutangJam)        return bukaRinciHutangJam(d.rinciHutangJam);
+      /* --- izin/sakit, koreksi, batal (bagian 521) --- */
+      if (t.id === 'btnIzinAbsen') return formIzinAbsen();
+      if (d.koreksiAbsensi)        return formKoreksiAbsen(d.koreksiAbsensi);
+      if (d.batalAbsensi)          return formBatalAbsen(d.batalAbsensi);
+      if (t.id === 'btnSimpanIzinAbsen' || t.id === 'btnSimpanKoreksiAbsen' || t.id === 'btnSimpanBatalAbsen') {
+        t.disabled = true;
+        try {
+          await (t.id === 'btnSimpanIzinAbsen' ? simpanIzinAbsen()
+               : t.id === 'btnSimpanKoreksiAbsen' ? simpanKoreksiAbsen(d.id) : simpanBatalAbsen(d.id));
+        } finally { t.disabled = false; }
+        return;
+      }
       if (t.id === 'btnBeriKasbon') return formBeriKasbon();
       if (d.cetakSlip)             return cetakSlip([slipDari(d.cetakSlip)].filter(Boolean));
       if (t.id === 'btnCetakSemuaSlip') {

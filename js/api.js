@@ -285,7 +285,10 @@ const API = (() => {
        memulangkan baris yang sudah ada, tidak menulis kedua kali. */
     'absen_siap', 'absen',
     /* bagian 520: dua bacaan menu Absensi. */
-    'daftar_absensi', 'foto_absen'
+    'daftar_absensi', 'foto_absen',
+    /* bagian 521: izin/sakit yang diulang dijawab "sudah" — satu petugas satu
+       catatan per tanggal, tidak pernah baris kedua. */
+    'catat_izin_absen'
   ]);
   /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
      ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
@@ -302,7 +305,7 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'koreksi_absen', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
@@ -744,6 +747,8 @@ let _pernahJawab = false;
     /* Menu Absensi (bagian 520): izin absensi·lihat. */
     daftarAbsensi:   (d) => panggil('daftar_absensi', d, { timeout: 60000 }),
     fotoAbsensi:     (d) => panggil('foto_absen', d),
+    catatIzinAbsen:  (d) => panggil('catat_izin_absen', d),
+    koreksiAbsen:    (d) => panggil('koreksi_absen', d),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
        melewati 90 dtk pada hari yang banyak jurnalnya; batas Apps Script 6 menit. */
     ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 180000 }),

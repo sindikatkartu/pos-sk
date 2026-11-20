@@ -4488,6 +4488,9 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 /* Lencana "digantikan <nama panjang> · hutang …" lebih lebar dari layar HP
    (456 px di layar 360 px, ditangkap uji-offside): isinya boleh turun baris. */
 .abs-ket .lencana { white-space: normal; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+/* Pengajuan izin/sakit yang menunggu Owner: satu baris per pengajuan. */
+.abs-tunggu { display: flex; flex-direction: column; gap: 6px; }
+.abs-tunggu .abs-ket { align-items: center; }
 .abs-foto-baris { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .abs-foto { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .abs-foto img, .abs-foto-kosong { width: 100%; max-width: 240px; aspect-ratio: 1; height: auto;
