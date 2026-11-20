@@ -912,8 +912,13 @@ function urutkanOleh(arr, ambil) {
  * dropdown pemasang di layar kasir. Dari lantai toko, dropdown kosong terbaca
  * sebagai aplikasi rusak — bukan sebagai "datanya memang belum diisi".
  */
-function petugasUntukPeran(daftar, peran) {
-  const semua = daftar || [];
+function petugasUntukPeran(daftar, peran, hariIni) {
+  /* Petugas TAMU (bagian 520): petugas cabang lain yang absen di cabang ini
+     turun bertanda `tamu_tanggal`. Ia hanya ditawarkan PADA tanggal itu —
+     besoknya servernya menolak klaimnya, dan nota tidak boleh gagal gara-gara
+     nama basi di dropdown. */
+  const kini = hariIni || tanggalLokal();
+  const semua = (daftar || []).filter(p => p && (!p.tamu_tanggal || p.tamu_tanggal === kini));
   const kunci = String(peran).toUpperCase() === 'PEMASANG' ? 'bisa_pasang' : 'bisa_jual';
   // Sel Sheets bisa mengirim boolean maupun teks 'true'; keduanya diterima.
   const cocok = semua.filter(p => p && (p[kunci] === true || p[kunci] === 'true'));

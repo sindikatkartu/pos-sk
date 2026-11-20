@@ -118,7 +118,7 @@ const API = (() => {
    * namanya wajib ada di AMAN_DIULANG juga — dijaga uji.js.
    */
   const HANYA_BACA = new Set([
-    'absen_siap',
+    'absen_siap', 'daftar_absensi', 'foto_absen',
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
     'laporan_diskon', 'laba_rugi', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
@@ -283,7 +283,9 @@ const API = (() => {
     'terima_produksi',
     /* bagian 519: absen membawa arahnya — masuk/pulang yang diulang
        memulangkan baris yang sudah ada, tidak menulis kedua kali. */
-    'absen_siap', 'absen'
+    'absen_siap', 'absen',
+    /* bagian 520: dua bacaan menu Absensi. */
+    'daftar_absensi', 'foto_absen'
   ]);
   /* Endpoint yang SENGAJA tidak diulang otomatis — seluruhnya MENULIS, dan
      ditetapkan dengan membaca badan fungsinya, bukan menebak dari namanya
@@ -739,6 +741,9 @@ let _pernahJawab = false;
     /* Absen petugas (bagian 519): publik, dijaga perangkat. */
     absenSiap:       (d) => panggil('absen_siap', d),
     absen:           (d) => panggil('absen', d),
+    /* Menu Absensi (bagian 520): izin absensi·lihat. */
+    daftarAbsensi:   (d) => panggil('daftar_absensi', d, { timeout: 60000 }),
+    fotoAbsensi:     (d) => panggil('foto_absen', d),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
        melewati 90 dtk pada hari yang banyak jurnalnya; batas Apps Script 6 menit. */
     ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 180000 }),

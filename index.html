@@ -655,6 +655,11 @@
       <div id="isiGaji"></div>
     </section>
 
+    <!-- ABSENSI (bagian 520). Isinya digambar admin.js (muatAbsensi). -->
+    <section class="layar" id="layarAbsen">
+      <div id="isiAbsen"></div>
+    </section>
+
     <section class="layar" id="layarKas">
       <!-- Isinya digambar admin.js (meja kerja kas back office, bagian 208).
            Sampai v1.216 layar ini milik kasir dan seluruh kendalinya dipatok
@@ -1016,6 +1021,9 @@
           <p><strong>Bobot peran</strong> (bawaan 60 : 40) membagi poin, omzet, dan laba antara penjual dan pemasang bila satu pekerjaan dikerjakan berdua. <strong>Tidak ada tarif per orang</strong> — nilai pekerjaan melekat pada produknya, supaya dua orang yang mengerjakan hal yang sama mendapat poin yang sama.</p>
           <p class="petunjuk">Peran utama hanya jadi <em>bawaan</em>; peran sesungguhnya pada sebuah nota ditentukan urutan pemilihan kasir. Petugas yang berhenti cukup <strong>dinonaktifkan</strong>, jangan dihapus — klaim lama masih menunjuk ke namanya.</p>
           <p><strong>Absen petugas</strong> — tombol bergambar orang bercentang di kepala layar (tablet &amp; PC) dan tombol <strong>Absen petugas</strong> di layar masuk. Tidak perlu akun atau PIN: ketuk nama, lalu tekan <strong>Absen masuk</strong> atau <strong>Absen pulang</strong> — foto diambil otomatis dari kamera depan saat tombol itu ditekan. Jamnya jam server, bukan jam tablet. Perangkat tanpa kamera, atau yang izin kameranya ditolak, tidak bisa dipakai absen. Absen hanya jalan di perangkat yang ditandai Owner: menu <strong>Perangkat</strong> → ⋮ → <strong>Boleh absen</strong> (cukup sekali per tablet toko).</p>
+          <p><strong>Kamera tidak mau menyala</strong> — ketuk ikon di kiri alamat situs → <strong>Izin</strong> → <strong>Kamera</strong> → <strong>Izinkan</strong>, lalu buka Absen lagi. Kalau tablet menulis <em>"Situs ini tidak dapat meminta izin Anda"</em>, tutup dulu tombol atau balon yang mengambang di layar (pintasan pena, balon chat), lalu coba lagi. Izin cukup diberikan sekali.</p>
+          <p><strong>Bertugas di cabang lain</strong> — di tablet cabang itu tekan Absen → <strong>Petugas cabang lain…</strong> → ketuk nama. Dengan absen di sana, hari itu Anda tercatat bertugas di cabang tersebut: nama Anda muncul di pilihan penjual dan pemasang Kasir cabang itu sampai hari berganti. Absen masuk hanya sekali sehari; absen pulang boleh dari tablet cabang mana pun.</p>
+          <p><strong>Menu Absensi</strong> (izin <strong>Absensi</strong> di menu <strong>Peran &amp; Hak Akses</strong>) — rekap kehadiran per petugas, catatan harian dengan tombol <strong>Foto</strong>, dan <strong>hutang jam antar petugas</strong>. Hutang jam timbul saat petugas pulang sebelum shiftnya selesai dan digantikan teman; sisanya dihitung dari seluruh catatan dan saling menghapus bila keduanya pernah saling menggantikan. Tekan <strong>Rincian</strong> untuk melihat tiap kejadiannya.</p>
           <p class="petunjuk">Pulang sebelum shift selesai, tablet bertanya <strong>digantikan siapa</strong>: sisa jam shift tercatat sebagai hutang jam kepada teman yang dipilih. Jam shift dan toleransi terlambat diatur di Pengaturan Sistem, kelompok Absensi.</p>
         </div>
 

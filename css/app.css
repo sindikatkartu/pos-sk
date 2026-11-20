@@ -4474,13 +4474,25 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 .abs-grid-nama { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .abs-grid-nama .tombol { min-height: 56px; justify-content: space-between; gap: 8px; text-align: left; }
 .abs-grid-nama .tombol small { color: var(--teks-redup); font-weight: 400; white-space: nowrap; }
-.abs-grid-nama .abs-tanya, .abs-grid-nama > .petunjuk, .abs-grid-nama [data-abs-ganti=""] { grid-column: 1 / -1; margin: 0; }
+.abs-grid-nama .abs-tanya, .abs-grid-nama > .petunjuk, .abs-grid-nama [data-abs-ganti=""],
+.abs-grid-nama .abs-lebar { grid-column: 1 / -1; margin: 0; }
 .abs-aksi { display: flex; gap: 8px; margin-top: 12px; }
 .abs-aksi #absKirim { flex: 1; min-height: 52px; }
 .abs-hasil { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: var(--radius);
   border: 1px solid var(--sukses-garis); background: var(--sukses-lembut); }
 .abs-hasil.kuning { border-color: var(--peringatan-garis); background: var(--peringatan-lembut); }
 .abs-hasil strong { font-size: var(--fs-19); }
+/* Menu Absensi (bagian 520): lencana keterangan boleh turun baris, foto 120 px
+   ditampilkan dua kali besarnya supaya wajah terbaca. */
+.abs-ket { display: inline-flex; flex-wrap: wrap; gap: 4px; max-width: 100%; min-width: 0; }
+/* Lencana "digantikan <nama panjang> · hutang …" lebih lebar dari layar HP
+   (456 px di layar 360 px, ditangkap uji-offside): isinya boleh turun baris. */
+.abs-ket .lencana { white-space: normal; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.abs-foto-baris { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.abs-foto { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.abs-foto img, .abs-foto-kosong { width: 100%; max-width: 240px; aspect-ratio: 1; height: auto;
+  border-radius: var(--radius); border: 1px solid var(--garis); background: var(--panel-2); }
+.abs-foto-kosong { display: flex; align-items: center; justify-content: center; color: var(--teks-redup); }
 .absen-login { width: 100%; margin-top: 8px; }
 /* HP tidak dipakai absen (petugas memakai tablet/PC) dan kepalanya sempit. */
 @media (max-width: 620px) { #btnAbsen { display: none; } }

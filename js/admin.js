@@ -6663,7 +6663,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     stok: 'Stok', opname: 'Stok Opname', transfer: 'Transfer Barang', permintaan: 'Permintaan Barang', pembelian: 'Pembelian',
     utang: 'Utang', pelanggan: 'Pelanggan', supplier: 'Supplier', petugas: 'Petugas', piutang: 'Piutang', kas: 'Kas & Bank',
     shift: 'Shift', laporan_penjualan: 'Laporan Penjualan', laporan_stok: 'Laporan Stok', laporan_keuangan: 'Laporan Keuangan',
-    laporan_poin: 'Poin & Performa', pulsa: 'Pulsa', laporan_pulsa: 'Laporan Pulsa', gaji: 'Gaji', produksi: 'Produksi',
+    laporan_poin: 'Poin & Performa', pulsa: 'Pulsa', laporan_pulsa: 'Laporan Pulsa', gaji: 'Gaji', absensi: 'Absensi', produksi: 'Produksi',
     user: 'Pengguna', cabang: 'Cabang', setting: 'Pengaturan Sistem', audit: 'Audit',
     void_transaksi: 'Void langsung (tanpa pengajuan)', kelola_akun_perkiraan: 'Kelola Akun Perkiraan (COA)' };
   const labelIzin = (k) => { const t = String(k == null ? '' : k); if (LABEL_IZIN[t]) return LABEL_IZIN[t];
@@ -13888,6 +13888,194 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   const uuidSetoran = (cab, idShift) => 'SETOR-' + cab + '-' + idShift;
   const uuidBalik = (uuidAsli) => 'BALIK-' + uuidAsli;
 
+  /* ==================== ABSENSI (bagian 520) ====================
+     Server: apps-script/29_Absensi.gs (apiDaftarAbsensi, apiFotoAbsen).
+     Menu SENDIRI dengan izin absensi·lihat — bukan tab di Gaji (keputusan
+     pemilik 20 Nov 2026). Layar ini hanya MEMBACA: absennya sendiri dari
+     tombol Absen di tablet toko (app.js, bagian 519).
+
+     Satu bacaan untuk tiga kartu. Rekap per petugas dihitung di sini dari
+     baris yang sama dengan daftar hariannya — bukan hitungan kedua di server
+     yang bisa menyimpang. Saldo hutang jam datang dari server karena
+     dihitung dari SEMUA catatan, bukan hanya periode yang dipilih. */
+  const PERIODE_ABSEN = { id: 'absenPeriodePilih', dari: 'absenDari', sampai: 'absenSampai',
+                          nilai: 'bulan', label: 'Periode' };
+  let absenData = null, cabangAbsen = '*';
+
+  /** 90 → "1 jam 30 mnt"; 60 → "1 jam"; 20 → "20 mnt". */
+  const lamaAbsen = (menit) => {
+    const m = Math.max(0, Math.round(Number(menit) || 0));
+    const j = Math.floor(m / 60), s = m % 60;
+    return [j ? j + ' jam' : '', s || !j ? s + ' mnt' : ''].filter(Boolean).join(' ');
+  };
+
+  async function muatAbsensi() {
+    const w = $('#isiAbsen');
+    if (!$('#hasilAbsen')) {
+      w.innerHTML = `
+        <div class="kartu"><div class="saring-baris">
+            <span class="wadah-periode" id="wadahPeriodeAbsen"></span>
+            <div class="kendali-tetap"><label>Cabang</label>
+              <select id="absenCabang" class="kendali-tetap" title="Cabang">
+                <option value="*">Semua cabang</option>
+                ${daftarKodeCabang().map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+              </select></div>
+          </div>
+          <p class="petunjuk">Kehadiran petugas yang dicatat lewat tombol <strong>Absen</strong> di tablet toko.
+             Tekan <strong>Foto</strong> di satu baris untuk melihat foto saat absen.</p>
+          <div id="ringkasAbsen"></div></div>
+        <div id="hasilAbsen"></div>`;
+      $('#wadahPeriodeAbsen').innerHTML = Periode.html(PERIODE_ABSEN);
+      Periode.pasang(PERIODE_ABSEN, muatHasilAbsensi);
+      $('#absenCabang').addEventListener('change', (e) => { cabangAbsen = e.target.value; gambarAbsensi(); });
+    }
+    return muatHasilAbsensi();
+  }
+
+  async function muatHasilAbsensi() {
+    const dari = nilai('absenDari'), sampai = nilai('absenSampai');
+    if (!dari || !sampai || !$('#hasilAbsen')) return;
+    const tiket = naikTiket('absen');
+    absenData = null;
+    $('#ringkasAbsen').innerHTML = '';
+    memuat('#hasilAbsen');
+    try {
+      const d = await API.daftarAbsensi({ dari, sampai });
+      if (_tiketMuat.absen !== tiket || !$('#hasilAbsen')) return;
+      absenData = d;
+      gambarAbsensi();
+    } catch (e) {
+      if (_tiketMuat.absen === tiket && $('#hasilAbsen')) galat('#hasilAbsen', e);
+    }
+  }
+
+  /** Lencana keterangan satu baris harian. */
+  function ketAbsen(r, hariIni) {
+    const l = [];
+    l.push(r.status === 'TERLAMBAT'
+      ? `<span class="lencana kuning">terlambat ${esc(lamaAbsen(r.terlambat_menit))}</span>`
+      : '<span class="lencana hijau">tepat waktu</span>');
+    if (r.pulang_awal) {
+      l.push(`<span class="lencana kuning">pulang awal</span>`);
+      l.push(r.nama_pengganti
+        ? `<span class="lencana">digantikan ${esc(r.nama_pengganti)} · hutang ${esc(lamaAbsen(r.hutang_menit))}</span>`
+        : '<span class="lencana">tidak digantikan</span>');
+    }
+    if (!r.pulang) {
+      l.push(r.tanggal < hariIni ? '<span class="lencana merah">tidak absen pulang</span>'
+                                 : '<span class="lencana">belum pulang</span>');
+    }
+    return `<span class="abs-ket">${l.join('')}</span>`;
+  }
+
+  function gambarAbsensi() {
+    const d = absenData;
+    if (!d || !$('#hasilAbsen')) return;
+    const diCabang = (c) => cabangAbsen === '*' || c === cabangAbsen;
+    const baris = d.baris.filter((r) => diCabang(r.cabang));
+    const hariIni = tanggalLokal(new Date());
+    const telat = baris.filter((r) => r.status === 'TERLAMBAT');
+    const awal = baris.filter((r) => r.pulang_awal);
+    const lupa = baris.filter((r) => !r.pulang && r.tanggal < hariIni);
+    const kotak = (label, isi, ekor) =>
+      `<div class="mini"><div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div><div class="mini-nilai">${esc(isi)}</div><div class="mini-ekor">${esc(ekor)}</div></div>`;
+    $('#ringkasAbsen').innerHTML = `<div class="petak-mini petak-stok-mini" style="margin-top:12px">
+        ${kotak('Catatan hadir', String(baris.length), 'kali absen masuk')}
+        ${kotak('Terlambat', String(telat.length), 'total ' + lamaAbsen(telat.reduce((a, r) => a + r.terlambat_menit, 0)))}
+        ${kotak('Pulang awal', String(awal.length), awal.filter((r) => r.pengganti).length + ' digantikan teman')}
+        ${kotak('Tidak absen pulang', String(lupa.length), 'di hari yang sudah lewat')}
+      </div>`;
+
+    /* Rekap per petugas — dari baris yang sama dengan daftar harian di bawahnya. */
+    const peta = {};
+    baris.forEach((r) => {
+      const x = peta[r.kode] || (peta[r.kode] = { kode: r.kode, nama: r.nama, hadir: 0, telat: 0, menit: 0, awal: 0, lupa: 0 });
+      x.hadir += 1;
+      if (r.status === 'TERLAMBAT') { x.telat += 1; x.menit += r.terlambat_menit; }
+      if (r.pulang_awal) x.awal += 1;
+      if (!r.pulang && r.tanggal < hariIni) x.lupa += 1;
+    });
+    const rekap = Object.values(peta).sort((a, b) => urutNama(a.nama, b.nama));
+    const kolomRekap = [
+      { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong>` },
+      { judul: 'Hadir', angka: true, render: (r) => esc(r.hadir + ' hari') },
+      { judul: 'Terlambat', angka: true, render: (r) => esc(r.telat ? r.telat + ' kali' : '—') },
+      { judul: 'Lama terlambat', angka: true, render: (r) => esc(r.telat ? lamaAbsen(r.menit) : '—') },
+      { judul: 'Pulang awal', angka: true, render: (r) => esc(r.awal ? r.awal + ' kali' : '—') },
+      { judul: 'Tidak absen pulang', angka: true, render: (r) => esc(r.lupa ? r.lupa + ' kali' : '—') }
+    ];
+    const kolomHarian = [
+      { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+      { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong>` },
+      { judul: 'Cabang', kunci: 'cabang' },
+      { judul: 'Shift', render: (r) => esc(r.shift === 'PAGI' ? 'Pagi' : r.shift === 'MALAM' ? 'Malam' : '—') },
+      { judul: 'Masuk', angka: true, render: (r) => esc(r.masuk || '—') },
+      { judul: 'Pulang', angka: true, render: (r) => esc(r.pulang || '—') },
+      { judul: 'Keterangan', render: (r) => ketAbsen(r, hariIni) },
+      { judul: 'Aksi', render: (r) => tombolBaris('', 'Foto', IKON.tampil, `data-foto-absensi="${esc(r.id)}"`, 'Lihat foto absen') }
+    ];
+    const hutang = d.hutang.filter((h) => h.rinci.some((x) => diCabang(x.cabang)));
+    const kolomHutang = [
+      { judul: 'Yang berhutang', render: (h) => `<strong>${esc(h.nama_dari)}</strong>` },
+      { judul: 'Kepada', render: (h) => esc(h.nama_ke) },
+      { judul: 'Sisa hutang', angka: true, render: (h) => h.menit
+          ? `<strong>${esc(lamaAbsen(h.menit))}</strong>` : '<span class="lencana hijau">impas</span>' },
+      { judul: 'Aksi', render: (h) => tombolBaris('', 'Rincian', IKON.riwayat,
+          `data-rinci-hutang-jam="${esc(h.dari + '|' + h.ke)}"`, 'Rincian hutang jam') }
+    ];
+    $('#hasilAbsen').innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Rekap per petugas</h3></div>
+        ${tabel(kolomRekap, rekap, { kosong: 'Belum ada yang absen pada periode ini.' })}
+      </div>
+      <div class="kartu">
+        <div class="bar-alat"><h3>Catatan harian</h3></div>
+        ${tabel(kolomHarian, baris, { kosong: 'Belum ada yang absen pada periode ini.' })}
+      </div>
+      <div class="kartu">
+        <div class="bar-alat"><h3>Hutang jam antar petugas</h3></div>
+        ${tabel(kolomHutang, hutang, { kosong: 'Tidak ada hutang jam.' })}
+        <p class="petunjuk">Hutang jam timbul saat petugas pulang sebelum shiftnya selesai dan digantikan teman.
+           Sisanya dihitung dari <strong>seluruh catatan</strong>, bukan hanya periode di atas, dan saling
+           menghapus: yang pernah digantikan lalu ganti menggantikan, hutangnya berkurang.</p>
+      </div>`;
+  }
+
+  async function bukaFotoAbsensi(id) {
+    const r = ((absenData && absenData.baris) || []).find((x) => x.id === id);
+    if (!r) return;
+    bukaModal('Foto absen — ' + r.nama, `<p class="petunjuk">Mengambil foto…</p>`,
+      `<button class="tombol" data-tutup="1">Tutup</button>`);
+    let f;
+    try { f = await API.fotoAbsensi({ id }); }
+    catch (e) { return bukaModal('Foto absen — ' + r.nama, `<div class="pesan galat">${esc(e.message || e)}</div>`,
+      `<button class="tombol" data-tutup="1">Tutup</button>`); }
+    const satu = (judul, jam, data) => `<figure class="abs-foto">
+        ${data ? `<img src="data:image/jpeg;base64,${esc(data)}" alt="${esc(judul + ' ' + r.nama)}" width="120" height="120">`
+               : '<div class="abs-foto-kosong">belum ada</div>'}
+        <figcaption><strong>${esc(judul)}</strong> ${esc(jam || '—')}</figcaption></figure>`;
+    bukaModal('Foto absen — ' + r.nama, `
+      <p class="petunjuk">${esc(tglTampil(r.tanggal))} · ${esc(r.cabang)}</p>
+      <div class="abs-foto-baris">${satu('Masuk', r.masuk, f.foto_masuk)}${satu('Pulang', r.pulang, f.foto_pulang)}</div>`,
+      `<button class="tombol" data-tutup="1">Tutup</button>`);
+  }
+
+  function bukaRinciHutangJam(kunci) {
+    const h = ((absenData && absenData.hutang) || []).find((x) => x.dari + '|' + x.ke === kunci);
+    if (!h) return;
+    const kolom = [
+      { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
+      { judul: 'Pulang awal', render: (x) => `<strong>${esc(x.nama_dari)}</strong> · ${esc(x.pulang)}` },
+      { judul: 'Digantikan', render: (x) => esc(x.nama_ke) },
+      { judul: 'Lama', angka: true, render: (x) => esc(lamaAbsen(x.menit)) }
+    ];
+    bukaModal('Hutang jam — ' + h.nama_dari + ' & ' + h.nama_ke, `
+      <p>${h.menit ? `<strong>${esc(h.nama_dari)}</strong> berhutang <strong>${esc(lamaAbsen(h.menit))}</strong> kepada ${esc(h.nama_ke)}.`
+                   : 'Keduanya sudah impas.'}</p>
+      ${tabel(kolom, h.rinci, { kosong: 'Tidak ada rincian.' })}`,
+      `<button class="tombol" data-tutup="1">Tutup</button>`);
+  }
+
   /* ==================== GAJI & KASBON (bagian 250) ====================
      Server: apps-script/28_Gaji.gs. Dua tab: Gaji (slip per bulan) dan
      Kasbon (buku pembantu 1-1310). Slip DRAF bisa diubah dan dibayar; slip
@@ -14310,6 +14498,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                       produksi: '#isiProduksi',
                       coa: '#isiCoa',
                       gaji: '#isiGaji',
+                      absen: '#isiAbsen',
                       kas: '#isiKas',
                       konsolidasi: '#isiKonsolidasi',
                       opname: '#isiOpname', returbeli: '#isiReturbeli', arsip: '#isiArsip' }[layar];
@@ -14350,6 +14539,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'produksi': return muatProduksi();
       case 'coa':  return muatCoa();
       case 'gaji': return muatGaji();
+      case 'absen': return muatAbsensi();
       case 'kas': return muatKas();
       case 'konsolidasi': return muatKonsolidasi();
       case 'retur':     return muatRetur();
@@ -14800,6 +14990,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (d.ubahSlip)              return bukaUbahSlip(d.ubahSlip);
       if (d.bayarSlip)             return bukaBayarSlip(d.bayarSlip);
       if (d.riwayatKasbon)         return bukaRiwayatKasbon(d.riwayatKasbon);
+      /* --- menu Absensi (bagian 520) --- */
+      if (d.fotoAbsensi)           return bukaFotoAbsensi(d.fotoAbsensi);
+      if (d.rinciHutangJam)        return bukaRinciHutangJam(d.rinciHutangJam);
       if (t.id === 'btnBeriKasbon') return formBeriKasbon();
       if (d.cetakSlip)             return cetakSlip([slipDari(d.cetakSlip)].filter(Boolean));
       if (t.id === 'btnCetakSemuaSlip') {

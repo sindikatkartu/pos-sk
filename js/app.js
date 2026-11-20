@@ -252,7 +252,7 @@ async function konfirmasiJamShift(kini) {
    Stok berbendera backoffice, tetapi wilayahnya toko). */
 const WILAYAH = {
   toko:   ['kasir', 'riwayat', 'shift', 'pulsa', 'retur', 'pembatalan', 'stok', 'transfer', 'permintaan', 'opname'],
-  kantor: ['produk', 'pembelian', 'returbeli', 'kas', 'piutang', 'utang', 'gaji', 'mitra', 'petugas',
+  kantor: ['produk', 'pembelian', 'returbeli', 'kas', 'piutang', 'utang', 'gaji', 'absen', 'mitra', 'petugas',
            'laporan', 'keuangan', 'poin', 'coa', 'jurnal', 'aset', 'accurate', 'konsolidasi',
            'pengguna', 'peran', 'perangkat', 'cabang', 'sistem', 'audit', 'arsip',
            /* Produksi voucher/perdana (bagian 445, keputusan pemilik): dicatat dari
@@ -403,6 +403,10 @@ const MENU = [
      daripada laporan keuangan, dan Akunting yang memegang laporan belum
      tentu boleh melihat gaji rekan kerjanya. */
   { id: 'gaji',       label: 'Gaji',       grup: 'Keuangan',   izin: ['gaji', 'lihat'],              admin: true, backoffice: true },
+  /* Pemantauan absensi (bagian 520): menu dan izin SENDIRI (keputusan pemilik
+     20 Nov 2026) — yang memantau kehadiran belum tentu boleh membuka Gaji.
+     Id-nya `absen` supaya memakai IKON.absen yang sama dengan tombol Absen. */
+  { id: 'absen',      label: 'Absensi',    grup: 'Keuangan',   izin: ['absensi', 'lihat'],           admin: true, backoffice: true },
   /* Diskon jadi tab di Laporan Penjualan (bagian 305) — tidak lagi menu sendiri. */
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
      Isinya BARU SATU dan itu disengaja: Ringkasan Gabungan, Laporan Pulsa,
@@ -1610,7 +1614,9 @@ function klikLuarAbsen(e) { if (e.target === e.currentTarget) Admin.tutupModal()
 function pesanKameraAbsen(e) {
   const n = e && e.name;
   if (n === 'NotAllowedError' || n === 'SecurityError') {
-    return 'Izin kamera ditolak. Ketuk ikon gembok di bilah alamat → Kamera → Izinkan, lalu buka Absen lagi.';
+    return 'Kamera belum diizinkan. Ketuk ikon di kiri alamat situs → Izin → Kamera → Izinkan, lalu buka Absen lagi. ' +
+           'Kalau tablet menulis "Situs ini tidak dapat meminta izin Anda", tutup dulu tombol atau balon yang ' +
+           'mengambang di layar (pintasan pena, balon chat), lalu coba lagi.';
   }
   return 'Absen hanya dari perangkat berkamera — pakai tablet toko.';
 }
@@ -1635,18 +1641,30 @@ function fotoAbsen(video) {
 
 const arahAbsen = (p) => (!p.masuk ? 'masuk' : !p.pulang ? 'pulang' : '');
 
-function gambarPilihAbsen() {
+/* Daftar nama. `lain` = true menampilkan petugas cabang LAIN (bagian 520):
+   yang absen di tablet ini aktif di cabang ini untuk hari ini. Daftar utamanya
+   tetap pendek — petugas cabang lain di balik satu tombol. */
+function gambarPilihAbsen(lain) {
   const d = _absenData;
+  const tamu = d.lain || [];
   $('#absNama').textContent = '';
   $('#absAksi').hidden = true;
   $('#absPilih').hidden = false;
-  $('#absPilih').innerHTML = d.petugas.length ? d.petugas.map((p) => `<button type="button" class="tombol" data-abs-kode="${esc(p.kode)}">
-      <span>${esc(p.nama)}</span>${p.masuk ? `<small>${p.pulang ? 'pulang ' + esc(p.pulang) : 'masuk ' + esc(p.masuk)}</small>` : ''}</button>`).join('')
-    : '<p class="petunjuk">Belum ada petugas aktif di cabang ini.</p>';
+  const nama = (p) => `<button type="button" class="tombol" data-abs-kode="${esc(p.kode)}">
+      <span>${esc(p.nama)}</span>${p.masuk ? `<small>${p.pulang ? 'pulang ' + esc(p.pulang) : 'masuk ' + esc(p.masuk)}${p.cabang_absen ? ' · ' + esc(p.cabang_absen) : ''}</small>` : ''}</button>`;
+  if (lain) {
+    $('#absPilih').innerHTML = `<p class="petunjuk abs-tanya">Petugas cabang lain. Yang belum absen hari ini: dengan absen masuk di sini, Anda tercatat bertugas di cabang ini.</p>` +
+      tamu.map(nama).join('') +
+      '<button type="button" class="tombol abs-lebar" data-abs-lain="0"><span>← Petugas cabang ini</span></button>';
+    return;
+  }
+  $('#absPilih').innerHTML = (d.petugas.length ? d.petugas.map(nama).join('')
+    : '<p class="petunjuk">Belum ada petugas aktif di cabang ini.</p>') +
+    (tamu.length ? '<button type="button" class="tombol abs-lebar" data-abs-lain="1"><span>Petugas cabang lain…</span></button>' : '');
 }
 
 function pilihNamaAbsen(kode) {
-  const p = _absenData.petugas.find((x) => x.kode === kode);
+  const p = _absenData.petugas.concat(_absenData.lain || []).find((x) => x.kode === kode);
   if (!p) return;
   const arah = arahAbsen(p);
   $('#absNama').textContent = p.nama;
@@ -1749,6 +1767,8 @@ async function bukaAbsen() {
   $('#absIsi').addEventListener('click', (e) => {
     const n = e.target.closest('[data-abs-kode]');
     if (n) return pilihNamaAbsen(n.dataset.absKode);
+    const l = e.target.closest('[data-abs-lain]');
+    if (l) return gambarPilihAbsen(l.dataset.absLain === '1');
     const g = e.target.closest('[data-abs-ganti]');
     if (g) return kirimAbsen(g.dataset.absGanti);
     if (e.target.closest('#absGanti')) { _absenFoto = ''; return gambarPilihAbsen(); }
