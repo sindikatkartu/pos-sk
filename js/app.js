@@ -246,13 +246,13 @@ async function konfirmasiJamShift(kini) {
    (pemilik: "tanpa merubah warna latar").
 
    Tiga daftar tersurat, bukan satu daftar + "sisanya": menu baru yang lupa
-   didaftarkan ditolak penjaga di uji.js, bukan diam-diam jatuh ke salah satu
+   didaftarkan ditolak penjaga di uji.js (bagian 522), bukan diam-diam jatuh ke salah satu
    wilayah. Ini BUKAN bendera `backoffice` di MENU — yang itu soal modul mana
    yang menggambar layarnya, bukan soal siapa yang mengerjakannya (Pulsa dan
    Stok berbendera backoffice, tetapi wilayahnya toko). */
 const WILAYAH = {
   toko:   ['kasir', 'riwayat', 'shift', 'pulsa', 'retur', 'pembatalan', 'stok', 'transfer', 'permintaan', 'opname'],
-  kantor: ['produk', 'pembelian', 'returbeli', 'kas', 'piutang', 'utang', 'gaji', 'absen', 'mitra', 'petugas',
+  kantor: ['produk', 'pembelian', 'returbeli', 'kas', 'piutang', 'utang', 'gaji', 'absen', 'pelanggan', 'supplier', 'petugas',
            'laporan', 'keuangan', 'poin', 'coa', 'jurnal', 'aset', 'accurate', 'konsolidasi',
            'pengguna', 'peran', 'perangkat', 'cabang', 'sistem', 'audit', 'arsip',
            /* Produksi voucher/perdana (bagian 445, keputusan pemilik): dicatat dari
@@ -349,16 +349,22 @@ const MENU = [
   { id: 'produksi',   label: 'Produksi',   grup: 'Persediaan', izin: ['produksi', 'lihat'],          admin: true, backoffice: true, modul: true },
   { id: 'pembelian',  label: 'Pembelian',  grup: 'Persediaan', izin: ['pembelian', 'lihat'],         admin: true, backoffice: true },
   { id: 'returbeli',  label: 'Retur Beli', grup: 'Persediaan', izin: ['pembelian', 'buat'],          admin: true, backoffice: true },
-  /* Satu layar, dua tabel — jadi namanya harus jujur "Mitra", bukan "Pelanggan".
-     `izinAtau`: pintunya terbuka bagi pemegang izin pelanggan ATAU supplier.
-     Digantung pada `pelanggan.ubah` saja, Staf Gudang — yang punya supplier:'*'
-     tanpa izin pelanggan — terkunci di luar dari master yang justru urusannya. */
-  { id: 'mitra',      label: 'Mitra',      grup: 'Relasi',     izin: ['pelanggan', 'ubah'],
-    izinAtau: [['pelanggan', 'ubah'], ['supplier', 'ubah']],                    admin: true, backoffice: true },
+  /* Dua menu, dua layar (bagian 526, keputusan pemilik 21 Nov 2026 — dulu satu
+     menu "Mitra" bertab, bagian 432). Masing-masing digantung pada izinnya
+     sendiri: Staf Gudang — supplier:'*' tanpa izin pelanggan — masuk lewat
+     menu Supplier, tidak lagi menumpang di pintu pelanggan. */
+  { id: 'pelanggan',  label: 'Pelanggan',  grup: 'Relasi',     izin: ['pelanggan', 'ubah'],          admin: true, backoffice: true },
+  { id: 'supplier',   label: 'Supplier',   grup: 'Relasi',     izin: ['supplier', 'ubah'],           admin: true, backoffice: true },
+  /* Grup KARYAWAN (bagian 526): Petugas, Absensi, Gaji — urusan orang, bukan
+     uang. Urutan di sidebar = urutan baris di sini. */
   // Petugas digantung pada `petugas.buat`, bukan `.lihat` — kasir memang butuh
   // `petugas.lihat` untuk memilih pramuniaga di layar kasir, tapi tidak boleh
   // membuka master petugas. Pola yang sama dipakai menu Produk.
-  { id: 'petugas',    label: 'Petugas',    grup: 'Relasi',     izin: ['petugas', 'buat'],            admin: true, backoffice: true },
+  { id: 'petugas',    label: 'Petugas',    grup: 'Karyawan',   izin: ['petugas', 'buat'],            admin: true, backoffice: true },
+  /* Pemantauan absensi (bagian 520): menu dan izin SENDIRI (keputusan pemilik
+     20 Nov 2026) — yang memantau kehadiran belum tentu boleh membuka Gaji.
+     Id-nya `absen` supaya memakai IKON.absen yang sama dengan tombol Absen. */
+  { id: 'absen',      label: 'Absensi',    grup: 'Karyawan',   izin: ['absensi', 'lihat'],           admin: true, backoffice: true },
   { id: 'piutang',    label: 'Piutang',    grup: 'Keuangan',   izin: ['piutang', 'lihat'],           admin: true, backoffice: true },
   // Utang ke supplier — pasangan Piutang, ditambahkan 5 Sep 2026. Sebelumnya
   // pembelian kredit menaikkan saldo Utang Usaha tanpa satu pun layar untuk
@@ -402,11 +408,7 @@ const MENU = [
      laporan_keuangan seperti Aset: gaji orang per orang lebih sempit
      daripada laporan keuangan, dan Akunting yang memegang laporan belum
      tentu boleh melihat gaji rekan kerjanya. */
-  { id: 'gaji',       label: 'Gaji',       grup: 'Keuangan',   izin: ['gaji', 'lihat'],              admin: true, backoffice: true },
-  /* Pemantauan absensi (bagian 520): menu dan izin SENDIRI (keputusan pemilik
-     20 Nov 2026) — yang memantau kehadiran belum tentu boleh membuka Gaji.
-     Id-nya `absen` supaya memakai IKON.absen yang sama dengan tombol Absen. */
-  { id: 'absen',      label: 'Absensi',    grup: 'Keuangan',   izin: ['absensi', 'lihat'],           admin: true, backoffice: true },
+  { id: 'gaji',       label: 'Gaji',       grup: 'Karyawan',   izin: ['gaji', 'lihat'],              admin: true, backoffice: true },
   /* Diskon jadi tab di Laporan Penjualan (bagian 305) — tidak lagi menu sendiri. */
   /* Grup KONSOLIDASI lahir bersama perpindahan pulsa ke POS (bagian 187).
      Isinya BARU SATU dan itu disengaja: Ringkasan Gabungan, Laporan Pulsa,
@@ -472,7 +474,7 @@ const MENU = [
 /* 'Akuntansi' (bagian 306) sesudah Keuangan: meja kerja pembukuan —
    akun, jurnal penyesuaian, tutup buku, aset — yang hasilnya dibaca di
    Laporan tepat di bawahnya. */
-const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Keuangan',
+const URUT_GRUP = ['Ringkasan', 'Penjualan', 'Persediaan', 'Relasi', 'Karyawan', 'Keuangan',
                    'Akuntansi', 'Laporan', 'Konsolidasi', 'Sistem', 'Akun'];
 
 /**
@@ -2500,15 +2502,15 @@ function terapkanTema(nilai) {
 
   /* Bilah alamat peramban dan bilah status Android ikut warnanya. Tanpa ini,
      aplikasi gelap masih dibingkai putih di layar penuh. Nilainya dibaca dari
-     token `--panel` yang SEDANG berlaku — warna bilah atas aplikasi — bukan
+     token `--bg` yang SEDANG berlaku — warna bilah atas aplikasi sejak bagian 527 — bukan
      angka tersendiri: sampai v1.157 di sini tertulis warna hampir hitam, lebih gelap
-     dari bilah atas (#30302e), jadi bilah statusnya terlihat sebagai pita
+     dari bilah atas, jadi bilah statusnya terlihat sebagai pita
      lain. Pemasang di <head> index.html memasang nilai yang sama lebih awal,
      untuk aplikasi yang dipasang ke layar utama. */
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    const panel = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
-    meta.setAttribute('content', panel || (gelap ? '#30302e' : '#f4f3ee'));
+    const panel = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    meta.setAttribute('content', panel || (gelap ? '#0a0b0c' : '#eeeff0'));
   }
 
   try { localStorage.setItem('possk_tema', sesudah); } catch (e) { /* diblokir */ }

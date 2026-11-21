@@ -26,9 +26,9 @@
        Aplikasi yang dipasang ke layar utama (standalone) membaca theme-color
        saat halaman dimuat; yang diubah app.js belakangan tidak selalu diikuti.
        Dilaporkan pemilik 10 Sep 2026: bilah status putih di atas aplikasi
-       gelap. Nilainya = token --panel tiap tema (app.css) — ada uji yang
+       gelap. Nilainya = token --bg tiap tema (app.css; bilah atas menyatu dengan kanvas, bagian 527) — ada uji yang
        menjaga keduanya sepakat. */
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', t === 'gelap' ? '#30302e' : '#f4f3ee');
+    if (meta) meta.setAttribute('content', t === 'gelap' ? '#0a0b0c' : '#eeeff0');
   } catch (e) { /* penyimpanan diblokir: tetap terang sampai app.js jalan */ }
 })();

@@ -1627,7 +1627,8 @@ var IKON_SUMBER = {
   opname    : 'clipboard-list',
   pembelian : 'truck',
   returbeli : 'package-x',
-  mitra     : 'handshake',
+  pelanggan : 'contact',
+  supplier  : 'handshake',
   petugas   : 'id-card-lanyard',
   piutang   : 'receipt-text',
   utang     : 'credit-card',
@@ -1761,7 +1762,8 @@ var IKON = {
      separuh kanan kotaknya dan terbaca jelas di 18px — sudah diperiksa
      berdampingan dengan `produk` sebelum diganti. */
   returbeli : '<path d="M12 22V12"/><path d="m16.5 14.5 5 5"/><path d="m16.5 19.5 5-5"/><path d="M21 10.5V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l.13-.074"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 8.997 5.148"/>',
-  mitra     : '<path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/>',
+  pelanggan : '<path d="M16 2v2" /><path d="M7 21v-2a2 2 0 012-2h6a2 2 0 012 2v2" /><path d="M8 2v2" /><circle cx="12" cy="10" r="3" /><rect x="3" y="3" width="18" height="18" rx="2" />',
+  supplier  : '<path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/>',
   /* Petugas: kartu nama bertali. SENGAJA bukan ikon orang seperti
      Pengguna/Akun — di 18px ketiganya akan tampak kembar padahal
      artinya jauh berbeda: Pengguna itu akun yang bisa masuk,

@@ -1596,7 +1596,10 @@ const Admin = (() => {
      identitas, harus sama di layar mana pun. Dijaga uji.js (bagian 441).
      Kartu terang diredupkan (bagian 447: #ffffff → #f4f3ee): hijau #18a070 jadi
      3,00:1 dan oranye #e0781f 2,75:1 — diganti #139065 3,63 / 3,28 dan
-     #c26612 3,63 / 3,28 (terang / gelap); piutang #2e9e7d → #278a6c. */
+     #c26612 3,63 / 3,28 (terang / gelap); piutang #2e9e7d → #278a6c.
+     Palet bagian 527 (kartu #ffffff / #15171a): semuanya dihitung ulang dan
+     tetap >= 3:1 di kedua tema — kartu gelap yang lebih pekat justru menaikkan
+     kontrasnya. Angka di atas riwayat; yang menjaga uji.js (bagian 441). */
   const WARNA_CAB_DASH = { eceran: ['#2f7fde', '#139065', '#8a6cf0'], grosir: ['#c26612', '#d4589f'],
                            '': ['#2f7fde', '#139065', '#8a6cf0', '#c26612', '#d4589f'] };
   const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
@@ -4883,7 +4886,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (entitas === 'stok_awal') await Sync.tarikStok();
       await sukses(d.dilewati
         ? `${d.diimpor} baris baru diimpor, ${d.dilewati} dilewati karena SKU-nya sudah terdaftar.`
-        : `${d.diimpor} baris diimpor.`, entitas === 'produk' ? 'produk' : 'mitra');
+        : `${d.diimpor} baris diimpor.`,
+        /* Layar yang disegarkan = milik entitasnya. Stok awal diimpor dari layar
+           Produk: dulu ia jatuh ke layar Mitra, dan sesudah menu itu dipecah
+           (bagian 526) Admin Stok — tanpa izin pelanggan — akan menembak daftar
+           pelanggan yang pasti ditolak server. */
+        ({ supplier: 'supplier', pelanggan: 'pelanggan' })[entitas] || 'produk');
     } catch (e) {
       $('#hasilPratinjau').innerHTML = `<div class="pesan galat">${esc(e.message)}
         ${e.detail ? `<ul style="margin:8px 0 0 16px">${e.detail.slice(0, 15).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
@@ -5645,7 +5653,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        `pembelian:['lihat','buat']` tanpa modul `supplier` sama sekali, jadi
        sampai audit 5 Sep 2026 ia tidak bisa mencatat SATU PUN pembelian:
        tombolnya ada, modalnya tidak pernah muncul. Pelajaran yang sama sudah
-       tertulis di 00_Config.gs dan sudah diperbaiki sekali di muatMitra.
+       tertulis di 00_Config.gs dan sudah diperbaiki sekali di layar Mitra lama.
        Daftar kosong lebih baik daripada layar yang tidak bisa dibuka: nomor
        faktur dan barangnya tetap bisa dicatat, suppliernya menyusul. */
     const [sup, prod] = await Promise.all([
@@ -5864,48 +5872,46 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* ==================== PELANGGAN & SUPPLIER ==================== */
 
-  async function muatMitra() {
-    memuat('#isiMitra');
+  /* PELANGGAN dan SUPPLIER: dua menu, dua layar (bagian 526, keputusan pemilik
+     21 Nov 2026 — menggantikan satu menu "Mitra" bertab, bagian 432). Tiap layar
+     menarik datanya sendiri: yang hanya berizin supplier (Staf Gudang) tidak
+     lagi menumpang di pintu pelanggan, dan penolakan salah satunya tidak
+     menjatuhkan yang lain. */
+  async function muatPelanggan() {
+    memuat('#isiPelanggan');
     try {
-      /* Ditarik TERPISAH, masing-masing dengan penjagaannya sendiri.
-         Dulu keduanya dalam satu Promise.all, dan itu bug nyata: Kepala Cabang
-         punya izin pelanggan tapi TIDAK punya supplier, jadi permintaan supplier
-         ditolak server, satu penolakan menjatuhkan seluruh Promise.all, dan
-         daftar pelanggan mereka ikut lenyap di balik kotak merah — gara-gara
-         tabel yang memang bukan urusan mereka.
-         `null` berarti "tidak boleh / gagal", dan kartunya tidak digambar sama
-         sekali. Kartu kosong tanpa keterangan lebih membingungkan daripada
-         tidak ada kartu. */
-      const [pel, sup] = await Promise.all([
-        bolehIzin('pelanggan', 'lihat') ? API.daftarPelanggan().catch(() => null) : null,
-        bolehIzin('supplier', 'lihat') ? API.daftarSupplier().catch(() => null) : null
-      ]);
-      $('#isiMitra')._pel = pel;
-      $('#isiMitra')._sup = sup;
-      gambarMitra();
-    } catch (e) { galat('#isiMitra', e); }
+      $('#isiPelanggan')._pel = await API.daftarPelanggan();
+      gambarPelanggan();
+    } catch (e) { galat('#isiPelanggan', e); }
+  }
+
+  async function muatSupplier() {
+    memuat('#isiSupplier');
+    try {
+      $('#isiSupplier')._sup = await API.daftarSupplier();
+      gambarSupplier();
+    } catch (e) { galat('#isiSupplier', e); }
   }
 
   /**
    * Menggambar dari data yang SUDAH di tangan.
    *
-   * Dipisah dari `muatMitra` supaya menyalakan mode nonaktif tidak menembak
+   * Dipisah dari `muatPelanggan` supaya menyalakan mode nonaktif tidak menembak
    * server lagi. Datanya sudah tersimpan di elemennya untuk keperluan editor;
    * yang berubah cuma baris mana yang digambar, dan itu tidak butuh jaringan.
    * Alasan dan bentuknya sama dengan `gambarProduk` di layar Produk.
    */
-  function gambarMitra() {
-    const w = $('#isiMitra');
-    if (!w) return;
-    const pel = w._pel, sup = w._sup;
+  function gambarPelanggan() {
+    const w = $('#isiPelanggan');
+    if (!w || !w._pel) return;
+    const pel = w._pel;
     w.innerHTML = `
-      ${pel ? `
-      <div class="kartu" data-tab-isi="pelanggan">
-        <div class="bar-alat"><h3>Pelanggan</h3><div style="flex:1"></div>
+      <div class="kartu">
+        <div class="bar-alat"><h3>Daftar pelanggan</h3><div style="flex:1"></div>
           ${bolehIzin('pelanggan', 'buat') ? tombolTambah('btnPelangganBaru', 'Pelanggan') : ''}
           ${menuTindakan({ id: 'menuPelanggan', kunci: 'pelanggan', idTombol: 'btnMenuPelanggan',
               isi: butirNonaktif('pelanggan', hitungMati(pel)) })}</div>
-        <p class="petunjuk">Saringan Jenis memisahkan pelanggan ecer dan grosir; di Kasir pemisahannya otomatis.</p>
+        <p class="petunjuk">Pelanggan dipilih kasir saat menutup nota — untuk poin, piutang, dan harga khusus. Saringan Jenis memisahkan pelanggan ecer dan grosir; di Kasir pemisahannya otomatis.</p>
         ${/* Saringan jenis + kotak cari (bagian 286). Back office tetap
              menampilkan SEMUA pelanggan; yang dipisah otomatis hanya Kasir. */ ''}
         <div class="saring-baris">
@@ -5918,14 +5924,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                    value="${esc(w._pelSaring?.kata || '')}"></div>
         </div>
         <div id="tabelMitraPelanggan"></div>
-      </div>` : ''}
+      </div>`;
+    gambarTabelMitraPelanggan();
+    /* Hanya TABELNYA yang digambar ulang saat mengetik — kotak carinya
+       tidak ikut dibuang, jadi kursor dan huruf yang sedang diketik aman. */
+    const saring = () => {
+      w._pelSaring = { jenis: $('#mitraJenis').value, kata: $('#mitraCari').value };
+      gambarTabelMitraPelanggan();
+    };
+    $('#mitraJenis').addEventListener('change', saring);
+    $('#mitraCari').addEventListener('input', saring);
+  }
 
-      ${sup ? `
-      <div class="kartu" data-tab-isi="supplier">
-        <div class="bar-alat"><h3>Supplier</h3><div style="flex:1"></div>
+  function gambarSupplier() {
+    const w = $('#isiSupplier');
+    if (!w || !w._sup) return;
+    const sup = w._sup;
+    w.innerHTML = `
+      <div class="kartu">
+        <div class="bar-alat"><h3>Daftar supplier</h3><div style="flex:1"></div>
           ${bolehIzin('supplier', 'buat') ? tombolTambah('btnSupplierBaru', 'Supplier') : ''}
           ${menuTindakan({ id: 'menuSupplier', kunci: 'supplier', idTombol: 'btnMenuSupplier',
               isi: butirNonaktif('supplier', hitungMati(sup)) })}</div>
+        <p class="petunjuk">Supplier dipakai saat mencatat pembelian.</p>
         ${tabel([
           { judul: 'Kode', kunci: 'kode' },
           { judul: 'Nama', kunci: 'nama' },
@@ -5934,25 +5955,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Termin', render: r => r.termin_hari ? r.termin_hari + ' hari' : '—' },
           { judul: '', render: r => `<button class="tombol kecil" data-edit-supplier="${esc(r.kode)}" title="Ubah">${ikonAlat('ubah')}<span>Ubah</span></button>` }
         ], sup, { kosong: 'Belum ada supplier', pisahNonaktif: true, kunci: 'supplier' })}
-      </div>` : ''}`;
-    pasangTabKartu(w, 'mitra', { pelanggan: 'Pelanggan', supplier: 'Supplier' },   // bagian 432
-      'Pelanggan dipilih kasir saat menutup nota — untuk poin, piutang, dan harga khusus. Supplier dipakai saat mencatat pembelian.');
-    if (pel) {
-      gambarTabelMitraPelanggan();
-      /* Hanya TABELNYA yang digambar ulang saat mengetik — kotak carinya
-         tidak ikut dibuang, jadi kursor dan huruf yang sedang diketik aman. */
-      const saring = () => {
-        w._pelSaring = { jenis: $('#mitraJenis').value, kata: $('#mitraCari').value };
-        gambarTabelMitraPelanggan();
-      };
-      $('#mitraJenis').addEventListener('change', saring);
-      $('#mitraCari').addEventListener('input', saring);
-    }
+      </div>`;
   }
 
-  /** Tabel pelanggan Mitra, disaring jenis & kata (bagian 286). */
+  /** Tabel layar Pelanggan, disaring jenis & kata (bagian 286). */
   function gambarTabelMitraPelanggan() {
-    const w = $('#isiMitra'), wadah = $('#tabelMitraPelanggan');
+    const w = $('#isiPelanggan'), wadah = $('#tabelMitraPelanggan');
     if (!w || !wadah || !w._pel) return;
     const jenis = w._pelSaring?.jenis || '', kata = w._pelSaring?.kata || '';
     const baris = w._pel.filter(r => (!jenis || normalLevelWeb(r.level_harga) === jenis) && cocokPelanggan(r, kata));
@@ -5975,7 +5983,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      bagian 425): kode baru dibuat server (G/R + yyMM + nomor, S + nomor —
      bagian 287), dan server tidak lagi menerima kode ketikan untuk mitra baru. */
   function editorPelanggan(kode) {
-    const p = kode ? ($('#isiMitra')._pel || []).find(x => x.kode === kode) : null;
+    const p = kode ? ($('#isiPelanggan')._pel || []).find(x => x.kode === kode) : null;
     bukaModal(p ? 'Ubah pelanggan' : 'Pelanggan baru', `
       <div class="baris2">
         <div class="grup"><label>Kode</label><input type="text" id="cKode" value="${esc(p?.kode || '')}" disabled placeholder="otomatis"></div>
@@ -6000,7 +6008,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   function editorSupplier(kode) {
-    const s = kode ? ($('#isiMitra')._sup || []).find(x => x.kode === kode) : null;
+    const s = kode ? ($('#isiSupplier')._sup || []).find(x => x.kode === kode) : null;
     bukaModal(s ? 'Ubah supplier' : 'Supplier baru', `
       <div class="baris2">
         <div class="grup"><label>Kode</label><input type="text" id="sKode" value="${esc(s?.kode || '')}" disabled placeholder="otomatis"></div>
@@ -14630,7 +14638,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function _muat(layar) {
     if (!API.online) {
       const wadah = { produk: '#isiProduk', stok: '#isiStok', pembelian: '#isiPembelian', persetujuan: '#isiPersetujuan',
-                      mitra: '#isiMitra', petugas: '#isiPetugas', poin: '#isiPoin',
+                      pelanggan: '#isiPelanggan', supplier: '#isiSupplier', petugas: '#isiPetugas', poin: '#isiPoin',
                       piutang: '#isiPiutang', utang: '#isiUtang', pengguna: '#isiPengguna',
                       peran: '#isiPeran', perangkat: '#isiPerangkat',
                       cabang: '#isiCabang', sistem: '#isiSistem', audit: '#isiAudit',
@@ -14661,7 +14669,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       case 'produk':    return muatProduk();
       case 'stok':      return muatStok($('#stokKategori')?.value || '');
       case 'pembelian': return muatPembelian();
-      case 'mitra':     return muatMitra();
+      case 'pelanggan': return muatPelanggan();
+      case 'supplier':  return muatSupplier();
       case 'petugas':   return muatPetugas();
       case 'poin':      return muatPoin();
       case 'piutang':   return muatPiutang();
@@ -14710,8 +14719,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
     Object.assign(GAMBAR_NONAKTIF, {
       produk:    () => { halProduk.reset(); gambarProduk(); },
-      pelanggan: gambarMitra,
-      supplier:  gambarMitra,
+      pelanggan: gambarPelanggan,
+      supplier:  gambarSupplier,
       petugas:   gambarPetugas,
       user:      gambarPengguna,
       perangkat: gambarPerangkat,
@@ -14990,7 +14999,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             limit_kredit: angka('cLimit'), termin_hari: angka('cTermin'), aktif: centang('cAktif')
           });
           await Sync.tarikMaster(true);
-          await sukses('Pelanggan tersimpan.', 'mitra');
+          await sukses('Pelanggan tersimpan.', 'pelanggan');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
@@ -15041,7 +15050,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             telepon: nilai('sTelepon'), alamat: nilai('sAlamat'),
             termin_hari: angka('sTermin'), aktif: centang('sAktif')
           });
-          await sukses('Supplier tersimpan.', 'mitra');
+          await sukses('Supplier tersimpan.', 'supplier');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }

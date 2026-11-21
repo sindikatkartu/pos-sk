@@ -18,54 +18,64 @@
 :root {
   /* --- permukaan --- */
   /* Mode terang TIDAK SILAU (bagian 447, pemilik 24 Okt 2026: "pilih warna yang
-     tidak silau", palet A "hangat redup"). Kartu putih murni (terang 100 %) di
-     atas kanvas 95 % diturunkan ke 90 % di atas 80 %: kertas krem, bukan lampu.
-     Kertas dokumen (.kertas) sengaja TETAP putih — itu lembar cetak (§431). */
-  --bg:        #e9e7df;   /* kanvas aplikasi */
-  --panel:     #f4f3ee;   /* kartu, panel, modal */
-  --panel-2:   #ecebe4;   /* kepala tabel, isian lembut, hover */
-  --panel-3:   #e1dfd5;   /* hover tombol — satu langkah lebih dalam dari panel-2 */
-  --sisi-bg:   #efeee8;
+     tidak silau") DIBALIK pemilik sendiri di bagian 527 (21 Nov 2026). Sesudah
+     melihat contoh hitam-lime ia memilih, lewat potret dan kuesioner: kartu
+     PUTIH di atas kanvas abu muda netral, sidebar hitam, aksen lime. "Hangat
+     lebih bersih" sempat dipilih pagi itu lalu diganti siangnya. Jangan
+     dikembalikan ke krem atas nama bagian 447 tanpa kata pemilik.
+     Lime tidak terbaca sebagai TEKS di atas putih: --utama (teks, tautan)
+     hijau zaitun tua sekeluarga; lime hanya ISIAN (--utama-tombol). */
+  --bg:        #eeeff0;   /* kanvas aplikasi */
+  --panel:     #ffffff;   /* kartu, panel, modal */
+  --panel-2:   #f5f6f6;   /* isian lembut, hover, kaki tabel */
+  --panel-3:   #e6e8ea;   /* kepala tabel (bagian 527), isi tombol */
+  --sisi-bg:   #eeeff0;
 
   /* --- garis --- */
-  --garis:       rgba(31,30,29,.30);
-  --garis-halus: rgba(31,30,29,.15);
-  --garis-kuat:  rgba(31,30,29,.45);
+  --garis:       rgba(16,18,19,.14);
+  --garis-halus: rgba(16,18,19,.08);
+  --garis-kuat:  rgba(16,18,19,.30);
   /* Tepi tombol ≥ 3:1 terhadap --panel (bagian 469): 30 % = 1,89:1, tombol
-     polos nyaris tak terlihat. 50 % = 3,15 terang · 3,22 kertas · 3,62 gelap. */
-  --garis-tombol: rgba(31,30,29,.50);
+     polos nyaris tak terlihat. Terang & kertas 50 %; gelap 34 % putih (bagian
+     527) — ketiganya DIHITUNG uji, jangan dikira. */
+  --garis-tombol: rgba(16,18,19,.50);
 
   /* --- teks ---
-     18,4:1 · 10,9:1 · 5,0:1 di atas kanvas. Tersier digelapkan seujung kuku dari
-     #73726c: nilai aslinya 4,38:1 di atas --panel-2, tepat di bawah AA, dan label
-     kecil di kepala tabel justru duduk di permukaan itu. */
-  --teks:       #24231f;
-  --teks-2:     #43423d;
-  --teks-redup: #62615a;
+     Ketiganya ≥ 4,5:1 di atas SETIAP permukaan, termasuk --panel-3 (kepala
+     tabel sejak bagian 527) — dihitung uji. Tersier pernah 4,38:1 di atas
+     --panel-2, tepat di bawah AA, dan tidak ada yang melihatnya. */
+  --teks:       #101213;
+  --teks-2:     #34383b;
+  --teks-redup: #5d6367;
 
   /* --- warna arti ---
      Hue diambil dari palet; terang-gelapnya disesuaikan sampai lulus AA 4,5:1
      di atas SETIAP permukaan yang memakainya, termasuk latar lencananya sendiri.
-     `-tombol` dipakai saat warnanya jadi LATAR bertulisan putih — di sana yang
-     harus 4,5:1 adalah putihnya, bukan warnanya. */
-  --utama:         #1d65ad;
-  --utama-tombol:  #1d65ad;
-  --utama-gelap:   #17538d;
-  --utama-lembut:  #dfe9f3;
-  --utama-garis:   #a8cdf0;
+     `-tombol` dipakai saat warnanya jadi LATAR. Hijau dan merah bertulisan
+     putih; --utama-tombol (lime) bertulisan --di-atas-utama. Yang harus 4,5:1
+     adalah TULISANNYA terhadap latar itu, bukan warnanya terhadap kartu. */
+  --utama:         #465f00;
+  --utama-tombol:  #c5f135;
+  --utama-gelap:   #3a5000;
+  --utama-lembut:  #edf5c9;
+  --utama-garis:   #a9cd3a;
   /* Tiga angka mentah, bukan warna jadi: cincin sorot memakai alpha yang
      berbeda di tiap langkah animasi, dan `rgba()` tidak bisa mengambil alpha
      dari warna yang sudah jadi. */
-  --utama-rgb:     29,101,173;
-  --sukses:        #4a6e1a;
-  --sukses-tombol: #547b1e;
-  --sukses-gelap:  #3f5c16;
-  --sukses-lembut: #e6eedc;
-  --sukses-garis:  #b6d493;
-  --peringatan:        #8f5603;
-  --peringatan-lembut: #f1e8da;
-  --peringatan-garis:  #e8c48c;
-  --bahaya:        #b81e1e;
+  --utama-rgb:     120,160,10;
+  /* Warna TULISAN di atas isian --utama-tombol (bagian 527). Sampai palet lime,
+     tulisan di atas tombol selalu putih di kedua tema; lime terang menuntut
+     tulisan GELAP. Hijau dan merah tetap bertulisan putih. */
+  --di-atas-utama: #0d0f10;
+  --sukses:        #0b6a4c;
+  --sukses-tombol: #0f7a55;
+  --sukses-gelap:  #0b6a4c;
+  --sukses-lembut: #d9efe6;
+  --sukses-garis:  #8fcfb8;
+  --peringatan:        #8a5300;
+  --peringatan-lembut: #f5e9d2;
+  --peringatan-garis:  #e3bd72;
+  --bahaya:        #c01f1f;
   /* Dua rona TAMBAHAN untuk petak ikon KPI dashboard (10 Sep 2026). Enam angka
      memakai enam warna supaya mata menemukan "piutang" tanpa membaca labelnya;
      biru, hijau, kuning, merah sudah ada, dua ini melengkapi. Tidak dipakai
@@ -86,16 +96,16 @@
   /* Merah untuk angka minus DI ATAS kepala gelap. `--bahaya` dibuat untuk
      latar terang; di atas #12243a ia terlalu tua dan hampir hilang. */
   --kons-minus:       #ff9090;
-  --bahaya-tombol: #b81e1e;
-  --bahaya-lembut: #f2dfdc;
-  --bahaya-garis:  #f0a9a9;
+  --bahaya-tombol: #c92424;
+  --bahaya-lembut: #f6dfdc;
+  --bahaya-garis:  #eea3a3;
 
   /* --- bayangan: sangat tipis. Kedalaman datang dari GARIS, bukan blur. --- */
   --bayang-1: 0 1px 0 rgba(31,30,29,.04);
   --bayang-2: 0 1px 0 rgba(31,30,29,.04), 0 1px 3px rgba(31,30,29,.12);
   --bayang-3: 0 3px 6px rgba(31,30,29,.15);
   --bayang-4: 0 8px 24px rgba(31,30,29,.20);
-  --cincin:   0 0 0 3px rgba(29,101,173,.30);
+  --cincin:   0 0 0 3px rgba(120,160,10,.40);
 
   --tirai:             rgba(20,20,19,.50);   /* tirai di belakang modal */
   --gulir-bayang:      rgba(0,0,0,.16);      /* tanda "masih ada isi" di tepi wadah bergulir */
@@ -114,15 +124,15 @@
      panel berakhir. Setebal garis kartu, ia menarik perhatian yang seharusnya
      jatuh ke isinya. Garis kartu TIDAK ikut ditipiskan: di sana garisnya justru
      yang memisahkan satu angka dari angka berikutnya. */
-  --garis-rangka:      rgba(31,30,29,.14);
+  --garis-rangka:      rgba(0,0,0,0);
   --irama:             16px;
-  --tombol-tekan:      #d8d6c9;
-  --aksen-aktif:       #c96442;   /* penanda menu & tab aktif */
+  --tombol-tekan:      #dfe2e3;
+  --aksen-aktif:       #7fa30a;   /* penanda menu & tab aktif */
   /* Kotak logo 'SK'. Pasangan inverted dari palet: latar gelap, tulisan terang —
      dan terbalik di mode gelap. Punya tokennya sendiri karena perannya bukan
      warna teks; versi lama memakai --teks sebagai latar, dan di mode gelap itu
      jadi kotak putih berisi huruf putih. */
-  --logo-bg:           #24231f;
+  --logo-bg:           #101213;
   --logo-teks:         #ffffff;
 
   /* Palet grafik, dibaca grafik.js saat menggambar. Enam slot, tiap slot >= 3:1
@@ -130,7 +140,7 @@
      jarak warna antar seri bersebelahan tetap lebar. */
   --seri-1: #2c84db;  --seri-2: #ad6904;  --seri-3: #5c8a1f;
   --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #706f69;
-  --kertas-grafik: #f4f3ee;
+  --kertas-grafik: #ffffff;
   /* SKALA HURUF. Sepuluh langkah, dan hanya sepuluh.
      Pengukuran 31 Agu 2026 menemukan 21 deklarasi ukuran huruf yang menghasilkan
      15 ukuran berbeda di layar — termasuk 10,5 / 11,5 / 12,5 / 13,5 / 14,5 / 15,5,
@@ -149,8 +159,8 @@
   --fs-28: 28px;   /* total besar di layar bayar */
   --fs-32: 32px;   /* Kembalian di layar bayar - angka yang paling dicari mata */
 
-  --radius:    6px;   /* GitHub memakai 6px hampir di mana-mana */
-  --radius-lg: 6px;
+  --radius:    10px;  /* kendali & tombol */
+  --radius-lg: 16px;  /* kartu (bagian 527: kartu tanpa tepi, bersudut bulat) */
   /* SKALA JARAK. Kelipatan dua, tanpa nilai ganjil.
      Pengukuran 31 Agu 2026: 42 deklarasi memakai 1/3/5/7/9/11/13/15px — nilai
      yang tidak pernah diputuskan, hanya diketik saat itu juga. Yang ganjil
@@ -187,80 +197,90 @@
    lambat akan berbeda dari versi terangnya, dan bedanya tidak akan pernah
    terlihat sebagai satu kejadian.
 
-   Paletnya Primer dark, pasangan resmi dari palet terang di atas — bukan warna
-   terang yang dibalik. Membalik warna menghasilkan abu-abu berlumpur dan biru
-   yang menyala terlalu keras di ruangan gelap.
+   Paletnya ditulis sendiri, bukan warna terang yang dibalik. Sampai bagian 527
+   kartunya abu hangat #30302e di atas #141413 (1,4:1) dengan garis terang 30 %
+   di mana-mana — pemilik 21 Nov 2026: "terlalu pucat". Kini hitam netral
+   beraksen LIME, kartu TANPA tepi (dipisah beda isian), garis rangka dibuang,
+   dan latar *-lembut BERWARNA supaya lencana dan spanduk terbaca artinya.
+
+   SIDEBAR MEMAKAI BLOK INI DI KEDUA TEMA (penyeleksi `.sisi` di bawah):
+   pemilik memilih sidebar hitam juga di mode terang. Satu blok, bukan salinan —
+   salinan token untuk sidebar akan berselisih dengan mode gelap pada perubahan
+   pertama.
    ============================================================ */
+.sisi,
 html[data-tema="gelap"] {
-  --bg:        #141413;
-  --panel:     #30302e;
-  --panel-2:   #262624;
-  --panel-3:   #3a3a37;
-  --sisi-bg:   #141413;
+  --bg:        #0a0b0c;
+  --panel:     #15171a;
+  --panel-2:   #0f1113;
+  --panel-3:   #23262b;
+  --sisi-bg:   #15171a;
 
-  --garis:       rgba(222,220,209,.30);
-  --garis-halus: rgba(222,220,209,.15);
-  --garis-kuat:  rgba(222,220,209,.45);
-  --garis-tombol: rgba(222,220,209,.50);
+  --garis:       rgba(255,255,255,.12);
+  --garis-halus: rgba(255,255,255,.07);
+  --garis-kuat:  rgba(255,255,255,.24);
+  --garis-tombol: rgba(255,255,255,.36);
 
-  /* 12,6:1 · 7,3:1 · 4,7:1 di atas kartu. Ada uji yang MENGHITUNGnya. */
-  --teks:       #faf9f5;
-  --teks-2:     #c2c0b6;
-  --teks-redup: #9c9a92;
+  /* Ketiganya ≥ 4,5:1 di atas kartu DAN kepala tabel. Ada uji yang MENGHITUNGnya. */
+  --teks:       #f5f6f7;
+  --teks-2:     #cfd3d8;
+  --teks-redup: #a3a9b2;
 
-  /* Di layar gelap warna arti dipakai TERANG sebagai teks, dan tetap TUA sebagai
-     latar tombol — tulisan di atas tombol tetap putih di kedua tema, jadi
-     latarnya tidak boleh ikut menyala. Sampai v1.70 `--utama` dipakai apa adanya
-     untuk tombol Bayar dan toast: putih di atasnya cuma 2,9:1. */
-  --utama:         #539be2;
-  --utama-tombol:  #206fbd;
-  --utama-gelap:   #2378cc;
-  --utama-lembut:  #131b22;
-  --utama-garis:   #2f5478;
-  --utama-rgb:     83,155,226;
-  --sukses:        #76ad2a;
-  --sukses-tombol: #547b1e;
-  --sukses-gelap:  #3f5c16;
-  --sukses-lembut: #1c2213;
-  --sukses-garis:  #3f5c1e;
-  --peringatan:        #faa72a;
-  --peringatan-lembut: #221c13;
-  --peringatan-garis:  #5c4413;
-  --bahaya:        #e87474;
-  --ungu:          #b39cf0;
-  --ungu-lembut:   #26213a;
-  --teal:          #5fc9be;
-  --teal-lembut:   #16302d;
+  /* Di layar gelap warna arti dipakai TERANG sebagai teks. Hijau dan merah
+     tetap TUA sebagai latar tombol karena tulisannya putih. --utama-tombol
+     LIME menyala (bagian 527, pemilik: "hijau menyala dikegelapan"), dan
+     tulisan di atasnya --di-atas-utama (gelap), BUKAN putih: putih di atas
+     lime cuma 1,3:1. Hijau "berhasil" digeser kebiruan supaya tidak tertukar. */
+  --utama:         #c5f135;
+  --utama-tombol:  #c5f135;
+  --utama-gelap:   #a9d420;
+  --utama-lembut:  #232d08;
+  --utama-garis:   #5d7414;
+  --utama-rgb:     197,241,53;
+  --di-atas-utama: #0d0f10;
+  --sukses:        #3ddc97;
+  --sukses-tombol: #0f7a55;
+  --sukses-gelap:  #0c6646;
+  --sukses-lembut: #0c2e22;
+  --sukses-garis:  #1f6f52;
+  --peringatan:        #ff9f1a;
+  --peringatan-lembut: #3a2506;
+  --peringatan-garis:  #7e5210;
+  --bahaya:        #ff5c6c;
+  --ungu:          #b8a2ff;
+  --ungu-lembut:   #2a2348;
+  --teal:          #38bdf8;
+  --teal-lembut:   #0b2c3d;
   /* Di tema gelap kepala Ringkasan Gabungan tidak boleh lebih pekat daripada
      halamannya — ia harus tetap terbaca sebagai panel yang TERANGKAT. Ketiga
      rona sumber ikut dinaikkan, pola yang sama dengan --ungu dan --teal. */
-  --kons-kepala:      #1b2436;
-  --kons-kepala-teks: #faf9f5;
+  --kons-kepala:      #1b2a44;
+  --kons-kepala-teks: #f3f4f6;
   --sumber-pos:       #5fd6a0;
   --sumber-pulsa:     #f5bd6b;
   --sumber-accurate:  #9aa4fb;
   --kons-minus:       #ff9090;
-  --bahaya-tombol: #cf2222;
-  --bahaya-lembut: #221313;
-  --bahaya-garis:  #5c2626;
+  --bahaya-tombol: #d92f43;
+  --bahaya-lembut: #3b1218;
+  --bahaya-garis:  #8c2a36;
 
   --bayang-1: 0 1px 0 rgba(0,0,0,.24);
   --bayang-2: 0 1px 0 rgba(0,0,0,.24), 0 1px 3px rgba(0,0,0,.5);
   --bayang-3: 0 3px 6px rgba(0,0,0,.5);
   --bayang-4: 0 8px 24px rgba(0,0,0,.6);
-  --cincin:   0 0 0 3px rgba(83,155,226,.40);
+  --cincin:   0 0 0 3px rgba(197,241,53,.40);
 
   --tirai:             rgba(0,0,0,.65);
-  --garis-rangka:      rgba(222,220,209,.14);
-  --gulir-bayang:      rgba(255,255,255,.13);
-  --tombol-tekan:      #45443f;
-  --aksen-aktif:       #d97757;
-  --logo-bg:           #faf9f5;
-  --logo-teks:         #141413;
+  --garis-rangka:      rgba(0,0,0,0);
+  --gulir-bayang:      rgba(255,255,255,.10);
+  --tombol-tekan:      #2b2f35;
+  --aksen-aktif:       #c5f135;
+  --logo-bg:           #c5f135;
+  --logo-teks:         #0d0f10;
 
-  --seri-1: #2c84db;  --seri-2: #faa72a;  --seri-3: #76ad2a;
-  --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #7a7972;
-  --kertas-grafik: #30302e;
+  --seri-1: #c5f135;  --seri-2: #38bdf8;  --seri-3: #ff9f1a;
+  --seri-4: #a78bfa;  --seri-5: #f472b6;  --seri-6: #8b929c;
+  --kertas-grafik: #15171a;
 
   /* Pasangan gelapnya ditulis sendiri, BUKAN hasil meredupkan yang terang.
      Meredupkan seragam mengubah sembilan warna jadi sembilan abu-abu — dan
@@ -275,6 +295,9 @@ html[data-tema="gelap"] {
    diberi tahu. Satu baris ini yang membuat kalender dan panah select ikut
    gelap — tanpa itu setiap kotak tanggal menyala putih di tengah formulir. */
 html[data-tema="gelap"] { color-scheme: dark; }
+/* Sidebar = pulau gelap di kedua tema: warna hurufnya harus dihitung ulang DI
+   SINI, sebab `color` yang diwarisi dari body sudah berupa warna jadi. */
+.sisi { color-scheme: dark; color: var(--teks); }
 
 /* TOKEN KERTAS (bagian 431) — di wilayah token, bukan di badan aturan: nilai
    terang untuk SETIAP token yang diubah mode gelap (daftarnya dibangkitkan
@@ -300,6 +323,7 @@ html[data-tema="gelap"] { color-scheme: dark; }
   --utama-lembut: #e7f1fb;
   --utama-garis: #a8cdf0;
   --utama-rgb: 32,111,189;
+  --di-atas-utama: #ffffff;
   --sukses: #547b1e;
   --sukses-tombol: #547b1e;
   --sukses-gelap: #3f5c16;
@@ -396,10 +420,16 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 .wilayah-utama { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100%; }
 
 /* ---------- Sidebar ---------- */
+/* Sidebar MELAYANG (bagian 527, pemilik menunjuk potretnya: "kenapa tidak
+   seperti itu?"): panel bersudut bulat berjarak 10 px dari tepi, tanpa garis.
+   Isi layar jadi 10 px lebih sempit di layar lebar — Kasir ikut, atas pilihan
+   pemilik. TIDAK dipotong (overflow): menu akun dan petunjuk sidebar terlipat
+   muncul keluar dari panelnya. */
 .sisi {
   width: var(--lebar-sisi); flex-shrink: 0;
   background: var(--sisi-bg); border-right: 1px solid var(--garis-rangka);
-  display: flex; flex-direction: column; height: 100%;
+  display: flex; flex-direction: column; height: calc(100% - 20px);
+  margin: 10px 0 10px 10px; border-radius: 18px;
   transition: width .18s ease;
 }
 #app.sisi-lipat .sisi { width: var(--lebar-sisi-lipat); }
@@ -424,6 +454,9 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   padding: 0 14px; flex-shrink: 0;
   background: var(--panel);
   border-bottom: 1px solid var(--garis-rangka);
+  /* Sidebar bersudut 18 px TANPA overflow (bagian 527); kepala yang berlatar
+     pekat ini harus ikut membulat, kalau tidak pojok atas sidebar tetap siku. */
+  border-radius: 18px 18px 0 0;
 }
 /* Tanda merek gelap polos, seperti logo GitHub sendiri — gradien biru tadi
    adalah satu-satunya sisa gaya lama yang tertinggal di antarmuka baru. */
@@ -514,12 +547,12 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
 }
 .sisi-isi .item-nav .ikon-svg { color: var(--teks-redup); transition: color .08s; }
 .sisi-isi .item-nav:hover { background: var(--panel-2); }
-.sisi-isi .item-nav.aktif { background: var(--panel-2); font-weight: 600; }
-.sisi-isi .item-nav.aktif::before {
-  content: ''; position: absolute; left: -10px; top: 3px; bottom: 3px;
-  width: 3px; border-radius: 0 6px 6px 0; background: var(--aksen-aktif);   /* aksen "aktif" GitHub */
-}
-.sisi-isi .item-nav.aktif .ikon-svg { color: var(--teks); }
+/* Menu aktif = pil LIME bertulisan gelap (bagian 527). Garis tegak di kirinya
+   dibuang: isian penuh sudah menandainya, dan dua penanda saling berebut. */
+.sisi-isi .item-nav.aktif, .sisi-isi .item-nav.aktif:hover { background: var(--utama-tombol); color: var(--di-atas-utama); font-weight: 600; }
+.sisi-isi .item-nav.aktif .ikon-svg { color: var(--di-atas-utama); }
+/* Kata "modul" di bawah nama ikut: abu redup di atas lime cuma 1,8:1. */
+.sisi-isi .item-nav.modul.aktif .item-nama::after { color: var(--di-atas-utama); }
 /* Nama menu memakan sisa lebarnya supaya lencana selalu rata kanan — tanpa
    `flex:1` angkanya menempel pada nama dan letaknya berbeda tiap baris. */
 .sisi-isi .item-nav .item-nama { flex: 1; min-width: 0; }
@@ -730,7 +763,6 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
   border-radius: 50%; overflow: hidden; text-indent: -99px;
   background: var(--peringatan); border-color: var(--peringatan);
 }
-#app.sisi-lipat .sisi-isi .item-nav.aktif::before { left: -8px; }
 #app.sisi-lipat .sisi-grup {
   /* Judul kelompok diganti garis pemisah — tetap ada jeda visual, tanpa teks terpotong */
   height: 1px; padding: 10px 0 0; margin: 6px 8px 6px; overflow: hidden;
@@ -765,7 +797,10 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    sia-sia kalau dipersempit". */
 .popover-akun {
   position: absolute; bottom: 100%; left: 8px; right: 8px; margin-bottom: 8px;
-  background: var(--panel); border: 1px solid var(--garis-rangka);
+  /* Tepinya --garis-kuat, BUKAN --garis-rangka: garis rangka kini tembus
+     pandang (bagian 527), dan kelas ini dipakai semua menu titik tiga — tanpa
+     tepi, menu sewarna kartu di bawahnya dan butirnya tampak mengambang. */
+  background: var(--panel); border: 1px solid var(--garis-kuat);
   border-radius: var(--radius); box-shadow: var(--bayang-4);
   padding: 6px; z-index: 30;
 }
@@ -878,7 +913,7 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 .tombol.kecil.tombol-label { position: relative; min-height: 32px; min-width: 34px; justify-content: center; }
 .angka-stiker {
   position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 0 4px;
-  border-radius: 9px; background: var(--utama-tombol); color: #fff;
+  border-radius: 9px; background: var(--utama-tombol); color: var(--di-atas-utama);
   font-size: var(--fs-11); font-weight: 700; line-height: 18px; text-align: center;
 }
 /* Pop-up jumlah lembar stiker (bagian 423): diletakkan fixed oleh
@@ -899,8 +934,11 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 .menu-baris > .tombol.tanda-perlu .ikon-svg  { color: var(--peringatan); }
 .menu-baris > .tombol.tanda-bahaya .ikon-svg { color: var(--bahaya); }
 /* Tabel 13 kolom (Laporan pulsa, bagian 267): jarak sel dirapatkan, bukan
-   hurufnya dikecilkan — supaya muat di laptop 1280 px tanpa digeser. */
-.tabel-padat th, .tabel-padat td { padding-left: 10px; padding-right: 10px; }
+   hurufnya dikecilkan — supaya muat di laptop 1280 px tanpa digeser.
+   8 px, bukan 10 (bagian 527): sidebar yang melayang mengambil 10 px dari isi
+   dan kepala tabel yang lebih tebal melebarkan tiga kolom — dengan 10 px
+   tabelnya pas 976 px di kartu 966 px. Kini bersisa puluhan px, bukan nol. */
+.tabel-padat th, .tabel-padat td { padding-left: 8px; padding-right: 8px; }
 .popover-item.bahaya, .popover-item.bahaya .ikon-svg { color: var(--bahaya); }
 /* Titik pengingat keranjang stiker. Angkanya hidup di dalam menu; titik ini
    tugasnya cuma satu — memberi tahu bahwa ada isinya, tanpa harus dibuka. */
@@ -967,7 +1005,9 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 .bar-atas {
   display: flex; align-items: center; gap: 10px;
   padding: 0 18px; min-height: var(--tinggi-kepala); flex-shrink: 0;
-  background: var(--panel); border-bottom: 1px solid var(--garis-rangka);
+  /* Menyatu dengan kanvas (bagian 527): bilah atas bukan lagi pita berwarna
+     kartu. Warna bilah status ponsel (theme-color) ikut = --bg, dijaga uji. */
+  background: var(--bg); border-bottom: 1px solid var(--garis-rangka);
 }
 .bar-atas h1 {
   margin: 0; font-size: var(--fs-17); font-weight: 650; letter-spacing: -.25px;
@@ -1399,7 +1439,7 @@ main { flex: 1; overflow: hidden; position: relative; }
    hanya nama & keterangan, 14 px ke kanan (lihat di bawah).
    Daftarnya diberi ruang 6 px atas & kiri supaya pojoknya tidak terpotong
    `overflow:auto`; 6 = jarak antar kartu, jadi bulatan tidak menimpa kartu di
-   atasnya. Warna `--utama-tombol`: putih di atasnya tetap terbaca di tema gelap. */
+   atasnya. Warna `--utama-tombol`, tulisannya `--di-atas-utama` (bagian 527). */
 .daftar-produk { padding-top: 6px; padding-left: 6px; }
 .kartu-produk { position: relative; }
 .kartu-produk.ada-di-keranjang { background: var(--utama-lembut); border-color: var(--utama-garis); }
@@ -1409,7 +1449,7 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kartu-produk .di-keranjang {
   position: absolute; top: -6px; left: -6px; z-index: 1;
   min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box;
-  border-radius: 999px; background: var(--utama-tombol); color: #fff;
+  border-radius: 999px; background: var(--utama-tombol); color: var(--di-atas-utama);
   font-size: var(--fs-12); font-weight: 700; line-height: 22px; text-align: center;
   font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--panel);
   pointer-events: none;
@@ -1522,8 +1562,10 @@ main { flex: 1; overflow: hidden; position: relative; }
    pucat daripada tepi diam (50 %), jadi tepi akan memudar saat disentuh. */
 .tombol:hover { background: var(--tombol-tekan); }
 .tombol:active { background: var(--tombol-tekan); box-shadow: none; transition: none; filter: brightness(.95); }
-.tombol.utama  { background: var(--utama-tombol); border-color: var(--garis-tombol); color: #fff; }
-.tombol.utama:hover  { background: var(--utama-gelap); }
+.tombol.utama  { background: var(--utama-tombol); border-color: var(--garis-tombol); color: var(--di-atas-utama); }
+/* Sorotnya meredupkan isian yang sama: --utama-gelap kini berperan sebagai
+   TEKS aksen tua (tautan, lencana), bukan latar sorot (bagian 527). */
+.tombol.utama:hover  { background: var(--utama-tombol); filter: brightness(.92); }
 .tombol.sukses { background: var(--sukses-tombol); border-color: var(--garis-tombol); color: #fff; }
 .tombol.sukses:hover { background: var(--sukses-gelap); }
 /* Tombol bahaya Primer: DIAM ia hanya tombol biasa berteks merah; baru berubah
@@ -1937,13 +1979,32 @@ html[data-tema="gelap"] .kertas { box-shadow: 0 12px 32px rgba(0,0,0,.45); }
 .titik-pin span.isi { background: var(--utama); }
 
 /* ==================== TABEL & KARTU ====================
-   Gaya GitHub: kotak berbingkai datar TANPA bayangan, kepala tabel abu muda,
-   pemisah baris memakai garis halus. Kedalaman datang dari bingkainya. */
+   Kotak berbingkai datar TANPA bayangan; pemisah baris memakai garis halus.
+
+   KEPALA TABEL HARUS TERBACA SEBAGAI KEPALA (bagian 527, pemilik 21 Nov 2026:
+   "tabel terasa sulit membedakan kepala tabel dan isi tabel"). Dulu kepalanya
+   sewarna isi, LEBIH KECIL dari isi (13 vs 14 px), dan latarnya --panel-2
+   yang nyaris sama dengan kartu. Kini empat pembeda sekaligus: latar
+   --panel-3, huruf tebal 700, warna --teks-2, garis bawah 2 px. Hurufnya
+   BIASA, bukan kapital semua: kapital sempat dipilih lalu dibatalkan pemilik
+   hari itu juga — "ternyata tidak lazim". Tidak ada kepala tabel berkapital
+   di aplikasi ini, termasuk matriks Ringkasan Gabungan.
+   SATU aturan untuk semua tabel — tabel laporan dan daftar Produk/Stok dulu
+   punya kepalanya sendiri dan itulah sebabnya tampilannya tidak seragam.
+   Baris selang-seling TIDAK ditambahkan (pilihan pemilik): hanya laporan
+   keuangan yang berselang-seling (bagian 360). */
 table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); }
 th, td { padding: 8px 14px; text-align: left; border-bottom: 1px solid var(--garis-halus); }
 th {
-  color: var(--teks); font-size: var(--fs-13); font-weight: 600;
+  color: var(--teks-2); font-size: var(--fs-13); font-weight: 700;
+  background: var(--panel-3); border-bottom: 2px solid var(--garis-kuat);
+  padding-top: 10px; padding-bottom: 10px;
+}
+/* Sel th di KAKI tabel itu label jumlah, bukan kepala kolom: tetap seperti isi. */
+tfoot th {
+  color: var(--teks); font-weight: 600;
   background: var(--panel-2); border-bottom: 1px solid var(--garis);
+  padding-top: 8px; padding-bottom: 8px;
 }
 /* Judul kolom bisa diklik untuk mengurutkan.
 
@@ -1951,7 +2012,7 @@ th {
    Tanpa itu seluruh kolom bergeser beberapa piksel setiap kali urutannya
    diganti, dan pergeseran itu terbaca seperti tabelnya berkedip. */
 th.bisa-urut { cursor: pointer; user-select: none; white-space: nowrap; }
-th.bisa-urut:hover { background: var(--garis-halus); }
+th.bisa-urut:hover { background: var(--tombol-tekan); }
 th.bisa-urut::after {
   content: ''; display: inline-block; width: 12px; text-align: right;
   color: var(--teks-redup); font-size: var(--fs-11);
@@ -2035,7 +2096,9 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .kartu {
   --tepi-x: 16px;
   --tepi-y: 16px;
-  background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius);
+  /* Tanpa tepi (bagian 527): kartu dipisah dari kanvas oleh beda isian. Tepinya
+     TETAP 1 px tembus pandang supaya ukuran isi kartu tidak bergeser sepiksel pun. */
+  background: var(--panel); border: 1px solid transparent; border-radius: var(--radius-lg);
   padding: var(--tepi-y) var(--tepi-x); margin-bottom: var(--irama); box-shadow: none;
 }
 .kartu h3 { margin: 0 0 14px; font-size: var(--fs-14); font-weight: 600; }
@@ -2070,10 +2133,10 @@ tr.pisah td { border-top: 1px solid var(--garis); }
   :where(.layar:not(#layarKasir)) table:has(> tbody > tr > td:last-child button) > thead > tr > th:last-child { text-align: right; padding-right: 0; }
 }
 /* Sudut kepala tabel ikut membulat mengikuti bingkai kartu */
-.kartu > table tr:first-child th:first-child,
-.kartu > .gulir-x > table tr:first-child th:first-child { border-top-left-radius: 5px; }
-.kartu > table tr:first-child th:last-child,
-.kartu > .gulir-x > table tr:first-child th:last-child  { border-top-right-radius: 5px; }
+.kartu > table > :not(tfoot) > tr:first-child > th:first-child,
+.kartu > .gulir-x > table > :not(tfoot) > tr:first-child > th:first-child { border-top-left-radius: calc(var(--radius-lg) - 1px); }
+.kartu > table > :not(tfoot) > tr:first-child > th:last-child,
+.kartu > .gulir-x > table > :not(tfoot) > tr:first-child > th:last-child  { border-top-right-radius: calc(var(--radius-lg) - 1px); }
 /* Pembungkusnya yang memikul margin negatifnya, bukan tabelnya.
    `min-width` sengaja TIDAK disetel di sini: `table { min-width: 560px }` untuk
    layar HP punya spesifisitas lebih rendah, jadi menyetelnya akan membatalkan
@@ -2826,7 +2889,7 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    tanpa itu mata harus membaca tiap angka utuh untuk membandingkannya. */
 table.matriks-kons { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 table.matriks-kons th {
-  font-size: var(--fs-11); letter-spacing: .07em; text-transform: uppercase;
+  font-size: var(--fs-12);
   color: var(--teks-redup); font-weight: 700; padding: 7px 10px; white-space: nowrap;
   text-align: right;
 }
@@ -2841,7 +2904,7 @@ table.matriks-kons .kode {
   font-size: var(--fs-11); color: var(--teks-redup); font-variant-numeric: tabular-nums;
 }
 table.matriks-kons tr.subtotal td {
-  background: var(--panel-2); font-weight: 700; border-top: 1px solid var(--garis-rangka);
+  background: var(--panel-2); font-weight: 700; border-top: 1px solid var(--garis);
 }
 /* Kolom Gabungan dibedakan oleh TEBALNYA saja, tanpa latar sendiri
    (bagian 275, pemilik 28 Sep 2026: "warnanya disamakan dengan
@@ -2903,13 +2966,8 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 /* Satu lebar per digit — tanpa ini kolom angka tidak pernah benar-benar
    lurus, dan itu yang membuat tabel terbaca "berantakan". */
 .laporan-uang table td, .laporan-uang table th { font-variant-numeric: tabular-nums; }
-/* Kepala tabel lebih tenang: yang menonjol harus angkanya, bukan judul
-   kolomnya. */
-.laporan-uang table thead th {
-  background: transparent; border-bottom: 1.5px solid var(--garis);
-  font-size: var(--fs-11); letter-spacing: .06em; text-transform: uppercase;
-  color: var(--teks-redup); font-weight: 600;
-}
+/* Kepala tabel laporan dulu "lebih tenang" (transparan, 11 px, redup) — dan
+   justru tenggelam. Sejak bagian 527 ia memakai kepala tabel umum di atas. */
 /* Baris jumlah berdiri sendiri lewat garis, bukan lewat latar. */
 .laporan-uang table tr.subtotal td, .laporan-uang table tr.tebal td {
   border-top: 1.5px solid var(--garis); font-weight: 700;
@@ -2985,7 +3043,7 @@ table.matriks-kons .kosong { color: var(--teks-redup); opacity: .4; }
 table.matriks-kons th.akun, table.matriks-kons td.akun {
   position: sticky; left: 0; z-index: 1; background: var(--panel);
 }
-table.matriks-kons thead th.akun { background: var(--panel); }
+table.matriks-kons thead th.akun { background: var(--panel-3); }
 table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
 
 /* Rincian per sumber di dalam sel akun. DISEMBUNYIKAN di layar lebar —
@@ -3449,7 +3507,10 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
     width: var(--lebar-sisi) !important;
     transform: translateX(-102%); transition: transform .2s cubic-bezier(.2,.8,.2,1);
     box-shadow: var(--bayang-4);
+    /* Sebagai laci ia menempel ke tepi layar: tanpa jarak, sudut bulat di kanan saja. */
+    margin: 0; height: auto; border-radius: 0 18px 18px 0;
   }
+  .sisi-atas { border-radius: 0 18px 0 0; }
   .sisi.buka { transform: translateX(0); }
   .tirai-sisi.buka { opacity: 1; pointer-events: auto; }
   #btnLaci { display: flex; }
@@ -3475,7 +3536,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   #app.sisi-lipat .sisi-isi .item-nav .sisi-lencana {
     position: static; width: auto; height: auto; min-width: 20px;
     padding: 2px 6px; border-radius: 999px; overflow: visible; text-indent: 0;
-    background: var(--panel-2); border-color: var(--garis-rangka);
+    background: var(--panel-2); border-color: var(--garis);
   }
   #app.sisi-lipat .sisi-isi .item-nav { justify-content: flex-start; padding: 8px 10px; }
   #app.sisi-lipat .sisi-grup {
@@ -3507,7 +3568,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   .panel-keranjang.buka { transform: translateY(0); }
   .pegangan {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 16px; background: var(--utama-tombol); color: #fff; font-weight: 650;
+    padding: 16px 16px; background: var(--utama-tombol); color: var(--di-atas-utama); font-weight: 650;
     cursor: pointer; border-radius: 16px 16px 0 0; font-variant-numeric: tabular-nums;
   }
 }
@@ -3798,7 +3859,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   #isiProduk .daftar-utama, #isiStok .daftar-utama { flex: 1 1 auto; min-height: 120px; overflow: auto; }
   #isiProduk .daftar-utama thead th, #isiStok .daftar-utama thead th {
     position: sticky; top: 0; z-index: 2;
-    background: var(--panel-2); box-shadow: 0 1px 0 var(--garis); }
+    background: var(--panel-3); box-shadow: 0 2px 0 var(--garis-kuat); }
 }
 
 /* TABLET: SEL ANGKA DIRAPATKAN (bagian 233, pemilik 23 Sep 2026).
@@ -4006,8 +4067,8 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   background: transparent; color: var(--teks); border: none; white-space: nowrap;
 }
 .ekspor-menu button span { color: var(--teks-redup); font-size: var(--fs-13); margin-left: auto; }
-.ekspor-menu button:hover { background: var(--utama-tombol); color: #fff; }
-.ekspor-menu button:hover span { color: rgba(255,255,255,.8); }
+.ekspor-menu button:hover { background: var(--utama-tombol); color: var(--di-atas-utama); }
+.ekspor-menu button:hover span { color: var(--di-atas-utama); }
 
 /* Menu ekspor tetap rata KANAN di lebar berapa pun.
    Aturan lama membaliknya jadi rata-kiri di bawah 480px "supaya tidak melewati
@@ -4072,7 +4133,8 @@ button.sibuk::after {
   color: var(--teks-2); animation: putar .6s linear infinite;
 }
 /* Pemintalnya putih HANYA di tombol yang latarnya memang padat berwarna. */
-button.utama.sibuk::after, button.sukses.sibuk::after { color: #fff; }
+button.utama.sibuk::after { color: var(--di-atas-utama); }
+button.sukses.sibuk::after { color: #fff; }
 /* SELAGI KASIR AKTIF `.bahaya` bukan tombol padat: latarnya netral dengan tulisan
    merah, dan baru menjadi merah padat saat :hover — yang tidak pernah terjadi
    selagi berputar, sebab .sibuk mematikan pointer-events. (Di luar Kasir ia merah
@@ -4369,7 +4431,7 @@ label.cek input.sakelar::after { content: ''; position: absolute; top: 2px; left
   width: 17px; height: 17px; border-radius: 50%; background: var(--panel);
   box-shadow: var(--bayang-2); transition: transform .12s; }
 label.cek input.sakelar:checked { background: var(--utama-tombol); border-color: var(--garis-tombol); }
-label.cek input.sakelar:checked::after { transform: translateX(17px); }
+label.cek input.sakelar:checked::after { transform: translateX(17px); background: var(--di-atas-utama); }
 label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin); }
 
 /* KENDALI BERSEGMEN untuk pilihan yang cuma dua. Keduanya terlihat sekaligus,

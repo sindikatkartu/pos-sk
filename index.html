@@ -11,7 +11,7 @@
      Gaya inline tetap boleh: ratusan atribut style dipakai layar. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#f4f3ee">
+<meta name="theme-color" content="#eeeff0">
 <title>POS SINDIKAT KARTU</title>
 <!-- Ikon tab. Tertanam sebagai data URI, gambar yang SAMA dengan ikon aplikasi
      di manifest.webmanifest. Tanpa tag ini peramban tetap meminta /favicon.ico
@@ -419,7 +419,8 @@
     <section class="layar" id="layarReturbeli"><div id="isiReturbeli"></div></section>
     <section class="layar" id="layarArsip"><div id="isiArsip"></div></section>
     <section class="layar" id="layarPembelian"><div id="isiPembelian"></div></section>
-    <section class="layar" id="layarMitra"><div id="isiMitra"></div></section>
+    <section class="layar" id="layarPelanggan"><div id="isiPelanggan"></div></section>
+    <section class="layar" id="layarSupplier"><div id="isiSupplier"></div></section>
     <section class="layar" id="layarPetugas"><div id="isiPetugas"></div></section>
     <section class="layar" id="layarPoin"><div id="isiPoin"></div></section>
     <section class="layar" id="layarPiutang"><div id="isiPiutang"></div></section>
@@ -728,9 +729,10 @@
           <h3>Cara memakai halaman ini</h3>
           <p>Halaman ini tersimpan di dalam aplikasi, jadi <strong>tetap terbaca walau internet mati</strong>. Isinya dua bagian: <strong>Bagian A</strong> untuk kasir, <strong>Bagian B</strong> untuk pemilik &amp; back office.</p>
           <p class="petunjuk">Menu yang tidak Anda lihat di sisi kiri berarti peran Anda memang tidak diberi aksesnya — itu bukan kerusakan. Kalau menu yang biasanya ada tiba-tiba hilang, keluar lalu masuk lagi supaya izin terbaru terbaca.</p>
+          <p class="petunjuk">Pelanggan dan Supplier kini dua menu terpisah di kelompok <strong>Relasi</strong>. Petugas, Absensi, dan Gaji ada di kelompok <strong>Karyawan</strong>.</p>
           <p class="petunjuk">Saat layar back office <strong>memuat, menyimpan, atau mencetak</strong>, tombol dan isian di layar itu meredup dan tidak bisa diketuk sampai selesai — supaya tidak ada yang tertekan dua kali. Menu di sisi kiri tetap bisa dipakai untuk pindah layar. Layar Kasir tidak ikut meredup.</p>
           <p class="petunjuk">Hasil sebuah tindakan (tersimpan, gagal, ditolak) muncul sebagai <strong>pita pesan di bawah judul layar</strong>, dan <strong>tetap di sana sampai tombol OK ditekan</strong> — tidak hilang sendiri, jadi sempat dibaca. Paling banyak tiga pita, yang terbaru di atas. Pita tetap ada walau Anda pindah layar atau menutup jendela. Di layar Kasir, pesan singkat tetap muncul sebentar lalu hilang sendiri supaya tidak mengganggu scan.</p>
-          <p class="petunjuk">Beberapa layar dibagi menjadi <strong>tab</strong> di bagian atasnya — Mitra (Pelanggan · Supplier), Cabang (Cabang · Meja &amp; lini usaha), Poin &amp; Performa, dan Perangkat &amp; Printer. Tab yang terakhir dibuka diingat selama aplikasi terbuka.</p>
+          <p class="petunjuk">Beberapa layar dibagi menjadi <strong>tab</strong> di bagian atasnya — Cabang (Cabang · Meja &amp; lini usaha), Poin &amp; Performa, dan Perangkat &amp; Printer. Tab yang terakhir dibuka diingat selama aplikasi terbuka.</p>
         </div>
 
         <div class="kartu">
@@ -756,7 +758,7 @@
             <li><strong>Angka stok bisa ditekan.</strong> Menekan <strong>stok 7</strong> pada sebuah baris membuka daftar stok barang itu di seluruh cabang — dan tombol <strong>Cek terkini</strong> di dalamnya menghitung ulang langsung dari mutasi tiap cabang. Menekan angkanya <em>tidak</em> menambah barang ke keranjang; yang menambah adalah menekan bagian lain dari barisnya.</li>
             <li>Angka stok berwarna <strong>kuning</strong> berarti sudah menyentuh stok minimum barang itu, <strong>merah</strong> berarti habis. Saat habis, baris hijau <strong>ada di …</strong> menyebut cabang mana yang masih punya, tanpa perlu ditekan.</li>
             <li>Tombol <strong>⋯</strong> pada baris keranjang membuka detail item: qty, satuan, harga satuan, dan diskon baris.</li>
-            <li><strong>Bulatan biru berangka</strong> di pojok kartu produk = jumlah barang itu yang sudah di keranjang (satuan dasar: 1 lusin + 2 pcs tertulis 14). Berguna saat keranjang diturunkan di HP — tidak perlu membukanya untuk tahu apa yang sudah masuk.</li>
+            <li><strong>Bulatan hijau terang berangka</strong> di pojok kartu produk = jumlah barang itu yang sudah di keranjang (satuan dasar: 1 lusin + 2 pcs tertulis 14). Berguna saat keranjang diturunkan di HP — tidak perlu membukanya untuk tahu apa yang sudah masuk.</li>
             <li><strong>Bahan produksi</strong> (kategori Bahan Produksi, mis. voucher zero) hanya tampil di Kasir <strong>cabang produksi (SKG01)</strong> dan bisa dijual di sana dengan harga grosir. Di cabang lain barang itu memang tidak muncul.</li>
           </ul>
         </div>
