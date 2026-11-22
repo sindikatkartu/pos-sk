@@ -383,16 +383,25 @@ html[data-tema="gelap"] { color-scheme: dark; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-/* Dua tumpukan huruf. --huruf-uang dipakai .angka-uang (angka uang di luar Kasir). */
+/* HURUF APLIKASI: Plus Jakarta Sans, dibawa sendiri (bagian 528) — satu berkas
+   variabel 27 KB untuk semua ketebalan, lisensi OFL (huruf/LISENSI-OFL.txt).
+   Disajikan dari folder sendiri: CSP default-src 'self' tidak perlu dilonggarkan,
+   dan sw.js menyimpannya supaya tetap ada saat offline. Huruf bawaan perangkat
+   tetap jadi cadangan selama berkasnya belum datang (font-display: swap).
+   SATU tumpukan untuk tulisan DAN angka uang; --huruf-uang (monospace, bagian
+   356) dibuang atas keputusan pemilik 22 Nov 2026. */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(../huruf/plus-jakarta-sans.woff2) format('woff2');
+}
 :root {
-  --huruf-dasar: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
+  --huruf-dasar: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
                  Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --huruf-uang: ui-monospace, 'Roboto Mono', 'Cascadia Mono', Consolas, 'Droid Sans Mono', monospace;
 }
 html, body {
   margin: 0; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--teks);
-  /* Tumpukan font GitHub, apa adanya */
   font-family: var(--huruf-dasar);
   font-size: var(--fs-15); line-height: 1.5;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
@@ -1015,6 +1024,9 @@ td.sel-menu { width: 1%; white-space: nowrap; text-align: right; padding-left: 4
 }
 .bar-atas .isi-tengah { flex: 1 1 auto; min-width: 0; }
 .lencana-grup { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+/* Lencana pekat bertebal 600 (bagian 528); di header lencana cabang yang netral
+   ikut 600 supaya dua lencana bersebelahan tetap serupa (uji-lencana-atas). */
+.lencana-grup .lencana { font-weight: 600; }
 
 /* TEKS BERJALAN (bagian 511): pesan pemilik di wadah .isi-tengah, di antara
    judul dan lencana. Tidak menambah baris. Berjalan terus, tidak berhenti saat
@@ -1084,8 +1096,8 @@ body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan > * { disp
 }
 #btnLaci { display: none; }
 
-/* Lencana = "Label" Primer: pil bertepi tipis, latar transparan, warna dibawa
-   oleh teks dan garisnya — bukan oleh blok warna penuh. */
+/* Lencana NETRAL = "Label" Primer: pil bertepi tipis, latar transparan. Lencana
+   berwarna (hijau/kuning/merah) sejak bagian 528 berisi penuh — lihat di bawah. */
 .lencana {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 2px 8px; border-radius: 2em; font-size: var(--fs-12); font-weight: 500;
@@ -1121,14 +1133,18 @@ body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan > * { disp
 .lencana.polos::before { display: none; }
 /* Lencana kosong jangan menyisakan titik melayang tanpa keterangan */
 .lencana:empty { display: none; }
-.lencana.hijau  { color: var(--sukses);     border-color: var(--sukses-garis);  background: var(--sukses-lembut); }
-.lencana.kuning { color: var(--peringatan); border-color: var(--peringatan-garis);  background: var(--peringatan-lembut); }
+/* PEKAT (bagian 528, pemilik: "warnanya tegas, tidak transparan"): lencana
+   status berisi penuh warna artinya, tulisannya sewarna kartu (--panel: gelap
+   di tema gelap, putih di tema terang) — keduanya >= 4,5:1, dijaga uji.js.
+   Latar *-lembut tetap dipakai kotak .pesan, bukan lencana lagi. */
+.lencana.hijau  { color: var(--panel); border-color: transparent; background: var(--sukses);     font-weight: 600; }
+.lencana.kuning { color: var(--panel); border-color: transparent; background: var(--peringatan); font-weight: 600; }
 /* Status setoran tanpa pil, menggantikan kata TUTUP di Laporan pulsa (bagian 462):
    tabelnya sudah pas di 1280 px, pil tidak muat. Boleh terlipat. */
 .teks-setoran { font-size: var(--fs-12); font-weight: 600; }
 .teks-setoran.hijau  { color: var(--sukses); }
 .teks-setoran.kuning { color: var(--peringatan); }
-.lencana.merah  { color: var(--bahaya);     border-color: var(--bahaya-garis);  background: var(--bahaya-lembut); }
+.lencana.merah  { color: var(--panel); border-color: transparent; background: var(--bahaya);     font-weight: 600; }
 
 /* Deret pecahan rupiah di layar pembayaran. Sasarannya jari, bukan kursor:
    tinggi 34px agar nyaman ditekan di layar sentuh, dan membungkus rapi. */
@@ -1232,7 +1248,9 @@ html[data-tema="gelap"] .pecahan .cip.uang { box-shadow: inset 0 0 0 1px rgba(25
 /* Lencana yang berfungsi sebagai jalan pintas (mis. "Shift belum dibuka").
    Harus terlihat bisa ditekan, dan harus bisa dicapai lewat keyboard. */
 .lencana.bisa-klik { cursor: pointer; }
-.lencana.bisa-klik:hover { border-color: var(--peringatan); }
+/* Tepi sewarna tulisan: lencana kuning kini berlatar --peringatan, jadi tepi
+   --peringatan tidak terlihat lagi (bagian 528). */
+.lencana.bisa-klik:hover { border-color: var(--teks); }
 .lencana.bisa-klik:focus-visible { outline: none; box-shadow: var(--cincin); }
 
 /* Sorot sesaat pada kartu tujuan supaya mata langsung tahu yang mana. */
@@ -1355,7 +1373,9 @@ main { flex: 1; overflow: hidden; position: relative; }
 }
 .pilih-pelanggan:focus-visible { outline: none; border-color: var(--utama); box-shadow: var(--cincin); }
 .pilih-pelanggan:disabled { opacity: .6; cursor: not-allowed; background: var(--panel-2); }
-.pilih-pelanggan .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* line-height dipatok: huruf baru (bagian 528) bertinggi baris 21 px, tombolnya jadi
+   39 px di sebelah dropdown 38 px (uji-cari-pelanggan). 20 + 16 + 2 = 38. */
+.pilih-pelanggan .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px; }
 .pilih-pelanggan .ikon-svg { width: 16px; height: 16px; flex: none; color: var(--teks-redup); }
 /* Jendela cari pelanggan: daftar bergulir di dalam modal, satu baris per
    pelanggan — nama tebal, di bawahnya nomor HP dan kode, lencana level di
@@ -1418,7 +1438,7 @@ main { flex: 1; overflow: hidden; position: relative; }
 .kartu-produk .stok { font-variant-numeric: tabular-nums; }
 /* Garis lencana netral ditipiskan: dua belas kotak bergaris penuh di satu
    layar adalah dinding, dan yang menandai semuanya tidak menandai apa pun.
-   Kuning dan merah tetap memakai garisnya sendiri — di situ tandanya memang
+   Kuning dan merah berisi penuh (bagian 528) — di situ tandanya memang
    maksudnya. */
 .kartu-produk .stok.lencana:not(.kuning):not(.merah) { border-color: var(--garis-halus); }
 .kartu-produk .stok.bisa-klik:hover { border-color: var(--utama); }
@@ -2236,27 +2256,9 @@ tr.pisah td { border-top: 1px solid var(--garis); }
   border-radius: var(--radius); padding: 10px 12px; min-width: 0;
   position: relative;
 }
-/* Ikon di SUDUT KANAN ATAS, absolut — tidak menambah tinggi kotak dan tidak
-   memakan lebar angka. Dua percobaan sebelumnya: di sisi kiri seluruh kotak,
-   angkanya terpotong ("Rp 952.…"); sebaris dengan label, kotaknya tumbuh
-   dari 85 ke 93px dan melanggar ukuran padat yang dipesan pemilik (< 90px,
-   dijaga uji-dashboard.mjs). Di sudut, baris labelnya memang punya ruang —
-   label KPI pendek — dan angkanya tetap selebar kotak. */
-.mini-kepala { min-width: 0; padding-right: 32px; }
+/* Kotak KPI tanpa ikon sejak bagian 528 ("terlalu ramai"): label selebar kotak. */
+.mini-kepala { min-width: 0; }
 .mini-kepala .mini-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mini-ikon {
-  position: absolute; top: 8px; right: 8px;
-  width: 24px; height: 24px; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--panel-2); color: var(--teks-redup);
-}
-.mini-ikon .ikon-svg { width: 14px; height: 14px; }
-.mini-ikon.biru   { background: var(--utama-lembut);      color: var(--utama); }
-.mini-ikon.hijau  { background: var(--sukses-lembut);     color: var(--sukses); }
-.mini-ikon.kuning { background: var(--peringatan-lembut); color: var(--peringatan); }
-.mini-ikon.merah  { background: var(--bahaya-lembut);     color: var(--bahaya); }
-.mini-ikon.ungu   { background: var(--ungu-lembut);       color: var(--ungu); }
-.mini-ikon.teal   { background: var(--teal-lembut);       color: var(--teal); }
 /* Kotak yang jadi TAUTAN: warna teksnya diwarisi (bukan biru tautan), dan
    hover mengangkatnya sedikit — cukup untuk mengatakan "bisa ditekan", tidak
    sampai membuatnya terbaca sebagai tombol. */
@@ -2421,7 +2423,7 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 /* Pemilih rentang grafik di judul kartu tren; di HP turun ke barisnya sendiri. */
 .seg { display: inline-flex; border: 1px solid var(--garis); border-radius: var(--radius); overflow: hidden; }
 .seg button { min-height: 40px; padding: 0 10px; font-size: var(--fs-11); background: transparent; border: 0; color: var(--teks-redup); cursor: pointer; }
-.seg button.aktif { background: var(--panel-2); color: var(--teks); font-weight: 600; }
+.seg button.aktif { background: var(--utama-tombol); color: var(--di-atas-utama); font-weight: 600; }
 @media (max-width: 560px) { .kartu-dash h4 .seg { margin-left: 0; width: 100%; } .seg button { flex: 1; } }
 
 /* ==================== SEMUA CABANG SEKALI LIHAT (bagian 290) ====================
@@ -2486,7 +2488,10 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .tren-total b { color: var(--teks); font-variant-numeric: tabular-nums; }
 /* Jam ramai sebagai histogram (bagian 293): kolom nama | batang, dan sumbu
    "Jam" baris sendiri dengan kolom yang sama lebarnya dengan batang. */
-.jh { display: grid; grid-template-columns: 54px minmax(0, 1fr); column-gap: 8px; align-items: end; }
+/* 64 px (dulu 54): "nota 19:00" dengan huruf Plus Jakarta Sans tidak muat di
+   54 px, melipat jadi dua baris, dan menimpa cabang di bawahnya (bagian 528). */
+.jh { display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 8px; align-items: end; }
+.jh-nama span, .jh-nama .jh-nota { white-space: nowrap; }
 .jh + .jh { margin-top: 6px; }
 .jh-nama { display: flex; flex-direction: column; justify-content: flex-end; line-height: 1.2; padding-bottom: 2px; font-size: var(--fs-12); }
 .jh-nama span { color: var(--teks-redup); font-size: var(--fs-11); font-variant-numeric: tabular-nums; }
@@ -2526,7 +2531,9 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    tengah dan sisanya kosong; kini baris-barisnya membagi rata tinggi itu. */
 @media (min-width: 621px) {
   #cabJam .isi-cab, #cabKas .isi-cab { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-  #cabJam .jh:not(.jh-sumbu) { flex: 1 1 0; min-height: 34px; align-items: stretch; }
+  /* 44 px: nama + jam puncak + "nota …" = tiga baris ±43 px; dengan 34 px baris
+     ketiga menimpa cabang berikutnya di tablet (bagian 528). */
+  #cabJam .jh:not(.jh-sumbu) { flex: 1 1 0; min-height: 44px; align-items: stretch; }
   #cabJam .jh-baris { height: 100%; }
   #cabJam .ket-cab { margin-top: 8px; }
   #cabKas .kas-ringkas .leg-cab { font-size: var(--fs-13); }
@@ -2538,7 +2545,11 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    (bagian 516; tingginya dikunci kartu Tren, bagian 336). */
 @media (min-width: 1101px) {
   #cabKas .kas-ringkas { flex: none; margin-bottom: 8px; }
-  #cabKas .isi-cab > .bar100-cab { flex: 1 1 0; margin-top: 0; min-height: 30px; align-content: center; row-gap: 4px; }
+  /* flex 1 0 auto (dulu 1 1 0 + min-height 30): baris boleh TUMBUH membagi sisa
+     tinggi, tetapi tidak boleh menyusut di bawah isinya — batang + rincian
+     metode butuh ±38 px, dan dengan 30 px rinciannya tertimpa batang cabang
+     berikutnya (tayang sejak bagian 516, ditemukan di potret bagian 528). */
+  #cabKas .isi-cab > .bar100-cab { flex: 1 0 auto; margin-top: 0; min-height: 30px; align-content: center; row-gap: 4px; }
   #cabKas .bar100-cab .rinci { display: flex; flex-wrap: wrap; gap: 0 12px; grid-column: 2 / 4; font-size: var(--fs-12);
     color: var(--teks-redup); font-variant-numeric: tabular-nums; }
   #cabKas .bar100-cab .rinci span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -2773,15 +2784,16 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    diutak-atik" berlaku juga untuk dialog yang dibukanya.
    Nama kelasnya .angka-uang, BUKAN .uang — .uang sudah dipakai kotak isian
    nominal dan tombol pecahan (ketahuan saat membandingkan piksel Kasir). */
-/* .88em: huruf lebar-seragam tampak lebih besar dan LEBIH LEBAR daripada huruf
-   dasar pada ukuran yang sama — tanpa ini Rp 9.999.999.999 tidak muat di kotak
-   KPI Dashboard (butuh 156px, ada 143px; uji-nominal). .rp dikompensasi
-   (.62 / .88 = .70) supaya "Rp" tetap sebesar sebelumnya. */
-:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) .angka-uang { font-family: var(--huruf-uang); font-variant-numeric: tabular-nums; font-size: .88em; letter-spacing: -.03em; }
-:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) .angka-uang .rp { font-family: var(--huruf-dasar); font-size: .70em; letter-spacing: 0; }
-/* Di TABEL ruangnya cukup: .88em membuat angka lebih kecil dari nama akunnya
-   (potret PC 8 Okt 2026). .rp di tabel laporan memang disembunyikan. */
-:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) table .angka-uang { font-size: .95em; }
+/* Sejak bagian 528 angka uang berhuruf SAMA dengan tulisan (Plus Jakarta Sans);
+   yang tersisa dari bagian 356 hanya angka TABULAR — tiap angka selebar yang
+   lain, supaya kolom uang tetap lurus tanpa huruf lebar-seragam.
+   .9em: angka huruf ini lebar — pada ukuran penuh Rp 9.999.999.999 butuh 152 px
+   di kotak KPI Dashboard yang 141 px (uji-nominal). .rp dikompensasi
+   (.62 / .9 = .69) supaya "Rp" tetap sebesar di Kasir. Di TABEL ruangnya cukup:
+   ukuran penuh, supaya angka tidak lebih kecil dari nama di sebelahnya. */
+:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) .angka-uang { font-variant-numeric: tabular-nums; font-size: .9em; }
+:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) .angka-uang .rp { font-size: .69em; }
+:where(.layar:not(#layarKasir), body:not(:has(#layarKasir.aktif)) :is(#tiraiUmum, #tiraiTanya)) table .angka-uang { font-size: 1em; }
 .statistik .nilai {
   font-size: var(--fs-24); font-weight: 600; margin-top: 2px;
   font-variant-numeric: tabular-nums;
@@ -3874,7 +3886,9 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
    ".daftar-utama td.angka" probe tetap 14 px, lebar kolom tetap dihitung
    lebar, dan Nama tetap 94 px walau selnya sudah rapat (kena 23 Sep 2026).
    Di PC tidak berubah. */
-@media (min-width: 761px) and (max-width: 1024px) { /* ANGKA-RAPAT */
+/* Sejak huruf baru (bagian 528, lebih lebar) berlaku juga di HP mendatar 621–760:
+   tabel Stok di 740 px menyisakan 81 px untuk Nama (uji-lebar-tabel). */
+@media (min-width: 621px) and (max-width: 1024px) { /* ANGKA-RAPAT */
   .layar th.angka, .layar td.angka { padding-left: 8px; padding-right: 8px; }
 }
 
@@ -4550,6 +4564,12 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 /* Lencana "digantikan <nama panjang> · hutang …" lebih lebar dari layar HP
    (456 px di layar 360 px, ditangkap uji-offside): isinya boleh turun baris. */
 .abs-ket .lencana { white-space: normal; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+/* Di KERTAS lencana pekat kembali bergaris: pencetak sering tidak mencetak latar,
+   dan tulisan sewarna kartu (putih) di atas latar yang tidak tercetak = hilang. */
+@media print {
+  .lencana.hijau, .lencana.kuning, .lencana.merah { background: transparent; color: #000; border-color: #999; }
+  .seg button.aktif { background: transparent; color: #000; }
+}
 /* Pengajuan izin/sakit yang menunggu Owner: satu baris per pengajuan. */
 .abs-tunggu { display: flex; flex-direction: column; gap: 6px; }
 .abs-tunggu .abs-ket { align-items: center; }

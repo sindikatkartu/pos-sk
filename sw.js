@@ -6,7 +6,7 @@
  *   - Berkas aplikasi (HTML/CSS/JS) : cache-first  -> aplikasi selalu membuka instan
  *   - Panggilan API                 : network-only -> tidak pernah di-cache, agar data tak basi
  */
-const CACHE = 'possk-v1.387.0';
+const CACHE = 'possk-v1.388.0';
 const BERKAS = [
   './', './index.html',
   './css/app.min.css',
@@ -17,7 +17,10 @@ const BERKAS = [
   './js/tema.min.js', './js/config.min.js', './js/db.min.js', './js/api.min.js', './js/bt.min.js', './js/pos.min.js',
   './js/sync.min.js', './js/print.min.js', './js/label.min.js', './js/grafik.min.js',
   './js/admin.min.js', './js/app.min.js',
-  './manifest.webmanifest'
+  './manifest.webmanifest',
+  /* Huruf aplikasi (bagian 528): tanpa ini perangkat offline jatuh ke huruf
+     bawaan dan semua lebar bergeser dari yang diuji. */
+  './huruf/plus-jakarta-sans.woff2'
 ];
 
 /**

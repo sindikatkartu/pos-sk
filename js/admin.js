@@ -146,7 +146,12 @@ const Admin = (() => {
   const LEBAR_KOLOM = new WeakMap();
   function lebarKolomDaftar(kolom, semua, wadah) {
     if (!semua || !semua.length || !wadah) return null;
-    const tanda = kolom.map(k => k.judul + (k.tanda ? ':' + k.tanda() : '')).join('|');
+    /* Lebar diukur di kanvas dengan huruf yang SEDANG ada. Selama berkas huruf
+       belum datang kanvas memakai huruf cadangan yang lebih sempit — jadi
+       "sudah termuat atau belum" ikut jadi tanda: begitu hurufnya datang,
+       ukuran lama tidak dipakai lagi (bagian 528). */
+    const tanda = kolom.map(k => k.judul + (k.tanda ? ':' + k.tanda() : '')).join('|') +
+      '|huruf:' + (document.fonts && document.fonts.check('14px "Plus Jakarta Sans"') ? 1 : 0);
     const ada = LEBAR_KOLOM.get(semua);
     if (ada && ada.tanda === tanda) return kunciKolomTanpaJudul(kolom, pilihLebarPatah(ada, wadah), wadah);
     /* Font <th>/<td> dibaca dari sel sungguhan yang ditempel sebentar di wadah,
@@ -445,7 +450,7 @@ const Admin = (() => {
          (Tanpa petik-balik: blok ini ada di dalam template literal.) -->
     <div class="petak-mini" aria-busy="true" aria-label="Memuat ringkasan">
       ${Array.from({ length: 6 }, () => `<div class="mini">
-        <div class="mini-kepala"><span class="mini-ikon"></span><div class="mini-label"><span class="rangka" style="width:70px"></span></div></div>
+        <div class="mini-kepala"><div class="mini-label"><span class="rangka" style="width:70px"></span></div></div>
         <div class="mini-nilai"><span class="rangka tinggi" style="width:110px"></span></div>
         <div class="mini-ekor"><span class="rangka" style="width:48px"></span></div>
       </div>`).join('')}
@@ -1226,9 +1231,9 @@ const Admin = (() => {
      ternyata GANDAAN ikon sidebar dengan angka yang berbeda: nilai=Produk,
      mati=Retur Beli, kritis=peringatan shift, dan di IKON_SETTING di bawah
      usaha=Cabang, stok=Stok, lain=Bantuan. Satu arti, dua gambar, dua layar. */
-  const ikonKpi = (nama, warna) => nama && IKON[nama]
-    ? `<span class="mini-ikon ${warna || ''}" aria-hidden="true"><svg class="ikon-svg" viewBox="0 0 24 24">${IKON[nama]}</svg></span>`
-    : '';
+  /* Kotak KPI TANPA ikon sejak bagian 528 (pemilik 22 Nov 2026: "icon di KPI itu
+     terlalu ramai" → "Ikon dihilangkan"). Pilihan { ikon, warna } di pemanggil
+     kotakMini dibiarkan dan tidak dipakai — mudah dihidupkan lagi bila diminta. */
 
   /* Baris ekor SELALU digambar, walau kosong. Kotak yang punya pembanding
      isinya 28px lebih tinggi daripada yang tidak, dan karena satu baris kotak
@@ -1250,7 +1255,7 @@ const Admin = (() => {
        di 1044px angkanya terpotong jadi "Rp 952.…" — petak 32px + celah
        memakan lebar yang dulu dipakai tiga angka terakhir. Di baris label
        ruangnya memang tersisa, dan angkanya kembali selebar kotak. */
-    const isi = `<div class="mini-kepala">${ikonKpi(o.ikon, o.warna)}<div class="mini-label">${esc(label)}</div></div>
+    const isi = `<div class="mini-kepala"><div class="mini-label">${esc(label)}</div></div>
       <div class="mini-nilai">${nilai}</div>
       <div class="mini-ekor">${ekor || ''}</div>`;
     return ke
@@ -1600,10 +1605,17 @@ const Admin = (() => {
      Palet bagian 527 (kartu #ffffff / #15171a): semuanya dihitung ulang dan
      tetap >= 3:1 di kedua tema — kartu gelap yang lebih pekat justru menaikkan
      kontrasnya. Angka di atas riwayat; yang menjaga uji.js (bagian 441). */
-  const WARNA_CAB_DASH = { eceran: ['#2f7fde', '#139065', '#8a6cf0'], grosir: ['#c26612', '#d4589f'],
-                           '': ['#2f7fde', '#139065', '#8a6cf0', '#c26612', '#d4589f'] };
+  /* Bagian 528 (pemilik 22 Nov 2026): cabang PERTAMA dan metode Tunai berwarna
+     LIME — menyala di tema gelap, lime tua di tema terang. Ini satu-satunya
+     warna identitas yang BERBEDA antar tema: lime menyala di kartu putih cuma
+     1,31:1 (garis butuh >= 3:1); #6f9300 3,59:1 di putih. Ditulis 'LIME' dan
+     diterjemahkan temaDash() saat menggambar. Dijaga uji.js (bagian 441). */
+  const LIME_DASH = { gelap: '#c5f135', terang: '#6f9300' };
+  const temaDash = (w) => w === 'LIME' ? LIME_DASH[document.documentElement.dataset.tema === 'gelap' ? 'gelap' : 'terang'] : w;
+  const WARNA_CAB_DASH = { eceran: ['LIME', '#139065', '#8a6cf0'], grosir: ['#c26612', '#d4589f'],
+                           '': ['LIME', '#139065', '#8a6cf0', '#c26612', '#d4589f'] };
   const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
-  const WARNA_METODE_DASH = { tunai: '#2c84db', qris: '#c26612', transfer: '#8b5cf6', piutang: '#278a6c' };
+  const WARNA_METODE_DASH = { tunai: 'LIME', qris: '#c26612', transfer: '#8b5cf6', piutang: '#278a6c' };
 
   /** "1,2 jt" / "450 rb" — angka ringkas untuk petak sempit; angka utuhnya di title. */
   const jtDash = (n) => {
@@ -1634,7 +1646,7 @@ const Admin = (() => {
       pc, grup, shift: (d && d.shift_terbuka) || [],
       adaMargin: pc.some(c => c.laba_kotor !== undefined),
       warna: (k) => { const j = jenisCabDash(k);
-        return WARNA_CAB_DASH[j][semua.filter(c => jenisCabDash(c) === j).indexOf(k)] || '#6e7781'; }
+        return temaDash(WARNA_CAB_DASH[j][semua.filter(c => jenisCabDash(c) === j).indexOf(k)] || '#6e7781'); }
     };
     const duaJenis = grup.length === 2 && grup.every(g => g.jenis);
     const rangka = rangkaBaris(4, ['80%', '62%', '74%', '56%']);
@@ -1806,7 +1818,7 @@ const Admin = (() => {
     const urut = Object.keys(total).sort((a, b) => total[b] - total[a]);
     const semua = urut.reduce((a, k) => a + total[k], 0);
     if (!semua) return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', kosongCab('Belum ada pembayaran'));
-    const warna = (k) => WARNA_METODE_DASH[k] || '#6e7781';
+    const warna = (k) => temaDash(WARNA_METODE_DASH[k] || '#6e7781');
     const isi = (nama, o, tot) => `<div class="isi">${tot > 0
       ? urut.filter(k => o[k] > 0).map(k => `<span style="width:${(o[k] / tot * 100).toFixed(2)}%;background:${warna(k)}" title="${esc(nama + ' · ' + labelMetodeDash(k) + ' ' + Math.round(o[k] / tot * 100) + '% · ' + rpTeks(o[k]))}"></span>`).join('')
       : '<span class="kosong"></span>'}</div>`;

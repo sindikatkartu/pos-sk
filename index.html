@@ -39,6 +39,10 @@
      ada di repo yang sama (`css/app.css`, `js/*.js`) dan itulah yang disunting.
      `uji/bangun.mjs` yang membangunnya, dan `deploy.sh` menolak terbit kalau ada
      bundel yang lebih tua dari sumbernya. Alasan & angkanya di bangun.mjs. -->
+<!-- Huruf diminta SEBELUM lembar gayanya selesai dibaca, supaya tulisan tidak
+     sempat tergambar dengan huruf cadangan lalu berganti (bagian 528).
+     crossorigin wajib untuk preload huruf, walau dari folder sendiri. -->
+<link rel="preload" href="huruf/plus-jakarta-sans.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.min.css">
 <!-- TEMA DIPASANG SEBELUM GAMBAR PERTAMA.
      Setelan `tema` datang dari server dan disimpan di IndexedDB, yang asinkron:
