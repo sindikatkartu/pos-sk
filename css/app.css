@@ -91,7 +91,7 @@
   --kons-kepala:      #12243a;
   --kons-kepala-teks: #f7fafc;
   --sumber-pos:       #22c07a;
-  --sumber-pulsa:     #f0a132;
+  --sumber-pulsa:     #d4589f;
   --sumber-accurate:  #6f7bf7;
   /* Merah untuk angka minus DI ATAS kepala gelap. `--bahaya` dibuat untuk
      latar terang; di atas #12243a ia terlalu tua dan hampir hilang. */
@@ -138,8 +138,8 @@
   /* Palet grafik, dibaca grafik.js saat menggambar. Enam slot, tiap slot >= 3:1
      di atas kartu DAN di atas isian lembut, pada KEDUA tema. Urutannya menjaga
      jarak warna antar seri bersebelahan tetap lebar. */
-  --seri-1: #2c84db;  --seri-2: #ad6904;  --seri-3: #5c8a1f;
-  --seri-4: #8b5cf6;  --seri-5: #c2559b;  --seri-6: #706f69;
+  --seri-1: #2c84db;  --seri-2: #c2559b;  --seri-3: #5c8a1f;
+  --seri-4: #8b5cf6;  --seri-5: #ad6904;  --seri-6: #706f69;
   --kertas-grafik: #ffffff;
   /* SKALA HURUF. Sepuluh langkah, dan hanya sepuluh.
      Pengukuran 31 Agu 2026 menemukan 21 deklarasi ukuran huruf yang menghasilkan
@@ -257,7 +257,7 @@ html[data-tema="gelap"] {
   --kons-kepala:      #1b2a44;
   --kons-kepala-teks: #f3f4f6;
   --sumber-pos:       #5fd6a0;
-  --sumber-pulsa:     #f5bd6b;
+  --sumber-pulsa:     #f472b6;
   --sumber-accurate:  #9aa4fb;
   --kons-minus:       #ff9090;
   --bahaya-tombol: #d92f43;
@@ -278,8 +278,8 @@ html[data-tema="gelap"] {
   --logo-bg:           #c5f135;
   --logo-teks:         #0d0f10;
 
-  --seri-1: #c5f135;  --seri-2: #38bdf8;  --seri-3: #ff9f1a;
-  --seri-4: #a78bfa;  --seri-5: #f472b6;  --seri-6: #8b929c;
+  --seri-1: #c5f135;  --seri-2: #38bdf8;  --seri-3: #f472b6;
+  --seri-4: #a78bfa;  --seri-5: #ff9f1a;  --seri-6: #8b929c;
   --kertas-grafik: #15171a;
 
   /* Pasangan gelapnya ditulis sendiri, BUKAN hasil meredupkan yang terang.
@@ -340,7 +340,7 @@ html[data-tema="gelap"] { color-scheme: dark; }
   --kons-kepala: #12243a;
   --kons-kepala-teks: #f7fafc;
   --sumber-pos: #22c07a;
-  --sumber-pulsa: #f0a132;
+  --sumber-pulsa: #d4589f;
   --sumber-accurate: #6f7bf7;
   --kons-minus: #ff9090;
   --bahaya-tombol: #cf2222;
@@ -359,10 +359,10 @@ html[data-tema="gelap"] { color-scheme: dark; }
   --logo-bg: #141413;
   --logo-teks: #ffffff;
   --seri-1: #2c84db;
-  --seri-2: #ca7b05;
+  --seri-2: #c2559b;
   --seri-3: #6a9b26;
   --seri-4: #8b5cf6;
-  --seri-5: #c2559b;
+  --seri-5: #ca7b05;
   --seri-6: #706f69;
   --kertas-grafik: #ffffff;
   --uang-10000-bg: #ece4f2;
@@ -482,6 +482,13 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
                   overflow: hidden; text-overflow: ellipsis; }
 
 .sisi-isi { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 10px 14px; }
+/* Tanpa batang gulir (pemilik 22 Nov 2026: "hilangkan scroll bar yang ada di
+   sidebar"). Daftarnya TETAP bergulir — roda, sentuhan, keyboard; penanda
+   "masih ada isi" tinggal bayangan tepi di bawah ini. Pemilihnya memakai awalan
+   yang sama dengan aturan batang gulir umum (:not(#layarKasir…) menyumbang
+   spesifisitas ID), kalau tidak ia kalah. Dijaga uji-sisi-gulir. */
+:not(#layarKasir, #layarKasir *).sisi-isi { scrollbar-width: none; }
+:not(#layarKasir, #layarKasir *).sisi-isi::-webkit-scrollbar { width: 0; height: 0; }
 /* Tanda "masih ada isi di bawah". Menu OWNER lebih panjang dari layar laptop
    dan terpotong tepat di tengah sebuah kelompok; tanpa tanda apa pun itu
    terbaca sebagai menu yang HILANG, bukan menu yang tergulung — dan itulah
@@ -2157,6 +2164,18 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 .kartu > .gulir-x > table > :not(tfoot) > tr:first-child > th:first-child { border-top-left-radius: calc(var(--radius-lg) - 1px); }
 .kartu > table > :not(tfoot) > tr:first-child > th:last-child,
 .kartu > .gulir-x > table > :not(tfoot) > tr:first-child > th:last-child  { border-top-right-radius: calc(var(--radius-lg) - 1px); }
+/* Pasangannya di BAWAH (pemilik 22 Nov 2026): baris terakhir yang berlatar —
+   selang-seling, total, subtotal — menempel ke dasar kartu dengan sudut siku
+   dan menutup sudut bulat kartunya; 26 kartu di tujuh layar. Hanya bila
+   tabelnya memang isi TERAKHIR kartu, dan hanya di atas 620 px: di HP tabel
+   berbentuk kartu bertumpuk, sel pertama baris terakhir bukan pojok apa pun.
+   Dijaga uji-sudut-kartu, di semua layar. */
+@media (min-width: 621px) {
+  .kartu > table:last-child > :last-child > tr:last-child > :first-child,
+  .kartu > .gulir-x:last-child > table > :last-child > tr:last-child > :first-child { border-bottom-left-radius: calc(var(--radius-lg) - 1px); }
+  .kartu > table:last-child > :last-child > tr:last-child > :last-child,
+  .kartu > .gulir-x:last-child > table > :last-child > tr:last-child > :last-child  { border-bottom-right-radius: calc(var(--radius-lg) - 1px); }
+}
 /* Pembungkusnya yang memikul margin negatifnya, bukan tabelnya.
    `min-width` sengaja TIDAK disetel di sini: `table { min-width: 560px }` untuk
    layar HP punya spesifisitas lebih rendah, jadi menyetelnya akan membatalkan
@@ -2259,6 +2278,12 @@ tr.pisah td { border-top: 1px solid var(--garis); }
 /* Kotak KPI tanpa ikon sejak bagian 528 ("terlalu ramai"): label selebar kotak. */
 .mini-kepala { min-width: 0; }
 .mini-kepala .mini-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* TAUTAN POLOS (tanpa kelas) mewarisi warna tulisan di sekitarnya dan bergaris
+   bawah. Tanpa aturan ini warnanya dipilih peramban — biru, lalu ungu sesudah
+   diklik — dan pemilik melihatnya sebagai ungu di atas pita peringatan oranye
+   (22 Nov 2026). Warna yang tidak dipilih siapa pun tidak cocok dengan palet
+   mana pun. Dijaga uji-tautan, di semua layar dan kedua tema. */
+a:not([class]) { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 /* Kotak yang jadi TAUTAN: warna teksnya diwarisi (bukan biru tautan), dan
    hover mengangkatnya sedikit — cukup untuk mengatakan "bisa ditekan", tidak
    sampai membuatnya terbaca sebagai tombol. */
@@ -2421,7 +2446,9 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 @container (max-width: 700px) { .petak-mini.petak-stok-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Pemilih rentang grafik di judul kartu tren; di HP turun ke barisnya sendiri. */
-.seg { display: inline-flex; border: 1px solid var(--garis); border-radius: var(--radius); overflow: hidden; }
+/* Kolom SAMA LEBAR (pemilik 22 Nov 2026): "30 hari" 56 px di sebelah "Laba 6 bln"
+   72 px — tiap tombol selebar yang terpanjang. */
+.seg { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--garis); border-radius: var(--radius); overflow: hidden; }
 .seg button { min-height: 40px; padding: 0 10px; font-size: var(--fs-11); background: transparent; border: 0; color: var(--teks-redup); cursor: pointer; }
 .seg button.aktif { background: var(--utama-tombol); color: var(--di-atas-utama); font-weight: 600; }
 @media (max-width: 560px) { .kartu-dash h4 .seg { margin-left: 0; width: 100%; } .seg button { flex: 1; } }
@@ -2599,6 +2626,9 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
               background: var(--peringatan-lembut); border: 1px solid var(--peringatan); border-radius: var(--radius); font-size: var(--fs-12); }
 .strip-dash .ikon-svg { width: 15px; height: 15px; color: var(--peringatan); flex: none; }
 .strip-dash .pisah { color: var(--teks-redup); }
+/* Di HP pitanya melipat per kalimat, dan titik pemisahnya tertinggal sendirian
+   di ujung baris (pemilik 22 Nov 2026). Tiap kalimat sudah di barisnya sendiri. */
+@media (max-width: 620px) { .strip-dash .pisah { display: none; } }
 .strip-dash .strip-tautan { margin-left: auto; white-space: nowrap; }
 
 /* Dropdown periode & cabang TIDAK diperkecil di layar mana pun (keputusan

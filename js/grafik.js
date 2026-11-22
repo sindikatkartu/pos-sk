@@ -33,8 +33,8 @@ const Grafik = (() => {
      layar gelap. Cadangan hex-nya dipertahankan supaya grafik tetap tergambar
      bila berkas CSS gagal dimuat. */
   const CADANGAN = {
-    '--seri-1': '#0969da', '--seri-2': '#bc4c00', '--seri-3': '#1a7f37',
-    '--seri-4': '#8250df', '--seri-5': '#bf3989', '--seri-6': '#59636e',
+    '--seri-1': '#0969da', '--seri-2': '#bf3989', '--seri-3': '#1a7f37',
+    '--seri-4': '#8250df', '--seri-5': '#bc4c00', '--seri-6': '#59636e',
     '--teks': '#1f2328', '--teks-redup': '#59636e',
     '--garis': '#d1d9e0', '--kertas-grafik': '#ffffff'
   };

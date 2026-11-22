@@ -1590,7 +1590,7 @@ const Admin = (() => {
   const cabangParamDash = () => KELOMPOK_DASH[cabangDash]
     ? (kodeKelompokDash(cabangDash).join(',') || '*') : cabangDash;
 
-  const WARNA_JENIS_DASH = { eceran: '#2c84db', grosir: '#c26612' };
+  const WARNA_JENIS_DASH = { eceran: '#2c84db', grosir: 'PINK' };
   /* Ungu SK03 & pink grosir kedua dinaikkan terangnya (bagian 441, pemilik
      23 Okt 2026: "warna ungu untuk sk03 jika didark mode, warna kurang jelas").
      Diukur terhadap latar kartu: #4a3aa7 cuma 1,55:1 di gelap (#30302e) dan
@@ -1611,11 +1611,19 @@ const Admin = (() => {
      1,31:1 (garis butuh >= 3:1); #6f9300 3,59:1 di putih. Ditulis 'LIME' dan
      diterjemahkan temaDash() saat menggambar. Dijaga uji.js (bagian 441). */
   const LIME_DASH = { gelap: '#c5f135', terang: '#6f9300' };
-  const temaDash = (w) => w === 'LIME' ? LIME_DASH[document.documentElement.dataset.tema === 'gelap' ? 'gelap' : 'terang'] : w;
-  const WARNA_CAB_DASH = { eceran: ['LIME', '#139065', '#8a6cf0'], grosir: ['#c26612', '#d4589f'],
-                           '': ['LIME', '#139065', '#8a6cf0', '#c26612', '#d4589f'] };
+  /* Pemilik 22 Nov 2026: oranye HIASAN (grosir, cabang keempat, QRIS) diganti
+     pink — oranye tinggal untuk arti "peringatan". Pink-nya sudah ada di palet
+     (slot kelima); yang berubah urutannya: pink maju, oranye mundur ke slot
+     kelima. Seperti lime, nilainya berbeda antar tema: #f472b6 di kartu putih
+     cuma 2,65:1 (garis butuh >= 3:1), jadi di terang dipakai #d4589f 3,69:1.
+     Ditulis 'PINK', diterjemahkan temaDash(). Dijaga uji.js (bagian 441). */
+  const PINK_DASH = { gelap: '#f472b6', terang: '#d4589f' };
+  const temaDash = (w) => { const t = document.documentElement.dataset.tema === 'gelap' ? 'gelap' : 'terang';
+    return w === 'LIME' ? LIME_DASH[t] : w === 'PINK' ? PINK_DASH[t] : w; };
+  const WARNA_CAB_DASH = { eceran: ['LIME', '#139065', '#8a6cf0'], grosir: ['PINK', '#c26612'],
+                           '': ['LIME', '#139065', '#8a6cf0', 'PINK', '#c26612'] };
   const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
-  const WARNA_METODE_DASH = { tunai: 'LIME', qris: '#c26612', transfer: '#8b5cf6', piutang: '#278a6c' };
+  const WARNA_METODE_DASH = { tunai: 'LIME', qris: 'PINK', transfer: '#8b5cf6', piutang: '#278a6c' };
 
   /** "1,2 jt" / "450 rb" — angka ringkas untuk petak sempit; angka utuhnya di title. */
   const jtDash = (n) => {
@@ -1722,7 +1730,7 @@ const Admin = (() => {
       const s = (k) => cs.reduce((a, c) => a + (Number(c[k]) || 0), 0);
       return { ...x, omzet: s('omzet'), nota: s('nota'),
                lalu: cs.every(c => c.omzet_lalu !== undefined) ? s('omzet_lalu') : null,
-               laba: cabDash.adaMargin ? s('laba_kotor') : null, warna: WARNA_JENIS_DASH[x.jenis] };
+               laba: cabDash.adaMargin ? s('laba_kotor') : null, warna: temaDash(WARNA_JENIS_DASH[x.jenis]) };
     });
     const tot = g.reduce((a, x) => a + x.omzet, 0);
     return kartuCab('cabEcerGrosir', 'Ecer vs grosir', 'porsi omzet', `<div class="eg-cab">
@@ -1977,9 +1985,13 @@ const Admin = (() => {
       return;
     }
     const tgl = g.tanggal, n = tgl.length;
+    const wadahTren = $('#cabTren .isi-cab') || $('#cabTren');
+    /* Batasnya SAMA dengan Grafik.garis (grafik.js: 320–900): di kartu yang lebih
+       sempit dari 320 px (laptop kecil 1280) kedua grafik mengecil BERSAMA. */
+    const lebarTren = Math.round(Math.min(900, Math.max(320, (wadahTren && wadahTren.clientWidth) || 340)));
     const panel = (gp) => {
       const ss = gp.kode.filter(k => peta[k] && peta[k].length === n).map(k => ({ k, d: peta[k].map(v => v / 1e6), c: cabDash.warna(k) }));
-      const kepala = `<div class="tren-kepala"><i style="background:${WARNA_JENIS_DASH[gp.jenis] || 'var(--teks-redup)'}"></i><strong>${esc(gp.label)}</strong>`;
+      const kepala = `<div class="tren-kepala"><i style="background:${temaDash(WARNA_JENIS_DASH[gp.jenis]) || 'var(--teks-redup)'}"></i><strong>${esc(gp.label)}</strong>`;
       if (!ss.length || n < 2) return `<div class="tren-cab">${kepala}</div>${kosongCab('Belum ada data')}</div>`;
       /* Rancangan bagian 437 (pemilik 18 Okt 2026, "buatkan seperti ini" +
          contoh gambar): kurva halus, isian gradasi di bawah tiap garis, kisi
@@ -1989,7 +2001,16 @@ const Admin = (() => {
          bisa lagi bertumpuk atau turun ke baris tanggal (bagian 302). */
       /* bawah 20, bukan 16: halo r 7 di titik bernilai 0 (y(0) + 7) tetap
          ±4 satuan di atas puncak huruf tanggal (peninjau-rilis §437). */
-      const W = 340, kanan = 12, H = 122, kiri = 30, bawah = 20, atas = 10;
+      /* Kanvasnya SELEBAR KARTU dan setinggi 160 — sama dengan grafik "Laba 6 bln"
+         (pemilik 22 Nov 2026: "tab 30 hari samakan ukurannya seperti tab laba 6
+         bln"). Dulu 340 x 122 lalu diregang selebar kartu: tingginya ikut lebar
+         kartu (116 px di laptop, 178 di PC) dan hurufnya ikut membesar.
+         DUA grafik (Ecer + Grosir — keadaan di toko, setelan toko_grosir): 76 px
+         per grafik. Dengan proporsi lama kartu tab "30 hari" 450 px di sebelah
+         tab "Laba" 342 px, dan kartu Jam ramai di sampingnya ikut melompat tiap
+         pindah tab; 76 px membuat keduanya sama tinggi dari tablet sampai PC
+         (pemilik memilih "Ikut Laba"). Dijaga uji-tren-tab. */
+      const W = lebarTren, kanan = 12, H = cabDash.grup.length === 1 ? 160 : 76, kiri = 30, bawah = 20, atas = 10;
       const maks = Math.max(0.1, ...ss.flatMap(s => s.d)) * 1.12;
       const x = (i) => kiri + i * ((W - kiri - kanan) / (n - 1)), y = (v) => atas + (H - atas - bawah) * (1 - v / maks);
       const tot = ss.reduce((a, s) => a + s.d.reduce((p, q) => p + q, 0), 0);
