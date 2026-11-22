@@ -1152,6 +1152,39 @@ const bolehLayar = (id) => menuTampil().some(m => m.id === id);
  *  ditulisnya sendiri, supaya tidak ada penggambaran kedua. */
 let layarKini = null;
 
+/**
+ * JUDUL LAYAR BERGAYA ALAMAT (pemilik 22 Nov 2026, titipan M-1): "Grup › Menu › Tab",
+ * mis. "Laporan › Laporan Keuangan › Laba Rugi". Tanpa ikon; bagian induk hanya
+ * tulisan (bukan tautan). SATU pintu: semua layar bertab menandai tab aktifnya
+ * dengan cara yang sama (.tab-modal button.aktif), jadi tidak ada pemanggil per layar.
+ * Di HP — tegak maupun mendatar — CSS hanya memajang nama menunya (judul lama).
+ */
+let menuJudulLayar = null;
+function tulisJudulLayar() {
+  const h = $('#judulLayar');
+  if (!h) return;
+  const m = menuJudulLayar;
+  const el = m && m.id !== 'kasir' ? $('.layar.aktif') : null;
+  const tabEl = el ? Array.from(el.querySelectorAll('.tab-modal button.aktif')).find((b) => b.offsetParent !== null) : null;
+  const tab = tabEl ? tabEl.textContent.replace(/\s+/g, ' ').trim() : '';
+  const kunci = m ? [m.grup || '', m.label, tab].join('|') : '';
+  if (h.dataset.jejak === kunci && h.childNodes.length) return;
+  h.dataset.jejak = kunci;
+  h.textContent = '';
+  if (!m) return;
+  const tambah = (kelas, teks, hias) => { const s = document.createElement('span'); s.className = kelas; s.textContent = teks; if (hias) s.setAttribute('aria-hidden', 'true'); h.appendChild(s); };
+  /* Kasir dikecualikan (pemilik 22 Nov 2026): layar Kasir tidak diutak-atik, judulnya
+     tetap "Kasir" saja di semua lebar — tanpa grup di depannya. Dijaga uji-judul-alamat. */
+  if (m.grup && m.id !== 'kasir') { tambah('jl-induk jl-grup', m.grup); tambah('jl-pisah', '›', true); }
+  tambah(tab ? 'jl-induk jl-menu' : 'jl-kini jl-menu', m.label);
+  if (tab) { tambah('jl-pisah jl-pisah-tab', '›', true); tambah('jl-kini jl-tab', tab); }
+}
+let _jadwalJudulLayar = 0;
+const pengamatJudulLayar = typeof MutationObserver === 'function' ? new MutationObserver(() => {
+  if (_jadwalJudulLayar) return;
+  _jadwalJudulLayar = requestAnimationFrame(() => { _jadwalJudulLayar = 0; tulisJudulLayar(); });
+}) : null;
+
 /* ---------- Kelompok nav yang bisa dilipat --------------------------------
    Menu OWNER lebih panjang dari layar laptop dan terpotong di tengah sebuah
    kelompok — `.sisi-isi` sudah punya bayang gulir untuk itu, tapi menggulir
@@ -1940,7 +1973,15 @@ function bukaLayar(id) {
   if (el) el.classList.add('aktif');
 
   const m = MENU.find(x => x.id === id);
-  $('#judulLayar').textContent = m ? m.label : '';
+  menuJudulLayar = m || null;
+  tulisJudulLayar();
+  /* Tab baru tergambar sesudah data layarnya tiba, dan berganti saat ditekan:
+     layar yang aktif diamati, judulnya ditulis ulang bila tab aktifnya berubah.
+     Kasir tidak bertab dan tidak diamati (aturan tetap: Kasir tidak diutak-atik). */
+  if (pengamatJudulLayar) {
+    pengamatJudulLayar.disconnect();
+    if (el && id !== 'kasir') pengamatJudulLayar.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  }
   gambarLencanaCabang(id);
   tutupLaci();
   /* Fokusnya TIDAK dikembalikan ke kartu pengguna: layar sudah berganti, dan

@@ -442,7 +442,7 @@ const Admin = (() => {
      kartu per cabang, Cabang sekilas) tidak pernah ditiru dan layarnya
      melompat saat data tiba. Gambar di bawah tetap dipakai pembukaan pertama. */
   const rangkaDashboard = () => Rangka.pasang($('#isiDashboard'), `
-    <div class="bar-alat rapat bar-dash"><span class="rangka tinggi" style="width:150px"></span>${bolehCabangDash() ? '<span class="rangka tinggi" style="width:130px"></span>' : ''}</div>
+    <div class="bar-dash"><span class="rangka tinggi" style="width:190px"></span><span class="rangka tinggi" style="width:210px"></span></div>
     <!-- Bentuknya memakai .mini yang SAMA dengan kartu KPI sungguhan, bukan
          kotak karangan sendiri: rangka yang ukurannya berbeda dari isinya
          membuat layar melompat tepat saat datanya tiba, dan lompatan itu
@@ -1013,6 +1013,9 @@ const Admin = (() => {
   let periodeDash = 'hari';
   /** Cabang yang ditampilkan dashboard: '*' = semua (perilaku lama), atau satu kode. */
   let cabangDash = '*';
+  /** Panel Filter di bar atas Dashboard terbuka? Diingat di sini karena barnya
+      digambar ulang tiap memuat: memilih periode tidak boleh menutup panelnya. */
+  let filterDashBuka = false;
 
   /* v1.182: pilihan periode Dashboard = daftar standar komponen Periode (pos.js),
      termasuk Bulan lalu dan Kustom… (rentang kustom dibatasi server 92 hari). */
@@ -2009,8 +2012,13 @@ const Admin = (() => {
          per grafik. Dengan proporsi lama kartu tab "30 hari" 450 px di sebelah
          tab "Laba" 342 px, dan kartu Jam ramai di sampingnya ikut melompat tiap
          pindah tab; 76 px membuat keduanya sama tinggi dari tablet sampai PC
-         (pemilik memilih "Ikut Laba"). Dijaga uji-tren-tab. */
-      const W = lebarTren, kanan = 12, H = cabDash.grup.length === 1 ? 160 : 76, kiri = 30, bawah = 20, atas = 10;
+         (pemilik memilih "Ikut Laba"). Di layar >= 1101 px 100 px: sejak titipan N
+         kartu Kas masuk di baris yang sama lebih tinggi ±50 px, dan dengan 76 px
+         tersisa 68–79 px kosong di bawah grafik; barisnya disamakan kartu Kas, jadi
+         kedua tab tetap sama tinggi. Batas 1101 = batas CSS kartu Kas masuk tiga
+         kolom. Dijaga uji-tren-tab. */
+      const tinggiDua = window.matchMedia && window.matchMedia('(min-width: 1101px)').matches ? 100 : 76;
+      const W = lebarTren, kanan = 12, H = cabDash.grup.length === 1 ? 160 : tinggiDua, kiri = 30, bawah = 20, atas = 10;
       const maks = Math.max(0.1, ...ss.flatMap(s => s.d)) * 1.12;
       const x = (i) => kiri + i * ((W - kiri - kanan) / (n - 1)), y = (v) => atas + (H - atas - bawah) * (1 - v / maks);
       const tot = ss.reduce((a, s) => a + s.d.reduce((p, q) => p + q, 0), 0);
@@ -2101,12 +2109,21 @@ const Admin = (() => {
       dataDash = { inti: d, berat: null, monitor: null, petugas: null };
 
       $('#isiDashboard').innerHTML = `
-        <div class="bar-alat rapat bar-dash">
-          ${Periode.html({ ...PERIODE_DASH, nilai: periodeDash, nilaiDari: dashKustom.dari, nilaiSampai: dashKustom.sampai })}
-          ${pilihCabangDash()}
-          <span class="petunjuk keterangan-dash" style="margin:0" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</span>
-          ${/* Kalimat pembuka Dashboard DIBUANG atas perintah pemilik 23 Sep 2026
-             (bagian 236); keterangan-dash di atas tetap kalimat pembuka layarnya. */ ''}
+        ${/* Bar atas (pemilik 22 Nov 2026): sapaan di kiri, SATU tombol Filter di kanan.
+             Periode dan Cabang pindah ke panel tombol itu — kendalinya tetap komponen
+             Periode dan pilihCabangDash() yang sama (id sama, penangan sama), dan
+             setiap perubahan tetap langsung memuat. Tombolnya memajang pilihan yang
+             berlaku; tanggal rentang dan pembandingnya terbaca di dalam panel. */ ''}
+        <div class="bar-dash">
+          <div class="sapa-dash">Halo${APP_STATE.user && APP_STATE.user.nama ? ', <b>' + esc(APP_STATE.user.nama) + '</b>' : ''}</div>
+          <div class="filter-dash">
+            <button type="button" class="tombol" id="btnFilterDash" aria-haspopup="true" aria-controls="panelFilterDash" aria-expanded="${filterDashBuka ? 'true' : 'false'}">${ikonAlat('saring')}<span>Filter</span><span class="pilihan">· ${esc(ringkasFilterDash())}</span></button>
+            <div class="panel-filter-dash" id="panelFilterDash" ${filterDashBuka ? '' : 'hidden'}>
+              ${Periode.html({ ...PERIODE_DASH, label: 'Periode', nilai: periodeDash, nilaiDari: dashKustom.dari, nilaiSampai: dashKustom.sampai })}
+              ${bolehCabangDash() ? '<div class="kendali-tetap"><label for="cabangDash">Cabang</label>' + pilihCabangDash() + '</div>' : ''}
+              <p class="petunjuk keterangan-dash" title="Dibanding periode sebelumnya yang sama panjang">${esc(keteranganRentangDash(d))}</p>
+            </div>
+          </div>
         </div>
 
         <div id="stripDash">${stripDash(d, null)}</div>
@@ -2258,6 +2275,34 @@ const Admin = (() => {
   /* Muatan grafik 30 hari dipakai blok "Semua cabang" (ambilGrafik30). Kartu
      Tren & Jam ramai LAMA dibuang bagian 294 — beserta muatGrafik/pasangGrafik. */
   const grafikMuatan = {};
+  /* Panel Filter bar atas Dashboard: buka-tutup lewat tombolnya, tutup dengan klik
+     di luar atau Esc. Keadaannya (filterDashBuka) dipakai lagi saat barnya digambar ulang. */
+  const ringkasFilterDash = () => {
+    const pil = (Periode.PILIHAN.find((x) => x[0] === periodeDash) || [])[1] || 'Periode';
+    const per = periodeDash === 'kustom' && dashKustom.dari && dashKustom.sampai
+      ? tglTampil(dashKustom.dari) + '–' + tglTampil(dashKustom.sampai) : pil;
+    const cab = !bolehCabangDash() ? ''
+      : (cabangDash === '*' || (KELOMPOK_DASH[cabangDash] && !adaKelompokDash())) ? 'Semua cabang'
+      : (KELOMPOK_DASH[cabangDash] || cabangDash);
+    return [per, cab].filter(Boolean).join(' · ');
+  };
+  const aturFilterDash = (buka) => {
+    filterDashBuka = !!buka;
+    const p = $('#panelFilterDash'), b = $('#btnFilterDash');
+    if (p) p.hidden = !filterDashBuka;
+    if (b) b.setAttribute('aria-expanded', filterDashBuka ? 'true' : 'false');
+  };
+  document.addEventListener('click', (e) => {
+    if (!e.target || !e.target.closest) return;
+    if (e.target.closest('#btnFilterDash')) { aturFilterDash(!filterDashBuka); return; }
+    if (filterDashBuka && !e.target.closest('#panelFilterDash')) aturFilterDash(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !filterDashBuka || !$('#panelFilterDash')) return;
+    aturFilterDash(false);
+    const b = $('#btnFilterDash'); if (b) b.focus();
+  });
+
   /* Tema berubah: hanya grafik laba (Grafik.garis menulis warnanya ke elemen) yang digambar ulang. */
   document.addEventListener('tema:berubah', () => {
     if (trenCabG && modeTrenCab === 'laba') isiCabTren(trenCabG);

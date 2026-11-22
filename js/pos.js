@@ -1659,6 +1659,7 @@ var IKON_SUMBER = {
   /* --- Tindakan: tombol dan bar alat --- */
   tambah    : 'plus',
   cari      : 'search',
+  saring    : 'funnel',
   segarkan  : 'refresh-cw',
   kirim     : 'arrow-right',
   terima    : 'arrow-down-to-line',
@@ -1804,6 +1805,7 @@ var IKON = {
   /* --- Tindakan: tombol dan bar alat --- */
   tambah    : '<path d="M5 12h14"/><path d="M12 5v14"/>',
   cari      : '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  saring    : '<path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/>',
   segarkan  : '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   kirim     : '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   terima    : '<path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/>',
