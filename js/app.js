@@ -7279,7 +7279,21 @@ async function tampilkanLabaRugi() {
   if (!bacaSimpanLap('laba_rugi', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
   const gambarLR = (d) => {
     const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
-    w.innerHTML = tombolUnduh('laba_rugi', par) + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3></div><div class="gulir-x"><table>
+    /* Ringkasan per cabang (pemilik 22 Nov 2026): hanya bila server mengirim
+       per_cabang (pilihan "Semua cabang"). Baris penutupnya angka gabungan d
+       sendiri, bukan jumlah ulang di sini. Beban ditulis minus supaya tiap baris
+       terjumlah ke kanan. Di HP hanya Cabang · Laba bersih · Margin (kelas
+       rinci-lr disembunyikan). (Tanpa petik-balik di komentar ini.) */
+    const pc = Array.isArray(d.per_cabang) && d.per_cabang.length > 1 ? d.per_cabang : null;
+    const persenLR = (n) => String(Number(n) || 0).replace('.', ',') + '%';
+    const selLR = (n, kelas = '', tebal = false) => `<td class="angka${kelas}${n < 0 ? ' uang-minus' : ''}">${tebal ? '<b>' + rp(n) + '</b>' : rp(n)}</td>`;
+    const brsCab = (nama, x, kelas = '') => `<tr class="${kelas}"><td>${esc(nama)}</td>${selLR(x.penjualan_bersih, ' rinci-lr')}${selLR(x.laba_kotor, ' rinci-lr')}${selLR(-x.beban_operasional, ' rinci-lr')}${selLR(x.lain_lain, ' rinci-lr')}${selLR(x.laba_bersih, '', true)}<td class="angka${x.margin_bersih_persen < 0 ? ' uang-minus' : ''}">${x.penjualan_bersih ? persenLR(x.margin_bersih_persen) : '—'}</td></tr>`;
+    const ringkasCab = pc ? `<div class="kartu laporan-uang" id="kartuLRCabang"><div class="bar-alat"><h3>Ringkasan per cabang</h3></div><div class="gulir-x"><table class="lr-cabang">
+      <thead><tr><th>Cabang</th><th class="angka rinci-lr">Penjualan bersih</th><th class="angka rinci-lr">Laba kotor</th><th class="angka rinci-lr">Beban</th><th class="angka rinci-lr">Lain-lain</th><th class="angka">Laba bersih</th><th class="angka">Margin</th></tr></thead>
+      <tbody>${pc.map((x) => brsCab(x.cabang === kodeCabangPusat() ? TEKS_KANTOR : x.cabang, x)).join('')}
+      ${brsCab('Semua cabang', { penjualan_bersih: d.penjualan_bersih, laba_kotor: d.laba_kotor, beban_operasional: d.beban_operasional, lain_lain: (Number(d.pendapatan_lain) || 0) - (Number(d.beban_lain) || 0), laba_bersih: d.laba_bersih, margin_bersih_persen: d.margin_bersih_persen }, 'tebal pisah')}</tbody>
+      </table></div><p class="ket-lr-cabang">Beban kantor hanya masuk baris ${TEKS_KANTOR} bila dicatat dengan Ditanggung oleh: ${TEKS_KANTOR}; selebihnya ikut toko pencatatnya.</p></div>` : '';
+    w.innerHTML = tombolUnduh('laba_rugi', par) + ringkasCab + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3></div><div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
       ${brs('(−) Retur Penjualan', -d.retur_penjualan)}

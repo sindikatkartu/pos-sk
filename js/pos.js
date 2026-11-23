@@ -2146,7 +2146,7 @@ const SIMPAN_LAP = 'possk_lap_v1', MAKS_LAP = 24, BATAS_LAP = 150000, TOTAL_LAP 
    pernah berubah. NAIKKAN angka ini bila bentuk jawaban yang disimpan atau
    penggambarnya berubah sehingga simpanan lama tidak boleh digambar lagi.
    Entri berkunci lain (skema lama, versi lama) dibersihkan saat menulis. */
-const SKEMA_LAP = 1;
+const SKEMA_LAP = 2;
 const kunciSkemaKini = (k) => { try { return JSON.parse(k)[1] === 'S' + SKEMA_LAP; } catch (e) { return false; } };
 const kunciLap = (jenis, par) => {
   const f = APP_STATE.flag || {};

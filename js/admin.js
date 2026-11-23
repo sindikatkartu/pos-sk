@@ -1769,17 +1769,20 @@ const Admin = (() => {
     const J = [];
     for (let j = Math.min(JAM_BUKA_DASH[0], ada[0]); j <= Math.max(JAM_BUKA_DASH[1], ada[ada.length - 1]); j++) J.push(j);
     const jj = (j) => String(j).padStart(2, '0');
-    /* HISTOGRAM (bagian 293, contoh dari pemilik): satu batang PENUH per jam,
-       celah tipis 2 satuan, ujung rata. Sumbu "Jam" baris SENDIRI di bawah
-       semua cabang — di versi sebelumnya labelnya terbaca milik baris terakhir
-       saja. Nama cabang + jam puncak di kolom kiri; nilai omzet hanya lewat
-       sentuh/sorot (title), keputusan pemilik. Garis bantu tipis per jam
-       menembus tiap baris supaya batang sejajar dengan labelnya. */
-    /* H = 100 satuan dan TANPA atribut height: tingginya milik CSS — 34 px di
-       HP, setinggi barisnya di PC/tablet. MIN 9 satuan: nominal kecil di
-       sebelah jam puncak tetap terlihat sebagai batang, bukan garis. */
-    const W = 480, lebar = W / J.length, CELAH = 2, H = 100, MIN = 9;
-    const bantu = J.map((_, i) => i ? `<line x1="${(i * lebar).toFixed(1)}" x2="${(i * lebar).toFixed(1)}" y1="0" y2="${H}" stroke="var(--garis-halus)" stroke-width="0.6" vector-effect="non-scaling-stroke"/>` : '').join('');
+    /* HISTOGRAM (bagian 293, contoh dari pemilik): sumbu "Jam" baris SENDIRI di
+       bawah semua cabang; nama cabang + jam puncak di kolom kiri; nilai omzet
+       hanya lewat sorot (title), keputusan pemilik.
+       BENTUK BATANG (bagian 534, pemilik 23 Nov 2026: "kurang menarik entah itu
+       karena sudut terlalu tajam, atau saling berdempetan"): ujung atas membulat
+       3 px, celah di dalam satu jam 2 px, sepasang batang 70% slot di tengah
+       slotnya, garis tegak per jam dibuang. Batangnya KOTAK HTML, bukan SVG yang
+       diregang: di SVG ber-preserveAspectRatio "none" sudut 3 px jadi lonjong dan
+       celah 2 px tidak bisa ditulis tetap; kotak HTML benar di lebar berapa pun
+       dan saat layar diputar, tanpa hitungan di sini. Ukurannya milik CSS (.jh-b). */
+    /* Tinggi batang dalam persen barisnya; tinggi barisnya milik CSS — 34 px di
+       HP, setinggi barisnya di PC/tablet. MIN 9: nominal kecil di sebelah jam
+       puncak tetap terlihat sebagai batang, bukan garis. */
+    const H = 100, MIN = 9;
     /* DUA BATANG per jam (bagian 391, pemilik): pekat = omzet, muda = jumlah
        nota — keduanya WARNA CABANG. Warna kedua yang tetap tidak lolos validator
        buta warna terhadap keempat warna cabang sekaligus (abu vs hijau SK02
@@ -1788,29 +1791,19 @@ const Admin = (() => {
        bukan dua sumbu angka. Server lama tanpa jam_nota: satu batang omzet. */
     const duaBatang = pc.some(c => Array.isArray(c.jam_nota) && c.jam_nota.length === 24);
     const OP_NOTA = 0.4;
-    /* Jarak ANTAR jam 7 satuan, di dalam satu jam 1 (bagian 393, pemilik: "beri
-       jarak tipis antar jam, agar terlihat terpisah antar jam"). Dengan celah 2,
-       batang nota jam 10 menempel batang omzet jam 11 dan empat batang terbaca
-       satu deret. Celah 11 dicoba di maket — batang HP terlalu kurus. Satu batang
-       (server lama) tetap celah 2: tiap jam memang hanya satu batang. */
-    const celah = duaBatang ? 7 : CELAH;
     return kartuCab('cabJam', 'Jam ramai per cabang', duaBatang ? 'omzet & jumlah nota per jam' : 'omzet per jam', pc.map(c => {
       const d = J.map(j => Number(c.jam[j]) || 0), mx = Math.max(...d), pk = d.indexOf(mx), w = cabDash.warna(c.cabang);
       const dn = J.map(j => (Array.isArray(c.jam_nota) ? Number(c.jam_nota[j]) : 0) || 0), mxN = Math.max(...dn), pkN = dn.indexOf(mxN);
-      const lb = duaBatang ? (lebar - celah) / 2 - 0.5 : lebar - celah;
-      const batang = (v, m, x, op, ket) => { const t = v > 0 ? Math.max((H - 2) * v / m, MIN) : 0;
-        return t ? `<rect x="${x.toFixed(2)}" y="${(H - t).toFixed(1)}" width="${lb.toFixed(2)}" height="${t.toFixed(1)}" fill="${w}"${op < 1 ? ` fill-opacity="${op}" data-nota="1"` : ''}><title>${ket}</title></rect>` : ''; };
+      /* Batang bernilai 0 tetap ditulis (tinggi 0): pasangannya tidak bergeser ke tengah slot. */
+      const batang = (v, m, op, ket) => { const t = v > 0 ? Math.max((H - 2) * v / m, MIN) : 0;
+        return `<i class="jh-b"${op < 1 ? ' data-nota="1"' : ''} style="height:${t.toFixed(1)}%;background:${w}${op < 1 ? ';opacity:' + op : ''}"${t ? ` title="${ket}"` : ''}></i>`; };
       return `<div class="jh" data-jam-cab="${esc(c.cabang)}"><div class="jh-nama"><strong>${esc(c.cabang)}</strong><span>${mx > 0 ? jj(J[pk]) + ':00' : '—'}</span>${duaBatang && mxN > 0 ? `<small class="jh-nota">nota ${jj(J[pkN])}:00</small>` : ''}</div>
-        <svg class="jh-baris" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${bantu}${d.map((v, i) => {
-          const x0 = i * lebar + celah / 2;
+        <div class="jh-baris${duaBatang ? '' : ' jh-satu'}" role="img" aria-label="Jam ramai ${esc(c.cabang)}">${d.map((v, i) => {
           const ket = esc(c.cabang) + ' ' + jj(J[i]) + ':00 · ' + esc(rpTeks(v)) + (duaBatang ? ' · ' + dn[i] + ' nota' : '');
-          return batang(v, mx, x0, 1, ket) + (duaBatang ? batang(dn[i], mxN, x0 + lb + 1, OP_NOTA, ket) : '');
-        }).join('')}</svg></div>`;
+          return '<div class="jh-slot">' + batang(v, mx, 1, ket) + (duaBatang ? batang(dn[i], mxN, OP_NOTA, ket) : '') + '</div>';
+        }).join('')}</div></div>`;
     }).join('') + `<div class="jh jh-sumbu"><div class="jh-nama">Jam</div><div class="jh-jam" style="grid-template-columns:repeat(${J.length}, minmax(0, 1fr))">${J.map(j => `<span>${jj(j)}</span>`).join('')}</div></div>
-      ${duaBatang
-        ? `<p class="ket-cab"><span class="leg-jh"><span><i></i>omzet</span><span><i class="muda"></i>jumlah nota</span></span>
-           Tiap jam dua batang warna cabang, ${jj(J[0])}–${jj(J[J.length - 1])}: pekat = omzet, muda = jumlah nota · masing-masing relatif terhadap puncaknya sendiri · di bawah nama: jam puncak omzet &amp; nota · sentuh batang untuk angkanya.</p>`
-        : `<p class="ket-cab">Satu batang = satu jam, ${jj(J[0])}–${jj(J[J.length - 1])} · di bawah nama: jam puncak · sentuh batang untuk omzetnya · tiap cabang berskala sendiri.</p>`}`);
+      ${duaBatang ? `<p class="ket-cab"><span class="leg-jh"><span><i></i>omzet</span><span><i class="muda"></i>jumlah nota</span></span></p>` : ''}`);
   }
 
   /** Metode bayar → kelompok tetap: transfer_bca dst. ikut "transfer". */
@@ -1958,6 +1951,14 @@ const Admin = (() => {
       <div class="isi-cab">${isi}</div></div>`;
 
   /** Grafik 30 hari tiba: panel tren per jenis + garis kecil 7 hari di kotak cabang. */
+  /* Tinggi isi tab "30 hari" yang TERUKUR di layar; tab "Laba 6 bln" memesannya
+     sebagai tinggi minimum. Di bawah 1101 px tab "30 hari" dua-panel 317 px dan
+     tab Laba 292 px; dulu kalimat kaki kartu Jam ramai di sebelahnya yang
+     kebetulan menyamakan barisnya, dan sejak kalimat itu dihapus (bagian 534)
+     kartu Tren melompat 25 px tiap pindah tab. Diukur, bukan dihitung dari angka
+     grafik: tinggi isinya bergantung jumlah panel, legenda, dan lebar layar.
+     Dijaga uji-tren-tab. */
+  let tinggiIsiTrenHari = 0;
   function isiCabTren(g, galatnya) {
     if (!cabDash) return;
     const seri = g && Array.isArray(g.seri_cabang) ? g.seri_cabang : null;
@@ -1968,10 +1969,21 @@ const Admin = (() => {
     trenCabG = g;
     const peta = {};
     seri.forEach(s => { peta[s.nama] = (s.data || []).map(Number); });
+    /* HARI INI BELUM ADA PENJUALAN (bagian 535, pemilik 23 Nov 2026: "angka tren per
+       cabang 0 semua tuh. cacat"). Titik terakhir data = hari ini; sebelum toko buka
+       nilainya 0 di SEMUA cabang, dan grafiknya menukik ke nol tiap pagi — terbaca
+       penjualan anjlok. Selama begitu, titik hari ini tidak digambar (grafik berhenti
+       di kemarin); begitu ada nota pertama di cabang mana pun, ia digambar untuk
+       semuanya. Jumlah periode tidak berubah: yang dibuang bernilai 0. */
+    const nPenuh = g.tanggal.length;
+    const hariIniKosong = nPenuh >= 3 && seri.length > 0 && seri.every(s => !(Number((s.data || [])[nPenuh - 1]) > 0));
+    /* Hanya deret SEPANJANG tanggalnya yang dipotong: titik terakhir seri yang lebih
+       pendek bukan hari ini, dan membuangnya menghapus hari yang sungguh ada. */
+    const potong = (a) => hariIniKosong && a.length === nPenuh ? a.slice(0, -1) : a;
     /* Garis kecil 7 hari terakhir di tiap kotak Cabang sekilas. */
     cabDash.pc.forEach(c => {
       const el = $('#cabSekilas [data-spark="' + pakaiDash(c.cabang) + '"]');
-      const d = (peta[c.cabang] || []).slice(-7);
+      const d = potong(peta[c.cabang] || []).slice(-7);
       if (!el || d.length < 2) return;
       const W = 92, H = 24, mx = Math.max(...d) || 1, w = cabDash.warna(c.cabang);
       const pt = d.map((v, i) => (i * (W - 6) / (d.length - 1) + 3).toFixed(1) + ',' + (H - 3 - (H - 6) * v / mx).toFixed(1));
@@ -1980,26 +1992,27 @@ const Admin = (() => {
         <polyline points="${pt.join(' ')}" fill="none" stroke="${w}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lx}" cy="${ly}" r="2.5" fill="${w}"/></svg>`;
     });
     if (modeTrenCab === 'laba') {
-      gantiCab('cabTren', kartuTrenCab('laba kotor 6 bulan', '<div id="gLabaCab"></div>'));
+      gantiCab('cabTren', kartuTrenCab('laba kotor 6 bulan', '<div id="gLabaCab"' + (tinggiIsiTrenHari ? ' style="min-height:' + tinggiIsiTrenHari + 'px"' : '') + '></div>'));
       if (Array.isArray(g.tren_bulanan) && g.tren_bulanan.length) {
         Grafik.garis($('#gLabaCab'), { tanggal: g.tren_bulanan.map(x => x.periode),
           seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(x => x.laba_kotor) }], tinggi: 160, tanpaTabel: true });
       } else $('#gLabaCab').innerHTML = '<p class="grafik-kosong">Laba kotor hanya untuk peran yang berhak melihat margin.</p>';
       return;
     }
-    const tgl = g.tanggal, n = tgl.length;
+    const tgl = potong(g.tanggal), n = tgl.length;
     const wadahTren = $('#cabTren .isi-cab') || $('#cabTren');
     /* Batasnya SAMA dengan Grafik.garis (grafik.js: 320–900): di kartu yang lebih
        sempit dari 320 px (laptop kecil 1280) kedua grafik mengecil BERSAMA. */
     const lebarTren = Math.round(Math.min(900, Math.max(320, (wadahTren && wadahTren.clientWidth) || 340)));
     const panel = (gp) => {
-      const ss = gp.kode.filter(k => peta[k] && peta[k].length === n).map(k => ({ k, d: peta[k].map(v => v / 1e6), c: cabDash.warna(k) }));
+      const ss = gp.kode.filter(k => peta[k] && peta[k].length === nPenuh).map(k => ({ k, d: potong(peta[k]).map(v => v / 1e6), tot: peta[k].reduce((a, b) => a + b, 0) / 1e6, c: cabDash.warna(k) }));
       const kepala = `<div class="tren-kepala"><i style="background:${temaDash(WARNA_JENIS_DASH[gp.jenis]) || 'var(--teks-redup)'}"></i><strong>${esc(gp.label)}</strong>`;
       if (!ss.length || n < 2) return `<div class="tren-cab">${kepala}</div>${kosongCab('Belum ada data')}</div>`;
       /* Rancangan bagian 437 (pemilik 18 Okt 2026, "buatkan seperti ini" +
          contoh gambar): kurva halus, isian gradasi di bawah tiap garis, kisi
          titik-titik, penanda bulat berhalo di titik bertanggal & ujung, dan
-         legenda di bawah (nama + angka hari terakhir) — label nama & angka di
+         legenda di bawah (nama + TOTAL periode cabang itu, "24,3 jt" — bagian 535;
+         dulu angka hari terakhir, yang 0 tiap pagi) — label nama & angka di
          kanan grafik dibuang, plotnya jadi selebar kartu dan label ujung tidak
          bisa lagi bertumpuk atau turun ke baris tanggal (bagian 302). */
       /* bawah 20, bukan 16: halo r 7 di titik bernilai 0 (y(0) + 7) tetap
@@ -2023,12 +2036,14 @@ const Admin = (() => {
       const x = (i) => kiri + i * ((W - kiri - kanan) / (n - 1)), y = (v) => atas + (H - atas - bawah) * (1 - v / maks);
       const tot = ss.reduce((a, s) => a + s.d.reduce((p, q) => p + q, 0), 0);
       const tengah = maks / 2, fmt = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: v < 10 ? 1 : 0 });
+      /* Angka legenda: satu desimal di bawah 100 jt ("24,3 jt"), bulat di atasnya ("386 jt"). */
+      const fmtJt = (v) => v.toLocaleString('id-ID', { maximumFractionDigits: v < 100 ? 1 : 0 });
       const langkah = Math.max(1, Math.round(n / 4));
       
       const bertgl = tgl.map((t, i) => i).filter((i) => (i % langkah === 0 && x(n - 1) - x(i) >= 54) || i === n - 1);
       const idG = 'gTren-' + (gp.jenis || 'semua');
       const kisi = (yy) => `<line x1="${kiri}" x2="${W - kanan}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" stroke="var(--garis)" stroke-dasharray="1 4" stroke-linecap="round"/>`;
-      return `<div class="tren-cab">${kepala}<span class="tren-total">${n} hari <b>${esc(fmt(tot))} jt</b></span></div>
+      return `<div class="tren-cab">${kepala}<span class="tren-total">${nPenuh} hari <b>${esc(fmt(tot))} jt</b></span></div>
         <svg class="viz-cab" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Tren ${esc(gp.label)}">
           <defs>${ss.map((s, k) => `<linearGradient id="${idG}-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.c}" stop-opacity=".3"/><stop offset="1" stop-color="${s.c}" stop-opacity="0"/></linearGradient>`).join('')}</defs>
           ${kisi(y(maks / 1.12))}${kisi(y(tengah))}${kisi(y(0))}
@@ -2040,12 +2055,14 @@ const Admin = (() => {
           ${ss.map((s) => bertgl.map((i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(s.d[i]).toFixed(1)}" r="7" fill="${s.c}" opacity=".2"/><circle cx="${x(i).toFixed(1)}" cy="${y(s.d[i]).toFixed(1)}" r="3.4" fill="${s.c}" stroke="var(--panel)" stroke-width="1.6"/>`).join('')).join('')}
           ${bertgl.map((i) => `<text x="${x(i).toFixed(1)}" y="${H - 3}" text-anchor="${i === n - 1 ? 'end' : 'middle'}">${esc(String(tgl[i]).substring(8, 10) + '/' + String(tgl[i]).substring(5, 7))}</text>`).join('')}
         </svg>
-        <div class="tren-legenda">${ss.map((s) => `<span><i style="background:${s.c};box-shadow:0 0 0 3px ${s.c}40"></i>${esc(s.k)}<b>${esc(fmt(s.d[n - 1]))}</b></span>`).join('')}</div></div>`;
+        <div class="tren-legenda">${ss.map((s) => `<span><i style="background:${s.c};box-shadow:0 0 0 3px ${s.c}40"></i>${esc(s.k)}<b title="total ${nPenuh} hari">${esc(fmtJt(s.tot))} jt</b></span>`).join('')}</div></div>`;
     };
     /* Jam perhitungannya ditulis (TTL grafik di server): angka sepuluh menit
        lalu tidak boleh menyamar jadi angka sekarang. */
-    gantiCab('cabTren', kartuTrenCab(n + ' hari · juta rupiah' + (g.dihitung ? ' · per ' + waktuTampil(g.dihitung) : ''),
+    gantiCab('cabTren', kartuTrenCab(nPenuh + ' hari · juta rupiah' + (g.dihitung ? ' · per ' + waktuTampil(g.dihitung) : ''),
       cabDash.grup.map(panel).join('')));
+    const panelTren = Array.from(document.querySelectorAll('#cabTren .tren-cab'));
+    tinggiIsiTrenHari = panelTren.length ? Math.round(panelTren[panelTren.length - 1].getBoundingClientRect().bottom - panelTren[0].getBoundingClientRect().top) : 0;
   }
 
   /** Grafik 30 hari dipakai BERSAMA kartu tren lama — satu permintaan, bukan dua. */
