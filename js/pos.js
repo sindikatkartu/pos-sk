@@ -1493,6 +1493,19 @@ function bulanPeriode(jenis, kini) {
   return tanggalLokal(d).substring(0, 7);
 }
 
+/* ==================== KLIK BARIS → SUMBER (bagian 538) ====================
+   Dipakai app.js (Keuangan) dan admin.js (COA, Arus kas, Konsolidasi); pendengar
+   kliknya satu, di app.js. Satu baris petunjuk per tabel: HP tidak punya kursor
+   untuk memberi tahu baris mana yang bisa diklik. */
+const PETUNJUK_KLIK_BARIS = (teks) => '<p class="petunjuk-klik">' + teks + '</p>';
+
+/** Atribut baris yang membuka Buku besar `kode`; '' bila tidak berhak membacanya. */
+function atributBukaAkun(kode, periode, cabang) {
+  if (!kode || typeof bolehIzin !== 'function' || !bolehIzin('laporan_keuangan', 'lihat')) return '';
+  return 'class="baris-klik" tabindex="0" title="Buka Buku besar ' + esc(kode) + '" data-bb-akun="' + esc(kode) + '"' +
+    (periode ? ' data-bb-periode="' + esc(periode) + '"' : '') + (cabang ? ' data-bb-cabang="' + esc(cabang) + '"' : '');
+}
+
 const Periode = {
   PILIHAN: PERIODE_PILIHAN, BULANAN: PERIODE_BULANAN,
   rentang: rentangPeriode, bulan: bulanPeriode,

@@ -1123,6 +1123,12 @@ body:not(:has(#layarKasir.aktif)) .bar-atas .isi-tengah.teks-berjalan > * { disp
   background: transparent; color: var(--teks-redup); white-space: nowrap;
   border: 1px solid var(--garis); line-height: 20px;
 }
+/* Lencana KETERANGAN di kartu Persetujuan ("angka sudah berubah — tolak", "shift sesudahnya
+   ikut berubah") boleh turun baris di HP: kalimatnya lebih panjang daripada kolom nilai kartu
+   HP 320 (±180 px) dan terpotong tepi kartunya (bagian 537; yang pertama sejak bagian 464). */
+@media (max-width: 620px) {
+  #isiPersetujuan tbody td .lencana { white-space: normal; text-align: left; max-width: 100%; }
+}
 /* Titik HANYA pada lencana berwarna — lencana warna itu menyampaikan KEADAAN
    (aktif, nonaktif, menunggu), dan titiknya menegaskan keadaan itu. Lencana
    netral cuma label: jumlah, nama peran, nama satuan. Sebelum ini semuanya
@@ -2104,6 +2110,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
 tbody tr.baris-klik { cursor: pointer; }
+/* Klik baris → sumber (bagian 538): satu baris petunjuk di atas tabelnya — HP tidak
+   punya kursor untuk memberi tahu baris mana yang bisa diklik. Akun yang sedang
+   dibuka disorot di rincian jurnal. */
+.petunjuk-klik { color: var(--teks-redup); font-size: var(--fs-12); margin: 2px 0 8px; }
+#tabelRincianJurnal tr.sorot-akun td { background: color-mix(in srgb, var(--peringatan) 16%, transparent); }
+tbody tr.baris-klik:focus-visible td { background: var(--panel-2); }
 .tautan-baris { text-decoration: underline; text-underline-offset: 2px; }
 /* Kolom angka tidak boleh patah baris.
    Tanpa `white-space: nowrap`, kolom yang sempit membuang "Rp" ke baris sendiri
@@ -2547,6 +2559,13 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
 .jh-b { display: block; width: calc(35% - 1px); border-radius: 3px 3px 0 0; }
 .jh-satu .jh-b { width: calc(100% - 2px); }
 .jh-sumbu { margin-top: 4px; }
+/* HP sangat sempit (bagian 536, pemilik 23 Nov 2026): di 320 px satu slot jam 12,9 px dan
+   tulisan "08" 13,2 px — kelimabelas label saling menimpa. Hanya di <= 340 px label
+   SELANG-SELING (08, 10, … 22); 360 px ke atas tetap lengkap (bagian 293: "tetap cantumkan
+   jamnya lengkap"). visibility, bukan display: kolomnya tetap sejajar batangnya. */
+@media (max-width: 340px) {
+  #cabJam .jh-jam span:nth-child(even) { visibility: hidden; }
+}
 .jh-sumbu .jh-nama { color: var(--teks-redup); font-size: var(--fs-11); font-weight: 600; justify-content: center; padding-bottom: 0; }
 .jh-jam { display: grid; font-size: var(--fs-11); color: var(--teks-redup); text-align: center; font-variant-numeric: tabular-nums; }
 .ket-cab { font-size: var(--fs-11); color: var(--teks-redup); margin: 6px 0 0; }
@@ -3165,11 +3184,19 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
   .gulir-x > table.matriks-kons > tbody,
   .gulir-x > table.matriks-kons > tbody > tr,
   .gulir-x > table.matriks-kons > tbody > tr > td { display: revert; }
+  /* clip-path ikut dipulihkan (bagian 536): susunan kartu umum menyembunyikan kepala
+     tabel dengan clip DAN clip-path; yang dipulihkan dulu hanya clip, jadi kepala
+     "Akun · Gabungan" memakan 33 px tetapi tidak terlihat di HP. */
   .gulir-x > table.matriks-kons > thead {
-    position: static; width: auto; height: auto; overflow: visible; clip: auto;
+    position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none;
   }
   .gulir-x > table.matriks-kons > tbody > tr > td::before { content: none; }
   .gulir-x > table.matriks-kons > tbody > tr > td { padding: 8px 0; }
+  /* Sel pertama: aturan susunan kartu ".kartu > .gulir-x > table > tbody > tr > td:first-child
+     { padding-left: 38% }" (ruang untuk label ::before) lebih spesifik daripada baris di atas,
+     jadi nama akun terdorong 114 px ke kanan di HP 390 dan tinggal 72 px lebarnya di HP 320 —
+     padahal tabel ini tidak memakai label itu (bagian 536). */
+  .kartu > .gulir-x > table.matriks-kons > tbody > tr > td:first-child { padding-left: 0; }
 
   /* Tiga kolom sumber disembunyikan — isinya sudah pindah ke bawah nama. */
   table.matriks-kons th.angka:not(.gabung),
@@ -3193,6 +3220,22 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
    spesifik daripada susunan kartu umum, jadi urutan penulisan bukan soal.
    clip-path ikut dipulihkan: susunan umum menyembunyikan kepala tabel dengan itu. */
 .ket-lr-cabang { margin: 10px 0 0; color: var(--teks-redup); font-size: var(--fs-12); }
+/* LEBAR TANGGUNG (bagian 536, diukur dengan Rp 9.999.999.999 di semua kolom): tujuh kolom
+   miliaran butuh 785 px; di HP mendatar (wadah 579 px) dan tablet tegak (708 px) tabelnya
+   bergulir dan yang tersembunyi justru Laba bersih & Margin. 621–700 px: ringkas tiga kolom
+   seperti HP tegak. 701–900 px: huruf 12 px dan jarak kolom dirapatkan — tujuh kolom muat. */
+@media (min-width: 621px) and (max-width: 700px) {
+  table.lr-cabang .rinci-lr { display: none; }
+}
+@media (min-width: 701px) and (max-width: 900px) {
+  table.lr-cabang { font-size: var(--fs-12); }
+  .kartu > .gulir-x > table.lr-cabang > thead > tr > th,
+  .kartu > .gulir-x > table.lr-cabang > tbody > tr > td { padding-left: 5px; padding-right: 5px; }
+  .kartu > .gulir-x > table.lr-cabang > thead > tr > th:first-child,
+  .kartu > .gulir-x > table.lr-cabang > tbody > tr > td:first-child { padding-left: var(--tepi-x); }
+  .kartu > .gulir-x > table.lr-cabang > thead > tr > th:last-child,
+  .kartu > .gulir-x > table.lr-cabang > tbody > tr > td:last-child { padding-right: var(--tepi-x); }
+}
 @media (max-width: 620px) {
   .gulir-x > table.lr-cabang { display: table; width: 100%; }
   .gulir-x > table.lr-cabang > thead {

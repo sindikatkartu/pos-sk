@@ -266,6 +266,11 @@ const wilayahLayar = (id) => WILAYAH.kantor.includes(id) ? 'kantor' : (WILAYAH.t
    judul layar — 360 px: 9 → 15 judul terpotong; 412 px: 2 → 8. Dua-duanya
    ditulis, CSS yang memilih; pembaca layar selalu mendapat "Back Office". */
 const TEKS_KANTOR = 'Back Office';
+/* Nama cabang di JUDUL laporan keuangan (bagian 536, pemilik 23 Nov 2026): server
+   mengirim "*" untuk gabungan dan kode pusat untuk Back Office — di judul keduanya
+   ditulis namanya, bukan kodenya ("Laba Rugi — 2026-11 · *" terbaca salah ketik). */
+const namaCabangBuku = (c) => { const k = String(c == null ? '' : c);
+  return k === '*' ? 'Semua cabang' : (kodeCabangPusat() && k === kodeCabangPusat() ? TEKS_KANTOR : k); };
 const TEKS_KANTOR_PENDEK = 'BO';
 let cabangLencana = '—';
 /** Lencana cabang di bilah atas: cabang login, atau "Back Office" di layar kantor. */
@@ -4930,6 +4935,10 @@ async function muatDaftarShift() {
   try {
     await denganSimpananLap(wadah, 'daftar_shift', par,
       () => API.daftarShift({ dari: par.dari, sampai: par.sampai, ...(lintas ? { cabang: par.cabang } : {}) }), (d) => {
+    /* Pengajuan koreksi shift milik pengaju (bagian 540) — di bawah kartu daftar, sebelum
+       jalan keluar "tidak ada shift": pengajuannya tetap terbaca walau rentangnya kosong. */
+    const ps = $('#pengajuanShiftSaya');
+    if (ps) ps.innerHTML = Admin.kartuPengajuanSaya(d.pengajuan_saya, { id: 'kartuPengajuanShift', apa: 'Koreksi shift', kolom: 'Shift' });
     /* Kolom Cabang hanya bila yang tampil bisa lebih dari satu cabang. */
     const kolCabang = lintas && par.cabang === '*';
     const rows = d.shift || [];
@@ -7185,6 +7194,67 @@ async function balikJurnalManual(uuid, no) {
  */
 let _bbAkun = '';
 
+/* ==================== KLIK BARIS → SUMBER (bagian 538) ====================
+ * Pemilik 23 Nov 2026: "setiap baris tabel bisa diklik dan lari ke sumber".
+ * Baris yang membawa SATU akun (COA, Neraca, Neraca saldo, beban Laba Rugi,
+ * Arus kas per akun, Konsolidasi) membuka Buku besar akun itu; baris Buku besar
+ * membuka rincian jurnalnya. Satu penolong untuk semua pemanggil — layar tidak
+ * merakit perpindahan sendiri-sendiri. Baris yang angkanya HITUNGAN (Laba Tahun
+ * Berjalan, total, saldo awal/akhir) tidak bisa diklik: tidak ada satu akun pun
+ * di belakangnya.
+ */
+/* PETUNJUK_KLIK_BARIS dan atributBukaAkun tinggal di pos.js: admin.js ikut memakainya. */
+
+/** Buka Buku besar satu akun di layar Keuangan, pada bulan & cabang yang diminta. */
+function bukaBukuBesar(kode, periode, cabang) {
+  if (!kode || !bolehIzin('laporan_keuangan', 'lihat')) return;
+  _bbAkun = String(kode);
+  if (periode && /^\d{4}-\d{2}$/.test(periode)) {
+    const cocok = Periode.BULANAN.find(([v]) => v !== 'kustom' && Periode.bulan(v) === periode);
+    if (cocok) Periode.terapkan(PERIODE_KEU, cocok[0]);
+    else { Periode.terapkan(PERIODE_KEU, 'kustom'); $('#keuPeriode').value = periode; }
+  }
+  const sel = $('#keuCabang');
+  if (cabang && sel && [...sel.options].some(o => o.value === cabang)) sel.value = cabang;
+  /* keuTerakhir diisi DULU: bukaLayar memuat Laba Rugi bila Keuangan belum pernah
+     dibuka — satu panggilan server yang langsung dibuang. */
+  keuTerakhir = tampilkanBukuBesar;
+  bukaLayar('keuangan');
+  return pilihTabKeu('bukubesar');
+}
+
+const SUMBER_JURNAL = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
+  RETUR_BELI: 'Retur beli', OPNAME: 'Stok opname', TRANSFER: 'Transfer',
+  PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
+  LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa',
+  PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject',
+  PRODUKSI_TERIMA: 'Terima produksi' };
+
+/** Rincian satu jurnal (baca-saja), dibuka dari baris Buku besar. `akun` disorot. */
+async function bukaRincianJurnal(uuid, akun) {
+  Admin.dokumen('Rincian jurnal', rangkaLaporan());
+  let d;
+  try { d = await API.rincianJurnal({ uuid }); }
+  catch (e) { return Admin.dokumen('Rincian jurnal', `<div class="pesan galat">${esc(e.message)}</div>`); }
+  const lintas = new Set(d.baris.map(b => b.cabang)).size > 1;
+  const baris = d.baris.map(b => `<tr${b.kode_akun === akun ? ' class="sorot-akun"' : ''}>
+      <td data-l="Akun">${esc(b.kode_akun)} ${esc(b.nama_akun)}${b.kode_akun === akun ? ' <span class="lencana kuning">akun ini</span>' : ''}
+        ${lintas || (b.keterangan && b.keterangan !== d.keterangan) ? `<span class="petunjuk" style="display:block;margin:0">${[lintas ? namaCabangBuku(b.cabang) : '', b.keterangan !== d.keterangan ? b.keterangan : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}</td>
+      <td class="kanan" data-l="Debit">${b.debit ? rp(b.debit) : ''}</td>
+      <td class="kanan" data-l="Kredit">${b.kredit ? rp(b.kredit) : ''}</td></tr>`).join('');
+  const bisaDok = d.dokumen && d.dokumen.jenis === 'PEMBELIAN' && bolehIzin('pembelian', 'lihat');
+  Admin.dokumen('Rincian jurnal', `
+    <p class="petunjuk" style="margin:0 0 10px">${esc(d.no_jurnal)} · ${esc(tglTampil(d.tanggal))} · ${esc(SUMBER_JURNAL[d.sumber] || d.sumber || '—')} · ${esc(namaCabangBuku(d.cabang))}
+      ${d.pembalik ? ' <span class="lencana abu">pembalik</span>' : ''}<br>${esc(d.keterangan)}</p>
+    <div class="gulir-x"><table id="tabelRincianJurnal">
+      <thead><tr><th>Akun</th><th class="kanan">Debit</th><th class="kanan">Kredit</th></tr></thead>
+      <tbody>${baris}
+        <tr class="tebal pisah"><td data-l="">Jumlah</td><td class="kanan" data-l="Debit">${rp(d.total_debit)}</td>
+          <td class="kanan" data-l="Kredit">${rp(d.total_kredit)}</td></tr></tbody></table></div>`,
+    (bisaDok ? `<button class="tombol utama" id="btnJurnalDokumen" data-uuid="${esc(d.dokumen.uuid)}" data-cabang="${esc(d.dokumen.cabang)}">${ikonAksi('pembelian')}<span>Buka pembelian</span></button>` : '') +
+    '<button class="tombol" data-tutup="1">' + ikonAksi('batal') + '<span>Tutup</span></button>');
+}
+
 async function tampilkanBukuBesar() {
   const w = $('#hasilKeuangan');
   const tiket = ++_keuTiket;
@@ -7194,7 +7264,22 @@ async function tampilkanBukuBesar() {
      ditawarkan menentukan akun yang ditarik. */
   const ambil = async () => {
     const daftar = await API.daftarAkunBergerak(par);
-    const akun = daftar.akun || [];
+    let akun = daftar.akun || [];
+    /* Akun yang DIMINTA dibuka walau tidak bergerak di periode ini (bagian 538):
+       klik dari COA/Neraca harus mendarat di akun yang diklik, bukan diam-diam
+       di akun pertama daftar. Ia ditambahkan ke pilihan; kalau akunnya memang
+       tidak ada lagi, baru jatuh ke akun pertama. */
+    if (diminta && !akun.some(a => a.kode === diminta)) {
+      try {
+        const d = await API.bukuBesar({ ...par, kode_akun: diminta });
+        akun = [{ kode: d.akun.kode, nama: d.akun.nama, tipe: d.akun.tipe, normal: d.akun.normal, diam: true }].concat(akun);
+        return { akun, kode: diminta, d };
+      } catch (e) {
+        /* Hanya "akun tidak dikenal" yang jatuh ke akun pertama; galat jaringan dilempar —
+           layar menulis galatnya, bukan diam-diam membuka akun lain (peninjau-rilis bagian 538). */
+        if (e && e.kode !== 'NOTFOUND') throw e;
+      }
+    }
     const kode = akun.some(a => a.kode === diminta) ? diminta : (akun.length ? akun[0].kode : '');
     return { akun, kode, d: kode ? await API.bukuBesar({ ...par, kode_akun: kode }) : null };
   };
@@ -7210,7 +7295,7 @@ async function tampilkanBukuBesar() {
       <div class="saring-baris">
         <div class="kendali-penuh"><label>Akun</label>
           <select id="bbAkun" title="Akun">
-            ${akun.map(a => `<option value="${esc(a.kode)}" ${a.kode === _bbAkun ? 'selected' : ''}>${esc(a.kode)} — ${esc(a.nama)}</option>`).join('')}
+            ${akun.map(a => `<option value="${esc(a.kode)}" ${a.kode === _bbAkun ? 'selected' : ''}>${esc(a.kode)} — ${esc(a.nama)}${a.diam ? ' (tidak bergerak)' : ''}</option>`).join('')}
           </select></div>
       </div>
       <p class="petunjuk">Riwayat satu akun: saldo awal bulan, setiap catatan yang menambah atau
@@ -7225,15 +7310,9 @@ async function tampilkanBukuBesar() {
     }
 
     const d = h.d;
-    const SUMBER = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
-                     RETUR_BELI: 'Retur beli', OPNAME: 'Stok opname', TRANSFER: 'Transfer',
-                     PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
-                     LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa',
-                     /* bagian 445 */
-                     PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject',
-                     /* bagian 465 */
-                     PRODUKSI_TERIMA: 'Terima produksi' };
-    const baris = (b) => `<tr>
+    /* Nama sumber: SUMBER_JURNAL (satu daftar, dipakai juga rincian jurnal — bagian 538). */
+    const SUMBER = SUMBER_JURNAL;
+    const baris = (b) => `<tr class="baris-klik" tabindex="0" title="Buka rincian jurnal ${esc(b.no_jurnal)}" data-jurnal="${esc(b.uuid_jurnal)}">
       <td data-l="Tanggal">${esc(tglTampil(b.tanggal))}<span class="petunjuk" style="display:block">${esc(b.no_jurnal)}</span></td>
       <td data-l="Sumber">${esc(SUMBER[b.sumber] || b.sumber)}</td>
       <td data-l="Keterangan">${esc(b.keterangan)}</td>
@@ -7244,8 +7323,9 @@ async function tampilkanBukuBesar() {
 
     w.innerHTML = pilih + tombolUnduh('buku_besar', { ...par, kode_akun: _bbAkun }) + `
       <div class="kartu laporan-uang">
-        <div class="bar-alat"><h3>${esc(d.akun.kode)} ${esc(d.akun.nama)} — ${esc(d.periode)} · ${esc(d.cabang)}</h3>
+        <div class="bar-alat"><h3>${esc(d.akun.kode)} ${esc(d.akun.nama)} — ${esc(d.periode)} · ${esc(namaCabangBuku(d.cabang))}</h3>
           </div>
+        ${d.baris.length ? PETUNJUK_KLIK_BARIS('Klik baris untuk membuka jurnalnya: semua akun yang ikut tercatat, dan dokumen asalnya.') : ''}
         <div class="gulir-x"><table>
           <thead><tr><th>Tanggal</th><th>Sumber</th><th>Keterangan</th>
             <th class="kanan">Debit</th><th class="kanan">Kredit</th><th class="kanan">Saldo</th></tr></thead>
@@ -7278,7 +7358,9 @@ async function tampilkanLabaRugi() {
   const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
   if (!bacaSimpanLap('laba_rugi', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
   const gambarLR = (d) => {
-    const brs = (l, n, kelas = '') => `<tr class="${kelas}"><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
+    /* Atribut class SATU: atr (atributBukaAkun) membawa class="baris-klik" sendiri, dan atribut
+       kedua yang senama dibuang pengurai HTML — kursor tangannya hilang (peninjau-rilis bagian 538). */
+    const brs = (l, n, kelas = '', atr = '') => `<tr${kelas ? ' class="' + kelas + '"' : ''} ${atr}><td>${esc(l)}</td><td class="angka">${rp(n)}</td></tr>`;
     /* Ringkasan per cabang (pemilik 22 Nov 2026): hanya bila server mengirim
        per_cabang (pilihan "Semua cabang"). Baris penutupnya angka gabungan d
        sendiri, bukan jumlah ulang di sini. Beban ditulis minus supaya tiap baris
@@ -7287,13 +7369,14 @@ async function tampilkanLabaRugi() {
     const pc = Array.isArray(d.per_cabang) && d.per_cabang.length > 1 ? d.per_cabang : null;
     const persenLR = (n) => String(Number(n) || 0).replace('.', ',') + '%';
     const selLR = (n, kelas = '', tebal = false) => `<td class="angka${kelas}${n < 0 ? ' uang-minus' : ''}">${tebal ? '<b>' + rp(n) + '</b>' : rp(n)}</td>`;
-    const brsCab = (nama, x, kelas = '') => `<tr class="${kelas}"><td>${esc(nama)}</td>${selLR(x.penjualan_bersih, ' rinci-lr')}${selLR(x.laba_kotor, ' rinci-lr')}${selLR(-x.beban_operasional, ' rinci-lr')}${selLR(x.lain_lain, ' rinci-lr')}${selLR(x.laba_bersih, '', true)}<td class="angka${x.margin_bersih_persen < 0 ? ' uang-minus' : ''}">${x.penjualan_bersih ? persenLR(x.margin_bersih_persen) : '—'}</td></tr>`;
+    const brsCab = (nama, x, kelas = '', atr = '') => `<tr${kelas ? ' class="' + kelas + '"' : ''} ${atr}><td>${esc(nama)}</td>${selLR(x.penjualan_bersih, ' rinci-lr')}${selLR(x.laba_kotor, ' rinci-lr')}${selLR(-x.beban_operasional, ' rinci-lr')}${selLR(x.lain_lain, ' rinci-lr')}${selLR(x.laba_bersih, '', true)}<td class="angka${x.margin_bersih_persen < 0 ? ' uang-minus' : ''}">${x.penjualan_bersih ? persenLR(x.margin_bersih_persen) : '—'}</td></tr>`;
     const ringkasCab = pc ? `<div class="kartu laporan-uang" id="kartuLRCabang"><div class="bar-alat"><h3>Ringkasan per cabang</h3></div><div class="gulir-x"><table class="lr-cabang">
       <thead><tr><th>Cabang</th><th class="angka rinci-lr">Penjualan bersih</th><th class="angka rinci-lr">Laba kotor</th><th class="angka rinci-lr">Beban</th><th class="angka rinci-lr">Lain-lain</th><th class="angka">Laba bersih</th><th class="angka">Margin</th></tr></thead>
-      <tbody>${pc.map((x) => brsCab(x.cabang === kodeCabangPusat() ? TEKS_KANTOR : x.cabang, x)).join('')}
+      <tbody>${pc.map((x) => brsCab(x.cabang === kodeCabangPusat() ? TEKS_KANTOR : x.cabang, x, '',
+        `class="baris-klik" tabindex="0" title="Buka Laba Rugi ${esc(x.cabang)}" data-lr-cabang="${esc(x.cabang)}"`)).join('')}
       ${brsCab('Semua cabang', { penjualan_bersih: d.penjualan_bersih, laba_kotor: d.laba_kotor, beban_operasional: d.beban_operasional, lain_lain: (Number(d.pendapatan_lain) || 0) - (Number(d.beban_lain) || 0), laba_bersih: d.laba_bersih, margin_bersih_persen: d.margin_bersih_persen }, 'tebal pisah')}</tbody>
-      </table></div><p class="ket-lr-cabang">Beban kantor hanya masuk baris ${TEKS_KANTOR} bila dicatat dengan Ditanggung oleh: ${TEKS_KANTOR}; selebihnya ikut toko pencatatnya.</p></div>` : '';
-    w.innerHTML = tombolUnduh('laba_rugi', par) + ringkasCab + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(d.cabang)}</h3></div><div class="gulir-x"><table>
+      </table></div>${PETUNJUK_KLIK_BARIS('Klik baris cabang untuk membuka Laba Rugi cabang itu.')}<p class="ket-lr-cabang">Beban kantor hanya masuk baris ${TEKS_KANTOR} bila dicatat dengan Ditanggung oleh: ${TEKS_KANTOR}; selebihnya ikut toko pencatatnya.</p></div>` : '';
+    w.innerHTML = tombolUnduh('laba_rugi', par) + ringkasCab + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(namaCabangBuku(d.cabang))}</h3></div>${d.rincian_beban.length && bolehIzin('laporan_keuangan', 'lihat') ? PETUNJUK_KLIK_BARIS('Klik baris beban untuk membuka Buku besar akunnya.') : ''}<div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
       ${brs('(−) Retur Penjualan', -d.retur_penjualan)}
@@ -7301,7 +7384,7 @@ async function tampilkanLabaRugi() {
       ${brs('(−) Harga Pokok Penjualan', -d.hpp)}
       ${brs('LABA KOTOR (' + d.margin_kotor_persen + '%)', d.laba_kotor, 'tebal pisah')}
       <tr class="pisah"><td colspan="2" style="color:var(--teks-redup);font-size:var(--fs-12)">BEBAN OPERASIONAL</td></tr>
-      ${d.rincian_beban.map(b => brs('  ' + b.kode + ' ' + b.nama, -b.jumlah)).join('')}
+      ${d.rincian_beban.map(b => brs('  ' + b.kode + ' ' + b.nama, -b.jumlah, '', atributBukaAkun(b.kode, d.periode, par.cabang))).join('')}
       ${brs('Total Beban Operasional', -d.beban_operasional, 'tebal')}
       ${brs('LABA USAHA', d.laba_usaha, 'tebal pisah')}
       ${brs('(+) Pendapatan Lain', d.pendapatan_lain)}
@@ -7323,12 +7406,13 @@ async function tampilkanNeraca() {
   const gambarNeraca = (d) => {
     const tabel = (judul, arr, total) => `<div class="kartu laporan-uang"><div class="bar-alat"><h3>${judul}</h3></div><div class="gulir-x"><table>
       ${arr.filter(a => !(String(a.kode) === '1-1200' && Math.abs(Number(a.jumlah) || 0) < 0.5))   /* 1-1200 ditutup — hanya tampil bila tak nol (bagian 430) */
-        .map(a => `<tr><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
+        .map(a => `<tr ${String(a.kode) === '3-9100' ? 'title="Dihitung dari Laba Rugi Januari s.d. bulan ini — bukan satu akun"' : atributBukaAkun(a.kode, d.periode, par.cabang)}><td>${esc(a.kode)} ${esc(a.nama)}</td><td class="angka">${rp(a.jumlah)}</td></tr>`).join('')}
       <tr class="tebal pisah"><td>TOTAL</td><td class="angka">${rp(total)}</td></tr></table></div></div>`;
     w.innerHTML = tombolUnduh('neraca', par) + `
       <div class="pesan ${d.seimbang ? 'sukses' : 'galat'}">
         ${d.seimbang ? '✓ Neraca seimbang' : '✗ Neraca TIDAK seimbang — selisih ' + rp(d.selisih)}
       </div>
+      ${bolehIzin('laporan_keuangan', 'lihat') ? '<p class="petunjuk">Klik baris akun untuk membuka Buku besarnya.</p>' : ''}
       <div class="petak laporan-sempit">${tabel('ASET', d.aset, d.total_aset)}
       <div>${tabel('LIABILITAS', d.liabilitas, d.total_liabilitas)}${tabel('EKUITAS', d.ekuitas, d.total_ekuitas)}</div></div>`;
   };
@@ -7348,7 +7432,7 @@ async function tampilkanNeracaSaldo() {
   const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
   if (!bacaSimpanLap('neraca_saldo', par)) w.innerHTML = '<div class="kartu">Menghitung…</div>';
   const gambarNS = (d) => {
-    const baris = (a) => `<tr${a.hitungan ? ' style="color:var(--teks-redup)" title="Dihitung, bukan akun di buku: laba Januari s.d. bulan lalu"' : ''}>
+    const baris = (a) => `<tr${a.hitungan ? ' style="color:var(--teks-redup)" title="Dihitung, bukan akun di buku: laba Januari s.d. bulan lalu"' : ' ' + atributBukaAkun(a.kode, d.periode, par.cabang)}>
       <td data-l="Kode">${esc(a.kode)}</td><td data-l="Akun">${esc(a.nama)}</td>
       <td class="angka" data-l="Saldo awal">${rp(a.saldo_awal)}</td>
       <td class="angka" data-l="Debit">${a.debit ? rp(a.debit) : ''}</td>
@@ -7359,7 +7443,8 @@ async function tampilkanNeracaSaldo() {
         ${d.seimbang ? '✓ Neraca saldo seimbang — saldo akhir sisi debit sama dengan sisi kredit'
                      : '✗ Neraca saldo TIDAK seimbang — selisih ' + rp(d.selisih)}
       </div>
-      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Neraca saldo — ${esc(d.periode)} · ${esc(d.cabang)}</h3></div>
+      <div class="kartu laporan-uang"><div class="bar-alat"><h3>Neraca saldo — ${esc(d.periode)} · ${esc(namaCabangBuku(d.cabang))}</h3></div>
+      ${d.akun.length ? PETUNJUK_KLIK_BARIS('Klik baris akun untuk membuka Buku besarnya.') : ''}
       <div class="gulir-x"><table>
         <thead><tr><th>Kode</th><th>Akun</th><th class="kanan">Saldo awal</th>
           <th class="kanan">Debit</th><th class="kanan">Kredit</th><th class="kanan">Saldo akhir</th></tr></thead>
@@ -9084,6 +9169,38 @@ function pasangEvent() {
   });
   $('#hasilKeuangan').addEventListener('change', e => {
     if (e.target.id === 'bbAkun') { _bbAkun = e.target.value; tampilkanBukuBesar(); }
+  });
+  /* Klik baris → sumber (bagian 538). Satu pendengar di dokumen: baris akun ada
+     di layar Keuangan, COA, Kas & Bank, dan Konsolidasi. Klik pada tombol, menu ⋮
+     (popovernya anak baris), atau kendali isian di dalam baris BUKAN klik baris. */
+  const klikBarisSumber = (e) => {
+    if (document.body.classList.contains('tunggu')) return;
+    if (e.target.closest('button, a[href], input, select, textarea, label, [role="menu"], .menu-lain')) return;
+    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang]');
+    if (!tr) return;
+    /* Angka tersimpan (data-basi): penjaga pos.js hanya mendengar click — Enter dari
+       keyboard ditolak di sini dengan kalimat yang sama (peninjau-rilis bagian 538). */
+    if (tr.closest('[data-basi]')) {
+      if (e.type === 'keydown' && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        try { Admin.toast('Tunggu angka terbaru — yang tampil masih angka tersimpan.', 'info'); } catch (x) { /* toast belum siap */ }
+      }
+      return;
+    }
+    if (e.type === 'keydown') { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); }
+    if (tr.dataset.jurnal) return bukaRincianJurnal(tr.dataset.jurnal, _bbAkun);
+    if (tr.dataset.lrCabang) {
+      const sel = $('#keuCabang');
+      if (sel && [...sel.options].some(o => o.value === tr.dataset.lrCabang)) { sel.value = tr.dataset.lrCabang; return tampilkanLabaRugi(); }
+      return;
+    }
+    return bukaBukuBesar(tr.dataset.bbAkun, tr.dataset.bbPeriode, tr.dataset.bbCabang);
+  };
+  document.addEventListener('click', klikBarisSumber);
+  document.addEventListener('keydown', klikBarisSumber);
+  document.addEventListener('click', e => {
+    const b = e.target.closest('#btnJurnalDokumen');
+    if (b && !document.body.classList.contains('tunggu')) Admin.bukaPembelian(b.dataset.uuid, b.dataset.cabang);
   });
   /* Uji kebenaran (bagian 306: di layar Jurnal & Tutup Buku). Hasilnya di
      wadah sendiri di atas daftar jurnal. */

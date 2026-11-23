@@ -1958,7 +1958,7 @@ const Admin = (() => {
      kartu Tren melompat 25 px tiap pindah tab. Diukur, bukan dihitung dari angka
      grafik: tinggi isinya bergantung jumlah panel, legenda, dan lebar layar.
      Dijaga uji-tren-tab. */
-  let tinggiIsiTrenHari = 0;
+  let tinggiIsiTrenHari = 0, kunciTinggiTren = '';
   function isiCabTren(g, galatnya) {
     if (!cabDash) return;
     const seri = g && Array.isArray(g.seri_cabang) ? g.seri_cabang : null;
@@ -1991,14 +1991,6 @@ const Admin = (() => {
       el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="7 hari ${esc(c.cabang)}"><title>7 hari terakhir ${esc(c.cabang)}</title>
         <polyline points="${pt.join(' ')}" fill="none" stroke="${w}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${lx}" cy="${ly}" r="2.5" fill="${w}"/></svg>`;
     });
-    if (modeTrenCab === 'laba') {
-      gantiCab('cabTren', kartuTrenCab('laba kotor 6 bulan', '<div id="gLabaCab"' + (tinggiIsiTrenHari ? ' style="min-height:' + tinggiIsiTrenHari + 'px"' : '') + '></div>'));
-      if (Array.isArray(g.tren_bulanan) && g.tren_bulanan.length) {
-        Grafik.garis($('#gLabaCab'), { tanggal: g.tren_bulanan.map(x => x.periode),
-          seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(x => x.laba_kotor) }], tinggi: 160, tanpaTabel: true });
-      } else $('#gLabaCab').innerHTML = '<p class="grafik-kosong">Laba kotor hanya untuk peran yang berhak melihat margin.</p>';
-      return;
-    }
     const tgl = potong(g.tanggal), n = tgl.length;
     const wadahTren = $('#cabTren .isi-cab') || $('#cabTren');
     /* Batasnya SAMA dengan Grafik.garis (grafik.js: 320–900): di kartu yang lebih
@@ -2059,10 +2051,25 @@ const Admin = (() => {
     };
     /* Jam perhitungannya ditulis (TTL grafik di server): angka sepuluh menit
        lalu tidak boleh menyamar jadi angka sekarang. */
-    gantiCab('cabTren', kartuTrenCab(nPenuh + ' hari · juta rupiah' + (g.dihitung ? ' · per ' + waktuTampil(g.dihitung) : ''),
-      cabDash.grup.map(panel).join('')));
-    const panelTren = Array.from(document.querySelectorAll('#cabTren .tren-cab'));
-    tinggiIsiTrenHari = panelTren.length ? Math.round(panelTren[panelTren.length - 1].getBoundingClientRect().bottom - panelTren[0].getBoundingClientRect().top) : 0;
+    /* Tab "30 hari" digambar lalu DIUKUR; kuncinya lebar layar + lebar kartu + jumlah panel
+       + jumlah hari. Tab "Laba 6 bln" memesan tinggi itu — dan bila ukurannya basi (tab
+       Laba dibuka lebih dulu, layar diputar, panel berubah), tab "30 hari" digambar dulu
+       sekejap untuk diukur ulang, baru diganti Laba (bagian 536). */
+    const kunciTren = [window.innerWidth, lebarTren, cabDash.grup.length, n].join('|');
+    const gambarHari = () => {
+      gantiCab('cabTren', kartuTrenCab(nPenuh + ' hari · juta rupiah' + (g.dihitung ? ' · per ' + waktuTampil(g.dihitung) : ''),
+        cabDash.grup.map(panel).join('')));
+      const panelTren = Array.from(document.querySelectorAll('#cabTren .tren-cab'));
+      tinggiIsiTrenHari = panelTren.length ? Math.round(panelTren[panelTren.length - 1].getBoundingClientRect().bottom - panelTren[0].getBoundingClientRect().top) : 0;
+      kunciTinggiTren = kunciTren;
+    };
+    if (modeTrenCab !== 'laba') { gambarHari(); return; }
+    if (kunciTinggiTren !== kunciTren) gambarHari();
+    gantiCab('cabTren', kartuTrenCab('laba kotor 6 bulan', '<div id="gLabaCab"' + (tinggiIsiTrenHari ? ' style="min-height:' + tinggiIsiTrenHari + 'px"' : '') + '></div>'));
+    if (Array.isArray(g.tren_bulanan) && g.tren_bulanan.length) {
+      Grafik.garis($('#gLabaCab'), { tanggal: g.tren_bulanan.map(x => x.periode),
+        seri: [{ nama: 'Laba kotor', data: g.tren_bulanan.map(x => x.laba_kotor) }], tinggi: 160, tanpaTabel: true });
+    } else $('#gLabaCab').innerHTML = '<p class="grafik-kosong">Laba kotor hanya untuk peran yang berhak melihat margin.</p>';
   }
 
   /** Grafik 30 hari dipakai BERSAMA kartu tren lama — satu permintaan, bukan dua. */
@@ -2323,6 +2330,21 @@ const Admin = (() => {
   /* Tema berubah: hanya grafik laba (Grafik.garis menulis warnanya ke elemen) yang digambar ulang. */
   document.addEventListener('tema:berubah', () => {
     if (trenCabG && modeTrenCab === 'laba') isiCabTren(trenCabG);
+  });
+  /* LEBAR layar berubah (tablet diputar, jendela diubah): kartu Tren digambar ulang
+     (bagian 536). Tinggi grafik dua-panel (76 / 100 px) dan lebar kanvasnya dibaca saat
+     menggambar, jadi tanpa ini bentuk lama bertahan sampai Dashboard dimuat ulang.
+     Hanya LEBAR: di HP tinggi jendela berubah tiap bilah alamat muncul-hilang. */
+  let lebarLayarTren = window.innerWidth, jadwalTren = 0;
+  /* (typeof: admin.js juga dimuat di panggung uji tanpa jendela sungguhan.) */
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', () => {
+    if (window.innerWidth === lebarLayarTren) return;
+    clearTimeout(jadwalTren);
+    jadwalTren = setTimeout(() => {
+      lebarLayarTren = window.innerWidth;
+      const k = $('#cabTren');
+      if (trenCabG && cabDash && k && k.offsetParent !== null) isiCabTren(trenCabG);
+    }, 200);
   });
 
   /**
@@ -7516,7 +7538,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          akan salah tiap kali layarnya diputar. */
       const rinci = kol.map(k =>
         `<span>${esc(k.judul)} ${selK(b[k.kunci])}</span>`).join('');
-      return `<tr class="${b.total ? 'subtotal' : ''}">
+      /* bagian 538: baris berkode akun POS membuka Buku besar POS-nya — yang
+         dijelaskan Buku besar hanya kolom POS; Pulsa dan Accurate punya sumber sendiri.
+         Kolom POS nol = tidak ada yang bisa dijelaskan Buku besar, baris tidak diklik. */
+      const atr = !b.total && Number(b.pos) !== 0 && /^\d-\d{4}$/.test(String(b.kode || '')) && String(b.kode) !== '3-9100'
+        ? atributBukaAkun(b.kode, $('#konsPeriode') && $('#konsPeriode').value, '*') : '';
+      return `<tr${b.total ? ' class="subtotal"' : ''} ${atr}>
         <td class="akun">${b.kode ? '<span class="kode">' + esc(b.kode) + '</span> ' : ''}${esc(b.nama)}
           <span class="rinci-sumber">${rinci}</span></td>
         ${sel}<td class="angka gabung" data-l="Gabungan">${selK(jumlahBaris(b))}</td></tr>`;
@@ -7528,7 +7555,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <div class="gulir-x"><table class="matriks-kons">
         <thead><tr><th class="akun">Akun</th>${kepala}
           <th class="angka gabung">Gabungan</th></tr></thead>
-        <tbody>${isi}</tbody></table></div></div>`;
+        <tbody>${isi}</tbody></table></div>
+      ${/class="baris-klik"/.test(isi) ? PETUNJUK_KLIK_BARIS('Klik baris akun untuk membuka Buku besar POS-nya (kolom POS).') : ''}</div>`;
   }
 
   /* Muatan TERAKHIR disimpan supaya menukar tampilan tidak memanggil
@@ -8471,6 +8499,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         dari: $('#lapulsaDari').value, sampai: $('#lapulsaSampai').value,
         cabang: $('#lapulsaCabang')?.value || '' });
       $('#hasilLapulsa')._rows = d.shift || [];
+      /* undefined = server tidak mengirim (bukan pengaju, atau gagal dibaca) — bukan "kosong". */
+      $('#hasilLapulsa')._pengajuan = Array.isArray(d.pengajuan_saya) ? d.pengajuan_saya : null;
       gambarLaporanpulsa();
     } catch (e) { galat('#hasilLapulsa', e); }
   }
@@ -8552,7 +8582,34 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           </table>
         </div>
         ${rows.length ? '' : '<p class="pesan">Belum ada shift pulsa yang ditutup.</p>'}
-      </div>`;
+      </div>${kartuPengajuanKoreksiSaya(w._pengajuan)}`;
+  }
+
+  /* PENGAJUAN KOREKSI SAYA (bagian 537, pemilik 23 Nov 2026). Koreksi pulsa oleh selain
+     Owner diajukan dulu; dulu penolakan Owner tidak terbaca pengaju di layar mana pun, jadi
+     ia tidak pernah tahu harus mengajukan ulang. Kartunya hanya tampil bagi pengaju dan
+     hanya bila ada isinya (14 hari terakhir). (Tanpa petik-balik di komentar ini.) */
+  const LENCANA_PENGAJUAN = { MENUNGGU: ['menunggu', 'kuning'], DISAHKAN: ['disahkan', 'hijau'], DITOLAK: ['ditolak', 'merah'], DIGANTIKAN: ['digantikan', 'abu'] };
+  /* Satu pembuat untuk Laporan pulsa, Laporan shift, Kas & Bank, dan Absensi (bagian 540).
+     o.dokumen false = kolom pertama memajang JENIS pengajuan, bukan kodenya — kode dokumen
+     kas dan absen berupa uuid yang tidak berarti apa-apa bagi pembacanya. */
+  function kartuPengajuanKoreksiSaya(daftar, o) {
+    if (!daftar || !daftar.length) return '';
+    o = Object.assign({ id: 'kartuPengajuanPulsa', apa: 'Koreksi pulsa', kolom: 'Shift', dokumen: true }, o || {});
+    return `<div class="kartu" id="${o.id}">
+      <div class="bar-alat"><h3>Pengajuan koreksi saya</h3></div>
+      <p class="petunjuk">${esc(o.apa)} yang Anda ajukan dalam 14 hari terakhir. Yang ditolak tidak mengubah apa pun — baca alasannya, lalu ajukan lagi bila masih perlu.</p>
+      ${tabel([
+        /* Kode shift 23 huruf tanpa spasi: di susunan kartu HP ia harus boleh patah, kalau tidak menjulur keluar kartu. */
+        { judul: o.kolom, render: (x) => o.dokumen ? '<span style="overflow-wrap:anywhere">' + esc(x.dokumen) + '</span>' : esc(x.judul) },
+        { judul: 'Permintaan', render: (x) => `${esc(x.ringkas || x.judul)}${x.alasan ? `<div class="meta-kecil">“${esc(x.alasan)}”</div>` : ''}` },
+        { judul: 'Diajukan', render: (x) => esc(waktuTampil(x.waktu)) },
+        { judul: 'Status', render: (x) => { const l = LENCANA_PENGAJUAN[x.status] || [String(x.status || '').toLowerCase(), ''];
+            return `${lencanaDash(l[0], l[1])}${x.status === 'DITOLAK' && x.alasan_tolak ? `<div class="meta-kecil">${esc(x.alasan_tolak)}</div>` : ''}${
+              x.status === 'DIGANTIKAN' ? '<div class="meta-kecil">sudah dikoreksi Owner atas hal yang sama</div>' : ''}${
+              x.pemutus && x.status !== 'MENUNGGU' ? `<div class="meta-kecil">oleh ${esc(x.pemutus)} · ${esc(waktuTampil(x.waktu_putus))}</div>` : ''}`; } }
+      ], daftar, { kosong: 'Belum ada pengajuan.' })}
+    </div>`;
   }
 
   /* ==================== KOREKSI SHIFT PULSA (bagian 260) ====================
@@ -9047,6 +9104,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <p class="petunjuk">${st.bisa_ketik_saldo_awal
           ? 'Belum ada shift di cabang ini. Isi saldo yang SEKARANG ada di tiap aplikasi — diisi sekali saja, dan dicatat ke buku besar sebagai saldo pembukaan (Modal Pemilik). Mulai shift berikutnya, saldo awal diwarisi dari shift sebelumnya.'
           : 'Angka ini saldo akhir shift sebelumnya. Cocokkan dengan tiap aplikasi sebelum menekan Mulai hitungan. Kalau tidak sesuai, JANGAN lanjut — segera hubungi admin untuk dikoreksi. Sesudah shift berjalan, saldo awalnya tidak bisa diubah.'}</p>
+        ${/* bagian 540: koreksi saldo akhir shift sebelumnya masih menunggu Owner — pengingat, tidak menahan. */
+          (st.koreksi_menunggu || []).length ? `<div class="pesan peringatan" id="spsKoreksiMenunggu">
+          Saldo akhir shift sebelumnya masih punya pengajuan koreksi yang <strong>menunggu Owner</strong>:
+          ${st.koreksi_menunggu.map((x) => esc(x.ringkas)).join('; ')}. Kalau disahkan sesudah shift ini dibuka, saldo awal
+          shift ini ikut dikoreksi.</div>` : ''}
         <div class="gulir-x">
           <table class="tabel">
             <thead><tr><th>Sumber</th><th class="kanan">Saldo awal</th></tr></thead>
@@ -10558,7 +10620,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         { judul: 'Jenis', render: (b) => `<span class="lencana ${(JENIS_PS[b.jenis] || [])[1] || ''}">${esc((JENIS_PS[b.jenis] || [b.jenis])[0])}</span>${teksPengesah(b.jenis)}` },
         { judul: 'Permintaan', render: (b) => `${esc(b.judul)}${b.rincian ? `<div class="meta-kecil">${esc(b.rincian)}</div>` : ''}${b.alasan ? `<div class="meta-kecil">“${esc(b.alasan)}”</div>` : ''}${
           /* bagian 464: pengajuan yang angkanya sudah bergeser pasti ditolak saat disahkan. */
-          b.basi ? `<div>${lencanaDash('angka sudah berubah — tolak', 'merah')}</div>` : ''}` },
+          b.basi ? `<div>${lencanaDash(b.basi_sebab || 'angka sudah berubah — tolak', 'merah')}</div>` : ''}${
+          /* bagian 537: shiftnya sudah punya penerus — disahkan = saldo awal shift sesudahnya ikut berubah.
+             Teksnya pendek: versi "saldo awal shift sesudahnya ikut berubah" terpotong tepi kartu di HP 390;
+             kalimat lengkapnya ada di dialog Setujui. */
+          b.ikut ? `<div>${lencanaDash('shift sesudahnya ikut berubah', 'kuning')}</div>` : ''}` },
         { judul: 'Cabang', render: (b) => b.cabang ? `<span class="lencana">${esc(b.cabang)}</span>` : '—' },
         { judul: 'Oleh', render: (b) => `${esc(b.peminta || '—')}<div class="meta-kecil">${esc(waktuTampil(b.waktu))}</div>` },
         { judul: 'Nilai', angka: true, render: (b) => b.nilai === null || b.nilai === undefined ? '—' : rp(b.nilai) },
@@ -10583,20 +10649,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function putusPersetujuan(jenis, id, setuju, cabang) {
     const b = _butirPs.find((x) => x.jenis === jenis && x.id === id) || { judul: id };
     const ket = `<p class="petunjuk">${esc(b.judul)}${b.rincian ? ' · ' + esc(b.rincian) : ''}${b.peminta ? ' · diminta ' + esc(b.peminta) : ''}${b.cabang ? ' · ' + esc(b.cabang) : ''}</p>`;
-    let alasan = '';
+    let alasan = '', hasilKoreksi = null;
     if (setuju) {
       const peringatan = jenis === 'void'
         ? '<div class="pesan peringatan">Begitu disetujui, <strong>seluruh nota dibalik</strong> — stok kembali, jurnal dibalik penuh, piutang dan klaim petugasnya ikut dibatalkan.</div>'
         : jenis === 'diskon' ? '<p class="petunjuk">Kasir bisa langsung menyelesaikan notanya. Berlaku untuk nota itu saja, sekali pakai.</p>'
         /* bagian 443: yang disahkan dijalankan lewat pintu koreksi yang sama, atas data hari ini. */
-        : jenis === 'koreksi' ? '<p class="petunjuk">Begitu disahkan langsung tertulis — koreksi kas dan pulsa beserta jurnal selisihnya. Semua pemeriksaannya diulang atas data saat ini.</p>' : '';
+        : jenis === 'koreksi' ? '<p class="petunjuk">Begitu disahkan langsung tertulis — koreksi kas dan pulsa beserta jurnal selisihnya. Semua pemeriksaannya diulang atas data saat ini.</p>' +
+            (b.ikut ? '<div class="pesan peringatan">Shift ini sudah punya shift sesudahnya. Saldo akhir shift ini <strong>dan saldo awal shift sesudahnya</strong> dikoreksi bersama.</div>' : '') : '';
       if (!(await tanya('Setujui ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + peringatan, { ya: 'Setujui' }))) return;
     } else if (jenis === 'perangkat') {
       if (!(await tanya('Blokir perangkat ini?', ket + '<p class="petunjuk">Perangkat ini tidak bisa masuk sampai dibuka lagi di menu Perangkat Terdaftar.</p>',
             { ya: 'Blokir', jenis: 'bahaya' }))) return;
     } else {
       const min = jenis === 'void' || jenis === 'koreksi' ? 5 : 3;
-      alasan = await tanya('Tolak ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + '<p class="petunjuk">Alasannya terbaca oleh yang meminta.</p>',
+      /* bagian 537, 540: koreksi yang penolakannya terbaca pengaju menyebut layarnya (terbaca_di). */
+      const terbaca = jenis !== 'koreksi' ? 'Alasannya terbaca oleh yang meminta.'
+        /* bagian 540: kas modal, shift kasir & absen ikut terbaca di layarnya masing-masing. */
+        : b.terbaca ? 'Alasannya terbaca oleh yang meminta di ' + (b.terbaca_di || 'Laporan pulsa') + '.'
+        : 'Alasannya tercatat di riwayat, tetapi belum terbaca oleh yang meminta di layarnya — sampaikan juga secara langsung.';
+      alasan = await tanya('Tolak ' + (JENIS_PS[jenis] || [jenis])[0].toLowerCase() + '?', ket + '<p class="petunjuk">' + terbaca + '</p>',
         { isian: 'Alasan penolakan (minimal ' + min + ' karakter)', minimal: min, ya: 'Tolak', jenis: 'bahaya' });
       if (!alasan) return;
     }
@@ -10606,8 +10678,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Cabang PERANGKATNYA, bukan cabang sesi penyetuju. */
       else if (jenis === 'perangkat') await API.setujuiPerangkat({ id_perangkat: id, status: setuju ? 'DISETUJUI' : 'DIBLOKIR', cabang: cabang || undefined });
       else if (jenis === 'coa') await API.putusCoa({ id, setuju, alasan });
-      else if (jenis === 'koreksi') await API.putusKoreksi({ id, setuju, alasan });
-      toast(setuju ? (jenis === 'koreksi' ? 'Disahkan — koreksinya sudah tertulis.' : 'Disetujui.') : (jenis === 'perangkat' ? 'Perangkat diblokir.' : 'Ditolak.'));
+      else if (jenis === 'koreksi') hasilKoreksi = await API.putusKoreksi({ id, setuju, alasan });
+      const dialihkan = !!(hasilKoreksi && hasilKoreksi.hasil && (hasilKoreksi.hasil.dialihkan || []).length);
+      toast(setuju ? (jenis === 'koreksi' ? (dialihkan ? 'Disahkan — saldo akhir shift itu dan saldo awal shift sesudahnya sudah dikoreksi.' : 'Disahkan — koreksinya sudah tertulis.') : 'Disetujui.') : (jenis === 'perangkat' ? 'Perangkat diblokir.' : 'Ditolak.'));
     } catch (x) { toast(x.message, 'galat'); }
     document.dispatchEvent(new CustomEvent('possk:segarkan-lencana'));   // pendengarnya di document (app.js)
     await muatPersetujuan(true);
@@ -11971,6 +12044,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="kendali-tetap"><label for="coaCari">Cari</label><input type="search" id="coaCari" placeholder="Kode atau nama…" value="${esc(saringCoa.q)}"></div>
           <div class="kendali-tetap"><label for="coaTipe">Tipe</label><select id="coaTipe">${tipeOpsi}</select></div>
         </div>
+        ${PETUNJUK_KLIK_BARIS('Klik baris akun untuk membuka Buku besarnya: dari mana saldonya datang, catatan demi catatan.')}
         ${tabel([
           { judul: 'Kode', kunci: 'kode', kelas: 'kode-akun' },
           { judul: 'Nama', kunci: 'nama', render: a =>
@@ -11980,7 +12054,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Saldo', angka: true, nilai: a => Number(a.transaksi ? a.saldo : saldoInduk[a.kode]) || 0, render: saldoSel },
           ...(d.boleh_ubah ? [{ judul: '', kelas: 'sel-menu', render: menuBaris }] : [])
         ], baris, { kosong: q || saringCoa.tipe ? 'Tidak ada akun yang cocok' : 'Belum ada akun',
-                    dataAttr: a => a.transaksi ? '' : 'class="akun-induk"' })}
+                    /* bagian 538: akun transaksi membuka Buku besarnya (bulan berjalan, Semua
+                       cabang — sama dengan saldonya). Akun induk tidak: saldonya jumlah anak. */
+                    dataAttr: a => a.transaksi ? atributBukaAkun(a.kode, d.periode, '*') : 'class="akun-induk"' })}
         <p class="petunjuk">${d.boleh_ubah
           ? 'Kode dibuat sistem dan tidak bisa diubah. Akun <strong>sistem</strong> dipakai POS: namanya boleh diubah, tapi tidak bisa dihapus atau dinonaktifkan. Akun lain bisa dihapus selama belum pernah dipakai jurnal dan tidak punya sub akun.'
           : d.boleh_ajukan ? 'Akun baru diajukan ke Owner; begitu disetujui, akunnya langsung masuk bagan ini.'
@@ -13102,8 +13178,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
     const belum = (setor && setor.shift || []).filter((x) => !x.setoran);
 
+    /* Pengajuan setor/tarik modal milik pengaju (bagian 540): di tab tempat ia mengajukan. */
+    const pengajuanKas = kartuPengajuanKoreksiSaya(kas && kas.pengajuan_saya,
+      { id: 'kartuPengajuanKas', apa: 'Setor/tarik modal', kolom: 'Jenis', dokumen: false });
     if (tabKas === 'penerimaan' || tabKas === 'pembayaran') {
-      w.innerHTML = kartuDokumenKas(tabKas === 'penerimaan' ? 'BKM' : 'BKK', kas);
+      w.innerHTML = kartuDokumenKas(tabKas === 'penerimaan' ? 'BKM' : 'BKK', kas) + pengajuanKas;
       return;
     }
     /* Setoran toko jadi tab sendiri (bagian 305) — dulu terselip di bawah Ringkasan. */
@@ -13120,7 +13199,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div style="flex:1"></div>
           ${menuEkspor('kas', { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') })}</div>
         ${daftarMutasiKas(kas)}
-      </div>`;
+      </div>${pengajuanKas}`;
       return;
     }
     w.innerHTML = `
@@ -13743,12 +13822,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <tbody>${arus.akun.filter((k) => tampilAkunKas(k, bln.reduce((a, b) => a + Math.abs(((b.per_akun && b.per_akun[k]) || {}).bersih || 0), 0))).map((k) => {
         const sel = bln.map((b) => (b.per_akun && b.per_akun[k]) || { bersih: 0 });
         const jml = sel.reduce((a, x) => a + (x.bersih || 0), 0);
-        return `<tr>
+        /* bagian 538: baris akun → Buku besarnya, bulan terbaru di tabel ini. */
+        return `<tr ${atributBukaAkun(k, bln[bln.length - 1].periode, cabangKas)}>
           <td data-l="Akun">${esc(namaAkun[k] || k)}</td>
           ${sel.map((x, i) => `<td class="kanan" data-l="${esc(bulanTeks(bln[i].periode))}">${rp(x.bersih || 0)}</td>`).join('')}
           <td class="kanan" data-l="Total">${rp(jml)}</td>
         </tr>`; }).join('')}</tbody>
     </table></div>
+    ${PETUNJUK_KLIK_BARIS('Klik baris akun untuk membuka Buku besarnya bulan ' + esc(bulanTeks(bln[bln.length - 1].periode)) + '.')}
     <p class="petunjuk">Angka di sini <strong>pergerakan bersih</strong> tiap bulan,
        bukan saldonya — saldo sudah ada di tabel atas. Akun yang terus merah
        adalah akun yang terus terkuras.</p>`;
@@ -14182,7 +14263,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <p class="petunjuk">Hutang jam timbul saat petugas pulang sebelum shiftnya selesai dan digantikan teman.
            Sisanya dihitung dari <strong>seluruh catatan</strong>, bukan hanya periode di atas, dan saling
            menghapus: yang pernah digantikan lalu ganti menggantikan, hutangnya berkurang.</p>
-      </div>`;
+      </div>${kartuPengajuanKoreksiSaya(d.pengajuan_saya, { id: 'kartuPengajuanAbsen', apa: 'Izin, sakit, dan koreksi absen', kolom: 'Jenis', dokumen: false })}`;
   }
 
   async function bukaFotoAbsensi(id) {
@@ -14215,18 +14296,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   function formIzinAbsen() {
     const petugas = (absenData && absenData.petugas) || [];
+    /* Batas tanggal dari server (bagian 540): kalender tidak menawarkan tanggal yang pasti ditolak. */
+    const jd = absenData && absenData.izin_jendela;
+    const geserIz = (n) => { const t = new Date(jd.hari_ini + "T00:00:00"); t.setDate(t.getDate() + n); return tanggalLokal(t); };
+    const batasIzin = jd && jd.hari_ini
+      ? ` min="${esc(geserIz(-jd.mundur))}" max="${esc(geserIz(jd.maju))}"` : '';
     bukaModal('Catat izin / sakit', `<div class="baris-form">
       <label>Petugas</label>
       <select id="izPetugas">${petugas.map((p) => `<option value="${esc(p.kode)}">${esc(p.nama)} (${esc(p.cabang || '*')})</option>`).join('')}</select>
       <label>Tanggal</label>
-      <input type="date" id="izTanggal" value="${esc(tanggalLokal(new Date()))}">
+      <input type="date" id="izTanggal" value="${esc(tanggalLokal(new Date()))}"${batasIzin}>
       <label>Jenis</label>
       <select id="izJenis"><option value="IZIN">Izin</option><option value="SAKIT">Sakit</option></select>
       <label>Keterangan</label>
       <input type="text" id="izKet" maxlength="200" placeholder="mis. acara keluarga, demam">
     </div>
     <p class="petunjuk">Satu catatan untuk satu hari. Petugas yang tercatat izin atau sakit tidak bisa absen di tablet
-       pada hari itu — batalkan catatannya dulu bila ternyata ia datang.</p>`,
+       pada hari itu — batalkan catatannya dulu bila ternyata ia datang.</p>
+    ${String(APP_STATE.user?.peran || '') !== 'OWNER' ? `<p class="petunjuk">Catatan ini diajukan ke Owner dulu. Selama menunggu, petugasnya
+       <strong>masih bisa absen di tablet</strong> — kalau ia absen, pengajuan ini ditolak. Tanggalnya harus masih dalam
+       batas saat disahkan, bukan hanya saat diajukan.</p>` : ''}`,
     `<button class="tombol" data-tutup="1">Batal</button>
      <button class="tombol utama" id="btnSimpanIzinAbsen">Simpan</button>`);
   }
@@ -16999,5 +17088,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   // tombolEkspor ikut diekspor supaya app.js memakai komponen yang SAMA,
   // bukan menyalin bentuk tombolnya sendiri.
-  return { muat, pasang, toast, modal: bukaModal, tutupModal, tanya, tabel, gambarLapDiskon, tombolEkspor, menuEkspor };
+  /* bagian 538: rincian jurnal (app.js) memakai modal dokumen dan membuka pembelian asalnya. */
+  const bukaPembelian = (uuid, cabang) => { if (cabang) cabangBeli[uuid] = cabang; return rincianPembelian(uuid); };
+  return { muat, pasang, toast, modal: bukaModal, dokumen: bukaDokumen, bukaPembelian, kartuPengajuanSaya: kartuPengajuanKoreksiSaya, tutupModal, tanya, tabel, gambarLapDiskon, tombolEkspor, menuEkspor };
 })();
