@@ -1506,6 +1506,22 @@ function atributBukaAkun(kode, periode, cabang) {
     (periode ? ' data-bb-periode="' + esc(periode) + '"' : '') + (cabang ? ' data-bb-cabang="' + esc(cabang) + '"' : '');
 }
 
+/** Atribut baris yang membuka penampil NOTA (bagian 541); '' tanpa penjualan·lihat.
+ *  `retur` = uuid retur yang disorot di dalam nota (baris retur). */
+function atributBukaNota(cabang, uuid, retur) {
+  if (!cabang || !uuid || typeof bolehIzin !== 'function' || !bolehIzin('penjualan', 'lihat')) return '';
+  return 'class="baris-klik" tabindex="0" title="Buka nota" data-nota="' + esc(uuid) + '" data-nota-cabang="' + esc(cabang) + '"' +
+    (retur ? ' data-nota-retur="' + esc(retur) + '"' : '');
+}
+/** Petunjuk tabel yang barisnya membuka nota — kosong bila tidak berhak. */
+const petunjukNota = (teks) => (typeof bolehIzin === 'function' && bolehIzin('penjualan', 'lihat'))
+  ? PETUNJUK_KLIK_BARIS(teks || 'Klik baris untuk membuka notanya.') : '';
+/** Baris ringkasan (banyak nota) → Riwayat transaksi tersaring (bagian 541).
+ *  o: { tanggal?, cabang?, id_user?, id_shift?, judul } */
+function atributSaringNota(o) {
+  return 'class="baris-klik" tabindex="0" title="Buka Riwayat transaksi ' + esc(o.judul || '') + '" data-lap-saring="' + esc(JSON.stringify(o)) + '"';
+}
+
 const Periode = {
   PILIHAN: PERIODE_PILIHAN, BULANAN: PERIODE_BULANAN,
   rentang: rentangPeriode, bulan: bulanPeriode,
@@ -1682,6 +1698,8 @@ var IKON_SUMBER = {
   kosongkan : 'list-x',
   /* --- Tindakan baris perangkat (dulu kamus lokal kedua di admin.js) --- */
   setujui   : 'check',
+  /* Redeem bonus poin aplikasi inject (bagian 542). */
+  bonus     : 'gift',
   blokir    : 'ban',
   /* `meja` SENGAJA bukan `store`: `cabang` sudah memakai store, dan satu
      gambar untuk dua arti di aplikasi yang sama membuat keduanya berhenti
@@ -1833,6 +1851,7 @@ var IKON = {
   kosongkan : '<path d="M16 5H3"/><path d="M11 12H3"/><path d="M16 19H3"/><path d="m15.5 9.5 5 5"/><path d="m20.5 9.5-5 5"/>',
   /* --- Tindakan baris perangkat (dulu kamus lokal kedua di admin.js) --- */
   setujui   : '<path d="M20 6 9 17l-5-5"/>',
+  bonus     : '<path d="M12 7v14"/><path d="M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8"/><path d="M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5"/><rect x="3" y="7" width="18" height="4" rx="1"/>',
   blokir    : '<circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/>',
   pembatalan: '<circle cx="12" cy="12" r="10"/><path d="M22 2 2 22"/>',
   /* --- Tindakan back office: baris tabel dan kaki dialog --- */

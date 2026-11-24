@@ -4155,6 +4155,9 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   /* Sel tanpa nama kolom (tombol aksi) memakai seluruh lebar kartunya. */
   .gulir-x > table > tbody > tr > td[data-l=""] { padding-left: 0; }
   .gulir-x > table > tbody > tr > td[data-l=""]::before { content: none; }
+  /* Penampil nota (bagian 541): baris Subtotal/Diskon/Total — labelnya sudah
+     menjadi nama kolom sel angka, sel label kembarannya disembunyikan di HP. */
+  .ringkas-nota td.lbl { display: none; }
   /* Dokumen kertas (Laporan shift, bagian 431) memadatkan sel jadi 4px 8px —
      lebih spesifik daripada susunan kartu di atas, jadi di HP isi sel yang
      panjang menimpa nama kolomnya ("TUNAI 16.500 + TRF BCA 186.000" di daftar
@@ -4711,9 +4714,15 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 .abs-kamera video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
 .abs-nama-besar { position: absolute; left: 12px; bottom: 8px; color: #fff; font-weight: 700; font-size: var(--fs-19);
   text-shadow: 0 1px 4px #000; }
+.abs-tanda { position: absolute; right: 10px; top: 10px; padding: 6px 12px; border-radius: 999px; background: rgba(0, 0, 0, .72); color: #fff; font-weight: 600; }
+.abs-tanda[hidden] { display: none; }
+#absPesan > .pesan { margin: 12px 0 0; }
 .abs-grid-nama { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .abs-grid-nama .tombol { min-height: 56px; justify-content: space-between; gap: 8px; text-align: left; }
 .abs-grid-nama .tombol small { color: var(--teks-redup); font-weight: 400; white-space: nowrap; }
+/* Pertanyaan pengganti (bagian 544): akibat tiap pilihan di bawah namanya. */
+.abs-grid-nama .abs-pilihan { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; }
+.abs-grid-nama .abs-pilihan small { white-space: normal; }
 .abs-grid-nama .abs-tanya, .abs-grid-nama > .petunjuk, .abs-grid-nama [data-abs-ganti=""],
 .abs-grid-nama .abs-lebar { grid-column: 1 / -1; margin: 0; }
 .abs-aksi { display: flex; gap: 8px; margin-top: 12px; }

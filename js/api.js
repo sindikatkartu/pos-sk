@@ -133,7 +133,7 @@ const API = (() => {
     'daftar_minta_void', 'daftar_lini', 'keadaan_pulsa_pos', 'daftar_sumber_pulsa',
     'shift_pulsa_aktif', 'daftar_shift_pulsa', 'riwayat_koreksi_shift_pulsa', 'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
-    'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal',
+    'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
     /* Pengajuan diskon ke Owner (bagian 288): kasir menanyakan keputusan tiap
        beberapa detik, Owner membaca antreannya — keduanya membaca saja. */
     'cek_diskon', 'daftar_diskon_minta',
@@ -263,7 +263,7 @@ const API = (() => {
     'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
-    'simpan_kas', 'transfer_bank', 'dokumen_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal',
+    'simpan_kas', 'transfer_bank', 'dokumen_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
     'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
     'bayar_piutang', 'bayar_utang',
@@ -278,6 +278,8 @@ const API = (() => {
     /* bagian 445: bacaan modul Produksi, dan tiga tulisan yang servernya menjaga
        duplikat per uuid dokumen (mutasi_stok / jurnal). */
     'data_produksi', 'simpan_produksi', 'isi_saldo_inject', 'cocok_saldo_inject',
+    /* bagian 542: redeem bonus dijaga _sudahDijurnal per uuid, sama dengan isi saldo. */
+    'redeem_bonus_inject',
     /* bagian 465: Terima yang diulang dijawab duplikat — baris antrean sudah
        DITERIMA, tidak ada lapisan kedua. */
     'terima_produksi',
@@ -733,6 +735,7 @@ let _pernahJawab = false;
     terimaProduksi:        (d) => panggil('terima_produksi', d),
     tolakProduksi:         (d) => panggil('tolak_produksi', d),
     isiSaldoInject:        (d) => panggil('isi_saldo_inject', d),
+    redeemBonusInject:     (d) => panggil('redeem_bonus_inject', d),   /* bagian 542 */
     cocokSaldoInject:      (d) => panggil('cocok_saldo_inject', d),
     simpanAplikasiInject:  (d) => panggil('simpan_aplikasi_inject', d),
     /* cepat = orang membuka layarnya: server memramuat serentak (bagian 492).
@@ -862,6 +865,7 @@ let _pernahJawab = false;
     bukuBesar:         (d) => panggil('buku_besar', d, { timeout: 60000 }),
     daftarAkunBergerak:(d) => panggil('daftar_akun_bergerak', d, { timeout: 60000 }),
     rincianJurnal:     (d) => panggil('rincian_jurnal', d),   /* bagian 538 */
+    rincianNota:       (d) => panggil('rincian_nota', d),     /* bagian 541 */
     tandaiGalatDibaca: (d) => panggil('tandai_galat_dibaca', d),
     daftarPembelian:   (d) => panggil('daftar_pembelian', d),
     rincianPembelian:  (d) => panggil('rincian_pembelian', d),

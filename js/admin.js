@@ -1621,12 +1621,24 @@ const Admin = (() => {
      cuma 2,65:1 (garis butuh >= 3:1), jadi di terang dipakai #d4589f 3,69:1.
      Ditulis 'PINK', diterjemahkan temaDash(). Dijaga uji.js (bagian 441). */
   const PINK_DASH = { gelap: '#f472b6', terang: '#d4589f' };
-  const temaDash = (w) => { const t = document.documentElement.dataset.tema === 'gelap' ? 'gelap' : 'terang';
-    return w === 'LIME' ? LIME_DASH[t] : w === 'PINK' ? PINK_DASH[t] : w; };
-  const WARNA_CAB_DASH = { eceran: ['LIME', '#139065', '#8a6cf0'], grosir: ['PINK', '#c26612'],
-                           '': ['LIME', '#139065', '#8a6cf0', 'PINK', '#c26612'] };
+  /* Bagian 543 (titipan T, pemilik 24 Nov 2026): SK02 di tema terang teal tua.
+     Hijau #139065 cuma berjarak 10,0 dari lime tua SK01 di kartu putih (OKLab
+     ×100, batas 15). Sian #0891b2 ditolak: 8,2 dari biru titik "Ecer" di kartu
+     yang sama; teal tua 17 ke keduanya. Gelap tetap #139065. */
+  const HIJAU_DASH = { gelap: '#139065', terang: '#0f766e' };
+  /* Metode bayar TIDAK memakai warna cabang (bagian 543): dulu Tunai lime = SK01
+     dan QRIS pink = SKG01 di kartu sebelahnya. Abu tiga tingkat, jarak >= 15;
+     tingkat keempat tidak terbedakan lagi, jadi Piutang & Lainnya berarsir. */
+  const ABU_DASH = { gelap: ['#f0f2f4', '#a0a6ae', '#656b74'], terang: ['#262b31', '#5f666e', '#8f959c'] };
+  const arsirDash = (w) => 'repeating-linear-gradient(45deg,' + w + ' 0 2px,transparent 2px 5px)';
+  const temaDash = (w) => { const t = document.documentElement.dataset.tema === 'gelap' ? 'gelap' : 'terang', a = ABU_DASH[t];
+    const token = { LIME: LIME_DASH[t], PINK: PINK_DASH[t], HIJAU: HIJAU_DASH[t], ABU1: a[0], ABU2: a[1], ABU3: a[2],
+                    ARSIR1: arsirDash(a[0]), ARSIR2: arsirDash(a[1]) };
+    return token[w] || w; };
+  const WARNA_CAB_DASH = { eceran: ['LIME', 'HIJAU', '#8a6cf0'], grosir: ['PINK', '#c26612'],
+                           '': ['LIME', 'HIJAU', '#8a6cf0', 'PINK', '#c26612'] };
   const LABEL_JENIS_DASH = { eceran: 'Ecer', grosir: 'Grosir', '': 'Semua' };
-  const WARNA_METODE_DASH = { tunai: 'LIME', qris: 'PINK', transfer: '#8b5cf6', piutang: '#278a6c' };
+  const WARNA_METODE_DASH = { tunai: 'ABU1', transfer: 'ABU2', qris: 'ABU3', piutang: 'ARSIR2', lainnya: 'ARSIR1' };
 
   /** "1,2 jt" / "450 rb" — angka ringkas untuk petak sempit; angka utuhnya di title. */
   const jtDash = (n) => {
@@ -1822,7 +1834,7 @@ const Admin = (() => {
     const urut = Object.keys(total).sort((a, b) => total[b] - total[a]);
     const semua = urut.reduce((a, k) => a + total[k], 0);
     if (!semua) return kartuCab('cabKas', 'Kas masuk per cabang', 'per metode bayar', kosongCab('Belum ada pembayaran'));
-    const warna = (k) => temaDash(WARNA_METODE_DASH[k] || '#6e7781');
+    const warna = (k) => temaDash(WARNA_METODE_DASH[k]);
     const isi = (nama, o, tot) => `<div class="isi">${tot > 0
       ? urut.filter(k => o[k] > 0).map(k => `<span style="width:${(o[k] / tot * 100).toFixed(2)}%;background:${warna(k)}" title="${esc(nama + ' · ' + labelMetodeDash(k) + ' ' + Math.round(o[k] / tot * 100) + '% · ' + rpTeks(o[k]))}"></span>`).join('')
       : '<span class="kosong"></span>'}</div>`;
@@ -2327,9 +2339,15 @@ const Admin = (() => {
     const b = $('#btnFilterDash'); if (b) b.focus();
   });
 
-  /* Tema berubah: hanya grafik laba (Grafik.garis menulis warnanya ke elemen) yang digambar ulang. */
+  /* Tema berubah: warna yang ditulis ke elemen berbeda antar tema (lime, pink, hijau SK02,
+     abu metode), jadi kartu cabang yang memakainya digambar ulang dari data yang ada. */
   document.addEventListener('tema:berubah', () => {
-    if (trenCabG && modeTrenCab === 'laba') isiCabTren(trenCabG);
+    if (!cabDash) return;
+    gantiCab('cabKas', kartuKasCab());
+    gantiCab('cabJam', kartuJamCab());
+    gantiCab('cabPiutang', kartuPiutangCab());
+    gantiCab('cabEcerGrosir', kartuEcerGrosirCab());
+    if (trenCabG) isiCabTren(trenCabG);
   });
   /* LEBAR layar berubah (tablet diputar, jendela diubah): kartu Tren digambar ulang
      (bagian 536). Tinggi grafik dua-panel (76 / 100 px) dan lebar kanvasnya dibaca saat
@@ -6463,7 +6481,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu" data-tab-isi="klaim">
-          <h3>Rincian klaim</h3>
+          <h3>Rincian klaim</h3>${(d.rinci || []).length ? petunjukNota() : ''}
           ${d.dipotong ? '<p class="petunjuk">Hanya 500 klaim terbaru yang ditampilkan. Gunakan Ekspor untuk data penuh.</p>' : ''}
           ${tabel([
             { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
@@ -6481,7 +6499,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Poin', angka: true, kunci: 'poin' },
             { judul: 'Bagian', angka: true, render: x => x.porsi + '%' },
             { judul: 'Omzet', angka: true, render: x => rp(x.omzet) }
-          ], d.rinci, { kosong: 'Belum ada klaim' })}
+          ], d.rinci, { kosong: 'Belum ada klaim', dataAttr: x => atributBukaNota(x.cabang, x.uuid) })}
         </div>`;
     pasangTabKartu(wadah, 'poin', { cabang: 'Peringkat cabang', petugas: 'Per petugas', klaim: 'Rincian klaim' },   // bagian 432
       undefined, $('#isiPoin'));   // bagian 436: saringan & ringkasan bersama ikut di dalam bingkai
@@ -10187,7 +10205,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>
 
         <div class="kartu">
-          <h3>Nota berdiskon</h3>
+          <h3>Nota berdiskon</h3>${(d.nota || []).length ? petunjukNota() : ''}
           ${d.dipotong ? '<p class="petunjuk">Hanya 300 nota terbesar yang ditampilkan.</p>' : ''}
           ${tabel([
             { judul: 'Tanggal', render: x => `${esc(tglTampil(x.tanggal))} ${esc(String(x.jam).substring(0, 5))}` },
@@ -10197,7 +10215,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: 'Diskon', render: x => rp(x.diskon), kanan: true },
             { judul: '%', render: x => `<span class="lencana ${x.persen > 20 ? 'merah' : (x.persen > 10 ? 'kuning' : '')}">${x.persen}%</span>`, kanan: true },
             { judul: 'Disetujui', render: x => x.penyetuju ? esc(x.penyetuju) : '<span class="meta-kecil">—</span>' }
-          ], d.nota, { kosong: 'Tidak ada nota berdiskon pada rentang ini' })}
+          ], d.nota, { kosong: 'Tidak ada nota berdiskon pada rentang ini', dataAttr: x => atributBukaNota(x.cabang, x.uuid) })}
         </div>`;
     }
   }
@@ -10552,7 +10570,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${/* Pengajuan diskon Owner pindah ke layar Persetujuan (bagian 305). */ ''}
 
         ${bolehPutus ? `<div class="kartu">
-          <h3>Menunggu keputusan</h3>
+          <h3>Menunggu keputusan</h3>${antre.length ? petunjukNota() : ''}
           ${tabel([
             { judul: 'Nota', render: r => _takPecah('<strong>' + esc(r.no_nota) + '</strong>') },
             { judul: 'Cabang', render: r => `<span class="lencana">${esc(r.cabang)}</span>` },
@@ -10563,11 +10581,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             { judul: '', render: r => _takPecah(
               `<button class="tombol kecil sukses" data-setujui-void="${esc(r.uuid)}">Setujui</button>
                <button class="tombol kecil bahaya" data-tolak-void="${esc(r.uuid)}">Tolak</button>`) }
-          ], antre, { kosong: 'Tidak ada yang menunggu keputusan Anda' })}
+          ], antre, { kosong: 'Tidak ada yang menunggu keputusan Anda', dataAttr: r => atributBukaNota(r.cabang, r.uuid_penjualan) })}
         </div>` : ''}
 
         ${bolehLihat ? `<div class="kartu">
-          <h3>${bolehPutus ? 'Riwayat pengajuan' : 'Pengajuan saya'}</h3>
+          <h3>${bolehPutus ? 'Riwayat pengajuan' : 'Pengajuan saya'}</h3>${riwayat.length ? petunjukNota() : ''}
           ${tabel([
             { judul: 'Nota', render: r => _takPecah(esc(r.no_nota)) },
             { judul: 'Nilai', angka: true, render: r => rp(r.total) },
@@ -10580,7 +10598,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ${r.id_penyetuju ? `<div class="meta-kecil">oleh ${esc(r.nama_penyetuju)}</div>` : ''}` },
             { judul: '', render: r => r.bisa_ditarik
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
-          ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan void' })}
+          ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan void', dataAttr: r => atributBukaNota(r.cabang, r.uuid_penjualan) })}
         </div>` : ''}`;
     });
   }
@@ -11370,7 +11388,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             memang <strong>salah dibuat</strong> dan harus di-void (dibatalkan seluruhnya), itu bukan retur: buka menu <strong>Void Nota</strong>.</p>
         </div>
         <div class="kartu">
-          <h3>Riwayat retur</h3>
+          <h3>Riwayat retur</h3>${rows.some(r => r.uuid_penjualan) ? petunjukNota('Klik baris untuk membuka nota asalnya.') : ''}
           ${tabel([
             { judul: 'Tanggal', render: r => `${esc(tglTampil(r.tanggal))}<div class="meta-kecil">${esc(r.jam)}</div>` },
             { judul: 'No dokumen', render: r => `${esc(r.no_dokumen)}<div class="meta-kecil">oleh ${orangTampil(r.nama_user, r.id_user)}</div>` },
@@ -11381,7 +11399,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                 ? rp(r.selisih)   /* minus merah penuh lewat rp() (bagian 256) */
                 : (r.selisih > 0 ? `<span style="color:var(--sukses)">+ ${rp(r.selisih)}</span>` : '—') },
             { judul: 'Alasan', kunci: 'alasan' }
-          ], rows, { kosong: 'Belum ada retur' })}
+          ], rows, { kosong: 'Belum ada retur', dataAttr: r => atributBukaNota(r.cabang, r.uuid_penjualan, r.uuid) })}
         </div>`;
     });
   }
@@ -12454,6 +12472,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const aksi = (a) => {
       const t = [];
       if (bolehBuat && a.aktif) t.push(['Isi saldo', IKON.tambah, `data-prod-isi="${esc(a.kode)}"`]);
+      /* Redeem bonus poin (bagian 542): pencatat sama dengan Isi saldo, hanya aplikasi aktif. */
+      if (bolehBuat && a.aktif) t.push(['Redeem bonus poin', IKON.bonus, `data-prod-bonus="${esc(a.kode)}"`]);
       if (d.boleh_cocokkan) t.push(['Cocokkan saldo', IKON.setujui, `data-prod-cocok="${esc(a.kode)}"`]);
       if (d.boleh_kelola_aplikasi && bolehUbah) t.push(['Ubah', IKON.ubah, `data-prod-ubah="${esc(a.kode)}"`]);
       if (!t.length) return '';
@@ -12509,6 +12529,40 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         nominal, akun_bayar: akun, keterangan: ket });
       lepasUuidDokumen('isi_saldo');
       tutupModal(); toast('Saldo ' + rpTeks(nominal) + ' dicatat.', 'sukses'); await muatHasilProduksi();
+    } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
+  }
+
+  /* Redeem bonus poin (bagian 542, titipan S): poin gratis dari aplikasi jadi saldo
+     aplikasi yang SAMA — Pendapatan Bonus Inject (7-1300), tanpa kas/bank. Butir ⋮
+     sendiri, bukan pilihan di "Dibayar dari" Isi saldo: salah pilih satu dropdown
+     akan menukar uang kas dengan bonus. */
+  function bukaRedeemBonus(kode) {
+    const a = prodData.aplikasi.find((x) => x.kode === kode);
+    if (!a) return;
+    lepasUuidDokumen('redeem_bonus');        // dokumen BARU — lihat uuidDokumen()
+    bukaModal('Redeem bonus poin ' + a.nama, `
+      <p class="petunjuk">Catat saat poin bonus dari aplikasi ditukar jadi saldo. Saldo buku sekarang ${rp(a.saldo)};
+         nominalnya menambah saldo ini dan dicatat sebagai Pendapatan Bonus Inject — tidak ada uang kas yang keluar.</p>
+      <label>Nominal<input type="text" class="uang" id="bonusNominal" inputmode="numeric" autocomplete="off"></label>
+      <label>Keterangan<input type="text" id="bonusKet" maxlength="120" autocomplete="off" placeholder="mis. tukar 5.000 poin"></label>`,
+      `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
+       <button class="tombol utama" id="btnSimpanBonus" data-kode="${esc(kode)}"><span>Catat redeem</span></button>`);
+  }
+
+  async function simpanRedeemBonus(btn) {
+    const nominal = angkaDari($('#bonusNominal').value || '');
+    if (!(nominal > 0)) return toast('Isi nominalnya.', 'galat');
+    const apl = prodData.aplikasi.find((a) => a.kode === btn.dataset.kode);
+    const ket = ($('#bonusKet').value || '').trim();
+    if (!(await tanya('Catat redeem bonus poin ' + (apl ? apl.nama : '') + '?',
+      `<p class="petunjuk">Saldo aplikasi bertambah <strong>${rp(nominal)}</strong>, dicatat sebagai Pendapatan Bonus Inject.
+         Tidak bisa dibatalkan — salah ketik dibetulkan Owner lewat Cocokkan saldo.</p>`,
+      { ya: 'Catat redeem' }))) return;
+    btn.disabled = true;
+    try {
+      await API.redeemBonusInject({ uuid: uuidDokumen('redeem_bonus'), kode: btn.dataset.kode, nominal, keterangan: ket });
+      lepasUuidDokumen('redeem_bonus');
+      tutupModal(); toast('Redeem bonus ' + rpTeks(nominal) + ' dicatat.', 'sukses'); await muatHasilProduksi();
     } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
   }
 
@@ -12581,7 +12635,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Bersih (masuk − keluar) per sumber jurnal dalam rentang. */
       const bersih = (sumber) => m.filter((x) => x.sumber === sumber).reduce((s, x) => s + x.masuk - x.keluar, 0);
       return { nama: a.nama, isi: bersih('INJECT'), pakai: -(bersih('PRODUKSI') + bersih('PRODUKSI_BATAL')),
-               cocok: bersih('INJECT_COCOK'), saldo: a.saldo };
+               bonus: bersih('INJECT_BONUS'), cocok: bersih('INJECT_COCOK'), saldo: a.saldo };   /* bonus: bagian 542 */
     });
     const tot = (k) => sah.reduce((s, x) => s + (x[k] || 0), 0);
     return { sah, perBarang: Object.values(perBarang).sort((a, b) => b.nilai - a.nilai), perApl,
@@ -12617,6 +12671,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Aplikasi', render: (x) => esc(x.nama) },
           { judul: 'Isi saldo', angka: true, render: (x) => rp(x.isi) },
           { judul: 'Dipakai produksi', angka: true, render: (x) => rp(x.pakai) },
+          { judul: 'Redeem bonus', angka: true, render: (x) => x.bonus ? rp(x.bonus) : '—' },
           { judul: 'Cocokkan', angka: true, render: (x) => x.cocok ? rp(x.cocok) : '—' },
           { judul: 'Saldo sekarang', angka: true, render: (x) => rp(x.saldo) }
         ], r.perApl, { kosong: 'Belum ada aplikasi.' })}</div>
@@ -12639,8 +12694,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          (bahan ${esc(rpTeks(r.bahan))} + inject ${esc(rpTeks(r.inject))} − cashback ${esc(rpTeks(r.cashback))}) · beban rusak ${esc(rpTeks(r.rusak))}</p>
       <h3>Per barang jadi</h3>${tb(['Barang jadi', 'Produksi', 'Jadi', 'Gagal', 'Modal rata-rata', 'Nilai'],
         r.perBarang.map((x) => [x.nama, x.kali, x.jadi, x.gagal, rpTeks(Math.round(x.nilai / x.jadi)), rpTeks(x.nilai)]))}
-      <h3>Saldo aplikasi</h3>${tb(['Aplikasi', 'Isi saldo', 'Dipakai produksi', 'Cocokkan', 'Saldo sekarang'],
-        r.perApl.map((x) => [x.nama, rpTeks(x.isi), rpTeks(x.pakai), rpTeks(x.cocok), rpTeks(x.saldo)]))}
+      <h3>Saldo aplikasi</h3>${tb(['Aplikasi', 'Isi saldo', 'Dipakai produksi', 'Redeem bonus', 'Cocokkan', 'Saldo sekarang'],
+        r.perApl.map((x) => [x.nama, rpTeks(x.isi), rpTeks(x.pakai), rpTeks(x.bonus), rpTeks(x.cocok), rpTeks(x.saldo)]))}
       <h3>Riwayat produksi</h3>${tb(['Tanggal', 'Barang jadi', 'Jadi', 'Gagal', 'Aplikasi', 'Modal/unit', 'Nilai'],
         r.sah.map((x) => [tglTampil(x.tanggal) + ' ' + x.no_dokumen, x.nama_jadi, x.qty_jadi, x.qty_gagal, x.nama_aplikasi, rpTeks(x.modal_satuan), rpTeks(x.nilai_jadi)]))}`;
     try { Struk.cetakDokumen('Laporan produksi ' + d.cabang, isi); } catch (e) { toast(e.message, 'galat'); }
@@ -12651,7 +12706,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     prodTerpasang = true;
     document.addEventListener('click', (e) => {
       const t = e.target.closest('[data-tabprod], [data-prod-aksi], #btnSimpanProduksi, [data-prod-rincian], [data-prod-batal], [data-prod-terima], [data-prod-tolak], ' +
-        '[data-prod-isi], [data-prod-cocok], [data-prod-ubah], #btnSimpanIsiSaldo, #btnSimpanCocok, #btnSimpanApl');
+        '[data-prod-isi], [data-prod-bonus], [data-prod-cocok], [data-prod-ubah], #btnSimpanIsiSaldo, #btnSimpanBonus, #btnSimpanCocok, #btnSimpanApl');
       if (!t) return;
       if (t.dataset.tabprod) return pilihTabProduksi(t.dataset.tabprod);
       if (t.dataset.prodAksi === 'aplikasi') return bukaAplikasi('');
@@ -12662,9 +12717,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.dataset.prodTerima) return terimaProduksi(t.dataset.prodTerima);
       if (t.dataset.prodTolak) return tolakProduksi(t.dataset.prodTolak);
       if (t.dataset.prodIsi) return bukaIsiSaldo(t.dataset.prodIsi);
+      if (t.dataset.prodBonus) return bukaRedeemBonus(t.dataset.prodBonus);
       if (t.dataset.prodCocok) return bukaCocokSaldo(t.dataset.prodCocok);
       if (t.dataset.prodUbah) return bukaAplikasi(t.dataset.prodUbah);
       if (t.id === 'btnSimpanIsiSaldo') return simpanIsiSaldo(t);
+      if (t.id === 'btnSimpanBonus') return simpanRedeemBonus(t);
       if (t.id === 'btnSimpanCocok') return simpanCocokSaldo(t);
       if (t.id === 'btnSimpanApl') return simpanAplikasi(t);
     });
@@ -13448,7 +13505,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk', LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun',
     PULSA: 'Pulsa', UTANG: 'Bayar utang', PIUTANG: 'Pelunasan piutang', GAJI: 'Gaji', VOID: 'Void',
     SALDO_AWAL: 'Saldo awal', PEMBELIAN_BATAL: 'Pembelian batal',
-    INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject' };
+    INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject', INJECT_BONUS: 'Redeem bonus inject' };
   /* Nama akun kas/bank untuk dropdown: neraca yang sudah dimuat, lalu COA tersinkron. */
   async function namaAkunKasBank() {
     const nama = {};

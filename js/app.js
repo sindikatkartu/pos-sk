@@ -1632,6 +1632,23 @@ let _absenAliran = null, _absenData = null, _absenPengamat = null;
    Menutup modal hanya mencabut kelas `tampil` — isinya tetap di DOM, jadi
    "elemennya masih ada" bukan tanda pop-upnya masih terbuka. */
 let _absenGiliran = 0;
+/* Kiriman absen sedang menunggu jawaban server (bagian 544). Selama itu Batal, Ganti
+   nama, klik luar, dan Escape terkunci: yang sudah dikirim tidak bisa ditarik, dan pop-up
+   yang tertutup membuat petugas mengira absennya batal padahal tercatat. */
+let _absenMenunggu = false;
+const tahanEscAbsen = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); } };
+function kunciAbsen(ya) {
+  _absenMenunggu = ya;
+  document.removeEventListener('keydown', tahanEscAbsen, true);
+  if (ya) document.addEventListener('keydown', tahanEscAbsen, true);
+  $$('#absGanti, #absKirim, #absPilih button, #modalUmum.modal-absen .aksi-modal button').forEach((b) => { b.disabled = ya; });
+}
+/** Gambar berhenti + tanda "foto sudah diambil"; kameranya sendiri tetap hidup untuk mencoba lagi. */
+function bekukanAbsen(ya) {
+  const v = $('#absVideo'), t = $('#absTanda');
+  if (t) t.hidden = !ya;
+  if (v) { if (ya) v.pause(); else if (v.srcObject && v.paused) v.play().catch(() => { /* kamera dicabut */ }); }
+}
 
 function matikanKameraAbsen() {
   if (_absenAliran) { _absenAliran.getTracks().forEach((t) => t.stop()); _absenAliran = null; }
@@ -1644,12 +1661,13 @@ function bereskanAbsen() {
   matikanKameraAbsen();
   if (_absenPengamat) { _absenPengamat.disconnect(); _absenPengamat = null; }
   $('#modalUmum').classList.remove('modal-absen');
+  if (_absenMenunggu) kunciAbsen(false);   /* sesudah kelasnya dicabut: tombol modal LAIN tidak ikut dinyalakan */
   $('#tiraiUmum').removeEventListener('click', klikLuarAbsen);
   _absenFoto = '';
 }
 /* Klik di luar kotak menutup pop-up absen (titipan bagian 519). Hanya pop-up
    ini: modal isian lain sengaja tidak menutup saat tirainya tersentuh. */
-function klikLuarAbsen(e) { if (e.target === e.currentTarget) Admin.tutupModal(); }
+function klikLuarAbsen(e) { if (e.target === e.currentTarget && !_absenMenunggu) Admin.tutupModal(); }
 
 function pesanKameraAbsen(e) {
   const n = e && e.name;
@@ -1665,6 +1683,8 @@ function pesanKameraAbsen(e) {
 function fotoAbsen(video) {
   const vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) return '';
+  /* Kamera mati/terlepas: bingkai terakhirnya bisa wajah orang SEBELUMNYA (bagian 544). */
+  if (video.paused || !video.srcObject || !video.srcObject.getVideoTracks().some((t) => t.readyState === 'live')) return '';
   const s = Math.min(vw, vh);
   const kanvas = document.createElement('canvas');
   kanvas.width = kanvas.height = ABSEN_SISI;
@@ -1687,6 +1707,7 @@ const arahAbsen = (p) => (!p.masuk ? 'masuk' : !p.pulang ? 'pulang' : '');
 function gambarPilihAbsen(lain) {
   const d = _absenData;
   const tamu = d.lain || [];
+  bekukanAbsen(false);
   $('#absNama').textContent = '';
   $('#absAksi').hidden = true;
   $('#absPilih').hidden = false;
@@ -1721,26 +1742,63 @@ function pilihNamaAbsen(kode) {
    terbuka: jawabannya dikirim ulang dengan foto YANG SAMA, tanpa kamera lagi. */
 let _absenFoto = '';
 
-/** Pulang sebelum shift selesai (hutang jam, pemilik 20 Nov 2026). */
-function tanyaPenggantiAbsen(calon) {
+/** 60 → "1 jam", 80 → "1 jam 20 menit". */
+const lamaAbsen = (m) => { const j = Math.floor(m / 60), s = m % 60; return [j ? j + ' jam' : '', s ? s + ' menit' : ''].filter(Boolean).join(' ') || '0 menit'; };
+
+/* Bahan pertanyaan pengganti yang dibawa absen_siap (bagian 544), dengan jam berjalan
+   sejak jawaban server — BUKAN jam tablet. null = tidak pulang awal / server lama. */
+function gantiSiapAbsen(kode) {
+  const g = _absenData && _absenData.ganti && _absenData.ganti[kode];
+  const w = /T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(String((_absenData || {}).waktu || ''));
+  if (!g || !w) return null;
+  const kini = Math.floor((+w[1] * 3600 + +w[2] * 60 + +(w[3] || 0) + (performance.now() - _absenData._terima) / 1000) / 60);
+  if (kini >= g.selesai_menit) return null;
+  const dua = (n) => String(n).padStart(2, '0');
+  return { ...g, sisa_menit: g.selesai_menit - kini, jam: dua(Math.floor(kini / 60)) + '.' + dua(kini % 60) };
+}
+
+/** Pulang sebelum shift selesai (hutang jam, pemilik 20 Nov 2026; teks bagian 544). */
+function tanyaPenggantiAbsen(g) {
+  const calon = g.calon || [], lama = g.sisa_menit ? lamaAbsen(g.sisa_menit) : '';
   $('#absAksi').hidden = true;
   $('#absPilih').hidden = false;
-  $('#absPilih').innerHTML = `<p class="petunjuk abs-tanya">Pulang sebelum shift selesai — digantikan siapa? Sisa jam shift tercatat sebagai hutang jam kepada teman yang dipilih.</p>` +
-    calon.map((c) => `<button type="button" class="tombol" data-abs-ganti="${esc(c.kode)}"><span>${esc(c.nama)}</span></button>`).join('') +
-    '<button type="button" class="tombol" data-abs-ganti=""><span>Tidak digantikan</span></button>';
+  const kepala = lama
+    ? `<strong>Anda pulang ${esc(lama)} lebih awal.</strong> Shift ${g.shift === 'PAGI' ? 'pagi' : 'malam'} selesai ${esc(g.selesai)}, sekarang ${esc(g.jam)}.<br>` +
+      (calon.length ? `Siapa yang menggantikan Anda sampai ${esc(g.selesai)}?` : 'Belum ada yang bisa menggantikan. Pengganti Anda harus absen masuk dulu.')
+    : 'Pulang sebelum shift selesai — digantikan siapa? Sisa jam shift tercatat sebagai hutang jam kepada teman yang dipilih.';
+  const butir = (atr, judul, ket) => `<button type="button" class="tombol abs-lebar abs-pilihan" ${atr}><span>${esc(judul)}</span>${ket ? '<small>' + esc(ket) + '</small>' : ''}</button>`;
+  $('#absPilih').innerHTML = `<p class="petunjuk abs-tanya">${kepala}</p>` +
+    calon.map((c) => butir(`data-abs-ganti="${esc(c.kode)}"`, c.nama, lama && 'Anda berhutang ' + lama + ' kepada ' + c.nama)).join('') +
+    butir('data-abs-ganti=""', 'Tidak digantikan', lama && 'pulang awal ' + lama + ', tanpa hutang') +
+    butir('data-abs-kembali="1"', '← Kembali', 'belum dicatat');
 }
 
 async function kirimAbsen(pengganti) {
-  const b = $('#absKirim');
+  if (_absenMenunggu) return;
+  const b = $('#absKirim'), giliran = _absenGiliran;
   const foto = pengganti === undefined ? fotoAbsen($('#absVideo')) : _absenFoto;
   if (!foto) { $('#absPesan').innerHTML = `<div class="pesan galat">${esc('Kamera belum siap. Tunggu gambarnya muncul, lalu tekan lagi.')}</div>`; return; }
   _absenFoto = foto;
-  b.disabled = true;
+  bekukanAbsen(true);
   $('#absPesan').innerHTML = '';
+  /* Pulang awal: tanya dulu, kirim sekali. Server tetap memeriksa ulang. */
+  if (pengganti === undefined && b.dataset.arah === 'pulang') {
+    const g = gantiSiapAbsen(b.dataset.kode);
+    if (g) return tanyaPenggantiAbsen(g);
+  }
+  $('#absPilih').hidden = true;
+  $('#absAksi').hidden = false;
+  kunciAbsen(true);
+  b.textContent = 'Mencatat…';
+  $('#absPesan').innerHTML = '<div class="pesan info">Foto sudah diambil — Anda boleh bergerak. Jam dicatat server…</div>';
+  const lepas = () => { if (giliran === _absenGiliran) kunciAbsen(false); };
   try {
     const kirim = { id_perangkat: await idPerangkat(), kode_petugas: b.dataset.kode, arah: b.dataset.arah, foto };
     if (pengganti !== undefined) kirim.pengganti = pengganti;
     const r = await API.absen(kirim);
+    /* Pop-upnya sudah berganti/hilang paksa: hasilnya jangan menimpa pop-up orang lain. */
+    if (giliran !== _absenGiliran) { Admin.toast('Absen ' + r.arah + ' ' + r.nama + ' tercatat ' + r.jam + '.', 'sukses'); return; }
+    lepas();
     matikanKameraAbsen();
     _absenFoto = '';
     const ket = r.arah === 'masuk'
@@ -1753,8 +1811,17 @@ async function kirimAbsen(pengganti) {
         <span>${esc(ket)}${r.sudah ? ' · sudah tercatat sebelumnya' : ''}</span></div>`;
     $('#modalUmum .aksi-modal').innerHTML = '<button type="button" class="tombol utama" data-tutup="1">OK</button>';
   } catch (e) {
-    b.disabled = false;
-    if (e.kode === 'PENGGANTI') return tanyaPenggantiAbsen((e.detail && e.detail.calon) || []);
+    if (giliran !== _absenGiliran) { Admin.toast(e.message || 'Absen gagal.', 'galat'); return; }
+    lepas();
+    $('#absPesan').innerHTML = '';
+    if (e.kode === 'PENGGANTI') {
+      tanyaPenggantiAbsen(e.detail || {});
+      if (pengganti) $('#absPesan').innerHTML = `<div class="pesan peringatan">${esc(e.message)}</div>`;
+      return;
+    }
+    _absenFoto = '';
+    bekukanAbsen(false);
+    pilihNamaAbsen(b.dataset.kode);
     $('#absPesan').innerHTML = `<div class="pesan galat">${esc(e.message || 'Absen gagal.')}</div>`;
   }
 }
@@ -1766,7 +1833,7 @@ async function bukaAbsen() {
   Admin.modal('Absen', `<div id="absIsi" class="abs-isi">
       <p class="petunjuk">Ketuk nama Anda. Foto diambil otomatis saat tombol Absen ditekan.</p>
       <div class="abs-kamera"><video id="absVideo" autoplay playsinline muted></video>
-        <span class="abs-nama-besar" id="absNama"></span></div>
+        <span class="abs-nama-besar" id="absNama"></span><span class="abs-tanda" id="absTanda" hidden>✓ Foto sudah diambil</span></div>
       <div id="absPesan"></div>
       <div id="absPilih" class="abs-grid-nama"><p class="petunjuk">Menyiapkan kamera…</p></div>
       <div id="absAksi" class="abs-aksi" hidden>
@@ -1802,6 +1869,7 @@ async function bukaAbsen() {
   if (siap.status === 'rejected') return tolak(siap.reason && siap.reason.message || 'Daftar petugas tidak terbaca.');
   if (kam.status === 'rejected') return tolak(pesanKameraAbsen(kam.reason));
   _absenData = siap.value;
+  _absenData._terima = performance.now();
   $('#modalUmum h3').textContent = 'Absen — ' + (_absenData.nama_cabang || _absenData.cabang);
   gambarPilihAbsen();
   $('#absIsi').addEventListener('click', (e) => {
@@ -1809,8 +1877,10 @@ async function bukaAbsen() {
     if (n) return pilihNamaAbsen(n.dataset.absKode);
     const l = e.target.closest('[data-abs-lain]');
     if (l) return gambarPilihAbsen(l.dataset.absLain === '1');
+    if (_absenMenunggu) return;
     const g = e.target.closest('[data-abs-ganti]');
     if (g) return kirimAbsen(g.dataset.absGanti);
+    if (e.target.closest('[data-abs-kembali]')) { _absenFoto = ''; bekukanAbsen(false); $('#absPesan').innerHTML = ''; return pilihNamaAbsen($('#absKirim').dataset.kode); }
     if (e.target.closest('#absGanti')) { _absenFoto = ''; return gambarPilihAbsen(); }
     if (e.target.closest('#absKirim')) kirimAbsen();
   });
@@ -5023,7 +5093,7 @@ async function bukaLaporanShift(idShift, cabang) {
           p.jumlah_void ? ', ' + p.jumlah_void + ' void' : ''} · ${rp(p.total)}</span></h4>
       ${d.nota.length ? `<div class="gulir-x"><table>
         <tr><th>No Nota</th><th>Jam</th><th>Metode</th><th class="angka">Total</th><th>Status</th>${d.boleh_koreksi_bayar ? '<th></th>' : ''}</tr>
-        ${d.nota.map(n => `<tr><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
+        ${d.nota.map(n => `<tr ${atributBukaNota(cabang || APP_STATE.cabang, n.uuid)}><td>${esc(n.no_nota)}</td><td>${esc(n.jam)}</td>
           <td>${esc(labelMetodeGabung(n.metode))}</td><td class="angka">${rp(n.total)}</td>
           <td>${n.status === 'AKTIF' ? '<span class="lencana hijau">aktif</span>'
             : `<span class="lencana merah">void</span> <span class="petunjuk">${esc(n.alasan_batal)}</span>`}</td>
@@ -5942,6 +6012,7 @@ async function gambarTabLaporan(tab) {
         (d, segar, ulang) => { if (!segar || ulang) gambar(w, d); }, () => !tiketLaporanBasi(tiket));
     } catch (e) {
       if (tiketLaporanBasi(tiket)) return;
+      LAP.saringNota = null;
       w.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
       return;
     }
@@ -5951,6 +6022,7 @@ async function gambarTabLaporan(tab) {
      tinjau-rilis: kembali ke tab yang sudah termuat membuatnya terkunci). */
   lepasBasi(w);
   gambar(w, LAP.data[tab]);
+  LAP.saringNota = null;   /* saringan dari baris ringkasan dipakai SEKALI (bagian 541) */
 }
 
 const tiketLaporanBasi = (t) =>
@@ -5967,8 +6039,8 @@ const lapKotak = (label, nilai, ekor) => `<div class="kartu statistik">
  * kertas tidak pernah punya dua daftar kolom yang harus dijaga sepakat.
  */
 /* `attr(baris)` opsional (bagian 396): atribut <tr>, mis. baris yang bisa diklik. */
-const lapTabel = (judul, kolom, baris, kosong, attr) => `<div class="kartu" data-bagian="${esc(judul)}">
-  <h3>${esc(judul)}</h3>
+const lapTabel = (judul, kolom, baris, kosong, attr, petunjuk) => `<div class="kartu" data-bagian="${esc(judul)}">
+  <h3>${esc(judul)}</h3>${baris.length && petunjuk ? petunjuk : ''}
   ${baris.length ? `<div class="gulir-x"><table>
     <thead><tr>${kolom.map(k => `<th class="${k.angka ? 'angka' : ''}">${esc(k.judul)}</th>`).join('')}</tr></thead>
     <tbody>${baris.map(b => `<tr${attr ? ' ' + attr(b) : ''}>${kolom.map(k =>
@@ -6213,7 +6285,7 @@ const KOLOM_LAP = {
 };
 
 /* Barang pada nota void, satu baris per item, dengan nomor notanya. */
-const barisItemVoid = (rows) => rows.flatMap(n => (n.item || []).map(i => ({ ...i, no_nota: n.no_nota })));
+const barisItemVoid = (rows) => rows.flatMap(n => (n.item || []).map(i => ({ ...i, no_nota: n.no_nota, uuid_nota: n.uuid, cabang: n.cabang })));
 
 /* ---------- Angka ringkas: satu daftar untuk kartu layar dan kotak cetak ---------- */
 
@@ -6322,14 +6394,14 @@ function gambarLapRingkas(w, d) {
       <!-- Empat tabel pendek (3–5 kolom) tidak direntang selebar layar (bagian 407):
            dua sebaris bila wadahnya cukup lebar, selebihnya satu kolom 720 px. -->
       <div class="lap-ringkas"><div class="lap-ringkas-isi">
-      ${tabel('Per hari', KOLOM_LAP.perHari(), d.per_hari || [], 'Tidak ada penjualan di rentang ini.')}
-      ${tabel('Per kasir', KOLOM_LAP.perKasir(), d.per_kasir || [], 'Tidak ada penjualan di rentang ini.')}
+      ${tabel('Per hari', KOLOM_LAP.perHari(), d.per_hari || [], 'Tidak ada penjualan di rentang ini.', b => atributSaringNota({ tanggal: b.tanggal, judul: tglTampil(b.tanggal) }), PETUNJUK_KLIK_BARIS('Klik baris untuk membuka nota-notanya.'))}
+      ${tabel('Per kasir', KOLOM_LAP.perKasir(), d.per_kasir || [], 'Tidak ada penjualan di rentang ini.', b => atributSaringNota({ id_user: b.id_user, judul: b.nama }), PETUNJUK_KLIK_BARIS('Klik baris untuk membuka nota-notanya.'))}
       ${tabel('Per metode bayar', KOLOM_LAP.perMetode(), d.per_metode || [], 'Belum ada pembayaran.')}
-      ${tabel('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.')}
+      ${tabel('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.', b => atributSaringNota({ cabang: b.cabang, judul: b.cabang }), PETUNJUK_KLIK_BARIS('Klik baris untuk membuka nota-notanya.'))}
       </div></div>
       ${tabel('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
-      ${tabel('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.')}
-      ${tabel('Nota void', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang di-void.')}
+      ${tabel('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.', b => atributBukaNota(b.cabang, b.uuid_penjualan, b.uuid), petunjukNota('Klik baris untuk membuka nota asalnya.'))}
+      ${tabel('Nota void', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang di-void.', b => atributBukaNota(b.cabang, b.uuid), petunjukNota())}
       ${tabel('Piutang yang lahir di periode ini', KOLOM_LAP.piutang(), pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.')}`;
 
   /* Grafik digambar SESUDAH innerHTML, bukan disisipkan sebagai teks: wadahnya
@@ -6387,6 +6459,17 @@ function gambarLapNota(w, d) {
   };
   isi('#lapNotaShift', unik(n => n.id_shift, n => n.id_shift), 'Semua shift');
   isi('#lapNotaKasir', unik(n => n.id_user, n => n.nama_kasir), 'Semua kasir');
+  /* Dibuka dari baris ringkasan (bagian 541). Dilepas gambarTabLaporan SESUDAH angka
+     segar tergambar: layar ini digambar dua kali (simpanan, lalu segar), dan melepasnya
+     di gambar pertama membuat daftar segarnya tidak tersaring. Shift/kasir tanpa nota di
+     data tetap dipasang (opsinya disisipkan) — tabelnya kosong, bukan diam-diam semua nota. */
+  if (LAP.saringNota) {
+    const s = LAP.saringNota;
+    const pasang = (sel, v, label) => { const el = $(sel); if (!v || !el) return;
+      if (![...el.options].some(o => o.value === v)) el.add(new Option(label || v, v));
+      el.value = v; };
+    pasang('#lapNotaShift', s.id_shift, s.id_shift); pasang('#lapNotaKasir', s.id_user, s.judul);
+  }
 
   gambarLapNotaTabel(d);
 }
@@ -6400,7 +6483,7 @@ function gambarLapNotaTabel(d) {
     (!q || (n.no_nota + ' ' + n.nama_kasir + ' ' + n.kode_pelanggan).toLowerCase().includes(q)));
 
   $('#lapNotaTabel').innerHTML = lapTabel('Riwayat transaksi', KOLOM_LAP.nota(d), baris,
-                                          'Tidak ada nota pada rentang ini.');
+                                          'Tidak ada nota pada rentang ini.', b => atributBukaNota(b.cabang, b.uuid), petunjukNota());
 
   const h = $('#lapNotaHitung');
   if (h) {
@@ -6415,7 +6498,7 @@ function gambarLapNotaTabel(d) {
 function gambarLapShift(w, d) {
   w.innerHTML = `
     ${petakAngka(angkaShiftLaporan(d), 'petak-4')}
-    ${lapTabel('Per shift', KOLOM_LAP.shift(), d.shift || [], 'Tidak ada shift pada rentang ini.')}`;
+    ${lapTabel('Per shift', KOLOM_LAP.shift(), d.shift || [], 'Tidak ada shift pada rentang ini.', b => atributSaringNota({ cabang: b.cabang, id_shift: b.id_shift, judul: b.id_shift }), PETUNJUK_KLIK_BARIS('Klik baris untuk membuka nota-nota shift itu.'))}`;
 }
 
 /* ---------- Tab: per petugas ---------- */
@@ -6448,9 +6531,9 @@ function gambarLapVoid(w, d) {
   const rows = d.nota || [];
   w.innerHTML = `
     ${petakAngka(angkaVoidLaporan(d), 'petak-4')}
-    ${lapTabel('Riwayat void', KOLOM_LAP.void(), rows, 'Tidak ada nota yang di-void pada rentang ini.')}
+    ${lapTabel('Riwayat void', KOLOM_LAP.void(), rows, 'Tidak ada nota yang di-void pada rentang ini.', b => atributBukaNota(b.cabang, b.uuid), petunjukNota())}
     ${lapTabel('Barang pada nota yang di-void', KOLOM_LAP.voidItem(), barisItemVoid(rows),
-               'Tidak ada rincian barang.')}`;
+               'Tidak ada rincian barang.', b => atributBukaNota(b.cabang, b.uuid_nota), petunjukNota())}`;
 }
 
 /* ==================== TAB KERUGIAN PERSEDIAAN ====================
@@ -7223,11 +7306,11 @@ function bukaBukuBesar(kode, periode, cabang) {
   return pilihTabKeu('bukubesar');
 }
 
-const SUMBER_JURNAL = { PENJUALAN: 'Nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
+const SUMBER_JURNAL = { PENJUALAN: 'Nota', POS: 'Nota', VOID: 'Void nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
   RETUR_BELI: 'Retur beli', OPNAME: 'Stok opname', TRANSFER: 'Transfer',
   PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
   LEPAS_ASET: 'Aset keluar', TUTUP_TAHUN: 'Tutup tahun', PULSA: 'Pulsa',
-  PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject',
+  PRODUKSI: 'Produksi', PRODUKSI_BATAL: 'Batal produksi', INJECT: 'Isi saldo inject', INJECT_COCOK: 'Cocokkan saldo inject', INJECT_BONUS: 'Redeem bonus inject',
   PRODUKSI_TERIMA: 'Terima produksi' };
 
 /** Rincian satu jurnal (baca-saja), dibuka dari baris Buku besar. `akun` disorot. */
@@ -7242,7 +7325,8 @@ async function bukaRincianJurnal(uuid, akun) {
         ${lintas || (b.keterangan && b.keterangan !== d.keterangan) ? `<span class="petunjuk" style="display:block;margin:0">${[lintas ? namaCabangBuku(b.cabang) : '', b.keterangan !== d.keterangan ? b.keterangan : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}</td>
       <td class="kanan" data-l="Debit">${b.debit ? rp(b.debit) : ''}</td>
       <td class="kanan" data-l="Kredit">${b.kredit ? rp(b.kredit) : ''}</td></tr>`).join('');
-  const bisaDok = d.dokumen && d.dokumen.jenis === 'PEMBELIAN' && bolehIzin('pembelian', 'lihat');
+  const bisaDok = d.dokumen && ((d.dokumen.jenis === 'PEMBELIAN' && bolehIzin('pembelian', 'lihat'))
+    || (d.dokumen.jenis === 'NOTA' && bolehIzin('penjualan', 'lihat')));   /* nota: bagian 541 */
   Admin.dokumen('Rincian jurnal', `
     <p class="petunjuk" style="margin:0 0 10px">${esc(d.no_jurnal)} · ${esc(tglTampil(d.tanggal))} · ${esc(SUMBER_JURNAL[d.sumber] || d.sumber || '—')} · ${esc(namaCabangBuku(d.cabang))}
       ${d.pembalik ? ' <span class="lencana abu">pembalik</span>' : ''}<br>${esc(d.keterangan)}</p>
@@ -7251,8 +7335,67 @@ async function bukaRincianJurnal(uuid, akun) {
       <tbody>${baris}
         <tr class="tebal pisah"><td data-l="">Jumlah</td><td class="kanan" data-l="Debit">${rp(d.total_debit)}</td>
           <td class="kanan" data-l="Kredit">${rp(d.total_kredit)}</td></tr></tbody></table></div>`,
-    (bisaDok ? `<button class="tombol utama" id="btnJurnalDokumen" data-uuid="${esc(d.dokumen.uuid)}" data-cabang="${esc(d.dokumen.cabang)}">${ikonAksi('pembelian')}<span>Buka pembelian</span></button>` : '') +
+    (bisaDok ? `<button class="tombol utama" id="btnJurnalDokumen" data-jenis="${esc(d.dokumen.jenis)}" data-uuid="${esc(d.dokumen.uuid)}" data-cabang="${esc(d.dokumen.cabang)}" data-retur="${esc(d.dokumen.retur || '')}">${ikonAksi(d.dokumen.jenis === 'NOTA' ? 'nota' : 'pembelian')}<span>${d.dokumen.jenis === 'NOTA' ? 'Buka nota' : 'Buka pembelian'}</span></button>` : '') +
     '<button class="tombol" data-tutup="1">' + ikonAksi('batal') + '<span>Tutup</span></button>');
+}
+
+/** Penampil NOTA back office (bagian 541) — baca-saja; `retur` disorot "retur ini". */
+async function bukaRincianNota(cabang, uuid, retur) {
+  Admin.dokumen('Nota', rangkaLaporan());
+  let d;
+  try { d = await API.rincianNota({ cabang, uuid }); }
+  catch (e) { return Admin.dokumen('Nota', `<div class="pesan galat">${esc(e.message)}</div>`); }
+  const jam = String(d.jam || '').substring(0, 5);
+  const v = d.void;
+  const kepala = [d.no_nota, tglTampil(d.tanggal) + ' ' + jam, namaCabangBuku(d.cabang), 'Kasir ' + (d.nama_kasir || '—')].map(esc).join(' · ') + '<br>' +
+    ['Shift ' + (d.id_shift || '—'), 'Pelanggan ' + (d.nama_pelanggan || d.kode_pelanggan || 'umum'), d.level_harga ? 'Harga ' + kodeRapi(d.level_harga) : ''].filter(Boolean).map(esc).join(' · ');
+  const statusVoid = d.status === 'DIBATALKAN' ? `<div class="pesan galat" style="margin:0 0 12px">Di-void${
+      v && v.pada ? ' ' + esc(waktuTampil(v.pada)) : ''}${v && v.oleh ? ' oleh ' + esc(v.oleh) : ''}${d.alasan_batal ? ' — ' + esc(d.alasan_batal) : ''}${
+      v && v.peminta && v.peminta !== v.oleh ? ' (diajukan ' + esc(v.peminta) + ')' : ''}</div>` : '';
+  const barang = d.item.map(i => `<tr><td data-l="Barang">${esc(i.nama)}</td><td class="kanan" data-l="Qty">${esc(i.qty + ' ' + (i.satuan || ''))}</td>
+      <td class="kanan" data-l="Harga">${rp(i.harga)}</td><td class="kanan" data-l="Diskon">${i.diskon ? rp(i.diskon) : ''}</td><td class="kanan" data-l="Subtotal">${rp(i.subtotal)}</td></tr>`).join('');
+  const brsR = (l, n, kelas) => `<tr${kelas ? ' class="' + kelas + '"' : ''}><td class="lbl" data-l="">${l}</td><td class="kanan" data-l="${esc(String(l).replace(/<[^>]*>/g, ''))}">${n}</td></tr>`;
+  const ringkas = brsR('Subtotal', rp(d.subtotal)) +
+    (d.diskon_nota ? brsR('Diskon nota' + (d.penyetuju_diskon ? ' <span class="petunjuk">disetujui ' + esc(d.penyetuju_diskon) + '</span>' : ''), '−' + rp(d.diskon_nota)) : '') +
+    (d.ppn ? brsR('PPN', rp(d.ppn)) : '') + brsR('Total', rp(d.total), 'tebal pisah');
+  const bayar = d.bayar.length ? d.bayar.map(b => `<tr><td data-l="Metode">${esc(labelMetode(b.metode))}${b.referensi ? ' <span class="petunjuk">' + esc(b.referensi) + '</span>' : ''}</td>
+      <td class="kanan" data-l="Nominal">${rp(b.jumlah)}</td></tr>`).join('') : '<tr><td colspan="2">Belum ada pembayaran tercatat.</td></tr>';
+  const returHtml = d.retur.length ? `<h4 style="margin:14px 0 6px">Retur atas nota ini</h4>
+    <div class="gulir-x"><table id="tabelReturNota"><thead><tr><th>Dokumen</th><th>Jenis</th><th class="kanan">Nilai</th></tr></thead><tbody>${
+      d.retur.map(r => `<tr${r.uuid === retur ? ' class="sorot-akun"' : ''}><td data-l="Dokumen">${esc(r.no_dokumen)} · ${esc(tglTampil(r.tanggal))}${
+        r.uuid === retur ? ' <span class="lencana kuning">retur ini</span>' : ''}${r.item && r.item.length ? '<span class="petunjuk" style="display:block;margin:0">' +
+        esc(r.item.map(i => (i.peran === 'RETUR' ? '' : '→ ') + i.nama + ' ×' + i.qty).join(', ')) + '</span>' : ''}</td>
+        <td data-l="Jenis">${esc(kodeRapi(r.jenis))}</td><td class="kanan" data-l="Nilai">${rp(r.nilai_retur)}</td></tr>`).join('')}</tbody></table></div>` : '';
+  const bolehJurnal = bolehIzin('laporan_keuangan', 'lihat');
+  const tombolJurnal = bolehJurnal ? d.jurnal.map(j => `<button class="tombol${j.sumber === 'POS' ? ' utama' : ''}" data-nota-jurnal="${esc(j.uuid)}">${
+    ikonAksi('jurnal')}<span>${j.sumber === 'VOID' ? 'Buka jurnal void' : 'Buka jurnal'}</span></button>`).join('') : '';
+  Admin.dokumen('Nota ' + d.no_nota, `
+    <p class="petunjuk" style="margin:0 0 10px">${kepala}</p>${statusVoid}
+    <div class="gulir-x"><table id="tabelBarangNota"><thead><tr><th>Barang</th><th class="kanan">Qty</th><th class="kanan">Harga</th><th class="kanan">Diskon</th><th class="kanan">Subtotal</th></tr></thead>
+      <tbody>${barang}</tbody></table></div>
+    <div class="gulir-x" style="margin-top:8px"><table class="ringkas-nota"><tbody>${ringkas}</tbody></table></div>
+    <h4 style="margin:14px 0 6px">Pembayaran</h4>
+    <div class="gulir-x"><table id="tabelBayarNota"><tbody>${bayar}</tbody></table></div>${returHtml}
+    ${d.catatan ? '<p class="petunjuk" style="margin:10px 0 0">Catatan: ' + esc(d.catatan) + '</p>' : ''}`,
+    tombolJurnal + '<button class="tombol" data-tutup="1">' + ikonAksi('batal') + '<span>Tutup</span></button>');
+}
+
+/**
+ * Baris ringkasan (Per hari/kasir/cabang/shift) → Riwayat transaksi tersaring
+ * (bagian 541). Tanggal = rentang satu hari; cabang lewat penyaring cabang bila
+ * ada; shift & kasir dipasang di penyaring tab sesudah datanya tergambar.
+ */
+function bukaRiwayatSaring(o) {
+  LAP.saringNota = { id_shift: o.id_shift || '', id_user: o.id_user || '', judul: o.judul || '' };
+  LAP.tab = 'nota';
+  let ganti = false;
+  if (o.tanggal && !($('#lapDari').value === o.tanggal && $('#lapSampai').value === o.tanggal)) {
+    Periode.terapkan(PERIODE_LAPORAN, 'kustom');
+    $('#lapDari').value = o.tanggal; $('#lapSampai').value = o.tanggal; ganti = true;
+  }
+  const sel = $('#lapCabang');
+  if (o.cabang && sel && sel.value !== o.cabang && [...sel.options].some(x => x.value === o.cabang)) { sel.value = o.cabang; ganti = true; }
+  return ganti ? tampilkanLaporan() : gambarTabLaporan('nota');
 }
 
 async function tampilkanBukuBesar() {
@@ -9079,7 +9222,7 @@ function pasangEvent() {
      rentang — lihat komentar di sana. */
   $('#tabLaporan').addEventListener('click', e => {
     const t = e.target.closest('[data-tab-lap]');
-    if (t) gambarTabLaporan(t.dataset.tabLap);
+    if (t) { LAP.saringNota = null; gambarTabLaporan(t.dataset.tabLap); }
   });
 
   /* Tab Per pelanggan (bagian 396): urutan digambar ulang dari data yang sama;
@@ -9176,7 +9319,7 @@ function pasangEvent() {
   const klikBarisSumber = (e) => {
     if (document.body.classList.contains('tunggu')) return;
     if (e.target.closest('button, a[href], input, select, textarea, label, [role="menu"], .menu-lain')) return;
-    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang]');
+    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang], tr[data-nota], tr[data-lap-saring]');
     if (!tr) return;
     /* Angka tersimpan (data-basi): penjaga pos.js hanya mendengar click — Enter dari
        keyboard ditolak di sini dengan kalimat yang sama (peninjau-rilis bagian 538). */
@@ -9188,6 +9331,8 @@ function pasangEvent() {
       return;
     }
     if (e.type === 'keydown') { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); }
+    if (tr.dataset.nota) return bukaRincianNota(tr.dataset.notaCabang, tr.dataset.nota, tr.dataset.notaRetur);
+    if (tr.dataset.lapSaring) return bukaRiwayatSaring(JSON.parse(tr.dataset.lapSaring));
     if (tr.dataset.jurnal) return bukaRincianJurnal(tr.dataset.jurnal, _bbAkun);
     if (tr.dataset.lrCabang) {
       const sel = $('#keuCabang');
@@ -9199,8 +9344,14 @@ function pasangEvent() {
   document.addEventListener('click', klikBarisSumber);
   document.addEventListener('keydown', klikBarisSumber);
   document.addEventListener('click', e => {
+    const j = e.target.closest('[data-nota-jurnal]');
+    if (j && !document.body.classList.contains('tunggu')) return bukaRincianJurnal(j.dataset.notaJurnal, '');
+  });
+  document.addEventListener('click', e => {
     const b = e.target.closest('#btnJurnalDokumen');
-    if (b && !document.body.classList.contains('tunggu')) Admin.bukaPembelian(b.dataset.uuid, b.dataset.cabang);
+    if (!b || document.body.classList.contains('tunggu')) return;
+    if (b.dataset.jenis === 'NOTA') return bukaRincianNota(b.dataset.cabang, b.dataset.uuid, b.dataset.retur);
+    Admin.bukaPembelian(b.dataset.uuid, b.dataset.cabang);
   });
   /* Uji kebenaran (bagian 306: di layar Jurnal & Tutup Buku). Hasilnya di
      wadah sendiri di atas daftar jurnal. */
@@ -9396,6 +9547,9 @@ function pasangEvent() {
       const selesai = document.querySelector('#tiraiUmum.tampil #btnSelesaiRetur, #tiraiUmum.tampil #btnSelesaiReturBeli');
       /* Selama body.tunggu kliknya ditolak penjaga tindakan — Escape tetap menutup seperti dulu. */
       if (selesai && !document.body.classList.contains('tunggu')) { e.preventDefault(); selesai.click(); return; }
+      /* Penampil nota di atas Laporan shift (bagian 541): Escape hanya menutup yang teratas —
+         laporannya menyimpan draf koreksi yang hilang bila ikut tertutup. */
+      if ($('#tiraiUmum').classList.contains('tampil') && $('#tiraiLapShift').classList.contains('tampil')) { Admin.tutupModal(); return; }
       $$('.tirai').forEach(t => t.classList.remove('tampil'));
     }
     if (e.key === 'Enter' && $('#tiraiBayar').classList.contains('tampil')
