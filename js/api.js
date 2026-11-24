@@ -129,7 +129,7 @@ const API = (() => {
     'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
-    'shift_belum_setor', 'arus_kas', 'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat',
+    'shift_belum_setor', 'arus_kas', 'filter_opname', 'daftar_retur', 'pantau_retur', 'cari_nota', 'daftar_perangkat',
     'daftar_minta_void', 'daftar_lini', 'keadaan_pulsa_pos', 'daftar_sumber_pulsa',
     'shift_pulsa_aktif', 'daftar_shift_pulsa', 'riwayat_koreksi_shift_pulsa', 'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
@@ -256,7 +256,7 @@ const API = (() => {
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
     'shift_belum_setor', 'arus_kas',
-    'filter_opname', 'daftar_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
+    'filter_opname', 'daftar_retur', 'pantau_retur', 'cari_nota', 'daftar_perangkat', 'baca_berkas_impor',
     'daftar_minta_void', 'ubah_perangkat', 'daftar_lini', 'pratinjau_pulsa', 'keadaan_pulsa',
     'keadaan_pulsa_pos', 'daftar_sumber_pulsa', 'shift_pulsa_aktif', 'daftar_shift_pulsa',
     'riwayat_koreksi_shift_pulsa',
@@ -716,6 +716,9 @@ let _pernahJawab = false;
     /* Riwayat nota dibaca per rentang dan bisa ratusan baris; batas waktunya
        disamakan dengan laporan penjualan, bukan dengan panggilan kecil. */
     laporanNota:     (d) => panggil('laporan_nota', d, { timeout: 90000 }),
+    /* Pemantauan void (bagian 545): LATAR — laporan sebulan semua cabang tidak boleh membekukan
+       tombol Setujui/Tolak yang berdiri di layar yang sama. */
+    pantauVoid:      (d) => panggil('laporan_nota', d, { latar: true, timeout: 90000 }),
     laporanPelanggan: (d) => panggil('laporan_pelanggan', d, { timeout: 90000 }),   // bagian 396
     laporanProduk:    (d) => panggil('laporan_produk', d, { timeout: 90000 }),      // bagian 452
     laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
@@ -937,6 +940,8 @@ let _pernahJawab = false;
     /* --- retur --- */
     buatRetur:       (d) => panggil('buat_retur', d, { timeout: 90000 }),
     daftarRetur:     (d) => panggil('daftar_retur', d, { timeout: 60000 }),
+    /* Pemantauan retur jual lintas cabang (bagian 545). */
+    pantauRetur:     (d) => panggil('pantau_retur', d, { timeout: 90000 }),
     cariNota:        (d) => panggil('cari_nota', d, { timeout: 60000 }),
 
     /** Jalur umum — untuk aksi baru yang belum punya pembungkus khusus. */

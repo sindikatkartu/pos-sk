@@ -61,7 +61,7 @@ const Admin = (() => {
   const nilaiUrut = (k, r) => k.kunci ? r[k.kunci] : k.nilai ? k.nilai(r) : undefined;
   const tabelPolos = (kolom, baris, opsi = {}) => `
     <div class="gulir-x${opsi.kelasWadah ? ' ' + opsi.kelasWadah : ''}">
-    <table>
+    <table${opsi.kelas ? ' class="' + opsi.kelas + '"' : ''}>
       <thead><tr>${kolom.map((k, i) => `<th class="${k.angka ? 'angka' : ''} ${k.kelas || ''}${
         k.judul ? ' bisa-urut' : ''}"${k.judul ? ` data-urut-kol="${i}"` : ''}${
         opsi.urut && k.judul && opsi.urut.judul === k.judul
@@ -584,6 +584,7 @@ const Admin = (() => {
             aria-labelledby="judulTanya">
          <h3 id="judulTanya">${esc(judul)}</h3>
          ${isi || ''}
+         ${berisian && o.jenisAlasan ? `<select id="jenisTanya" aria-label="Jenis alasan" style="margin-bottom:8px">${opsiJenisAlasan(o.jenisAlasan)}</select>` : ''}
          ${berisian ? `<input type="text" id="isiTanya" autocomplete="off"
               placeholder="${esc(o.isian === true ? '' : o.isian)}">
             <div class="pesan galat rapat sembunyi" id="pesanTanya"></div>` : ''}
@@ -639,6 +640,15 @@ const Admin = (() => {
       ya.addEventListener('click', () => {
         if (!berisian) return selesai(true);
         const teks = String(inp.value || '').trim();
+        /* Jenis alasan (bagian 545): wajib dipilih; jawabannya "Jenis — keterangan". */
+        const pj = o.jenisAlasan ? $('#jenisTanya') : null;
+        if (pj && !pj.value) {
+          const p = $('#pesanTanya');
+          p.textContent = 'Pilih jenis alasannya dulu.';
+          p.classList.remove('sembunyi');
+          pj.focus();
+          return;
+        }
         /* Teks yang kependekan ditolak DI TEMPAT. prompt() lama mengembalikan
            teks itu ke pemanggilnya, yang lalu `return` tanpa sepatah kata pun —
            orangnya mengira tombolnya rusak, lalu menekannya lagi. */
@@ -649,7 +659,7 @@ const Admin = (() => {
           inp.focus();
           return;
         }
-        selesai(teks);
+        selesai(pj ? rakitAlasan(pj.value, teks) : teks);
       });
       btl.addEventListener('click', () => selesai(tidak()));
       if (inp) inp.addEventListener('keydown', e => {
@@ -660,7 +670,7 @@ const Admin = (() => {
          pertanyaan ini tidak bisa diurungkan, dan Enter yang tidak sengaja
          tidak boleh menjadi jawabannya. Kecuali saat ada isian — di situ yang
          ditunggu memang ketikan — atau saat tidak ada Batal untuk difokuskan. */
-      (inp || (o.tanpaBatal ? ya : btl)).focus();
+      (o.jenisAlasan ? $('#jenisTanya') : (inp || (o.tanpaBatal ? ya : btl))).focus();
     });
   }
 
@@ -10521,11 +10531,117 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      sel di satu tabel, dan aturan global akan memaksa tabel lain ikut melebar. */
   const _takPecah = (isi) => '<span style="white-space:nowrap">' + isi + '</span>';
 
+  /* ==================== PEMANTAUAN VOID & RETUR (bagian 545) ====================
+     Hanya pemegang laporan_penjualan·lihat; selain itu daftar sederhana seperti dulu. */
+  const PERIODE_VOID = { id: 'voidPeriode', dari: 'voidDari', sampai: 'voidSampai', nilai: 'bulan' };
+  const PERIODE_RETUR = { id: 'returPeriode', dari: 'returDari', sampai: 'returSampai', nilai: 'bulan' };
+  /* Nomor hanya boleh patah sesudah garis miring (tablet tegak), bukan di tengah angkanya. */
+  const noPatah = (t) => `<span class="no-patah">${esc(t).replace(/\//g, '/<wbr>')}</span>`;
+  const bolehPantau = () => bolehIzin('laporan_penjualan', 'lihat');
+  /* Rentang yang BERLAKU. Kendalinya bisa sedang tidak ada di layar (tertimpa rangka) atau tanggal
+     akhirnya belum diisi — dua keadaan itu memakai rentang terakhir, bukan bawaan diam-diam. */
+  function rentangKendali(o) {
+    const v = $('#' + o.id)?.value;
+    const ingat = o.ingat || { nilai: o.nilai, ...(Periode.rentang(o.nilai) || {}) };
+    if (!v) return (o.ingat = ingat.nilai === 'kustom' ? ingat : { nilai: ingat.nilai, ...Periode.rentang(ingat.nilai) });
+    const r = Periode.rentang(v) || { dari: $('#' + o.dari)?.value || '', sampai: $('#' + o.sampai)?.value || '' };
+    if (!r.dari || !r.sampai || r.dari > r.sampai) return ingat;
+    return (o.ingat = { nilai: v, dari: r.dari, sampai: r.sampai });
+  }
+  const htmlPeriode = (o, r) => Periode.html({ ...o, nilai: r.nilai, nilaiDari: r.dari, nilaiSampai: r.sampai });
+  /* Daftar dua kali digambar (simpanan, lalu server): ELEMEN kendalinya dipindah, bukan nilainya
+     disalin — pemulih tanggal akhir (bagian 444) memegang elemen itu. */
+  function gambarBawaPeriode(o, gambar, muatUlang) {
+    const sel = $('#' + o.id), kus = $('#' + o.id + 'Kustom');
+    gambar();
+    const baru = $('#' + o.id), kusBaru = $('#' + o.id + 'Kustom');
+    if (sel && baru && sel !== baru) { baru.replaceWith(sel); if (kus && kusBaru) kusBaru.replaceWith(kus); }
+    Periode.pasang(o, muatUlang);
+  }
+  /* Baris ringkas [nama, nota, nilai] dari nota-nota, terbanyak di atas. */
+  function kelompokNota(rows, kunci) {
+    const p = {};
+    rows.forEach((x) => { const k = kunci(x) || '(tidak tercatat)'; const b = p[k] || (p[k] = { nama: k, n: 0, nilai: 0 }); b.n++; b.nilai += Number(x.total) || 0; });
+    return Object.values(p).sort((a, b) => b.n - a.n || b.nilai - a.nilai);
+  }
+  const kartuRingkas = (judul, kepala, rows) => `<div class="kartu laporan-uang"><h3>${esc(judul)}</h3>${
+    tabelPolos([{ judul: kepala, kunci: 'nama' }, { judul: 'Nota', angka: true, kunci: 'n' },
+      { judul: 'Nilai', angka: true, nilai: (b) => b.nilai, render: (b) => rp(b.nilai) }], rows, { kelas: 'lr-cabang' })}</div>`;
+  /* HP: 10 terbaru + tombol; ringkasannya tetap dari seluruh periode (CSS .riwayat-10). */
+  const tombolSemua = (n) => n > 10 ? `<button class="tombol tombol-semua" type="button" data-semua-riwayat="1">Tampilkan semua (${n})</button>` : '';
+  const peringatanPantau = (d, apa, jumlah) => {
+    const t = [];
+    if ((d.cabang_gagal || []).length) t.push(`Cabang ${esc(d.cabang_gagal.join(', '))} gagal dibaca — ${apa}-nya <strong>tidak ikut</strong> dihitung di bawah. Muat ulang sebelum menyimpulkan.`);
+    if ((d.rincian_gagal || []).length) t.push(`Rincian barang atau cara bayar cabang ${esc(d.rincian_gagal.join(', '))} gagal dibaca — jumlah barang dan cara bayarnya belum lengkap.`);
+    if (d.minta_gagal) t.push('Daftar pengajuan gagal dibaca — siapa yang mengajukan, yang mem-void, dan lama tunggunya belum lengkap.');
+    if (d.terpotong) t.push(`Hanya ${jumlah} ${apa} terbaru yang ditampilkan dan dihitung. Persempit periodenya.`);
+    return t.map((x) => `<div class="pesan peringatan">${x}</div>`).join('');
+  };
+  const selAlasan = (teks, daftar) => { const a = uraiAlasan(teks, daftar); return `<strong>${esc(a.jenis)}</strong><div class="meta-kecil">${esc(a.ket || '—')}</div>`; };
+
+  /** Wadah pemantauan di menu Void Nota: dimuat & disegarkan sendiri, tidak menahan antrean keputusan. */
+  function parPantauVoid() {
+    const r = rentangKendali(PERIODE_VOID);
+    return { dari: r.dari, sampai: r.sampai, cabang: bolehPilihCabang() ? (cabangLayar.pembatalan || '*') : '*' };
+  }
+  async function tarikPantauVoid(par) {
+    const d = await API.pantauVoid({ ...par, status: 'DIBATALKAN', pantau: true, batas: 2000 });
+    /* Server lama (selama jeda terbit) mengabaikan `pantau`: semua baris terbaca "void langsung". Ditolak,
+       supaya tidak digambar dan tidak disimpan. */
+    if (!d || !d.cabang_gagal) throw new Error('server sedang diperbarui, coba lagi beberapa menit lagi');
+    return d;
+  }
+  async function muatPantauVoid(janji) {
+    const par = parPantauVoid();
+    /* Janji awal dipakai sekali; Coba lagi menarik ulang. */
+    const ambil = () => { const j = janji; janji = null; return j || tarikPantauVoid(par); };
+    await muatTersimpan('#pantauVoid', 'pantau_void', 'daftar_pantau_void', par, ambil, gambarPantauVoid);
+  }
+  function gambarPantauVoid(d) {
+    const w = $('#pantauVoid');
+    if (!w) return;
+    const rows = d.nota || [];
+    const tanda = (s) => !s ? '—' : !s.ada ? '<span class="lencana kuning">tanpa nota sesudahnya</span>'
+      : (s.mirip ? '<span class="lencana hijau">kemungkinan pengganti</span>' : '<span class="lencana">ada nota sesudahnya</span>') +
+        `<div class="meta-kecil">${noPatah(s.no_nota)}</div><div class="meta-kecil">${rp(s.total)} · ${esc(teksSelang(s.menit))} kemudian${s.calon > 1 ? ' · ' + s.calon + ' nota' : ''}</div>`;
+    const waktuNota = (x) => x.tanggal + ' ' + x.jam;
+    const putus = (x) => {
+      const oleh = esc(x.dibatalkan_oleh || '(tidak tercatat)');
+      if (!x.peminta && !x.waktu_minta) return `${oleh}<div class="meta-kecil">${d.minta_gagal ? 'pengajuannya gagal dibaca' : 'void langsung'}${x.dibatalkan_pada ? ' · ' + esc(waktuTampil(x.dibatalkan_pada)) : ''}</div>`;
+      const a = teksSelang(menitAntara(waktuNota(x), x.waktu_minta)), b = teksSelang(menitAntara(x.waktu_minta, x.waktu_putus));
+      return `${esc(x.peminta)}${a ? ' · ' + a + ' sesudah nota' : ''}<div class="meta-kecil">${oleh}${b ? ' · ' + b + ' kemudian' : ''}</div>`;
+    };
+    w.innerHTML = `${peringatanPantau(d, 'nota', rows.length)}
+      ${petakAngka(angkaVoidLaporan(d, true), 'petak-4')}
+      ${rows.length ? `<div class="trio-ringkas">
+        ${kartuRingkas('Per akun kasir', 'Akun', kelompokNota(rows, (x) => x.nama_kasir))}
+        ${kartuRingkas('Per penyetuju', 'Di-void oleh', kelompokNota(rows, (x) => x.dibatalkan_oleh))}
+        ${kartuRingkas('Per alasan', 'Alasan', kelompokNota(rows, (x) => uraiAlasan(x.alasan_batal, JENIS_VOID).jenis))}
+      </div>` : ''}
+      <div class="kartu laporan-uang riwayat-10"><h3>Riwayat void</h3>${rows.length ? petunjukNota() : ''}
+        ${tabel([
+          { judul: 'Nota', nilai: (x) => waktuNota(x), render: (x) => `<strong>${noPatah(x.no_nota)}</strong><div class="meta-kecil">${esc(tglTampil(x.tanggal))} ${esc(String(x.jam || '').slice(0, 5))} · ${esc(x.cabang)}</div>` },
+          { judul: 'Nilai', angka: true, nilai: (x) => x.total, render: (x) => `${rp(x.total)}<div class="meta-kecil">${esc(x.qty_item)} barang</div>` },
+          { judul: 'Bayar', render: (x) => `<span class="lencana ${/(^|\+)tunai(\+|$)/i.test(x.metode || '') ? 'kuning' : ''}">${esc(labelMetodeGabung(x.metode || x.tipe_bayar) || '—')}</span>` },
+          { judul: 'Diajukan → diputus', render: putus },
+          { judul: 'Nota sesudahnya', render: (x) => tanda(x.sesudah) },
+          { judul: 'Alasan', render: (x) => selAlasan(x.alasan_batal, JENIS_VOID) }
+        ], rows, { kosong: 'Tidak ada nota yang di-void di periode ini', dataAttr: (x) => atributBukaNota(x.cabang, x.uuid) })}
+        ${rows.length ? `<p class="petunjuk">Nota sesudahnya = nota berikutnya dari akun kasir yang sama, paling lama 30 menit sesudah nota yang di-void. <em>Kemungkinan pengganti</em> bila selisih nilainya di bawah 20% atau pelanggan terdaftarnya sama — petunjuk untuk diperiksa, bukan bukti. Periode memakai tanggal nota.</p>` : ''}
+        ${tombolSemua(rows.length)}</div>`;
+  }
+
   async function muatPembatalan() {
     /* Data terakhir dulu (bagian 500): simpanan per cabang sesi; saringan cabang layar dihitung saat menggambar. */
     /* Bagian 506: daftar pengajuan dijaga void·lihat di server. Pemegang void LANGSUNG tanpa izin itu
        tetap boleh masuk (menunya terbuka lewat izinBendera) — daftarnya tidak diminta dan tidak digambar. */
     const bolehLihat = bolehIzin('void', 'lihat');
+    /* Pemantauan (bagian 545): diminta BERSAMAAN dengan daftar pengajuan, digambar di wadahnya sendiri. */
+    const pantau = bolehPantau();
+    const rk = pantau ? rentangKendali(PERIODE_VOID) : null;
+    const janjiPantau = pantau ? tarikPantauVoid(parPantauVoid()) : null;
+    if (janjiPantau) janjiPantau.catch(() => {});   // galatnya dilaporkan muatPantauVoid
+    let pantauMulai = false;
     await muatTersimpan('#isiPembatalan', 'pembatalan', 'daftar_void', { cabang: String(APP_STATE.cabang || '') }, () => bolehLihat ? API.daftarMintaVoid({}) : Promise.resolve([]), (rows) => {
       const bolehPutus = bolehLihat && bolehIzin('void', 'setujui');
       const bolehAjukan = bolehIzin('void', 'buat');
@@ -10542,12 +10658,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       /* Tanpa void·lihat baris dari simpanan lama pun tidak dipakai (bagian 506) — izinnya bisa baru saja dicabut. */
       const rowsC = !bolehLihat ? [] : cabP === '*' ? rows : rows.filter(r => String(r.cabang) === cabP);
       const antre = rowsC.filter(r => r.bisa_diputus);
-      const riwayat = rowsC.filter(r => !r.bisa_diputus);
+      /* Dengan pemantauan, yang DISETUJUI tampil di Riwayat void; sisanya (ditolak, ditarik, menunggu) di sini. */
+      const riwayat = rowsC.filter(r => !r.bisa_diputus && !(pantau && r.status === 'DISETUJUI'));
+      const wadahPantau = $('#pantauVoid');
 
+      const gambarIni = () => {
       $('#isiPembatalan').innerHTML = `
         <div class="kartu">
-          <div class="bar-alat">
+          <div class="bar-alat${pantau ? ' dua-kendali' : ''}">
             ${pilihCabangHtml('pembatalan', true)}
+            ${pantau ? htmlPeriode(PERIODE_VOID, rk) : ''}
             ${antre.length ? `<span class="lencana kuning">${antre.length} menunggu keputusan</span>` : ''}
             <div style="flex:1"></div>
             ${bolehLangsung ? '<button class="tombol bahaya" id="btnVoidNota">Void nota</button>'
@@ -10584,8 +10704,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           ], antre, { kosong: 'Tidak ada yang menunggu keputusan Anda', dataAttr: r => atributBukaNota(r.cabang, r.uuid_penjualan) })}
         </div>` : ''}
 
-        ${bolehLihat ? `<div class="kartu">
-          <h3>${bolehPutus ? 'Riwayat pengajuan' : 'Pengajuan saya'}</h3>${riwayat.length ? petunjukNota() : ''}
+        ${pantau ? '<div id="pantauVoid"></div>' : ''}
+
+        ${bolehLihat && (!pantau || riwayat.length) ? `<div class="kartu">
+          <h3>${pantau ? 'Pengajuan lainnya' : bolehPutus ? 'Riwayat pengajuan' : 'Pengajuan saya'}</h3>${riwayat.length ? petunjukNota() : ''}
           ${tabel([
             { judul: 'Nota', render: r => _takPecah(esc(r.no_nota)) },
             { judul: 'Nilai', angka: true, render: r => rp(r.total) },
@@ -10600,7 +10722,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
               ? `<button class="tombol kecil" data-tarik-void="${esc(r.uuid)}">Tarik</button>` : '' }
           ], riwayat, { kosong: bolehPutus ? 'Belum ada pengajuan' : 'Anda belum pernah mengajukan void', dataAttr: r => atributBukaNota(r.cabang, r.uuid_penjualan) })}
         </div>` : ''}`;
+      };
+      if (!pantau) { gambarIni(); return; }
+      /* Tanpa API.tugas: rantai itu membekukan seluruh layar, termasuk antrean keputusan. */
+      gambarBawaPeriode(PERIODE_VOID, gambarIni, () => muatPantauVoid());
+      if (wadahPantau) $('#pantauVoid').replaceWith(wadahPantau);
+      if (!pantauMulai) { pantauMulai = true; muatPantauVoid(janjiPantau); }
     });
+    /* Antreannya gagal dimuat: pemantauan tetap digambar — kemandiriannya dua arah. */
+    if (pantau && !pantauMulai && $('#isiPembatalan') && !$('#pantauVoid')) {
+      $('#isiPembatalan').insertAdjacentHTML('beforeend', '<div id="pantauVoid"></div>');
+      muatPantauVoid(janjiPantau);
+    }
   }
 
   /* ==================== PERSETUJUAN (bagian 305) ====================
@@ -11370,8 +11503,74 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /* ==================== RETUR ==================== */
 
   let notaTerpilih = null;
+  const PETUNJUK_RETUR = `<p class="petunjuk"><strong>Retur</strong> dipakai bila barangnya benar terjual lalu dikembalikan — sebagian atau seluruhnya,
+            kapan pun; penjualannya tetap tercatat dan nilainya muncul di Laba Rugi sebagai <em>Retur Penjualan</em>. Kalau notanya
+            memang <strong>salah dibuat</strong> dan harus di-void (dibatalkan seluruhnya), itu bukan retur: buka menu <strong>Void Nota</strong>.</p>`;
+
+  /** Menu Retur Jual bagi pemegang laporan_penjualan·lihat (bagian 545). */
+  async function muatPantauRetur() {
+    /* Bawaannya cabang sesi seperti dulu; "Semua cabang" pilihan baru khusus pemantauan. */
+    if (bolehPilihCabang() && !cabangLayar.retur) cabangLayar.retur = APP_STATE.cabang;
+    const r = rentangKendali(PERIODE_RETUR);
+    const par = { dari: r.dari, sampai: r.sampai, cabang: bolehPilihCabang() ? cabangLayar.retur : String(APP_STATE.cabang || '') };
+    await muatTersimpan('#isiRetur', 'retur', 'daftar_retur', { ...par, pantau: 1 }, () => API.pantauRetur(par), (d) => {
+      const rows = d.retur || [];
+      const barang = (x) => (x.item || []).filter((i) => i.peran === 'RETUR');
+      const ganti = (x) => (x.item || []).filter((i) => i.peran === 'PENGGANTI');
+      const pcs = (l) => l.reduce((a, i) => a + (Number(i.qty) || 0), 0);
+      const semuaBarang = [].concat(...rows.map(barang)), rusak = semuaBarang.filter((i) => i.kondisi === 'RUSAK');
+      const kembali = rows.filter((x) => x.selisih < 0);
+      const perMetode = kelompokNota(kembali.map((x) => ({ total: -x.selisih, m: x.metode_selisih || 'tunai' })), (x) => x.m);
+      const adaModal = !!(APP_STATE.flag || {}).lihat_harga_modal;
+      const kotak = [
+        { label: 'Dokumen retur', nilai: rows.length, ekor: rows.length ? rows.filter((x) => x.jenis === 'TUKAR').length + ' tukar barang' : '' },
+        { label: 'Nilai retur', nilai: rp(rows.reduce((a, x) => a + x.nilai_retur, 0)), ekor: rows.length ? pcs(semuaBarang) + ' barang kembali' : '' },
+        { label: 'Uang dikembalikan', nilai: rp(kembali.reduce((a, x) => a - x.selisih, 0)),
+          ekor: perMetode.length ? esc(labelMetode(perMetode[0].nama) + (perMetode.length > 1 ? ' +' + (perMetode.length - 1) + ' cara' : '')) : '' },
+        { label: 'Barang rusak', nilai: adaModal ? rp(rusak.reduce((a, i) => a + (Number(i.hpp_total) || 0), 0)) : pcs(rusak),
+          ekor: !rows.length ? '' : !rusak.length ? 'semua layak jual' : adaModal ? pcs(rusak) + ' rusak, nilai modal' : 'barang' }
+      ];
+      const lencanaKondisi = (x) => {
+        const k = [...new Set(barang(x).map((i) => i.kondisi))];
+        return k.length > 1 ? '<span class="lencana kuning">Campuran</span>'
+          : k[0] === 'RUSAK' ? '<span class="lencana merah">Rusak</span>' : '<span class="lencana hijau">Layak jual</span>';
+      };
+      const selang = (x) => { const m = menitAntara((x.tanggal_nota || '') + ' 00:00', x.tanggal + ' 00:00');
+        return m === null ? '' : m < 1440 ? 'hari yang sama' : Math.round(m / 1440) + ' hari sesudahnya'; };
+      const sebut = (l) => l.map((i) => esc((Number(i.qty) === 1 ? '' : i.qty + '× ') + i.nama_produk)).join(' · ');
+      gambarBawaPeriode(PERIODE_RETUR, () => {
+        $('#isiRetur').innerHTML = `
+        <div class="kartu">
+          <div class="bar-alat dua-kendali">
+            ${pilihCabangHtml('retur', true)}
+            ${htmlPeriode(PERIODE_RETUR, r)}
+            <div class="pengisi-bar" style="flex:1"></div>
+            ${tombolTambah('btnReturBaru', 'Retur baru')}
+          </div>
+          ${PETUNJUK_RETUR}
+        </div>
+        ${peringatanPantau(d, 'retur', rows.length)}
+        ${petakAngka(kotak, 'petak-4')}
+        <div class="kartu laporan-uang riwayat-10">
+          <h3>Riwayat retur</h3>${rows.some((x) => x.uuid_penjualan) ? petunjukNota('Klik baris untuk membuka nota asalnya.') : ''}
+          ${tabel([
+            { judul: 'Dokumen', nilai: (x) => x.tanggal + x.jam, render: (x) => `<strong>${noPatah(x.no_dokumen)}</strong><div class="meta-kecil">${esc(tglTampil(x.tanggal))} ${esc(String(x.jam || '').slice(0, 5))} · ${esc(x.cabang)}</div><div class="meta-kecil">oleh ${orangTampil(x.nama_user, x.id_user)}</div>` },
+            { judul: 'Nota asal', render: (x) => `${noPatah(x.no_nota_asal || 'tanpa nota')}${selang(x) ? '<div class="meta-kecil">' + selang(x) + '</div>' : ''}${x.nama_pelanggan ? '<div class="meta-kecil">' + esc(x.nama_pelanggan) + '</div>' : ''}` },
+            { judul: 'Barang', render: (x) => `${sebut(barang(x)) || '—'}${ganti(x).length ? '<div class="meta-kecil">ditukar: ' + sebut(ganti(x)) + '</div>' : ''}` },
+            { judul: 'Kondisi', render: lencanaKondisi },
+            { judul: 'Nilai retur', angka: true, nilai: (x) => x.nilai_retur, render: (x) => rp(x.nilai_retur) },
+            { judul: 'Uang', angka: true, nilai: (x) => x.selisih, render: (x) => x.selisih
+                ? (x.selisih < 0 ? rp(x.selisih) : '<span style="color:var(--sukses)">+ ' + rp(x.selisih) + '</span>') + `<div class="meta-kecil">${esc(labelMetode(x.metode_selisih || 'tunai'))}</div>` : '—' },
+            { judul: 'Alasan', render: (x) => selAlasan(x.alasan, JENIS_RETUR) }
+          ], rows, { kosong: 'Tidak ada retur di periode ini', dataAttr: (x) => atributBukaNota(x.cabang, x.uuid_penjualan, x.uuid) })}
+          ${tombolSemua(rows.length)}
+        </div>`;
+      }, () => API.tugas(() => muatRetur(), { baca: true }));
+    });
+  }
 
   async function muatRetur() {
+    if (bolehPantau()) return muatPantauRetur();
     /* Data terakhir dulu (bagian 500): simpanan per cabang layar. */
     await muatTersimpan('#isiRetur', 'retur', 'daftar_retur', { cabang: cabangDari('retur') }, () => API.daftarRetur({ cabang: cabangDari('retur') }), (rows) => {
       $('#isiRetur').innerHTML = `
@@ -11383,9 +11582,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           </div>
           ${/* Bagian 504: void nota hanya ada di menu Void Nota — dulu tombolnya menumpang di sini, sedangkan
                menunya bernama "Pembatalan": satu tindakan terbaca sebagai dua urusan. */ ''}
-          <p class="petunjuk"><strong>Retur</strong> dipakai bila barangnya benar terjual lalu dikembalikan — sebagian atau seluruhnya,
-            kapan pun; penjualannya tetap tercatat dan nilainya muncul di Laba Rugi sebagai <em>Retur Penjualan</em>. Kalau notanya
-            memang <strong>salah dibuat</strong> dan harus di-void (dibatalkan seluruhnya), itu bukan retur: buka menu <strong>Void Nota</strong>.</p>
+          ${PETUNJUK_RETUR}
         </div>
         <div class="kartu">
           <h3>Riwayat retur</h3>${rows.some(r => r.uuid_penjualan) ? petunjukNota('Klik baris untuk membuka nota asalnya.') : ''}
@@ -11442,7 +11639,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function formRetur() {
     lepasUuidDokumen('retur');       // dokumen BARU — lihat uuidDokumen()
     notaTerpilih = null;
+    /* Cabangnya DISEBUT: layar boleh menampilkan "Semua cabang", retur dicatat per cabang (bagian 545). */
     bukaModal('Retur baru', `
+      <p class="petunjuk"><span class="lencana">Cabang ${esc(cabangDari('retur'))}</span></p>
       <div class="grup">
         <label>Cari nota asal (nomor nota atau nama pelanggan)</label>
         <div style="display:flex;gap:8px">
@@ -11507,10 +11706,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
 
       <div class="baris2" style="margin-top:14px">
-        <div class="grup"><label>Alasan retur *</label>
-          <input type="text" id="returAlasan" placeholder="mis. kabel putus dalam 3 hari"></div>
+        <div class="grup"><label>Jenis alasan *</label><select id="returJenisAlasan">${opsiJenisAlasan(JENIS_RETUR)}</select></div>
         <div class="grup"><label>Metode selisih uang</label><select id="returMetode">${opsiMetodeUang(true)}</select></div>
       </div>
+      <div class="grup"><label>Keterangan *</label>
+        <input type="text" id="returAlasan" placeholder="mis. kabel putus dalam 3 hari"></div>
 
       <div class="kartu" style="background:var(--bg);margin-top:10px">
         <div class="total-baris"><span>Nilai barang kembali</span><span id="rtNilaiRetur">Rp 0</span></div>
@@ -11593,7 +11793,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                    harga_satuan: Number(i.harga_satuan) || 0, kondisi: i.kondisi || 'LAYAK_JUAL' }));
 
     if (!itemRetur.length) return toast('Isi minimal satu barang yang diretur (qty > 0).', 'galat');
-    if (!nilai('returAlasan')) return toast('Alasan retur wajib diisi.', 'galat');
+    if (!nilai('returJenisAlasan')) return toast('Pilih jenis alasan returnya dulu.', 'galat');
+    if (nilai('returAlasan').length < 3) return toast('Keterangan retur wajib diisi, minimal 3 karakter.', 'galat');
 
     const itemPengganti = jenis === 'TUKAR'
       ? kumpulkanAnak('rp').filter(i => i.sku && Number(i.qty) > 0)
@@ -11614,7 +11815,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         cabang: cabangDari('retur'),
         uuid_penjualan: notaTerpilih ? notaTerpilih.uuid : '',
         jenis, item_retur: itemRetur, item_pengganti: itemPengganti,
-        metode_selisih: nilai('returMetode'), alasan: nilai('returAlasan'),
+        metode_selisih: nilai('returMetode'), alasan: rakitAlasan(nilai('returJenisAlasan'), nilai('returAlasan')),
         id_shift: APP_STATE.idShift || ''
       });
       await Sync.tarikStok();
@@ -16563,6 +16764,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
 
       /* --- retur --- */
+      if (d.semuaRiwayat) { t.closest('.riwayat-10')?.classList.add('semua'); return; }
       if (t.id === 'btnReturBaru')      return formRetur();
       if (t.id === 'btnTambahBarisRt')  return tambahBarisRetur('rt');
       if (t.id === 'btnTambahBarisRp')  return tambahBarisRetur('rp');
@@ -16625,7 +16827,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const alasan = await tanya(`Ajukan void nota ${nota.no_nota}?`,
           `<div class="pesan info">Senilai ${rp(nota.total)}. Notanya <strong>belum berubah apa pun</strong>
              sampai admin menyetujui. Alasan ini yang mereka baca.</div>`,
-          { isian: 'Alasan void (minimal 5 karakter)', minimal: 5, ya: 'Kirim pengajuan' });
+          { isian: 'Keterangan (minimal 5 karakter)', minimal: 5, jenisAlasan: JENIS_VOID, ya: 'Kirim pengajuan' });
         if (!alasan) return;
         try {
           await API.ajukanVoid({ uuid: uuidDokumen('ajukanVoid'), uuid_penjualan: nota.uuid,
@@ -16713,7 +16915,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         const alasan = await tanya(`Void nota ${nota.no_nota}?`,
           `<div class="pesan peringatan">Senilai ${rp(nota.total)}. Seluruh nota dibalik —
              stok, jurnal, dan piutang terkait. Tidak bisa diurungkan.</div>`,
-          { isian: 'Alasan void (minimal 5 karakter)', minimal: 5,
+          { isian: 'Keterangan (minimal 5 karakter)', minimal: 5, jenisAlasan: JENIS_VOID,
             ya: 'Void nota', jenis: 'bahaya' });
         if (!alasan) return;
         try {

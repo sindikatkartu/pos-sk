@@ -1522,6 +1522,79 @@ function atributSaringNota(o) {
   return 'class="baris-klik" tabindex="0" title="Buka Riwayat transaksi ' + esc(o.judul || '') + '" data-lap-saring="' + esc(JSON.stringify(o)) + '"';
 }
 
+/* Jenis alasan void & retur jual (bagian 545) — awalan kolom alasan, "Jenis — keterangan".
+   Daftarnya wajib sama dengan 00_Config.gs. Alasan lama/klien lama = "Belum berjenis". */
+const JENIS_VOID = ['Salah barang', 'Salah jumlah', 'Salah harga', 'Salah pelanggan', 'Salah cara bayar',
+                    'Stok tidak ada', 'Pelanggan batal atau ganti barang', 'Nota dobel', 'Lainnya'];
+const JENIS_RETUR = ['Barang rusak atau cacat', 'Klaim garansi', 'Tidak cocok dengan HP pelanggan',
+                     'Pelanggan berubah pikiran', 'Salah ambil barang oleh toko', 'Lainnya'];
+const BELUM_BERJENIS = 'Belum berjenis';
+const rakitAlasan = (jenis, ket) => jenis + ' — ' + ket;
+/** { jenis, ket } dari teks alasan tersimpan. */
+function uraiAlasan(teks, daftar) {
+  const t = String(teks == null ? '' : teks).trim();
+  const j = daftar.find((x) => t.indexOf(x + ' —') === 0);
+  return j ? { jenis: j, ket: t.slice(j.length + 2).trim() } : { jenis: BELUM_BERJENIS, ket: t };
+}
+/** Pilihan jenis untuk <select>: kosong dulu, supaya tidak ada jenis yang terpilih tanpa sengaja. */
+const opsiJenisAlasan = (daftar) => '<option value="">Pilih jenis alasan…</option>' +
+  daftar.map((j) => '<option>' + esc(j) + '</option>').join('');
+
+/** Selang dalam kata: 11 → "11 mnt", 1152 → "19 jam", 3000 → "2 hari"; null bila tak terbaca. */
+function teksSelang(menit) {
+  if (menit === null || menit === undefined || isNaN(menit)) return '';
+  const m = Math.max(0, Math.round(menit));
+  return m < 60 ? m + ' mnt' : m < 1440 ? Math.round(m / 60) + ' jam' : Math.round(m / 1440) + ' hari';
+}
+/** Menit dari a ke b ("yyyy-MM-dd HH:mm:ss" / bentuk T); null bila salah satunya tanpa jam. */
+function menitAntara(a, b) {
+  const t = (v) => { const s = String(v || ''); return /^\d{4}-\d\d-\d\d[T ]\d\d:\d\d/.test(s) ? new Date(s.slice(0, 19).replace(' ', 'T')).getTime() : NaN; };
+  const d = (t(b) - t(a)) / 60000;
+  return isNaN(d) ? null : d;
+}
+
+/* Kotak angka laporan — dipakai Laporan (app.js) dan menu Void Nota/Retur Jual (admin.js, bagian 545). */
+const lapKotak = (label, nilai, ekor) => `<div class="kartu statistik">
+  <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div>
+  <div class="mini-ekor" title="${esc(String(ekor || '').replace(/<[^>]*>/g, ''))}">${ekor || ''}</div></div>`;
+const petakAngka = (daftar, kelas) =>
+  `<div class="petak ${kelas || ''}">${daftar.map(a => lapKotak(a.label, a.nilai, a.ekor)).join('')}</div>`;
+/* pantau = menu Void Nota (bagian 545): dua kotak pertama sama dengan tab Void di Laporan
+   Penjualan (sumber yang sama), dua berikutnya cara bayar dan lama tunggu keputusan.
+   Ekornya RINGKAS ("terbesar 3,5 jt") — rupiah penuh terpotong di HP. */
+function angkaVoidLaporan(d, pantau) {
+  const rows = d.nota || [];
+  const nilai = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
+  if (pantau) {
+    const tanpa = rows.filter(n => n.sesudah && !n.sesudah.ada).length;
+    const tunai = rows.filter(n => /(^|\+)tunai(\+|$)/i.test(n.metode || '')).length;
+    const besar = rows.reduce((a, b) => Math.max(a, Number(b.total) || 0), 0);
+    const tunggu = rows.map(n => menitAntara(n.waktu_minta, n.waktu_putus)).filter(m => m !== null && m >= 0).sort((a, b) => a - b);
+    const tengah = tunggu.length ? (tunggu[(tunggu.length - 1) >> 1] + tunggu[tunggu.length >> 1]) / 2 : null;
+    return [
+      { label: 'Nota void', nilai: rows.length, ekor: rows.length ? tanpa + ' tanpa nota lanjut' : '' },
+      { label: 'Nilai', nilai: rp(nilai), ekor: rows.length ? 'terbesar ' + esc(Grafik.ringkas(besar).replace('.', ',')) : '' },
+      /* Cara bayar yang gagal dibaca bukan "bukan tunai" (himpunan kosong dari bacaan gagal). */
+      (d.rincian_gagal || []).length ? { label: 'Dibayar tunai', nilai: '—', ekor: 'gagal dibaca' }
+        : { label: 'Dibayar tunai', nilai: tunai, ekor: rows.length ? (rows.length - tunai) + ' bukan tunai' : '' },
+      { label: 'Tunggu keputusan', nilai: tengah === null ? '—' : teksSelang(tengah),
+        ekor: tunggu.length ? 'terlama ' + teksSelang(tunggu[tunggu.length - 1]) : 'tanpa pengajuan' }
+    ];
+  }
+  const perOrang = {};
+  rows.forEach(n => {
+    const k = n.dibatalkan_oleh || '(tidak tercatat)';
+    perOrang[k] = (perOrang[k] || 0) + 1;
+  });
+  return [
+    { label: 'Nota void', nilai: rows.length, ekor: '' },
+    { label: 'Nilai', nilai: rp(nilai), ekor: '' },
+    { label: 'Barang kembali', nilai: rows.reduce((a, b) => a + (b.item || []).length, 0), ekor: 'baris nota' },
+    { label: 'Pelaku void', nilai: Object.keys(perOrang).length,
+      ekor: Object.keys(perOrang).slice(0, 2).map(k => esc(k) + ' ' + perOrang[k] + 'x').join(' · ') }
+  ];
+}
+
 const Periode = {
   PILIHAN: PERIODE_PILIHAN, BULANAN: PERIODE_BULANAN,
   rentang: rentangPeriode, bulan: bulanPeriode,
@@ -2115,6 +2188,7 @@ if (typeof module !== 'undefined' && module.exports) {
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
                      labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
                      angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
+                     JENIS_VOID, JENIS_RETUR, uraiAlasan, rakitAlasan,
                      BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang,
                      metodeTersediaCabang, TAB_LENCANA, isiLencanaTab, lencanaTabHtml };
 }

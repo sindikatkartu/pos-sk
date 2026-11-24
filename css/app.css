@@ -3219,6 +3219,26 @@ table.matriks-kons tr.subtotal td.akun { background: var(--panel-2); }
    tetap sebagai tabel; kolom lengkapnya di tablet ke atas. Pemilihnya sengaja lebih
    spesifik daripada susunan kartu umum, jadi urutan penulisan bukan soal.
    clip-path ikut dipulihkan: susunan umum menyembunyikan kepala tabel dengan itu. */
+/* Pemantauan void (bagian 545): tiga tabel ringkas — 3 kolom atau 1; dua kolom menyisakan satu yatim. */
+.trio-ringkas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; margin-bottom: 16px; }
+.trio-ringkas > .kartu { margin: 0; }
+.trio-ringkas > .kartu > .gulir-x > table > tbody > tr > td:first-child { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .trio-ringkas { grid-template-columns: minmax(0, 1fr); } }
+/* HP: riwayat 10 terbaru dulu, sisanya lewat tombol "Tampilkan semua". */
+.no-patah { word-break: keep-all; overflow-wrap: normal; }
+@media (min-width: 621px) and (max-width: 1340px) {
+  .riwayat-10 .daftar-utama .lencana { white-space: normal; }
+  .riwayat-10 .daftar-utama > table { font-size: var(--fs-12); }
+  .kartu.riwayat-10 > .daftar-utama > table > thead > tr > th,
+  .kartu.riwayat-10 > .daftar-utama > table > tbody > tr > td { padding-left: 6px; padding-right: 6px; }
+  .kartu.riwayat-10 > .daftar-utama > table > thead > tr > th:first-child,
+  .kartu.riwayat-10 > .daftar-utama > table > tbody > tr > td:first-child { padding-left: var(--tepi-x); }
+}
+.tombol-semua { display: none; }
+@media (max-width: 620px) {
+  .riwayat-10:not(.semua) .daftar-utama > table > tbody > tr:nth-child(n+11) { display: none; }
+  .riwayat-10:not(.semua) .tombol-semua { display: flex; width: 100%; justify-content: center; margin-top: 12px; }
+}
 .ket-lr-cabang { margin: 10px 0 0; color: var(--teks-redup); font-size: var(--fs-12); }
 /* LEBAR TANGGUNG (bagian 536, diukur dengan Rp 9.999.999.999 di semua kolom): tujuh kolom
    miliaran butuh 785 px; di HP mendatar (wadah 579 px) dan tablet tegak (708 px) tabelnya

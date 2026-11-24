@@ -6029,10 +6029,6 @@ const tiketLaporanBasi = (t) =>
   t.tab !== LAP.tab || t.dari !== LAP.dari || t.sampai !== LAP.sampai || t.cabang !== LAP.cabang;
 
 /* Kotak dan tabel dipakai kelima tab — satu bentuk, bukan lima yang mirip. */
-const lapKotak = (label, nilai, ekor) => `<div class="kartu statistik">
-  <div class="label">${esc(label)}</div><div class="nilai">${nilai}</div>
-  <div class="mini-ekor" title="${esc(String(ekor || '').replace(/<[^>]*>/g, ''))}">${ekor || ''}</div></div>`;
-
 /**
  * Satu kartu tabel laporan. Kolomnya `{ judul, angka?, render(baris) }` —
  * bentuk yang SAMA dipakai `tabelCetakLaporan`, jadi tabel di layar dan di
@@ -6344,26 +6340,6 @@ function angkaPetugasLaporan(d) {
     { label: 'Omzet diklaim', nilai: rp(rk.omzet || 0), ekor: rk.laba !== undefined ? 'laba ' + rp(rk.laba) : '' }
   ];
 }
-
-function angkaVoidLaporan(d) {
-  const rows = d.nota || [];
-  const nilai = rows.reduce((a, b) => a + (Number(b.total) || 0), 0);
-  const perOrang = {};
-  rows.forEach(n => {
-    const k = n.dibatalkan_oleh || '(tidak tercatat)';
-    perOrang[k] = (perOrang[k] || 0) + 1;
-  });
-  return [
-    { label: 'Nota void', nilai: rows.length, ekor: '' },
-    { label: 'Nilai', nilai: rp(nilai), ekor: '' },
-    { label: 'Barang kembali', nilai: rows.reduce((a, b) => a + (b.item || []).length, 0), ekor: 'baris nota' },
-    { label: 'Pelaku void', nilai: Object.keys(perOrang).length,
-      ekor: Object.keys(perOrang).slice(0, 2).map(k => esc(k) + ' ' + perOrang[k] + 'x').join(' · ') }
-  ];
-}
-
-const petakAngka = (daftar, kelas) =>
-  `<div class="petak ${kelas || ''}">${daftar.map(a => lapKotak(a.label, a.nilai, a.ekor)).join('')}</div>`;
 
 function gambarLapRingkas(w, d) {
   const tabel = lapTabel;
