@@ -1516,11 +1516,26 @@ function atributBukaNota(cabang, uuid, retur) {
 /** Petunjuk tabel yang barisnya membuka nota — kosong bila tidak berhak. */
 const petunjukNota = (teks) => (typeof bolehIzin === 'function' && bolehIzin('penjualan', 'lihat'))
   ? PETUNJUK_KLIK_BARIS(teks || 'Klik baris untuk membuka notanya.') : '';
+/** Petunjuk tabel yang barisnya membuka kartu stok — kosong bila tidak berhak. */
+const petunjukStok = () => (typeof bolehIzin === 'function' && bolehIzin('stok', 'lihat'))
+  ? PETUNJUK_KLIK_BARIS('Klik baris untuk membuka kartu stoknya.') : '';
 /** Baris ringkasan (banyak nota) → Riwayat transaksi tersaring (bagian 541).
  *  o: { tanggal?, cabang?, id_user?, id_shift?, judul } */
 function atributSaringNota(o) {
   return 'class="baris-klik" tabindex="0" title="Buka Riwayat transaksi ' + esc(o.judul || '') + '" data-lap-saring="' + esc(JSON.stringify(o)) + '"';
 }
+
+/** Baris yang membuka sumber lain lewat bukaSumber (app.js, bagian 548); '' tanpa izin·lihat. */
+function atributSumber(izin, judul, jenis, isi) {
+  if (izin && (typeof bolehIzin !== 'function' || !bolehIzin(izin, 'lihat'))) return '';
+  return 'class="baris-klik" tabindex="0" title="' + esc(judul) + '" data-buka-sumber="' + esc(jenis) + '" data-buka-isi="' + esc(JSON.stringify(isi)) + '"';
+}
+/** Baris yang sudah punya tombol/butir rincian: klik barisnya = menekan tombol itu. */
+const atributTombol = (judul, sel) => atributSumber('', judul, 'tombol', { sel });
+/** Baris satu barang → kartu stok cabangnya ('' / '*' = cabang sesi, bisa diganti di pop-upnya). */
+const atributKartuStok = (sku, cabang) => sku ? atributSumber('stok', 'Buka kartu stok ' + sku, 'stok', { sku: String(sku), cabang: cabang && cabang !== '*' ? String(cabang) : '' }) : '';
+/** Baris satu jurnal → rincian jurnalnya; `akun` disorot. */
+const atributJurnal = (uuid, akun) => uuid ? atributSumber('laporan_keuangan', 'Buka rincian jurnal', 'jurnal', { uuid: String(uuid), akun: akun || '' }) : '';
 
 /* Jenis alasan void & retur jual (bagian 545) — awalan kolom alasan, "Jenis — keterangan".
    Daftarnya wajib sama dengan 00_Config.gs. Alasan lama/klien lama = "Belum berjenis". */

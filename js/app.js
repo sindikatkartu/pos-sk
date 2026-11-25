@@ -6022,13 +6022,13 @@ function gambarHasilLapProduk(d) {
   $('#lapProdukKotak').innerHTML = petakAngka(angkaProdukLaporan(d, g), 'petak-4');
   const buka = !!String(LAP.produkSaring.cari || '').trim();
   const sel = (k, x) => `<td class="${k.angka ? 'angka' : ''}" data-l="${esc(k.judul)}">${k.render(x)}</td>`;
-  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>
+  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>${petunjukStok()}
     ${g.kat.map((k, i) => `<details class="nota-pelanggan"${buka || i === 0 ? ' open' : ''}>
       <summary><span><strong>${esc(k.nama)}</strong> <small class="ket-pelanggan">${k.produk.length} produk · ${g.total.omzet ? Math.round(k.omzet / g.total.omzet * 1000) / 10 : 0}% omzet</small></span>
         <span>${qtyTeks(k.qty)} pcs · ${rp(k.omzet)}</span></summary>
       <div class="gulir-x"><table>
         <thead><tr>${kol.map((c) => `<th class="${c.angka ? 'angka' : ''}">${esc(c.judul)}</th>`).join('')}</tr></thead>
-        <tbody>${k.produk.map((x) => `<tr>${kol.map((c) => sel(c, x)).join('')}</tr>`).join('')}</tbody>
+        <tbody>${k.produk.map((x) => `<tr ${atributKartuStok(x.sku, LAP.cabang)}>${kol.map((c) => sel(c, x)).join('')}</tr>`).join('')}</tbody>
         <tfoot><tr>${kol.map((c) => sel(c, barisTotalProduk(k))).join('')}</tr></tfoot>
       </table></div></details>`).join('')}</div>`
     : `<div class="kartu"><p class="petunjuk">${(d.produk || []).length ? 'Tidak ada produk yang cocok dengan saringan.' : 'Belum ada penjualan pada rentang ini.'}</p></div>`;
@@ -6471,7 +6471,7 @@ function gambarLapRingkas(w, d) {
       ${tabel('Per metode bayar', KOLOM_LAP.perMetode(), d.per_metode || [], 'Belum ada pembayaran.')}
       ${tabel('Per cabang', KOLOM_LAP.perCabang(d), d.per_cabang || [], 'Tidak ada data.', b => atributSaringNota({ cabang: b.cabang, judul: b.cabang }), PETUNJUK_KLIK_BARIS('Klik baris untuk membuka nota-notanya.'))}
       </div></div>
-      ${tabel('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.')}
+      ${tabel('Produk terlaris', KOLOM_LAP.produk(d), (d.produk_teratas || []).slice(0, 25), 'Belum ada penjualan.', b => atributKartuStok(b.sku, LAP.cabang), petunjukStok())}
       ${tabel('Retur', KOLOM_LAP.retur(), d.retur || [], 'Tidak ada retur di rentang ini.', b => atributBukaNota(b.cabang, b.uuid_penjualan, b.uuid), petunjukNota('Klik baris untuk membuka nota asalnya.'))}
       ${tabel('Nota void', KOLOM_LAP.batal(), d.batal || [], 'Tidak ada nota yang di-void.', b => atributBukaNota(b.cabang, b.uuid), petunjukNota())}
       ${tabel('Piutang yang lahir di periode ini', KOLOM_LAP.piutang(), pi.daftar || [], 'Tidak ada penjualan kredit di rentang ini.')}`;
@@ -6750,7 +6750,7 @@ async function tarikKerugian(par) {
            jatuh jadi nol. "Barang rusak Rp 0" terbaca seperti kabar baik. */
         if (it.hpp_total === undefined) hppDisembunyikan = true;
         rusak.push({
-          cabang: k.cabang, no_dokumen: r.no_dokumen, tanggal: r.tanggal,
+          cabang: k.cabang, uuid: r.uuid, uuid_penjualan: r.uuid_penjualan, no_dokumen: r.no_dokumen, tanggal: r.tanggal,
           no_nota_asal: r.no_nota_asal, alasan: r.alasan,
           sku: it.sku, nama_produk: it.nama_produk, qty: Number(it.qty) || 0,
           hpp_total: Number(it.hpp_total) || 0, subtotal: Number(it.subtotal) || 0
@@ -6962,16 +6962,19 @@ function gambarLapKerugian(w, d) {
     ${catatanMasalahKerugian(d)}
     ${petakAngka(angkaKerugianLaporan(d), 'petak-4')}
     ${lapTabel('Susut stok opname · akun 5-1200 Selisih Persediaan', KOLOM_LAP.opnameRugi(),
-               d.opname || [], 'Tidak ada stok opname yang diposting pada rentang ini.')}
+               d.opname || [], 'Tidak ada stok opname yang diposting pada rentang ini.',
+               b => b.uuid ? atributSumber('opname', 'Buka stok opname ' + b.no_dokumen, 'opname', { uuid: b.uuid, cabang: b.cabang }) : '',
+               bolehIzin('opname', 'lihat') ? PETUNJUK_KLIK_BARIS('Klik baris untuk membuka stok opnamenya.') : '')}
     ${lapTabel('Barang rusak dari retur · akun 5-1300 Barang Rusak / Hilang', KOLOM_LAP.rusak(),
-               d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.')}
+               d.rusak || [], 'Tidak ada barang rusak yang diretur pada rentang ini.',
+               b => atributBukaNota(b.cabang, b.uuid_penjualan, b.uuid), petunjukNota('Klik baris untuk membuka nota asalnya.'))}
     ${catatanRisikoKerugian(d)}
     ${petakAngka(angkaRisikoLaporan(d), 'petak-4')}
     ${d.bisa_diam
       ? lapTabel('Stok yang tidak terjual pada periode ini' +
                  (dipotong ? ' · ' + KR_BATAS_DIAM + ' teratas dari ' + dm.length : ''),
                  KOLOM_LAP.diamStok(d), dm.slice(0, KR_BATAS_DIAM),
-                 'Seluruh stok bergerak pada periode ini.')
+                 'Seluruh stok bergerak pada periode ini.', b => atributKartuStok(b.sku, b.cabang), petunjukStok())
       : `<div class="kartu"><p class="petunjuk">Stok tidak bergerak tidak bisa dihitung —
            daftar penjualan atau daftar stok gagal ditarik. Angkanya sengaja tidak
            ditebak: tanpa daftar penjualan, seluruh katalog akan terbaca sebagai
@@ -7288,7 +7291,7 @@ async function tampilkanJurnalManual() {
       </div>` : '';
 
     const daftar = (d.jurnal || []);
-    const baris = (j) => `<tr>
+    const baris = (j) => `<tr ${atributJurnal(j.uuid)}>
       <td data-l="Tanggal">${esc(tglTampil(j.tanggal))}<span class="petunjuk" style="display:block">${esc(j.no_jurnal)} · ${esc(j.cabang)}</span></td>
       <td data-l="Keterangan">${j.pembalik ? '<span class="lencana">pembalik</span>' + ' ' : ''}${j.dibalik_oleh ? '<span class="lencana">sudah dibalik</span>' + ' ' : ''}${esc(j.keterangan)}
         <span class="petunjuk" style="display:block">${j.baris.map(b =>
@@ -7300,6 +7303,7 @@ async function tampilkanJurnalManual() {
 
     w.innerHTML = borang + tombolUnduh('jurnal', par) + `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Jurnal penyesuaian ${esc(par.periode)}</h3></div>
+      ${daftar.length && bolehIzin('laporan_keuangan', 'lihat') ? PETUNJUK_KLIK_BARIS('Klik baris untuk membuka rincian jurnalnya.') : ''}
       ${daftar.length ? `<div class="gulir-x"><table>
         <thead><tr><th>Tanggal</th><th>Keterangan</th><th class="kanan">Nominal</th><th></th></tr></thead>
         <tbody>${daftar.map(baris).join('')}</tbody></table></div>`
@@ -7378,6 +7382,33 @@ function bukaBukuBesar(kode, periode, cabang) {
   return pilihTabKeu('bukubesar');
 }
 
+/* Dokumen sumber jurnal & mutasi stok (bagian 549): izin menunya, label tombol, ikonnya. */
+const DOKUMEN_SUMBER = { NOTA: ['penjualan', 'Buka nota', 'nota'], PEMBELIAN: ['pembelian', 'Buka pembelian', 'pembelian'],
+  TRANSFER: ['transfer', 'Buka transfer', 'transfer'], OPNAME: ['opname', 'Buka stok opname', 'opname'],
+  RETUR_BELI: ['pembelian', 'Buka retur beli', 'retur'], PRODUKSI: ['produksi', 'Buka produksi', 'tampil'],
+  KAS: ['kas', 'Buka dokumen kas', 'tampil'], SHIFT: ['shift', 'Buka laporan shift', 'tampil'] };
+/** d: { jenis, uuid, cabang, retur?, tanggal? } */
+function bukaDokumenSumber(d) {
+  const j = DOKUMEN_SUMBER[d.jenis];
+  if (!j || !bolehIzin(j[0], 'lihat')) return;
+  if (d.jenis === 'NOTA') return bukaRincianNota(d.cabang, d.uuid, d.retur);
+  if (d.jenis === 'PEMBELIAN') return Admin.bukaPembelian(d.uuid, d.cabang);
+  if (d.jenis === 'OPNAME') return Admin.bukaOpname(d.uuid, d.cabang);
+  /* Laporan shift punya tirai sendiri DI BAWAH tirai umum: yang di atasnya ditutup dulu. */
+  if (d.jenis === 'SHIFT') { Admin.tutupModal(); return bukaLaporanShift(d.uuid, d.cabang, false); }
+  return Admin.bukaDokumenLuar(d);
+}
+/** Satu pintu klik baris → sumber (bagian 548). Barisnya dibuat atributSumber (pos.js). */
+function bukaSumber(tr, jenis, isi) {
+  if (jenis === 'tombol') { const b = tr.querySelector(isi.sel); return b && !b.disabled ? b.click() : undefined; }
+  if (jenis === 'jurnal') return bukaRincianJurnal(isi.uuid, isi.akun);
+  if (jenis === 'pembelian') return Admin.bukaPembelian(isi.uuid, isi.cabang);
+  if (jenis === 'dokumen') return bukaDokumenSumber(isi);
+  if (jenis === 'stok') return Admin.bukaKartuStok(isi.sku, isi.cabang);
+  if (jenis === 'shift') return bukaLaporanShift(isi.id, isi.cabang, false);
+  if (jenis === 'opname') return Admin.bukaOpname(isi.uuid, isi.cabang);
+  return Admin.bukaRincianBaris(jenis, isi);
+}
 const SUMBER_JURNAL = { PENJUALAN: 'Nota', POS: 'Nota', VOID: 'Void nota', PEMBELIAN: 'Pembelian', KAS: 'Kas & Bank', RETUR: 'Retur',
   RETUR_BELI: 'Retur beli', OPNAME: 'Stok opname', TRANSFER: 'Transfer',
   PENYESUAIAN: 'Penyesuaian', PENYUSUTAN: 'Penyusutan', PEROLEHAN_ASET: 'Aset masuk',
@@ -7397,8 +7428,8 @@ async function bukaRincianJurnal(uuid, akun) {
         ${lintas || (b.keterangan && b.keterangan !== d.keterangan) ? `<span class="petunjuk" style="display:block;margin:0">${[lintas ? namaCabangBuku(b.cabang) : '', b.keterangan !== d.keterangan ? b.keterangan : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}</td>
       <td class="kanan" data-l="Debit">${b.debit ? rp(b.debit) : ''}</td>
       <td class="kanan" data-l="Kredit">${b.kredit ? rp(b.kredit) : ''}</td></tr>`).join('');
-  const bisaDok = d.dokumen && ((d.dokumen.jenis === 'PEMBELIAN' && bolehIzin('pembelian', 'lihat'))
-    || (d.dokumen.jenis === 'NOTA' && bolehIzin('penjualan', 'lihat')));   /* nota: bagian 541 */
+  const jd = d.dokumen && DOKUMEN_SUMBER[d.dokumen.jenis];
+  const bisaDok = !!jd && bolehIzin(jd[0], 'lihat');
   Admin.dokumen('Rincian jurnal', `
     <p class="petunjuk" style="margin:0 0 10px">${esc(d.no_jurnal)} · ${esc(tglTampil(d.tanggal))} · ${esc(SUMBER_JURNAL[d.sumber] || d.sumber || '—')} · ${esc(namaCabangBuku(d.cabang))}
       ${d.pembalik ? ' <span class="lencana abu">pembalik</span>' : ''}<br>${esc(d.keterangan)}</p>
@@ -7407,7 +7438,7 @@ async function bukaRincianJurnal(uuid, akun) {
       <tbody>${baris}
         <tr class="tebal pisah"><td data-l="">Jumlah</td><td class="kanan" data-l="Debit">${rp(d.total_debit)}</td>
           <td class="kanan" data-l="Kredit">${rp(d.total_kredit)}</td></tr></tbody></table></div>`,
-    (bisaDok ? `<button class="tombol utama" id="btnJurnalDokumen" data-jenis="${esc(d.dokumen.jenis)}" data-uuid="${esc(d.dokumen.uuid)}" data-cabang="${esc(d.dokumen.cabang)}" data-retur="${esc(d.dokumen.retur || '')}">${ikonAksi(d.dokumen.jenis === 'NOTA' ? 'nota' : 'pembelian')}<span>${d.dokumen.jenis === 'NOTA' ? 'Buka nota' : 'Buka pembelian'}</span></button>` : '') +
+    (bisaDok ? `<button class="tombol utama" id="btnJurnalDokumen" data-jenis="${esc(d.dokumen.jenis)}" data-uuid="${esc(d.dokumen.uuid)}" data-cabang="${esc(d.dokumen.cabang)}" data-retur="${esc(d.dokumen.retur || '')}" data-tanggal="${esc(d.dokumen.tanggal || '')}">${ikonAksi(jd[2])}<span>${jd[1]}</span></button>` : '') +
     '<button class="tombol" data-tutup="1">' + ikonAksi('batal') + '<span>Tutup</span></button>');
 }
 
@@ -7417,6 +7448,7 @@ async function bukaRincianNota(cabang, uuid, retur) {
   let d;
   try { d = await API.rincianNota({ cabang, uuid }); }
   catch (e) { return Admin.dokumen('Nota', `<div class="pesan galat">${esc(e.message)}</div>`); }
+  retur = retur || d.retur_asal || '';
   const jam = String(d.jam || '').substring(0, 5);
   const v = d.void;
   const kepala = [d.no_nota, tglTampil(d.tanggal) + ' ' + jam, namaCabangBuku(d.cabang), 'Kasir ' + (d.nama_kasir || '—')].map(esc).join(' · ') + '<br>' +
@@ -9396,8 +9428,8 @@ function pasangEvent() {
      (popovernya anak baris), atau kendali isian di dalam baris BUKAN klik baris. */
   const klikBarisSumber = (e) => {
     if (document.body.classList.contains('tunggu')) return;
-    if (e.target.closest('button, a[href], input, select, textarea, label, [role="menu"], .menu-lain')) return;
-    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang], tr[data-nota], tr[data-lap-saring], [data-lapshift]');
+    if (e.target.closest('button, a[href], input, select, textarea, label, [role="menu"], .menu-lain, [data-tanpa-klik]')) return;
+    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang], tr[data-nota], tr[data-lap-saring], tr[data-buka-sumber], [data-lapshift]');
     if (!tr) return;
     /* Angka tersimpan (data-basi): penjaga pos.js hanya mendengar click — Enter dari
        keyboard ditolak di sini dengan kalimat yang sama (peninjau-rilis bagian 538). */
@@ -9409,6 +9441,7 @@ function pasangEvent() {
       return;
     }
     if (e.type === 'keydown') { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); }
+    if (tr.dataset.bukaSumber) return bukaSumber(tr, tr.dataset.bukaSumber, JSON.parse(tr.dataset.bukaIsi || '{}'));
     if (tr.dataset.lapshift) return bukaLaporanShift(tr.dataset.lapshift, tr.dataset.lapshiftCabang, true);
     if (tr.dataset.nota) return bukaRincianNota(tr.dataset.notaCabang, tr.dataset.nota, tr.dataset.notaRetur);
     if (tr.dataset.lapSaring) return bukaRiwayatSaring(JSON.parse(tr.dataset.lapSaring));
@@ -9429,8 +9462,8 @@ function pasangEvent() {
   document.addEventListener('click', e => {
     const b = e.target.closest('#btnJurnalDokumen');
     if (!b || document.body.classList.contains('tunggu')) return;
-    if (b.dataset.jenis === 'NOTA') return bukaRincianNota(b.dataset.cabang, b.dataset.uuid, b.dataset.retur);
-    Admin.bukaPembelian(b.dataset.uuid, b.dataset.cabang);
+    const { jenis, uuid, cabang, retur, tanggal } = b.dataset;
+    bukaDokumenSumber({ jenis, uuid, cabang, retur, tanggal });
   });
   /* Uji kebenaran (bagian 306: di layar Jurnal & Tutup Buku). Hasilnya di
      wadah sendiri di atas daftar jurnal. */

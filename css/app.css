@@ -2124,6 +2124,11 @@ tbody tr.baris-klik { cursor: pointer; }
 /* Klik baris → sumber (bagian 538): satu baris petunjuk di atas tabelnya — HP tidak
    punya kursor untuk memberi tahu baris mana yang bisa diklik. Akun yang sedang
    dibuka disorot di rincian jurnal. */
+.daftar-rinci { margin: 0; }
+.daftar-rinci > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--garis); }
+.daftar-rinci dt { color: var(--teks-redup); flex: 0 0 auto; }
+.daftar-rinci dd { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.tabel-audit td { overflow-wrap: anywhere; }
 .petunjuk-klik { color: var(--teks-redup); font-size: var(--fs-12); margin: 2px 0 8px; }
 #tabelRincianJurnal tr.sorot-akun td { background: color-mix(in srgb, var(--peringatan) 16%, transparent); }
 tbody tr.baris-klik:focus-visible td { background: var(--panel-2); }
