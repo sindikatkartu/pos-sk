@@ -1,6 +1,6 @@
 {
-  "name": "POS Sindikat Kartu",
-  "short_name": "POS SK",
+  "name": "SINDIKAT KARTU",
+  "short_name": "SK",
   "description": "Aplikasi kasir offline-first multi-cabang untuk toko aksesoris HP",
   "start_url": "./index.html",
   "scope": "./",

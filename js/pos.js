@@ -2023,6 +2023,13 @@ function jenisShiftAkun(user) {
   return pagi ? 'PAGI' : 'MALAM';
 }
 
+/** Sapaan layar login (bagian 546), ikut jam PERANGKAT. Batas jam dan kapitalnya
+ *  keputusan pemilik 25 Nov 2026. */
+function sapaanJam(tgl) {
+  const j = (tgl || new Date()).getHours();
+  return 'Halo, Selamat ' + (j < 4 || j >= 18 ? 'Malam' : j < 11 ? 'Pagi' : j < 15 ? 'Siang' : 'Sore');
+}
+
 /**
  * Apakah jam ini wajar untuk membuka shift berjenis itu (bagian 284).
  * Batasnya keputusan pemilik 30 Sep 2026: pagi SEBELUM 15.00, malam MULAI
@@ -2186,7 +2193,7 @@ if (typeof module !== 'undefined' && module.exports) {
                      urutNama, urutkanOleh, angkaUrut,
                      tokenProduk, cocokProduk, cariProduk, teksProduk,
                      timEfektifBaris, petugasUntukPeran, lencanaStok,
-                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok,
+                     labelTimBaris, IKON, IKON_SUMBER, ikonAksi, jenisShiftAkun, jamShiftCocok, sapaanJam,
                      angkaTelepon, cocokPelanggan, daftarTokoGrosir, jenisToko, kodePelangganBaku,
                      JENIS_VOID, JENIS_RETUR, uraiAlasan, rakitAlasan,
                      BANK_SEMUA, bankAktif, akunBankAktif, metodeBankAktif, saringBankAktif, metodeCabang,

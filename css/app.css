@@ -2003,15 +2003,16 @@ html[data-tema="gelap"] .kertas { box-shadow: 0 12px 32px rgba(0,0,0,.45); }
 /* ==================== LOGIN ==================== */
 .layar-login {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-  background: var(--bg); z-index: 200; padding: 20px;
+  background: var(--bg); z-index: 200; padding: 20px; overflow-y: auto;
 }
+/* margin:auto, bukan align-items: kartu yang lebih tinggi dari layar tetap bisa
+   digulir sampai atasnya (bagian 546). */
 .kartu-login {
-  width: 100%; max-width: 380px; background: var(--panel);
+  margin: auto; width: 100%; max-width: 380px; background: var(--panel);
   border: 1px solid var(--garis); border-radius: 16px; padding: 30px;
   box-shadow: var(--bayang-4);
 }
-.kartu-login h1 { margin: 0 0 4px; font-size: var(--fs-21); font-weight: 700; letter-spacing: -.4px; }
-.kartu-login p.sub { margin: 0 0 22px; color: var(--teks-redup); font-size: var(--fs-14); }
+.kartu-login h1 { margin: 0 0 22px; font-size: var(--fs-21); font-weight: 700; letter-spacing: -.4px; }
 
 .papan-pin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
 .papan-pin button {
@@ -2022,6 +2023,16 @@ html[data-tema="gelap"] .kertas { box-shadow: 0 12px 32px rgba(0,0,0,.45); }
 .titik-pin { display: flex; gap: 10px; justify-content: center; margin: 16px 0; }
 .titik-pin span { width: 12px; height: 12px; border-radius: 50%; background: var(--garis-kuat); transition: background .12s; }
 .titik-pin span.isi { background: var(--utama); }
+/* HP mendatar: dua lajur, supaya username dan papan PIN sama-sama utuh (bagian 546). */
+@media (max-height: 560px) and (orientation: landscape) {
+  .kartu-login { max-width: 700px; padding: 18px 24px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px;
+                 grid-template-rows: auto auto auto auto auto 1fr; }
+  .kartu-login h1 { margin-bottom: 14px; }
+  .kartu-login > * { grid-column: 1; }
+  .kartu-login > #modePin, .kartu-login > #modePassword { grid-column: 2; grid-row: 1 / span 6; align-self: center; }
+  .kartu-login .papan-pin button { padding: 9px; min-height: 44px; }
+  .kartu-login .titik-pin { margin: 8px 0; }
+}
 
 /* ==================== TABEL & KARTU ====================
    Kotak berbingkai datar TANPA bayangan; pemisah baris memakai garis halus.
@@ -4412,7 +4423,7 @@ body.tunggu-redup input[type="file"] { opacity: .45; }
    di back office saja; Kasir tidak ikut. */
 /* label + #tiraiTanya (bagian 466): label pembungkus memfokuskan isiannya, dan
    isian Tanya ("alasan …") bisa diketik saat simpan — penyapu uji-beku-popup. */
-body.tunggu:not(:has(#layarKasir.aktif)) :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift, #tiraiTanya, #popSelisih, #popStiker) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, label, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]) { pointer-events: none; }
+body.tunggu:not(:has(#layarKasir.aktif)) :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift, #tiraiTanya, #popSelisih, #popStiker) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, label, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah], .sh-kartu) { pointer-events: none; }
 body.tunggu-redup :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea) { opacity: .45; }
 
 /* MEMUAT & MENCETAK (bagian 433): .memuat dipasang api.js pada WADAHNYA
@@ -4420,7 +4431,7 @@ body.tunggu-redup :where(.layar:not(#layarKasir), #tiraiUmum, #tiraiLapShift) :i
    orang tetap bisa pindah layar. Redup menyusul 350 ms seperti tunggu. */
 .memuat { cursor: progress; }
 /* Tombol TUTUP tidak pernah beku: modal yang memuat isinya sendiri tidak boleh menjebak. */
-.memuat :is(button:not([data-tutup]):not([data-tutup-lapshift]), a[href], select, summary, label, [role="tab"], [role="menuitem"], input, textarea, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah]) { pointer-events: none; }
+.memuat :is(button:not([data-tutup]):not([data-tutup-lapshift]), a[href], select, summary, label, [role="tab"], [role="menuitem"], input, textarea, tr.baris-klik, tr[data-rincian-beli], tr[data-detail-transfer], tr[data-kartu-stok], tr[data-dok-kas], [data-stiker-tambah], .sh-kartu) { pointer-events: none; }
 .memuat :is(button:not([data-tutup]):not([data-tutup-lapshift]), a[href], select, [role="tab"], input, textarea) { opacity: .5; transition: opacity .15s ease .35s; }
 /* Menu samping diredupkan LEBIH RINGAN. Ia menempati sepertiga layar; pada .45
    seluruh sisi kiri berubah jadi bayangan dan aplikasinya terbaca rusak, bukan
@@ -4772,6 +4783,47 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
   border-radius: var(--radius); border: 1px solid var(--garis); background: var(--panel-2); }
 .abs-foto-kosong { display: flex; align-items: center; justify-content: center; color: var(--teks-redup); }
 .absen-login { width: 100%; margin-top: 8px; }
+
+/* ==================== MENU SHIFT (bagian 546) ==================== */
+#layarShift .petak-tunggal.lebar { max-width: none; }
+#kartuShift { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; align-items: end; }
+#kartuShift > h3, #kartuShift > .petunjuk, #kartuShift > .pita-lihat { grid-column: 1 / -1; }
+#kartuShift > #infoShift { grid-column: 1; align-self: center; }
+#kartuShift > #infoShift .pesan { margin-bottom: 0; max-width: 520px; }
+#kartuShift > #grupKasAwal { grid-column: 2; margin: 0 !important; width: 160px; }
+#kartuShift > #btnBukaShift, #kartuShift > #btnTutupShift { grid-column: 3; margin: 0 !important; min-height: 40px; }
+.sh-status { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; }
+.sh-status .petunjuk { margin: 0; }
+.bar-alat > .judul-kiri { margin-right: auto; }
+#kartuRiwayatShift .bar-alat { margin-bottom: 0; }
+.sh-papan { --lajur: 4; --lajur-sempit: 2; display: grid; grid-template-columns: repeat(var(--lajur), minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.sh-papan > .kartu { margin: 0; }
+.sh-papan h3 { margin: 0 0 10px; }
+.sh-brs { padding: 8px 0; border-top: 1px solid var(--garis); font-size: var(--fs-14); }
+.sh-brs:last-child { padding-bottom: 0; }
+.sh-brs .b1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.sh-brs .jam { color: var(--teks-redup); font-size: var(--fs-13); }
+.sh-brs .kanan { white-space: nowrap; }
+.sh-brs .petunjuk { margin: 0; }
+#ringkasShift .petak { margin-bottom: 16px; }
+.sh-hp { display: none; }
+.sh-kartu { padding: 12px 0; border-bottom: 1px solid var(--garis); cursor: pointer; }
+.sh-kartu:first-child { padding-top: 0; }
+.sh-kartu:last-child { border-bottom: none; }
+.sh-kartu .b1 { display: flex; align-items: baseline; gap: 8px; }
+.sh-kartu .b1 b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sh-kartu .b2 { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-13); color: var(--teks-redup); }
+.sh-kartu .b2 .isi { flex: 1; min-width: 0; }
+/* 700, bukan 620: HP mendatar kecil (667) pun tabelnya masih digeser 96 px. */
+@media (max-width: 700px) { .sh-lebar { display: none; } .sh-hp { display: block; } }
+@media (max-width: 1100px) { .sh-papan { grid-template-columns: repeat(var(--lajur-sempit), minmax(0, 1fr)); } }
+@media (max-width: 620px) {
+  .sh-papan { grid-template-columns: minmax(0, 1fr); }
+  #kartuShift { grid-template-columns: minmax(0, 1fr); row-gap: 12px; }
+  #kartuShift > * { grid-column: 1 !important; }
+  #kartuShift > #grupKasAwal { width: auto; }
+  #kartuShift > h3, #kartuShift > .petunjuk { margin-bottom: 0; }
+}
 /* HP tidak dipakai absen (petugas memakai tablet/PC) dan kepalanya sempit. */
 @media (max-width: 620px) { #btnAbsen { display: none; } }
 

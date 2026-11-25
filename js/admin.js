@@ -1377,7 +1377,7 @@ const Admin = (() => {
     { id: 'kartuReturVoid',  judul: 'Retur jual & void', izin: ['retur', 'lihat'],      tabel: 'retur_void', kaki: '50 terbaru' },
     { id: 'kartuAudit',      judul: 'Aktivitas terakhir', izin: ['audit', 'lihat'],     tabel: 'audit',      kaki: '50 terbaru' },
     { id: 'kartuOpnameUtang', judul: 'Stok opname & utang', izin: ['opname', 'lihat'],     tabel: 'opname_utang', kaki: 'semua' },
-    { id: 'kartuShift',      judul: 'Shift hari ini',    izin: ['shift', 'lihat'],      tabel: 'shift',      kaki: '30 hari' }
+    { id: 'kartuShiftDash',  judul: 'Shift hari ini',    izin: ['shift', 'lihat'],      tabel: 'shift',      kaki: '30 hari' }
   ];
   const kartuMonitorBoleh = () => KARTU_MONITOR.filter(k => bolehIzin(k.izin[0], k.izin[1]));
   const rangkaMonitor = () => kartuMonitorBoleh().map(k =>
@@ -1454,13 +1454,13 @@ const Admin = (() => {
         ]) : '<div class="dr-kosong">Tidak tersedia</div>'}`,
       { id: 'kartuOpnameUtang', tabel: 'opname_utang', kaki: 'per supplier' }));
 
-    if ($('#kartuShift')) ganti('kartuShift', kartuDaftarDash('Shift hari ini', 'per cabang ' + cap,
+    if ($('#kartuShiftDash')) ganti('kartuShiftDash', kartuDaftarDash('Shift hari ini', 'per cabang ' + cap,
       sh === null || sh === undefined ? '<div class="dr-kosong">Tidak tersedia</div>'
         : barisDash(sh.slice(0, 5).map(x => [
             esc(x.cabang) + ' · ' + esc(x.nama || x.id_user || '—'),
             lencanaDash(x.status === 'TUTUP' ? 'tutup ' + jamDari(x.tutup) : labelStatus(x.status), WARNA_STATUS[x.status]),
             x.status === 'BUKA' ? 'sejak ' + jamDari(x.buka) : x.status === 'TUTUP' ? 'selisih ' + rp(x.selisih) : '']), 'Tidak ada cabang'),
-      { id: 'kartuShift', tabel: 'shift', kaki: '30 hari' }));
+      { id: 'kartuShiftDash', tabel: 'shift', kaki: '30 hari' }));
   }
 
   /* ==================== POP-UP "LIHAT SEBAGAI TABEL" ====================
@@ -10481,7 +10481,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <div class="nama">&nbsp;</div></td>
       </tr></table>
       <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
-        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
+        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · v${esc(k.versi || '')}</p>`;
   }
 
   function cetakTransfer(uuid) {
@@ -13581,7 +13581,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <table class="ttd"><tr>${c.peran.map((p) => `<td><div class="peran">${esc(p)}</div><div class="garis"></div>
         <div class="nama">${esc(p === 'Dibuat' ? (d.nama_user || d.id_user || '') : '')}&nbsp;</div></td>`).join('')}</tr></table>
       <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
-        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
+        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · v${esc(k.versi || '')}</p>`;
   }
 
   function cetakDokKas(idDok) {
@@ -14279,7 +14279,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <table class="ttd"><tr><td><div class="peran">Diserahkan</div><div class="garis"></div><div class="nama">&nbsp;</div></td>
         <td><div class="peran">Diterima</div><div class="garis"></div><div class="nama">${esc(k.user || '')}&nbsp;</div></td></tr></table>
       <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} ·
-        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · POS SINDIKAT KARTU v${esc(k.versi || '')}</p>`;
+        ${esc(String(s.nama_usaha || 'SINDIKAT KARTU'))} · v${esc(k.versi || '')}</p>`;
   }
   function cetakBuktiSetoran(sh) {
     const kini = new Date();

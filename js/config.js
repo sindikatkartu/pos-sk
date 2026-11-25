@@ -6,8 +6,8 @@ window.CONFIG = {
   // Tempel URL Web App Apps Script di sini (yang berakhiran /exec)
   API_URL: 'https://script.google.com/macros/s/AKfycbyRxkGDwxskyO9FOHP4H-XUj0yH3cWSeL8TmQSmxza81Bw8oq--SRYT-CnGD8m_g34/exec',
 
-  APP_NAMA: 'POS Sindikat Kartu',
-  VERSI: '1.394.0',
+  APP_NAMA: 'SINDIKAT KARTU',
+  VERSI: '1.395.0',
 
   // Nama & versi database lokal (IndexedDB)
   DB_NAMA: 'possk',

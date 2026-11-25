@@ -4988,6 +4988,56 @@ function gambarPilihCabangShift() {
   </select>`;
 }
 
+/* Baris daftar yang sedang tampil: jendela laporannya memajang angka kasnya
+   seketika, selagi rinciannya (±6 dtk) dimuat (bagian 546). */
+let barisShiftTampil = [];
+
+/** Empat kotak di atas daftar (bagian 546) — angkanya dari angkaShiftLaporan, bukan hitungan kedua. */
+function angkaShiftLayar(d) {
+  const rows = d.shift || [], [shift, nota, jual, selisih] = angkaShiftLaporan(d);
+  const jalan = rows.filter(r => !r.tutup).length, belum = rows.filter(r => r.tutup && r.setoran === 'BELUM');
+  return [
+    { ...shift, ekor: jalan ? jalan + ' berjalan' : 'semua sudah tutup' },
+    { ...jual, ekor: nota.nilai + ' nota' + (jalan ? ' · ' + (rows.length - jalan) + ' tutup' : '') },
+    selisih,
+    { label: 'Belum disetor', nilai: rp(belum.reduce((a, r) => a + (+r.kas_fisik || 0), 0)), ekor: belum.length ? belum.length + ' shift' : 'tidak ada' }
+  ];
+}
+
+/* Papan hari ini per cabang (bagian 546): dari muatan daftar yang sama. Jam
+   ambang "belum dibuka" keputusan pemilik; sebelum itu "–". `segar` = jawaban
+   server barusan: simpanan lama tidak boleh menuduh toko belum dibuka. */
+const AMBANG_SHIFT = [['Pagi', 'PAGI', 8 * 60 + 30, '08.00'], ['Malam', 'MALAM', 15 * 60 + 30, '15.00']];
+const jamShift = (v) => String(v || '').substring(11, 16);
+const jenisBarisShift = (r) => jenisShiftAkun({ nama: r.nama }) || (jamShift(r.buka) < '12:00' ? 'PAGI' : 'MALAM');
+function htmlPapanShift(rows, segar, kini) {
+  const t = kini || new Date(), menit = t.getHours() * 60 + t.getMinutes(), kode = kodeCabangShift();
+  const n = kode.length, lajur = n <= 4 || n === 5 ? n : n % 4 === 0 ? 4 : n % 3 === 0 ? 3 : n % 2 === 0 ? 2 : 1;
+  const baris = (c, [nama, jenis, ambang, biasa]) => {
+    const milik = rows.filter(r => String(r.cabang) === String(c) && jenisBarisShift(r) === jenis);
+    const buka = milik.filter(r => !r.tutup).pop(), tutup = milik.filter(r => r.tutup).sort((a, b) => a.buka < b.buka ? -1 : 1);
+    const jml = (f) => tutup.reduce((a, r) => a + (+r[f] || 0), 0);
+    const [kanan, ket] = buka ? ['<span class="lencana hijau">berjalan</span>', 'sejak ' + jamShift(buka.buka)]
+      : tutup.length ? [rp(jml('total_penjualan')), jamShift(tutup[0].buka) + '–' + jamShift(tutup[tutup.length - 1].tutup) + ' · ' + jml('jumlah_nota') + ' nota']
+      : [segar && menit >= ambang ? '<span class="lencana kuning">belum dibuka</span>' : '<span class="petunjuk">–</span>', 'biasanya buka ' + biasa];
+    return `<div class="sh-brs"><div class="b1"><strong>${nama}</strong><span class="kanan">${kanan}</span></div><div class="jam">${esc(ket)}</div></div>`;
+  };
+  return `<div class="sh-papan" style="--lajur:${lajur};--lajur-sempit:${lajur % 2 === 0 ? 2 : 1}">${kode.map(c =>
+    `<div class="kartu"><h3>${esc(c)}</h3>${AMBANG_SHIFT.map(a => baris(c, a)).join('')}</div>`).join('')}</div>`;
+}
+
+/** HP: satu shift = kartu tiga baris (bagian 546). Tabelnya tetap ada untuk layar lebar. */
+function kartuShiftHp(r, kolCabang, sendiri) {
+  const tgl = tglTampil(String(r.buka).substring(0, 10));
+  const jam = r.tutup ? jamShift(r.buka) + '–' + jamShift(r.tutup) + ' · ' + r.jumlah_nota + ' nota' : 'sejak ' + jamShift(r.buka);
+  return `<div class="sh-kartu" ${atributBukaShift(r)} role="button">
+    <div class="b1">${kolCabang ? `<span class="lencana">${esc(r.cabang)}</span>` : ''}<b>${esc(sendiri ? tgl : (r.nama || r.id_user))}</b><span>${r.tutup ? rp(r.total_penjualan) : '—'}</span></div>
+    <div class="b2"><span class="isi">${sendiri ? '' : esc(tgl) + ' · '}${esc(jam)}</span></div>
+    <div class="b2"><span class="isi">${r.tutup ? 'Kas fisik ' + rp(r.kas_fisik) + ' · selisih ' + `<span class="${Math.abs(r.selisih) >= 1 ? 'bahaya' : ''}">${rp(r.selisih)}</span>` : 'Angkanya dihitung saat tutup'}</span>${
+      r.tutup ? lencanaSetoran(r.setoran) : '<span class="lencana hijau">berjalan</span>'}</div></div>`;
+}
+const atributBukaShift = (r) => `tabindex="0" data-lapshift="${esc(r.id_shift)}" data-lapshift-cabang="${esc(r.cabang || '')}" title="Buka laporan shift ${esc(r.id_shift)}"`;
+
 let _tiketDaftarShift = 0;
 async function muatDaftarShift() {
   const wadah = $('#isiRiwayatShift');
@@ -5001,10 +5051,13 @@ async function muatDaftarShift() {
     cabang: lintas ? cabangShift : String(APP_STATE.cabang || '') };
   const tiket = ++_tiketDaftarShift;
   const sah = () => tiket === _tiketDaftarShift && document.contains(wadah);
+  const hariIni = par.dari === par.sampai && par.sampai === tanggalLokal();
+  const isiSamping = (papan, ringkas) => { $('#papanShift').innerHTML = papan; $('#ringkasShift').innerHTML = ringkas; };
+  if (!bacaSimpanLap('daftar_shift', par)) isiSamping('', '');
   if (!bacaSimpanLap('daftar_shift', par)) Rangka.pasang(wadah, rangkaDaftar(6, ['88%', '70%', '82%', '64%']));   // bentuk asli diingat (bagian 262)
   try {
     await denganSimpananLap(wadah, 'daftar_shift', par,
-      () => API.daftarShift({ dari: par.dari, sampai: par.sampai, ...(lintas ? { cabang: par.cabang } : {}) }), (d) => {
+      () => API.daftarShift({ dari: par.dari, sampai: par.sampai, ...(lintas ? { cabang: par.cabang } : {}) }), (d, segar) => {
     /* Pengajuan koreksi shift milik pengaju (bagian 540) — di bawah kartu daftar, sebelum
        jalan keluar "tidak ada shift": pengajuannya tetap terbaca walau rentangnya kosong. */
     const ps = $('#pengajuanShiftSaya');
@@ -5012,39 +5065,59 @@ async function muatDaftarShift() {
     /* Kolom Cabang hanya bila yang tampil bisa lebih dari satu cabang. */
     const kolCabang = lintas && par.cabang === '*';
     const rows = d.shift || [];
+    barisShiftTampil = rows;
+    /* Keduanya di LUAR wadah yang ditandai basi, jadi tandanya dibawa sendiri (bagian 546). */
+    const lama = segar ? '' : '<p class="petunjuk sh-lama">Angka tersimpan, belum diperbarui.</p>';
+    isiSamping(kolCabang && hariIni && d.boleh_semua ? lama + htmlPapanShift(rows, segar) : '',
+      lintas && rows.length ? lama + petakAngka(angkaShiftLayar(d), 'petak-4') : '');
     if (!rows.length) {
       wadah.innerHTML = '<p style="color:var(--teks-redup)">Tidak ada shift pada rentang ini.</p>';
       return;
     }
-    wadah.innerHTML = `<div class="gulir-x"><table>
+    wadah.innerHTML = `<div class="sh-lebar"><div class="gulir-x"><table>
       <tr>${kolCabang ? '<th>Cabang</th>' : ''}<th>Shift</th><th>Kasir</th><th>Buka</th><th>Tutup</th>
-          <th class="angka">Nota</th><th class="angka">Penjualan</th><th class="angka">Selisih kas</th><th></th></tr>
-      ${rows.map(r => `<tr>
+          <th class="angka">Nota</th><th class="angka">Penjualan</th><th class="angka">Selisih kas</th></tr>
+      ${rows.map(r => `<tr class="baris-klik" ${atributBukaShift(r)}>
         ${kolCabang ? `<td>${esc(r.cabang)}</td>` : ''}
         <td>${esc(r.id_shift)}</td>
         <td>${kasirTampil(r)}</td>
-        <td>${esc(waktuTampil(r.buka))}</td>
-        <td>${r.tutup ? esc(waktuTampil(r.tutup)) + lencanaSetoran(r.setoran) : '<span class="lencana hijau">berjalan</span>'}</td>
+        <td>${esc(waktuTampil(r.buka).substring(0, 14))}</td>
+        <td>${r.tutup ? esc(waktuTampil(r.tutup).substring(0, 14)) + lencanaSetoran(r.setoran) : '<span class="lencana hijau">berjalan</span>'}</td>
         <td class="angka">${r.tutup ? r.jumlah_nota : '—'}</td>
         <td class="angka">${r.tutup ? rp(r.total_penjualan) : '—'}</td>
         <td class="angka">${r.tutup
           ? `<span class="${Math.abs(r.selisih) >= 1 ? 'bahaya' : ''}">${rp(r.selisih)}</span>` : '—'}</td>
-        <td><button class="tombol" data-lapshift="${esc(r.id_shift)}" data-lapshift-cabang="${esc(r.cabang || '')}"
-              style="padding:6px 10px;font-size:var(--fs-13)">Laporan</button></td>
-      </tr>`).join('')}</table></div>
-      ${d.boleh_semua ? '' : '<p class="petunjuk">Anda hanya melihat shift Anda sendiri.</p>'}`;
+      </tr>`).join('')}</table></div></div>
+      <div class="sh-hp">${rows.map(r => kartuShiftHp(r, kolCabang, !d.boleh_semua)).join('')}</div>
+      <p class="petunjuk" style="margin:12px 0 0">${d.boleh_semua ? '' : 'Anda hanya melihat shift Anda sendiri. '}Ketuk satu shift untuk membuka laporannya.</p>`;
     }, sah);
-  } catch (e) { if (sah()) wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
+  } catch (e) { if (sah()) isiSamping('', ''); if (sah()) wadah.innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`; }
 }
 
-async function bukaLaporanShift(idShift, cabang) {
-  $('#lapShiftJudul').textContent = 'Laporan shift ' + idShift;
+const judulShift = (s) => s && s.buka ? (s.nama || s.id_user || 'Shift') + ' · ' + tglTampil(String(s.buka).substring(0, 10)) : 'Laporan shift';
+/** Angka kas dari baris daftar (bagian 546), tampil seketika selagi rinciannya dimuat. */
+function kasAwalShift(r) {
+  if (!r || !r.tutup) return '';
+  const b = (l, v, besar) => `<div class="total-baris${besar ? ' besar' : ''}"><span>${l}</span><span>${rp(v)}</span></div>`;
+  return `<p class="petunjuk">Rincian sedang dimuat…</p><div class="kartu" style="background:var(--bg)">${
+    b('Kas awal laci', r.kas_awal)}${b('Kas sistem saat tutup', r.kas_sistem, 1)}${b('Kas fisik dihitung', r.kas_fisik)}${b('Selisih saat tutup', r.selisih, 1)}</div>`;
+}
+let _tiketLapShift = 0;
+/* `dariDaftar`: hanya ketukan baris yang memajang angka awal — sesudah koreksi, angka barisnya masih yang lama. */
+async function bukaLaporanShift(idShift, cabang, dariDaftar) {
+  const tiket = ++_tiketLapShift;
+  const br = barisShiftTampil.find(r => r.id_shift === idShift && (!cabang || !r.cabang || r.cabang === cabang));
+  $('#lapShiftJudul').textContent = judulShift(br);
+  $('#lapShiftAwal').innerHTML = dariDaftar ? kasAwalShift(br) : '';
   Rangka.pasang($('#lapShiftIsi'), rangkaLapShift(), 'lapShiftIsi', { sekali: true, tanpaLayar: true });   // bagian 262, 470
   $('#tiraiLapShift').classList.add('tampil');
   try {
     /* Cabang barisnya ikut (bagian 274): shift cabang lain tidak ada di
        sheet cabang sesi. Kosong = cabang sesi, seperti dulu. */
     const d = await API.laporanShift({ id_shift: idShift, ...(cabang ? { cabang } : {}) });
+    if (tiket !== _tiketLapShift) return;   // jendelanya sudah dipakai shift lain
+    $('#lapShiftAwal').innerHTML = '';
+    $('#lapShiftJudul').textContent = judulShift(d.shift);
     /* draf: koreksi yang dikumpulkan sebelum disimpan sekaligus (bagian 464). */
     lapShiftKini = { d, idShift, cabang, draf: { kas: null, nota: {}, alasan: '' } };
     const k = d.kas, p = d.penjualan;
@@ -5062,7 +5135,8 @@ async function bukaLaporanShift(idShift, cabang) {
       ${d.berjalan ? '<div class="pesan info">Shift ini masih berjalan — angkanya berjalan juga, ' +
         'dan dihitung dengan rumus yang sama persis dengan saat nanti ditutup.</div>' : ''}
       <p class="petunjuk">Kasir ${kasirTampil(d.shift)} · perangkat ${esc(d.shift.perangkat || '—')}<br>
-        Buka ${esc(waktuTampil(d.shift.buka))}${d.shift.tutup ? ' · tutup ' + esc(waktuTampil(d.shift.tutup)) : ''}</p>
+        Buka ${esc(waktuTampil(d.shift.buka))}${d.shift.tutup ? ' · tutup ' + esc(waktuTampil(d.shift.tutup)) : ''}<br>
+        Kode ${esc(idShift)}</p>
 
       <div class="kartu" style="background:var(--bg)">
         ${baris('Kas awal laci', rp(k.awal))}
@@ -5109,6 +5183,9 @@ async function bukaLaporanShift(idShift, cabang) {
           <td class="angka">${x.poin}</td><td class="angka">${rp(x.omzet)}</td></tr>`).join('')}</table></div>`
         : '<p class="petunjuk">Belum ada klaim petugas di shift ini.</p>'}`;
   } catch (e) {
+    if (tiket !== _tiketLapShift) return;
+    /* Angka kas dari daftar tetap ada; kalimat "sedang dimuat" diganti sebab gagalnya. */
+    $('#lapShiftAwal .petunjuk')?.remove();
     $('#lapShiftIsi').innerHTML = `<div class="pesan galat">${esc(e.message)}</div>`;
   }
 }
@@ -5355,6 +5432,7 @@ async function periksaShift() {
   try {
     const d = await API.shiftAktif();
     APP_STATE.idShift = d.aktif ? d.id_shift : null;
+    APP_STATE.infoShift = d.aktif ? { id: d.id_shift, buka: d.buka, kas_awal: d.kas_awal } : null;
     await DB.kvSet('id_shift', APP_STATE.idShift);
   } catch (e) {
     APP_STATE.idShift = await DB.kvGet('id_shift', null);   // offline: pakai shift terakhir
@@ -5376,6 +5454,16 @@ async function periksaShift() {
  * sudah tertutup, tapi layar di belakangnya masih menawarkan tombol "Tutup
  * shift" untuk shift yang barusan ditutup — dan tombol itu masih bisa dipencet.
  */
+/** "Aktif · sejak 08:11 · sudah 3 jam 20 mnt · kas awal Rp0" (bagian 546). Tanpa
+ *  keterangan dari server (offline), kode shiftnya yang ditulis seperti dulu. */
+function statusShiftAktif(info) {
+  const aktif = '<span class="lencana hijau">Aktif</span>', jam = info && jamShift(info.buka);
+  if (!info || info.id !== APP_STATE.idShift || !jam) return `${aktif} <code>${esc(APP_STATE.idShift)}</code>`;
+  const m = Math.floor((Date.now() - new Date(String(info.buka).substring(0, 19).replace(' ', 'T')).getTime()) / 60000);
+  const lama = m >= 1 && m < 2880 ? 'sudah ' + [m >= 60 ? Math.floor(m / 60) + ' jam' : '', m % 60 ? m % 60 + ' mnt' : ''].filter(Boolean).join(' ') + ' · ' : '';
+  return `<div class="sh-status">${aktif}<strong>sejak ${esc(String(info.buka).substring(0, 10) === tanggalLokal() ? jam : waktuTampil(info.buka).substring(0, 14))}</strong><span class="petunjuk">${lama}kas awal ${rp(+info.kas_awal || 0)}</span></div>`;
+}
+
 function gambarKeadaanShift() {
   const perluBuka = !APP_STATE.idShift;
   /* Mode lihat (bagian 257): kartunya tetap tergambar apa adanya, isiannya
@@ -5399,7 +5487,7 @@ function gambarKeadaanShift() {
   $('#btnTutupShift').classList.toggle('sembunyi', perluBuka);
   const h = APP_STATE.hasilTutupShift;
   $('#infoShift').innerHTML = (APP_STATE.idShift
-    ? `<span class="lencana hijau">Aktif</span> <code>${esc(APP_STATE.idShift)}</code>`
+    ? statusShiftAktif(APP_STATE.infoShift)
     : '<span class="lencana kuning">Belum dibuka</span>')
     /* Ringkasan shift yang baru ditutup bertahan di layar sampai shift berikutnya
        dibuka — ini angka yang dipakai saat serah terima laci, dan ia tidak boleh
@@ -7010,7 +7098,7 @@ function dokumenLaporan(bagian, kini) {
     </table>`;
   const isi = LAP_BAGIAN.filter(b => bagian.includes(b.id)).map(b =>
     `<section class="bagian"><h2>${esc(b.judul)}</h2>${CETAK_LAP_BAGIAN[b.id](LAP.data[b.id])}</section>`).join('');
-  const kaki = `<div class="kaki">POS ${esc(String(s.nama_usaha || 'Sindikat Kartu'))} · v${esc(CONFIG.VERSI)} · ${esc(tglTampil(LAP.dari))} – ${esc(tglTampil(LAP.sampai))}</div>`;
+  const kaki = `<div class="kaki">${esc(String(s.nama_usaha || 'Sindikat Kartu'))} · v${esc(CONFIG.VERSI)} · ${esc(tglTampil(LAP.dari))} – ${esc(tglTampil(LAP.sampai))}</div>`;
   return kop + isi + kaki;
 }
 
@@ -7679,7 +7767,7 @@ function cetakKerugianKeu() {
               ' oleh ' + esc(APP_STATE.user?.nama || '—'))}
     </table>
     <section class="bagian">${isiCetakKerugian(d)}</section>
-    <div class="kaki">POS ${esc(String(s.nama_usaha || 'Sindikat Kartu'))} · v${esc(CONFIG.VERSI)} · ${esc(tglTampil(par.dari))} – ${esc(tglTampil(par.sampai))}</div>`;
+    <div class="kaki">${esc(String(s.nama_usaha || 'Sindikat Kartu'))} · v${esc(CONFIG.VERSI)} · ${esc(tglTampil(par.dari))} – ${esc(tglTampil(par.sampai))}</div>`;
   Struk.isiJendelaDokumen(jendela, 'Kerugian persediaan ' + par.dari + ' – ' + par.sampai, html);
 }
 
@@ -8158,6 +8246,12 @@ function pasangEvent() {
     $('#modePassword').classList.toggle('sembunyi', !pin);
     $('#btnTukarMode').textContent = pin ? 'Masuk dengan PIN' : 'Masuk dengan password';
   });
+
+  /* Sapaan login (bagian 546). Tablet bisa menyala semalaman di layar ini, jadi
+     diperiksa tiap menit; DOM hanya disentuh bila kalimatnya berganti. */
+  const gambarSapaan = () => { const e = $('#sapaanLogin'), t = sapaanJam(); if (e && e.textContent !== t) e.textContent = t; };
+  gambarSapaan();
+  setInterval(gambarSapaan, 60000);
 
   /* Absen petugas (bagian 519): dari layar login dan dari header. */
   $('#btnAbsenLogin').innerHTML = svgIkon('absen') + '<span>Absen petugas</span>';
@@ -9295,7 +9389,7 @@ function pasangEvent() {
   const klikBarisSumber = (e) => {
     if (document.body.classList.contains('tunggu')) return;
     if (e.target.closest('button, a[href], input, select, textarea, label, [role="menu"], .menu-lain')) return;
-    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang], tr[data-nota], tr[data-lap-saring]');
+    const tr = e.target.closest('tr[data-bb-akun], tr[data-jurnal], tr[data-lr-cabang], tr[data-nota], tr[data-lap-saring], [data-lapshift]');
     if (!tr) return;
     /* Angka tersimpan (data-basi): penjaga pos.js hanya mendengar click — Enter dari
        keyboard ditolak di sini dengan kalimat yang sama (peninjau-rilis bagian 538). */
@@ -9307,6 +9401,7 @@ function pasangEvent() {
       return;
     }
     if (e.type === 'keydown') { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); }
+    if (tr.dataset.lapshift) return bukaLaporanShift(tr.dataset.lapshift, tr.dataset.lapshiftCabang, true);
     if (tr.dataset.nota) return bukaRincianNota(tr.dataset.notaCabang, tr.dataset.nota, tr.dataset.notaRetur);
     if (tr.dataset.lapSaring) return bukaRiwayatSaring(JSON.parse(tr.dataset.lapSaring));
     if (tr.dataset.jurnal) return bukaRincianJurnal(tr.dataset.jurnal, _bbAkun);
@@ -9362,10 +9457,6 @@ function pasangEvent() {
   /* Shift: dropdown periode memuat sendiri (v1.182), tidak ada tombol Tampilkan. */
   $('#wadahPeriodeShift').innerHTML = Periode.html(PERIODE_SHIFT);
   Periode.pasang(PERIODE_SHIFT, () => muatDaftarShift());
-  $('#isiRiwayatShift').addEventListener('click', e => {
-    const id = e.target.dataset?.lapshift;
-    if (id) bukaLaporanShift(id, e.target.dataset.lapshiftCabang);
-  });
   document.addEventListener('change', e => {
     if (e.target.id !== 'cabangShift') return;
     cabangShift = e.target.value;

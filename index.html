@@ -12,7 +12,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#eeeff0">
-<title>POS SINDIKAT KARTU</title>
+<title>SINDIKAT KARTU</title>
 <!-- Ikon tab. Tertanam sebagai data URI, gambar yang SAMA dengan ikon aplikasi
      di manifest.webmanifest. Tanpa tag ini peramban tetap meminta /favicon.ico
      dan mendapat 404 pada SETIAP pemuatan — satu-satunya pesan di konsol
@@ -34,7 +34,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="POS SK">
+<meta name="apple-mobile-web-app-title" content="SK">
 <!-- Yang diunduh peramban bundel yang SUDAH diminify; sumber terbacanya tetap
      ada di repo yang sama (`css/app.css`, `js/*.js`) dan itulah yang disunting.
      `uji/bangun.mjs` yang membangunnya, dan `deploy.sh` menolak terbit kalau ada
@@ -65,8 +65,8 @@
 <!-- ==================== LOGIN ==================== -->
 <div class="layar-login" id="layarLogin">
   <div class="kartu-login">
-    <h1>POS SINDIKAT KARTU</h1>
-    <p class="sub">Masuk untuk mulai berjualan</p>
+    <!-- Sapaan ikut jam perangkat, diisi app.js (bagian 546): tanpa logo, nama, dan tagline. -->
+    <h1 id="sapaanLogin">Halo</h1>
 
     <div id="pesanLogin"></div>
 
@@ -587,7 +587,7 @@
          harian kasir, bukan pengaturan alat. Menaruhnya di antara setelan
          printer membuatnya sulit ditemukan tepat saat paling dibutuhkan. -->
     <section class="layar" id="layarShift">
-      <div class="petak-tunggal">
+      <div class="petak-tunggal lebar">
         <div class="kartu" id="kartuShift">
           <h3>Shift kasir</h3>
           <p class="petunjuk">Catatan buka–tutup laci tiap kasir: uang awal, penjualan selama shift, dan setoran yang diserahkan ke kantor.</p>
@@ -608,6 +608,9 @@
              server, bukan di layar ini. -->
       </div>
 
+      <!-- Papan hari ini per cabang (bagian 546): akun lintas cabang, diisi app.js. -->
+      <div id="papanShift"></div>
+
       <!-- DI LUAR `.petak-tunggal`. Wadah itu membatasi lebar pada 460px supaya
            formulir pendek tidak mengambang selebar layar — benar untuk kartu
            "Shift kasir", salah untuk kartu yang isinya TABEL delapan kolom:
@@ -618,17 +621,18 @@
            dan itu membuatnya terbaca mati oleh penyapu bangkai — dibuang
            14 Sep 2026, penjaganya merah seketika, dikembalikan hari itu juga. -->
       <div class="kartu" id="kartuRiwayatShift">
-          <h3>Laporan shift</h3>
           <!-- v1.182: dropdown periode (komponen Periode), memuat sendiri —
                tidak ada tombol Tampilkan. #shiftDari/#shiftSampai tetap ada di
                dalamnya, jadi muatDaftarShift() membaca tempat yang sama. -->
           <div class="bar-alat dua-kendali">
+            <h3 class="judul-kiri">Laporan shift</h3>
             <span class="wadah-periode" id="wadahPeriodeShift"></span>
             <!-- Pilihan cabang (bagian 274): hanya akun lintas cabang, diisi app.js. -->
             <span id="wadahCabangShift"></span>
           </div>
-          <div id="isiRiwayatShift"></div>
       </div>
+      <div id="ringkasShift"></div>
+      <div class="kartu"><div id="isiRiwayatShift"></div></div>
       <!-- Pengajuan koreksi shift milik pengaju (bagian 540), diisi app.js. -->
       <div id="pengajuanShiftSaya"></div>
     </section>
@@ -696,7 +700,7 @@
     <section class="layar" id="layarTentang">
       <div class="petak-tunggal">
         <div class="kartu">
-          <h3>POS SINDIKAT KARTU</h3>
+          <h3>SINDIKAT KARTU</h3>
           <div id="isiTentang"></div>
         </div>
       </div>
@@ -848,8 +852,9 @@
             <li>Hasil tutup shift <strong>bertahan di layar sampai shift berikutnya dibuka</strong> — itu angka serah terima.</li>
           </ul>
           <p class="petunjuk">Shift melekat pada <strong>orangnya</strong>, bukan perangkatnya. Kalau masih ada nota di antrean saat menutup, layar memperingatkan lebih dulu karena kas sistem bisa belum lengkap.</p>
-          <p class="petunjuk"><strong>Salah ketik uang laci?</strong> Kabari Head Admin atau Owner. Mereka membetulkannya lewat menu <strong>Shift → Laporan → Koreksi kas fisik</strong> — selama setoran shift itu <strong>belum diterima</strong>. Selisih dan jurnalnya ikut dibetulkan; kas sistem tidak berubah. Cara bayar nota yang salah dibetulkan dari tombol <strong>Koreksi</strong> di baris notanya. Setiap koreksi masuk ke <strong>daftar koreksi</strong> dulu; semua koreksi satu shift disimpan <strong>sekali</strong> dengan satu alasan. Koreksi oleh Head Admin <strong>disahkan Owner</strong> dulu (menu Persetujuan), sekaligus semuanya — selama menunggu, koreksi baru untuk shift itu belum bisa dibuat, dan setorannya ditahan bila tunai atau kas fisik ikut dikoreksi. Koreksi shift &amp; saldo pulsa juga disahkan Owner.</p>
-          <p class="petunjuk"><strong>Salah pilih cara bayar</strong> (mis. BCA padahal BNI, transfer padahal tunai)? Di <strong>Shift → Laporan</strong>, tekan <strong>Koreksi</strong> di baris notanya, pilih cara bayar yang benar, lalu <strong>Tambahkan ke daftar</strong>. Alasannya ditulis sekali di kartu daftar koreksi, untuk semua koreksi shift itu. Jumlah nota tetap; barang, stok, dan poin tidak berubah. Koreksi oleh Head Admin juga <strong>disahkan Owner</strong>. Bagian <strong>tunai</strong> hanya bisa dikoreksi sesudah shift ditutup dan sebelum setorannya diterima; pindah antar bank/QRIS bisa kapan saja selama bulannya belum ditutup buku.</p>
+          <p class="petunjuk">Laporan satu shift dibuka dengan <strong>mengetuk barisnya</strong> di menu Shift. Akun lintas cabang juga melihat <strong>papan hari ini</strong> per cabang: pagi yang belum dibuka ditandai kuning sejak 08.30, malam sejak 15.30.</p>
+          <p class="petunjuk"><strong>Salah ketik uang laci?</strong> Kabari Head Admin atau Owner. Mereka membetulkannya lewat menu <strong>Shift</strong>: ketuk shiftnya di daftar, lalu <strong>Koreksi kas fisik</strong> — selama setoran shift itu <strong>belum diterima</strong>. Selisih dan jurnalnya ikut dibetulkan; kas sistem tidak berubah. Cara bayar nota yang salah dibetulkan dari tombol <strong>Koreksi</strong> di baris notanya. Setiap koreksi masuk ke <strong>daftar koreksi</strong> dulu; semua koreksi satu shift disimpan <strong>sekali</strong> dengan satu alasan. Koreksi oleh Head Admin <strong>disahkan Owner</strong> dulu (menu Persetujuan), sekaligus semuanya — selama menunggu, koreksi baru untuk shift itu belum bisa dibuat, dan setorannya ditahan bila tunai atau kas fisik ikut dikoreksi. Koreksi shift &amp; saldo pulsa juga disahkan Owner.</p>
+          <p class="petunjuk"><strong>Salah pilih cara bayar</strong> (mis. BCA padahal BNI, transfer padahal tunai)? Di menu <strong>Shift</strong>, ketuk shiftnya, lalu tekan <strong>Koreksi</strong> di baris notanya, pilih cara bayar yang benar, lalu <strong>Tambahkan ke daftar</strong>. Alasannya ditulis sekali di kartu daftar koreksi, untuk semua koreksi shift itu. Jumlah nota tetap; barang, stok, dan poin tidak berubah. Koreksi oleh Head Admin juga <strong>disahkan Owner</strong>. Bagian <strong>tunai</strong> hanya bisa dikoreksi sesudah shift ditutup dan sebelum setorannya diterima; pindah antar bank/QRIS bisa kapan saja selama bulannya belum ditutup buku.</p>
         </div>
 
         <div class="kartu">
@@ -908,7 +913,7 @@
           <h3>A12b. Memasang aplikasi di HP / tablet</h3>
           <ul style="margin:0 0 0 18px;padding:0">
             <li><strong>Android (Chrome):</strong> buka alamat aplikasi → menu ⋮ → <strong>Instal aplikasi</strong> / "Tambahkan ke layar utama". Chrome juga menawarkannya sendiri.</li>
-            <li><strong>iPhone / iPad (Safari):</strong> buka alamat aplikasi → tombol <strong>Bagikan</strong> (kotak dengan panah ke atas) → <strong>Tambah ke Layar Utama</strong>. Tidak ada tawaran otomatis di iOS — harus lewat menu itu. Ikon "SK" biru dan nama <strong>POS SK</strong> muncul di layar utama; terbuka tanpa bilah alamat.</li>
+            <li><strong>iPhone / iPad (Safari):</strong> buka alamat aplikasi → tombol <strong>Bagikan</strong> (kotak dengan panah ke atas) → <strong>Tambah ke Layar Utama</strong>. Tidak ada tawaran otomatis di iOS — harus lewat menu itu. Ikon "SK" biru dan nama <strong>SK</strong> muncul di layar utama; terbuka tanpa bilah alamat.</li>
             <li>Di iPhone <strong>printer Bluetooth tidak bisa dipakai</strong> — Safari iOS tidak mendukung Web Bluetooth. Cetak lewat jendela cetak biasa (AirPrint) saja. Ini batasan Apple, bukan aplikasi.</li>
             <li>Di iPhone, Safari <strong>menghapus data situs yang tidak dibuka 7 hari</strong>. Perangkat kasir harian aman; perangkat cadangan yang jarang dibuka bisa kehilangan nota yang belum terkirim — buka aplikasinya minimal seminggu sekali sampai "Tersinkron".</li>
             <li><strong>Warna bilah status (poni) ikut mode gelap.</strong> Di Android, warna itu dipanggang ke dalam ikon aplikasi saat dipasang — kalau setelah pembaruan poninya masih putih, <strong>hapus ikonnya dari layar utama lalu pasang ulang</strong>. Chrome juga memperbaruinya sendiri, tapi bisa memakan waktu sampai sehari.</li>
@@ -1491,6 +1496,7 @@
   <!-- kertas: rincian dokumen tetap putih padat di mode gelap (bagian 431) -->
   <div class="modal lebar kertas">
     <h3 id="lapShiftJudul">Laporan shift</h3>
+    <div id="lapShiftAwal"></div>
     <div id="lapShiftIsi"></div>
     <div class="aksi-modal">
       <button class="tombol" data-tutup-lapshift="1">Tutup</button>
