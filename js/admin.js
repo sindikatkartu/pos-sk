@@ -1359,7 +1359,7 @@ const Admin = (() => {
     const butir = [];
     const st = (d && d.shift_terbuka) || [];
     if (st.length) butir.push(`<span><strong>${st.length} shift masih terbuka</strong> — ${st.map(x =>
-      esc(x.cabang) + ' · ' + esc(x.id_user) + ' · sejak ' + esc(jamDari(x.buka))).join(', ')}</span>`);
+      esc(x.cabang) + ' · ' + esc(x.nama || x.id_user) + ' · sejak ' + esc(jamDari(x.buka))).join(', ')}</span>`);
     if (m && m.perangkat_menunggu) butir.push(`<span><strong>${m.perangkat_menunggu} perangkat</strong> menunggu persetujuan</span>`);
     if (!butir.length) return '';
     const tautan = [];
@@ -1435,12 +1435,12 @@ const Admin = (() => {
            22 Sep 2026. Ada penjaga di uji.js untuk polanya. */ ''}
         <div class="ringkas-dash">${lencanaDash(rv.retur.n + ' retur · ' + rpTeks(rv.retur.nilai), 'abu')}${lencanaDash(rv.void.n + ' void · ' + rpTeks(rv.void.nilai), rv.void.n ? 'merah' : 'abu')}</div>
         ${barisDash(rv.daftar.slice(0, 4).map(x => [
-          esc(x.no) + ' · ' + esc(x.jenis), esc(x.id_user), esc(x.alasan || '')]), 'Tidak ada retur maupun void')}`,
+          esc(x.no) + ' · ' + esc(x.jenis), esc(x.nama || x.id_user), esc(x.alasan || '')]), 'Tidak ada retur maupun void')}`,
       { id: 'kartuReturVoid', tabel: 'retur_void', kaki: '50 terbaru' }));
 
     if ($('#kartuAudit')) ganti('kartuAudit', kartuDaftarDash('Aktivitas terakhir', 'log audit ' + cap,
       la === null || la === undefined ? '<div class="dr-kosong">Tidak tersedia</div>'
-        : barisDash(la.slice(0, 5).map(x => [esc(kodeRapi(x.aksi)) + ' · ' + esc(x.id_entitas || x.entitas), esc(x.id_user), esc(jamDari(x.waktu))]), 'Belum ada catatan'),
+        : barisDash(la.slice(0, 5).map(x => [esc(kodeRapi(x.aksi)) + ' · ' + esc(x.id_entitas || x.entitas), esc(x.nama || x.id_user), esc(jamDari(x.waktu))]), 'Belum ada catatan'),
       { id: 'kartuAudit', tabel: 'audit', kaki: '50 terbaru' }));
 
     if ($('#kartuOpnameUtang')) ganti('kartuOpnameUtang', kartuDaftarDash('Stok opname & utang', cap, `
@@ -1540,20 +1540,20 @@ const Admin = (() => {
       case 'retur_void':
         judul = 'Retur jual & void · periode ini';
         kolom = [{ judul: 'Jenis', kunci: 'jenis' }, { judul: 'Nomor', kunci: 'no' }, { judul: 'Tanggal', render: r => esc(tglTampil(r.tanggal)) + (r.jam ? ' ' + esc(r.jam) : '') },
-                 { judul: 'Cabang', kunci: 'cabang' }, { judul: 'Kasir', kunci: 'id_user' }, { judul: 'Nilai', angka: true, render: r => rp(r.nilai) },
+                 { judul: 'Cabang', kunci: 'cabang' }, { judul: 'Kasir', nilai: r => r.nama || r.id_user, render: r => esc(r.nama || r.id_user) }, { judul: 'Nilai', angka: true, render: r => rp(r.nilai) },
                  { judul: 'Alasan', kunci: 'alasan' },
                  { judul: 'Item', render: r => (r.item || []).map(i => esc(i.nama_produk) + ' × ' + i.qty + (i.kondisi ? ' (' + esc(i.kondisi) + ')' : '')).join('<br>') || '—' }];
         baris = (mon.retur_void && mon.retur_void.daftar) || [];
         break;
       case 'audit':
         judul = 'Aktivitas terakhir · 50 catatan';
-        kolom = [{ judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) }, { judul: 'Pengguna', kunci: 'id_user' }, { judul: 'Aksi', render: r => esc(kodeRapi(r.aksi)) }, { judul: 'Entitas', render: r => esc(r.entitas) + (r.id_entitas ? ' · ' + esc(r.id_entitas) : '') }];
+        kolom = [{ judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) }, { judul: 'Pengguna', nilai: r => r.nama || r.id_user, render: r => esc(r.nama || r.id_user) }, { judul: 'Aksi', render: r => esc(kodeRapi(r.aksi)) }, { judul: 'Entitas', render: r => esc(r.entitas) + (r.id_entitas ? ' · ' + esc(r.id_entitas) : '') }];
         baris = mon.audit || [];
         break;
       case 'opname_utang':
         judul = 'Stok opname belum diposting & utang per supplier';
         kolom = [{ judul: 'Jenis', kunci: 'jenis' }, { judul: 'Keterangan', kunci: 'ket' }, { judul: 'Status / jatuh tempo', kunci: 'st' }, { judul: 'Nilai', angka: true, kunci: 'nilai' }];
-        baris = (mon.opname || []).map(o => ({ jenis: 'opname', ket: o.no_dokumen + ' · ' + o.cabang + ' · ' + (o.id_user || ''), st: labelStatus(o.status) + ' · sejak ' + waktuTampil(o.waktu_buka), nilai: o.jumlah_selisih + ' selisih' }))
+        baris = (mon.opname || []).map(o => ({ jenis: 'opname', ket: o.no_dokumen + ' · ' + o.cabang + ' · ' + (o.nama || o.id_user || ''), st: labelStatus(o.status) + ' · sejak ' + waktuTampil(o.waktu_buka), nilai: o.jumlah_selisih + ' selisih' }))
           .concat(((mon.utang && mon.utang.daftar) || []).map(u => ({ jenis: 'utang', ket: u.nama_supplier, st: u.hari_telat > 0 ? 'telat ' + u.hari_telat + ' hari' : 'jatuh tempo ' + tglTampil(u.jatuh_tempo), nilai: rp(u.sisa) })));
         break;
       case 'shift':
@@ -1717,7 +1717,7 @@ const Admin = (() => {
         <div class="sub-baris"><span>${c.nota} nota</span>${margin !== null ? `<span>margin <b>${margin.toFixed(1)}%</b></span>` : ''}</div>
         <div class="sub-garis"></div>
         <div class="sub-baris"><span>Piutang</span><b>${!c.piutang ? 'tidak terbaca' : c.piutang.total ? rp(c.piutang.total) : '—'}</b></div>
-        <div class="sub-baris" data-shift="${esc(c.cabang)}"><span>Shift</span><b>${sh ? 'buka · ' + esc(sh.id_user) + ' ' + esc(jamIsoDash(sh.buka)) : 'tidak ada yang buka'}</b></div>
+        <div class="sub-baris" data-shift="${esc(c.cabang)}"><span>Shift</span><b>${sh ? 'buka · ' + esc(sh.nama || sh.id_user) + ' ' + esc(jamIsoDash(sh.buka)) : 'tidak ada yang buka'}</b></div>
       </div>`;
     }).join('')}</div>`);
   }
@@ -10107,7 +10107,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                huruf dengan isi sheet mentah saat menelusuri kejadian, dan tahun
                dua digit menghilangkan abad pada arsip lama. */
             { judul: 'Waktu', render: r => esc(waktuTampil(r.waktu)) },
-            { judul: 'User', kunci: 'id_user' },
+            /* NAMA saja (pemilik 25 Nov 2026, bagian 547: "kalau kode saya binggung"). */
+            { judul: 'User', nilai: r => r.nama_user || r.id_user, render: r => esc(r.nama_user || r.id_user) },
             { judul: 'Cabang', kunci: 'cabang' },
             { judul: 'Aksi', render: r => `<span class="lencana ${
                 String(r.aksi).includes('VOID') || String(r.aksi).includes('GAGAL') ? 'merah' : ''}">${esc(kodeRapi(r.aksi))}</span>` },

@@ -453,7 +453,7 @@ let _pernahJawab = false;
        - seluruh panggilan sesudah yang pertama. Batas longgar untuk semuanya
          berarti kasir menunggu dua menit sebelum tahu jaringannya mati — obat
          yang lebih buruk dari penyakitnya. */
-    const batas = opsi.timeout || (_pernahJawab ? 30000 : 120000);
+    const batas = Math.min(opsi.timeout || (_pernahJawab ? 30000 : 120000), opsi.sisa || Infinity);
     const timer = setTimeout(() => ctrl.abort(), batas);
     /* Didaftarkan supaya `_periksaTertahan()` masih bisa menemukannya kalau
        timer di atas ikut mati bersama tabnya. Dicabut lagi di `finally`. */
@@ -530,11 +530,13 @@ let _pernahJawab = false;
       const jeda = (typeof CONFIG !== 'undefined' && CONFIG.JEDA_ULANG_MS) || JEDA_ULANG_MS;
       for (let ke = 0; ; ke++) {
         try {
-          const j = await _sekali(aksi, data, opsi);
+          /* `total` (bagian 547): batas SELURUH percobaan, bukan tiap percobaan. */
+          const j = await _sekali(aksi, data, opsi.total ? { ...opsi, sisa: Math.max(1, opsi.total - (performance.now() - _t0)) } : opsi);
           _msServer = typeof j._ms === 'number' ? j._ms : null;
           return j.data;
         } catch (e) {
-          if (bolehUlang && ke < jeda.length && _sementara(e)) {
+          if (bolehUlang && ke < jeda.length && _sementara(e) &&
+              !(opsi.total && performance.now() - _t0 + jeda[ke] >= opsi.total)) {
             _ulang++;
             await _tunggu(jeda[ke]);
             continue;
@@ -749,7 +751,8 @@ let _pernahJawab = false;
     neracaSaldo:     (d) => panggil('neraca_saldo', d, { timeout: 60000 }),   // bagian 518
     /* Absen petugas (bagian 519): publik, dijaga perangkat. */
     absenSiap:       (d) => panggil('absen_siap', d),
-    absen:           (d) => panggil('absen', d),
+    /* Orangnya berdiri di depan tablet: 45 dtk untuk semua percobaan (dulu ±95, bagian 547). */
+    absen:           (d) => panggil('absen', d, { total: CONFIG.ABSEN_TOTAL_MS || 45000 }),
     /* Menu Absensi (bagian 520): izin absensi·lihat. */
     daftarAbsensi:   (d) => panggil('daftar_absensi', d, { timeout: 60000 }),
     fotoAbsensi:     (d) => panggil('foto_absen', d),

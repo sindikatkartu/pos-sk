@@ -1773,6 +1773,11 @@ function tanyaPenggantiAbsen(g) {
     butir('data-abs-kembali="1"', '← Kembali', 'belum dicatat');
 }
 
+/* Jawaban yang hilang bisa berarti sudah tercatat (bagian 547). Mengulang aman:
+   arahnya ikut dikirim, server memulangkan catatan yang sama. */
+const pesanAbsenGagal = (e) => ['TIMEOUT', 'HTTP', 'SERVER_HTML'].includes(e.kode)
+  ? 'Belum ada jawaban. Absen mungkin sudah tercatat. Tekan Absen lagi untuk memastikan.' : e.message || 'Absen gagal.';
+
 async function kirimAbsen(pengganti) {
   if (_absenMenunggu) return;
   const b = $('#absKirim'), giliran = _absenGiliran;
@@ -1791,13 +1796,16 @@ async function kirimAbsen(pengganti) {
   kunciAbsen(true);
   b.textContent = 'Mencatat…';
   $('#absPesan').innerHTML = '<div class="pesan info">Foto sudah diambil — Anda boleh bergerak. Jam dicatat server…</div>';
-  const lepas = () => { if (giliran === _absenGiliran) kunciAbsen(false); };
+  const lepas = () => { clearTimeout(lambat); if (giliran === _absenGiliran) kunciAbsen(false); };
+  const lambat = setTimeout(() => {
+    if (giliran === _absenGiliran) $('#absPesan').innerHTML = '<div class="pesan peringatan">Server lambat, masih mencoba. Jangan pergi dulu.</div>';
+  }, CONFIG.ABSEN_LAMBAT_MS || 10000);
   try {
     const kirim = { id_perangkat: await idPerangkat(), kode_petugas: b.dataset.kode, arah: b.dataset.arah, foto };
     if (pengganti !== undefined) kirim.pengganti = pengganti;
     const r = await API.absen(kirim);
     /* Pop-upnya sudah berganti/hilang paksa: hasilnya jangan menimpa pop-up orang lain. */
-    if (giliran !== _absenGiliran) { Admin.toast('Absen ' + r.arah + ' ' + r.nama + ' tercatat ' + r.jam + '.', 'sukses'); return; }
+    if (giliran !== _absenGiliran) { clearTimeout(lambat); Admin.toast('Absen ' + r.arah + ' ' + r.nama + ' tercatat ' + r.jam + '.', 'sukses'); return; }
     lepas();
     matikanKameraAbsen();
     _absenFoto = '';
@@ -1811,7 +1819,7 @@ async function kirimAbsen(pengganti) {
         <span>${esc(ket)}${r.sudah ? ' · sudah tercatat sebelumnya' : ''}</span></div>`;
     $('#modalUmum .aksi-modal').innerHTML = '<button type="button" class="tombol utama" data-tutup="1">OK</button>';
   } catch (e) {
-    if (giliran !== _absenGiliran) { Admin.toast(e.message || 'Absen gagal.', 'galat'); return; }
+    if (giliran !== _absenGiliran) { clearTimeout(lambat); Admin.toast(pesanAbsenGagal(e), 'galat'); return; }
     lepas();
     $('#absPesan').innerHTML = '';
     if (e.kode === 'PENGGANTI') {
@@ -1822,7 +1830,7 @@ async function kirimAbsen(pengganti) {
     _absenFoto = '';
     bekukanAbsen(false);
     pilihNamaAbsen(b.dataset.kode);
-    $('#absPesan').innerHTML = `<div class="pesan galat">${esc(e.message || 'Absen gagal.')}</div>`;
+    $('#absPesan').innerHTML = `<div class="pesan galat">${esc(pesanAbsenGagal(e))}</div>`;
   }
 }
 
