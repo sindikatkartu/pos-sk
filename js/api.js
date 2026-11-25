@@ -121,12 +121,12 @@ const API = (() => {
     'absen_siap', 'daftar_absensi', 'foto_absen',
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
-    'laporan_diskon', 'laba_rugi', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
+    'laporan_diskon', 'laba_rugi', 'hpp_stok_minus', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
-    'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset', 'daftar_coa',
+    'daftar_gaji', 'saldo_poin_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset', 'daftar_coa',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'daftar_bayar_utang', 'log_audit', 'log_galat',
-    'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
+    'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'foto_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
     'shift_belum_setor', 'arus_kas', 'filter_opname', 'daftar_retur', 'pantau_retur', 'cari_nota', 'daftar_perangkat',
@@ -245,14 +245,14 @@ const API = (() => {
     /* pembacaan */
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
     'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
-    'laporan_diskon', 'laba_rugi', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
+    'laporan_diskon', 'laba_rugi', 'hpp_stok_minus', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
-    'daftar_gaji', 'daftar_kasbon', 'matriks_pulsa',
+    'daftar_gaji', 'saldo_poin_gaji', 'daftar_kasbon', 'matriks_pulsa',
     'daftar_aset', 'daftar_coa', 'rekon_bank', 'kotak_persetujuan',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'daftar_bayar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian',
-    'rincian_pembelian', 'daftar_petugas', 'laporan_poin', 'daftar_transfer',
+    'rincian_pembelian', 'daftar_petugas', 'foto_petugas', 'laporan_poin', 'daftar_transfer',
     'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
     'shift_belum_setor', 'arus_kas',
@@ -307,7 +307,7 @@ const API = (() => {
     'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
-    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'koreksi_absen', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
+    'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'koreksi_absen', 'hapus_absen', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
     'kirim_penjualan',
     'logout', 'nonaktifkan_produk', 'otorisasi_diskon', 'proses_permintaan',
     'reset_pin_user', 'rotasi_arsip', 'selesai_hitung', 'setujui_perangkat',
@@ -328,11 +328,11 @@ const API = (() => {
        yang penuh duplikat dari ulangan otomatis jadi lebih sulit dibaca
        persis saat orang sedang menelusuri sesuatu. */
     'tandai_galat_dibaca', 'balik_jurnal_manual',
-    'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas',
+    'simpan_lini', 'simpan_pelanggan', 'simpan_peran', 'simpan_petugas', 'simpan_foto_petugas',
     'simpan_produk', 'simpan_produk_lengkap', 'simpan_setting',
     'simpan_sumber_pulsa', 'simpan_supplier', 'simpan_user', 'tambah_cabang',
     'tandai_butuh_pasang', 'tetapkan_cabang_produk', 'template_impor',
-    'siapkan_gaji', 'simpan_gaji', 'bayar_gaji', 'beri_kasbon', 'terima_transfer', 'tutup_buku',
+    'siapkan_gaji', 'hapus_gaji', 'simpan_gaji', 'bayar_gaji', 'beri_kasbon', 'terima_transfer', 'tutup_buku',
     'tutup_shift', 'tutup_shift_pulsa', 'unggah_accurate', 'unggah_foto_pulsa', 'hapus_foto_pulsa', 'catat_topup_pulsa',
     'void_penjualan',
     /* Migrasi kode pelanggan (bagian 287): idempoten, tapi tiap panggilan
@@ -346,7 +346,7 @@ const API = (() => {
     'putus_koreksi',
     /* bagian 445: aplikasi baru melahirkan sub-akun; batal produksi membalik
        stok & jurnal — jawaban yang hilang bukan bukti tidak terjadi. */
-    'simpan_aplikasi_inject', 'batal_produksi',
+    'simpan_aplikasi_inject', 'hapus_aplikasi_inject', 'batal_produksi',
     /* bagian 465: Tolak membatalkan produksi; ulangan menjawab "sudah
        diputuskan" untuk penolakan yang sebenarnya berhasil. Terima TIDAK di
        sini — ulangannya dijawab duplikat, aman diulang. */
@@ -742,10 +742,12 @@ let _pernahJawab = false;
     isiSaldoInject:        (d) => panggil('isi_saldo_inject', d),
     redeemBonusInject:     (d) => panggil('redeem_bonus_inject', d),   /* bagian 542 */
     cocokSaldoInject:      (d) => panggil('cocok_saldo_inject', d),
+    hapusAplikasiInject:   (d) => panggil('hapus_aplikasi_inject', d),
     simpanAplikasiInject:  (d) => panggil('simpan_aplikasi_inject', d),
     /* cepat = orang membuka layarnya: server memramuat serentak (bagian 492).
        Muat ulang otomatis & lonceng TANPA cepat — kuota Sheets API bersama. */
     kotakPersetujuan:  (o) => panggil('kotak_persetujuan', o && o.cepat === true ? { cepat: true } : {}, { latar: true }),
+    koreksiHppBulan: (d) => panggil('hpp_stok_minus', d, { latar: true, timeout: 60000 }),   // bagian 554
     labaRugi:        (d) => panggil('laba_rugi', d, { timeout: 60000 }),
     neraca:          (d) => panggil('neraca', d, { timeout: 60000 }),
     neracaSaldo:     (d) => panggil('neraca_saldo', d, { timeout: 60000 }),   // bagian 518
@@ -758,6 +760,7 @@ let _pernahJawab = false;
     fotoAbsensi:     (d) => panggil('foto_absen', d),
     catatIzinAbsen:  (d) => panggil('catat_izin_absen', d),
     koreksiAbsen:    (d) => panggil('koreksi_absen', d),
+    hapusAbsen:      (d) => panggil('hapus_absen', d),
     /* 180 dtk (bagian 258): hitung ulang bulan + kartu stok empat cabang bisa
        melewati 90 dtk pada hari yang banyak jurnalnya; batas Apps Script 6 menit. */
     ujiKebenaran:    (d) => panggil('uji_kebenaran', d, { timeout: 180000 }),
@@ -787,6 +790,8 @@ let _pernahJawab = false;
     tetapkanCabangProduk: (d) => panggil('tetapkan_cabang_produk', d, { timeout: 90000 }),
     daftarGaji:        (d) => panggil('daftar_gaji', d, { timeout: 60000 }),
     siapkanGaji:       (d) => panggil('siapkan_gaji', d, { timeout: 60000 }),
+    hapusGaji:         (d) => panggil('hapus_gaji', d, { timeout: 60000 }),
+    saldoPoinGaji:     (d) => panggil('saldo_poin_gaji', d, { latar: true, timeout: 60000 }),   // bagian 555
     simpanGaji:        (d) => panggil('simpan_gaji', d),
     bayarGaji:         (d) => panggil('bayar_gaji', d, { timeout: 60000 }),
     beriKasbon:        (d) => panggil('beri_kasbon', d, { timeout: 60000 }),
@@ -879,6 +884,8 @@ let _pernahJawab = false;
     /* --- klaim penjualan per petugas --- */
     daftarPetugas:     ()  => panggil('daftar_petugas'),
     simpanPetugas:     (d) => panggil('simpan_petugas', d),
+    fotoPetugas:       (o) => panggil('foto_petugas', {}, o || {}),   // bagian 552, dimuat di latar
+    simpanFotoPetugas: (d) => panggil('simpan_foto_petugas', d, { timeout: 60000 }),
     laporanPoin:       (d) => panggil('laporan_poin', d, { timeout: 90000 }),
 
     tutupBuku:         (d) => panggil('tutup_buku', d, { timeout: 120000 }),

@@ -1311,7 +1311,7 @@ const Admin = (() => {
 
   /** Kartu peringkat petugas — dipakai inti lama dan bagian 'petugas' (bagian 268). */
   const kartuPetugasDash = (rows) => kartuDaftarDash('Petugas', '', barisDash((rows || []).slice(0, 5).map(r =>
-      [esc(r.nama), rp(r.omzet), r.poin + ' poin']), 'Belum ada klaim petugas'),
+      [avatarPetugas(r.kode, 'kecil') + esc(r.nama), rp(r.omzet), r.poin + ' poin']), 'Belum ada klaim petugas'),
     { tabel: 'petugas', kaki: 'semua', id: 'kartuPetugas' });
 
   async function isiKartuPetugas(tiket, janji) {
@@ -1355,20 +1355,25 @@ const Admin = (() => {
     return (t.slice(0, 10) === hariIni ? 'hari ini' : t.slice(8, 10) + '/' + t.slice(5, 7)) + ' ' + t.slice(11, 16);
   };
 
-  /* Strip peringatan di atas KPI: shift terbuka + perangkat menunggu. Yang
-     menuntut tindakan sekarang berdiri di atas, bukan di kartu ke-8. */
+  /* Pita di atas KPI (bagian 551): perangkat menunggu = pita oranye sendiri; shift =
+     pita netral, ORANYE hanya bila ada shift bertanggal lama yang belum ditutup
+     (server mengirim semua status BUKA, tanpa batas tanggal). */
   function stripDash(d, m) {
-    const butir = [];
     const st = (d && d.shift_terbuka) || [];
-    if (st.length) butir.push(`<span><strong>${st.length} shift masih terbuka</strong> — ${st.map(x =>
-      esc(x.cabang) + ' · ' + esc(x.nama || x.id_user) + ' · sejak ' + esc(jamDari(x.buka))).join(', ')}</span>`);
-    if (m && m.perangkat_menunggu) butir.push(`<span><strong>${m.perangkat_menunggu} perangkat</strong> menunggu persetujuan</span>`);
-    if (!butir.length) return '';
-    const tautan = [];
-    if (st.length && typeof bolehLayar === 'function' && bolehLayar('shift')) tautan.push('<a href="#/shift" data-layar="shift">Buka Shift →</a>');
-    if (m && m.perangkat_menunggu && typeof bolehLayar === 'function' && bolehLayar('perangkat')) tautan.push('<a href="#/perangkat" data-layar="perangkat">Perangkat Terdaftar →</a>');
-    return `<div class="strip-dash" role="status">${ikonAlat('peringatan')}${butir.join('<span class="pisah">·</span>')}
-      ${tautan.length ? `<span class="strip-tautan">${tautan.join(' · ')}</span>` : ''}</div>`;
+    const bisa = (l) => typeof bolehLayar === 'function' && bolehLayar(l);
+    /* Simpanan kemarin digambar dulu (bagian 258): "lama" diukur terhadap hari data itu diambil,
+       bukan hari ini — kalau tidak, tiap pagi pitanya menuduh shift yang sudah ditutup. */
+    const simpan = bacaSimpanDash('inti');
+    const hariIni = tanggalLokal(simpan ? new Date(simpan.waktu) : new Date());
+    const lama = st.filter((x) => String(x.buka || '').slice(0, 10) < hariIni), jalan = st.filter((x) => !lama.includes(x));
+    const butir = (x) => `<span class="sd-butir"><strong>${esc(x.cabang)}</strong> <span class="jam">${esc(lama.includes(x) ? waktuRingkas(x.buka) : jamDari(x.buka))}</span></span>`;
+    const tautan = (l, teks) => bisa(l) ? `<span class="strip-tautan"><a href="#/${l}" data-layar="${l}">${teks} →</a></span>` : '';
+    let h = '';
+    if (m && m.perangkat_menunggu) h += `<div class="strip-dash perlu" role="status"><span class="sd-kepala">${ikonAlat('peringatan')}<span><strong>${m.perangkat_menunggu} perangkat</strong> menunggu persetujuan</span></span>${tautan('perangkat', 'Perangkat Terdaftar')}</div>`;
+    const kepalaJalan = jalan.length ? `<span class="sd-kepala">${lencanaDash(lama.length ? jalan.length + ' berjalan' : jalan.length + ' shift berjalan', 'hijau')}</span>` : '';
+    if (st.length) h += `<div class="strip-dash${lama.length ? ' perlu' : ''}" role="status">${lama.length ? `<span class="sd-kepala">${ikonAlat('peringatan')}<strong>${lama.length} shift belum ditutup</strong></span>${lama.map(butir).join('')}` : ''}${
+      lama.length && jalan.length ? '<span class="sd-sekat"></span>' : ''}${kepalaJalan}${jalan.map(butir).join('')}${tautan('shift', 'Lihat Shift')}</div>`;
+    return h;
   }
 
   /* Kartu monitor yang digambar bergantung pada IZIN peran — rangkanya pun
@@ -1506,7 +1511,7 @@ const Admin = (() => {
         break;
       case 'petugas':
         judul = 'Peringkat petugas';
-        kolom = [{ judul: 'Nama', kunci: 'nama' }, { judul: 'Poin', kunci: 'poin', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
+        kolom = [{ judul: 'Nama', kunci: 'nama', render: r => orangPetugas(r.kode, esc(r.nama)) }, { judul: 'Poin', kunci: 'poin', angka: true }, { judul: 'Omzet', angka: true, render: r => rp(r.omzet) }];
         baris = (d.petugas && d.petugas.peringkat && d.petugas.peringkat.petugas) ||
                 (inti.peringkat && inti.peringkat.petugas) || [];
         break;
@@ -1938,10 +1943,10 @@ const Admin = (() => {
     gantiCab('cabPetugas', kartuCab('cabPetugas', 'Petugas per cabang', 'poin klaim',
       `<div class="petak-sub kol-${Math.min(cabDash.pc.length, 5)}">${cabDash.pc.map(c => {
         const daftar = pt.filter(p => p.per_cabang && Number(p.per_cabang[c.cabang]) > 0)
-          .map(p => ({ nama: p.nama, poin: Number(p.per_cabang[c.cabang]) }))
+          .map(p => ({ kode: p.kode, nama: p.nama, poin: Number(p.per_cabang[c.cabang]) }))
           .sort((a, b) => b.poin - a.poin);   // tanpa batas baris (bagian 294)
         return `<div class="sub-cab" style="--c:${cabDash.warna(c.cabang)}"><div class="sub-atas"><strong>${esc(c.cabang)}</strong></div>
-          <div class="top-cab">${daftar.length ? daftar.map((p, i) => `<div><span class="no">${i + 1}</span><span class="nm" title="${esc(p.nama)}">${esc(p.nama)}</span><span class="v">${esc(ribuan(p.poin))} poin</span></div>`).join('')
+          <div class="top-cab">${daftar.length ? daftar.map((p, i) => `<div><span class="no">${i + 1}</span><span class="nm" title="${esc(p.nama)}">${avatarPetugas(p.kode, 'kecil')}${esc(p.nama)}</span><span class="v">${esc(ribuan(p.poin))} poin</span></div>`).join('')
             : '<div class="kosong">Belum ada klaim</div>'}</div></div>`;
       }).join('')}</div>`));
   }
@@ -6285,7 +6290,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              klaim dan poin lamanya masih menunjuk ke sini.</p>
           ${tabel([
             { judul: 'Kode', kunci: 'kode' },
-            { judul: 'Nama', render: r => `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}` },
+            { judul: 'Nama', render: r => orangPetugas(r.kode, `${esc(r.nama)}${r.aktif ? '' : ' <span class="lencana merah">nonaktif</span>'}`) },
             { judul: 'Peran utama', render: r => `<span class="lencana">${esc(LABEL_PERAN_PETUGAS[r.peran_utama] || r.peran_utama)}</span>` },
             /* Kemampuan ditampilkan di tabel, bukan hanya di dalam editornya.
                Pertanyaan "siapa saja yang bisa memasang?" adalah pertanyaan
@@ -6304,7 +6309,36 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </div>`;
   }
 
+  /* Foto petugas (bagian 552): undefined = tidak diganti, '' = dihapus, selebihnya base64 JPEG. */
+  let fotoPetugasBaru;
+  const SISI_FOTO_PETUGAS = 160;
+  async function kecilkanFoto(berkas) {
+    const g = await createImageBitmap(berkas, { imageOrientation: 'from-image' });
+    const s = Math.min(g.width, g.height), k = document.createElement('canvas');
+    k.width = k.height = SISI_FOTO_PETUGAS;
+    const x = k.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, SISI_FOTO_PETUGAS, SISI_FOTO_PETUGAS);   // PNG tembus pandang tidak jadi hitam
+    x.drawImage(g, (g.width - s) / 2, (g.height - s) / 2, s, s, 0, 0, SISI_FOTO_PETUGAS, SISI_FOTO_PETUGAS);
+    if (g.close) g.close();
+    return k.toDataURL('image/jpeg', 0.75).replace(/^data:image\/jpeg;base64,/, '');
+  }
+  function pasangPratinjauFoto(foto) {
+    fotoPetugasBaru = foto;
+    const av = $('#modalUmum .pt-foto .av');
+    if (av) av.innerHTML = foto ? '<img alt="" src="data:image/jpeg;base64,' + esc(foto) + '">' : SILUET_PETUGAS;
+  }
+  document.addEventListener('change', async (e) => {
+    if (e.target.id !== 'ptFoto' || !e.target.files || !e.target.files[0]) return;
+    const milik = e.target, simpan = $('#btnSimpanPetugas');
+    if (simpan) simpan.disabled = true;   // Simpan sebelum gambarnya selesai dikecilkan = foto hilang diam-diam
+    try { const f = await kecilkanFoto(milik.files[0]); if (document.contains(milik)) pasangPratinjauFoto(f); }
+    catch (x) { toast('Foto tidak terbaca. Pilih foto lain.', 'galat'); }
+    milik.value = '';
+    if (simpan) simpan.disabled = false;
+  });
+
   function editorPetugas(kode) {
+    fotoPetugasBaru = undefined;
     const p = kode ? ($('#isiPetugas')._rows || []).find(x => x.kode === kode) : null;
     const lintas = !!APP_STATE.flag.akses_lintas_cabang;
     bukaModal(p ? 'Ubah petugas' : 'Petugas baru', `
@@ -6326,6 +6360,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             `<option value="${esc(c)}" ${p?.cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}
           ${lintas ? `<option value="*" ${p?.cabang === '*' ? 'selected' : ''}>Semua cabang</option>` : ''}
         </select></div>
+        ${!bolehIzin('petugas', 'ubah') ? '' : `<div class="grup"><label>Foto</label><div class="pt-foto">${avatarPetugas(p?.kode || '', 'besar')}
+          <button type="button" class="tombol" id="ptFotoPilih">${ikonAlat('tambah')}<span>Pilih</span></button>
+          <button type="button" class="tombol" id="ptFotoHapus">${ikonAlat('hapus')}<span>Hapus</span></button>
+          <input type="file" id="ptFoto" accept="image/*" hidden aria-label="Foto petugas"></div></div>`}
       </div>
       <label>Kemampuan</label>
       <p class="petunjuk" style="margin-top:0">Menentukan di kolom mana namanya ditawarkan
@@ -6350,8 +6388,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   }
 
   /* ==================== LAPORAN PERFORMA (id layar tetap 'poin') ============
-   * Sistem berhenti pada poin. Berapa rupiah satu poin sengaja tidak ada di sini —
-   * itu keputusan pemilik, bisa berubah tiap bulan, dan bisa berbentuk apa pun.
+   * Laporan ini berhenti pada poin. Rupiah per poin diketik saat poinnya ditukar di
+   * Gaji (Redeem poin, bagian 555) — bisa berubah tiap bulan.
    *
    * Layarnya bernama Performa sejak v1.22 karena isinya bukan poin saja: ada
    * omzet, jumlah nota, dan peringkat cabang. Id layar, kunci izin, wadah
@@ -6527,11 +6565,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              penuh: nota 100.000 yang dikerjakan berdua terbagi menurut bobot peran, jadi jumlah
              omzet semua petugas tidak dobel. Nilai poin diatur per produk di menu Produk → tab
              <strong>Tim &amp; poin</strong>. Bobot peran saat kasir tidak mengisi
-             sendiri: ${bobot || '—'}. Berapa rupiah satu poin sengaja tidak dihitung
-             sistem — itu keputusan Anda.</p>
+             sendiri: ${bobot || '—'}. Berapa rupiah satu poin ditentukan
+             saat poinnya ditukar di menu Gaji (Redeem poin).</p>
           ${tabel([
             { judul: '#', angka: true, kelas: 'sempit', render: x => `<strong>${petugas.indexOf(x) + 1}</strong>` },
-            { judul: 'Petugas', kunci: 'nama' },
+            { judul: 'Petugas', kunci: 'nama', render: x => orangPetugas(x.kode_petugas || x.kode, esc(x.nama)) },
             { judul: 'Poin', angka: true, render: x => `<strong>${x.poin}</strong>` },
             { judul: 'Nota', angka: true, kunci: 'nota' },
             { judul: 'Klaim', angka: true, kunci: 'klaim' },
@@ -6553,7 +6591,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
                supaya jelas datanya memang tidak ada, bukan pukul 00:00. */
             { judul: 'Jam', kunci: 'jam', render: x => esc(x.jam ? x.jam.substring(0, 5) : '—') },
             { judul: 'Nota', kunci: 'no_nota' },
-            { judul: 'Petugas', kunci: 'nama' },
+            { judul: 'Petugas', kunci: 'nama', render: x => orangPetugas(x.kode_petugas, esc(x.nama)) },
             { judul: 'Peran', render: x => esc(LABEL_PERAN_PETUGAS[x.peran] || x.peran) },
             { judul: 'Cakupan', render: x => x.jenis === 'NOTA'
                 ? '<span class="lencana">seluruh nota</span>'
@@ -12746,10 +12784,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (bolehBuat && a.aktif) t.push(['Redeem bonus poin', IKON.bonus, `data-prod-bonus="${esc(a.kode)}"`]);
       if (d.boleh_cocokkan) t.push(['Cocokkan saldo', IKON.setujui, `data-prod-cocok="${esc(a.kode)}"`]);
       if (d.boleh_kelola_aplikasi && bolehUbah) t.push(['Ubah', IKON.ubah, `data-prod-ubah="${esc(a.kode)}"`]);
-      if (!t.length) return '';
-      if (t.length === 1) return tombolBaris('', t[0][0], t[0][1], t[0][2]);
-      return menuTindakan({ id: 'menuApl' + idAman(a.kode), idTombol: 'btnApl' + idAman(a.kode), kunci: 'baris-apl', baris: true,
-        isi: t.map((x) => butirBaris('', x[0], x[1], x[2])).join('') });
+      const hapus = d.boleh_kelola_aplikasi && bolehUbah && a.bisa_hapus;   // bagian 552
+      const tHapus = `data-prod-hapus="${esc(a.kode)}"`;
+      if (!t.length) return hapus ? tombolBaris('bahaya', 'Hapus', IKON.hapus, tHapus) : '';
+      if (t.length === 1 && !hapus) return tombolBaris('', t[0][0], t[0][1], t[0][2]);
+      return menuTindakan({ id: 'menuApl' + idAman(a.kode), idTombol: 'btnApl' + idAman(a.kode), kunci: 'baris-apl', baris: true, tanda: hapus ? 'bahaya' : '',
+        isi: t.map((x) => butirBaris('', x[0], x[1], x[2])).join('') + (hapus ? butirBaris('bahaya', 'Hapus', IKON.hapus, tHapus) : '') });
     };
     return `<div class="kartu laporan-uang"><div class="bar-alat"><h3>Aplikasi saldo inject</h3></div>
         ${(d.aplikasi || []).length && bolehIzin('laporan_keuangan', 'lihat') ? PETUNJUK_KLIK_BARIS('Klik baris untuk membuka Buku besarnya.') : ''}
@@ -12880,6 +12920,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        <button class="tombol utama" id="btnSimpanApl" data-kode="${esc(kode || '')}">${ikonAlat('simpan')}<span>Simpan</span></button>`);
   }
 
+  /** Hapus aplikasi yang belum pernah dipakai jurnal (bagian 552). */
+  async function tanyaHapusAplikasi(kode) {
+    const a = (prodData?.aplikasi || []).find((x) => x.kode === kode);
+    if (!a) return;
+    if (!(await tanya('Hapus aplikasi ' + a.nama + '?', `<p>Aplikasi ini dan akun saldonya (${esc(a.akun)}) dihapus. Hanya aplikasi yang belum pernah dipakai jurnal yang bisa dihapus.</p>`, { ya: 'Hapus aplikasi', jenis: 'bahaya' }))) return;
+    try {
+      const r = await API.hapusAplikasiInject({ kode });
+      toast('Aplikasi ' + a.nama + ' dihapus' + (r.akun_dihapus ? ' berikut akun ' + r.akun_dihapus : '') + '.', 'sukses');
+      await muatHasilProduksi();
+    } catch (e) { toast(e.message, 'galat'); }
+  }
+
   async function simpanAplikasi(btn) {
     const nama = ($('#aplNama').value || '').trim();
     if (nama.length < 2) return toast('Isi nama aplikasinya.', 'galat');
@@ -12978,7 +13030,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     prodTerpasang = true;
     document.addEventListener('click', (e) => {
       const t = e.target.closest('[data-tabprod], [data-prod-aksi], #btnSimpanProduksi, [data-prod-rincian], [data-prod-batal], [data-prod-terima], [data-prod-tolak], ' +
-        '[data-prod-isi], [data-prod-bonus], [data-prod-cocok], [data-prod-ubah], #btnSimpanIsiSaldo, #btnSimpanBonus, #btnSimpanCocok, #btnSimpanApl');
+        '[data-prod-isi], [data-prod-bonus], [data-prod-cocok], [data-prod-ubah], [data-prod-hapus], #btnSimpanIsiSaldo, #btnSimpanBonus, #btnSimpanCocok, #btnSimpanApl');
       if (!t) return;
       if (t.dataset.tabprod) return pilihTabProduksi(t.dataset.tabprod);
       if (t.dataset.prodAksi === 'aplikasi') return bukaAplikasi('');
@@ -12992,6 +13044,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.dataset.prodBonus) return bukaRedeemBonus(t.dataset.prodBonus);
       if (t.dataset.prodCocok) return bukaCocokSaldo(t.dataset.prodCocok);
       if (t.dataset.prodUbah) return bukaAplikasi(t.dataset.prodUbah);
+      if (t.dataset.prodHapus) return tanyaHapusAplikasi(t.dataset.prodHapus);
       if (t.id === 'btnSimpanIsiSaldo') return simpanIsiSaldo(t);
       if (t.id === 'btnSimpanBonus') return simpanRedeemBonus(t);
       if (t.id === 'btnSimpanCocok') return simpanCocokSaldo(t);
@@ -14540,7 +14593,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
     const rekap = Object.values(peta).sort((a, b) => urutNama(a.nama, b.nama));
     const kolomRekap = [
-      { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong>` },
+      { judul: 'Petugas', render: (r) => orangPetugas(r.kode, `<strong>${esc(r.nama)}</strong>`) },
       { judul: 'Hadir', angka: true, render: (r) => esc(r.hadir + ' hari') },
       { judul: 'Izin', angka: true, render: (r) => esc(r.izin ? r.izin + ' hari' : '—') },
       { judul: 'Sakit', angka: true, render: (r) => esc(r.sakit ? r.sakit + ' hari' : '—') },
@@ -14551,7 +14604,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ];
     const kolomHarian = [
       { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
-      { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong>` },
+      { judul: 'Petugas', render: (r) => orangPetugas(r.kode, `<strong>${esc(r.nama)}</strong>`) },
       { judul: 'Cabang', kunci: 'cabang' },
       { judul: 'Shift', render: (r) => esc(r.shift === 'PAGI' ? 'Pagi' : r.shift === 'MALAM' ? 'Malam' : '—') },
       { judul: 'Masuk', angka: true, render: (r) => esc(r.masuk || '—') },
@@ -14564,14 +14617,16 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           return aksiBaris('Abs' + idAman(r.id), 'baris-absen', [
             r.masuk ? { label: 'Foto', ikon: IKON.tampil, atribut: `data-foto-absensi="${esc(r.id)}"`, judul: 'Lihat foto absen' } : null,
             bisa && hadirAbsen(r) ? { label: 'Koreksi', ikon: IKON.ubah, atribut: `data-koreksi-absensi="${esc(r.id)}"`, judul: 'Koreksi jam, cabang, atau pengganti' } : null,
-            bisa ? { gaya: 'bahaya', label: 'Batalkan', ikon: IKON.batal, atribut: `data-batal-absensi="${esc(r.id)}"`, judul: 'Batalkan catatan ini' } : null
-          ], bisa && r.masuk ? 'bahaya' : '');
+            bisa ? { gaya: 'bahaya', label: 'Batalkan', ikon: IKON.batal, atribut: `data-batal-absensi="${esc(r.id)}"`, judul: 'Batalkan catatan ini' } : null,
+            /* Hapus permanen: Owner, hanya yang sudah dibatalkan (bagian 553). */
+            d.boleh_hapus && bolehUbah && r.batal ? { gaya: 'bahaya', label: 'Hapus', ikon: IKON.hapus, atribut: `data-hapus-absensi="${esc(r.id)}"`, judul: 'Hapus catatan yang dibatalkan ini' } : null
+          ], (bisa && r.masuk) || (d.boleh_hapus && bolehUbah && r.batal) ? 'bahaya' : '');
         } }
     ];
     const hutang = d.hutang.filter((h) => h.rinci.some((x) => diCabang(x.cabang)));
     const kolomHutang = [
-      { judul: 'Yang berhutang', render: (h) => `<strong>${esc(h.nama_dari)}</strong>` },
-      { judul: 'Kepada', render: (h) => esc(h.nama_ke) },
+      { judul: 'Yang berhutang', render: (h) => orangPetugas(h.dari, `<strong>${esc(h.nama_dari)}</strong>`) },
+      { judul: 'Kepada', render: (h) => orangPetugas(h.ke, esc(h.nama_ke)) },
       { judul: 'Sisa hutang', angka: true, render: (h) => h.menit
           ? `<strong>${esc(lamaAbsen(h.menit))}</strong>` : '<span class="lencana hijau">impas</span>' },
       { judul: 'Aksi', render: (h) => tombolBaris('', 'Rincian', IKON.riwayat,
@@ -14721,9 +14776,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <input type="text" id="baAlasan" maxlength="200" placeholder="mis. salah ketuk nama">
     </div>
     <p class="petunjuk">Catatan ini <strong>tidak dihapus</strong>: tetap tampil bertanda dibatalkan, tetapi tidak
-       dihitung hadir. Petugasnya bisa absen ulang untuk tanggal itu di tablet toko.</p>`,
+       dihitung hadir. Owner bisa menghapusnya sesudah dibatalkan. Petugasnya bisa absen ulang untuk tanggal itu di tablet toko.</p>`,
     `<button class="tombol" data-tutup="1">Tutup</button>
      <button class="tombol bahaya" id="btnSimpanBatalAbsen" data-id="${esc(id)}">Ya, batalkan</button>`);
+  }
+
+  /** Hapus permanen catatan yang sudah dibatalkan — Owner (bagian 553). */
+  async function tanyaHapusAbsen(id) {
+    const r = ((absenData && absenData.baris) || []).find((x) => x.id === id);
+    if (!r) return;
+    if (!(await tanya('Hapus catatan absen ' + r.nama + '?', `<p>${esc(tglTampil(r.tanggal))} · ${esc(r.cabang)}. Catatan dan fotonya <strong>hilang permanen</strong> dan tidak bisa dikembalikan. Isinya tanpa foto tetap tercatat di Jejak audit.</p>`, { ya: 'Hapus catatan', jenis: 'bahaya' }))) return;
+    try { await API.hapusAbsen({ id }); }
+    catch (e) { toast(e.message, 'galat'); return e.kode === 'NOTFOUND' ? muatHasilAbsensi() : undefined; }
+    toast('Catatan absen dihapus.', 'sukses');
+    return muatHasilAbsensi();
   }
 
   async function simpanBatalAbsen(id) {
@@ -14825,9 +14891,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const s = slipDari(isi.id);
       if (!s) return;
       return bukaModal('Slip gaji — ' + s.nama + ', ' + namaBulan(s.periode), daftarRinci([
-        ['Petugas', esc(s.nama) + ' <span class="kode-redup">' + esc(s.kode_petugas) + '</span>'], ['Cabang', t(s.cabang)],
+        ['Petugas', esc(s.nama) + ' <span class="kode-redup">' + esc(s.kode_petugas) + '</span>'], ['Cabang', t(s.cabang)], s.ditanggung_pusat && ['Ditanggung', esc(TEKS_KANTOR)],
         ['Status', s.status === 'DIBAYAR' ? lencanaDash('Dibayar', 'hijau') : lencanaDash('Draft', '')],
         ...KOMPONEN_GAJI.map(([k, l]) => [l, rp(s[k] || 0)]),
+        s.redeem > 0 && ['Redeem poin', rp(s.redeem) + ' <span class="redup">(' + esc(String(s.redeem_poin).replace('.', ',')) + ' poin × ' + esc(ribuan(s.redeem_nilai)) + ')</span>'],
         ['Potongan kasbon', rp(s.potongan_kasbon || 0)], ['Diterima', '<strong>' + rp(s.diterima) + '</strong>'],
         s.status === 'DIBAYAR' && ['Dibayar', esc(tglTampil(s.tanggal_bayar)) + ' · ' + t(s.akun_kas)],
         s.catatan && ['Catatan', esc(s.catatan)]]));
@@ -14980,14 +15047,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ${esc(namaBulan(d.periode))}. Tekan <strong>Siapkan gaji bulan ini</strong> — gaji pokok dan
         tunjangan disalin dari slip terakhir masing-masing.</p>` : ''}`;
 
-    const bolehUbah = bolehIzin('gaji', 'ubah');
+    const bolehUbah = bolehIzin('gaji', 'ubah'), bolehBuat = bolehIzin('gaji', 'buat');
     const sisaKb = (k) => ((d.kasbon || {})[k] || { sisa: 0 }).sisa;
     const kolom = [
-      { judul: 'Petugas', render: (s) => `<strong>${esc(s.nama)}</strong><span class="petunjuk" style="display:block;margin:0">${
-          s.cabang ? esc(s.cabang) : '<span style="color:var(--bahaya)">keliling — pilih cabang</span>'}</span>` },
+      { judul: 'Petugas', render: (s) => orangPetugas(s.kode_petugas, `<strong>${esc(s.nama)}</strong><span class="petunjuk" style="display:block;margin:0">${
+          s.cabang ? esc(s.cabang) : '<span style="color:var(--bahaya)">keliling — pilih cabang</span>'}${s.ditanggung_pusat ? ' · ' + esc(TEKS_KANTOR) : ''}</span>`) },
       { judul: 'Gaji pokok', angka: true, render: (s) => rp(s.gaji_pokok) },
       { judul: 'Tunjangan', angka: true, render: (s) => rp(s.tunj_kesehatan + s.tunj_makan) },
-      { judul: 'Bonus + komisi', angka: true, render: (s) => rp(s.bonus + s.komisi) },
+      { judul: 'Bonus + komisi', angka: true, render: (s) => rp(s.bonus + s.komisi + (s.redeem || 0)) +
+          (s.redeem > 0 ? `<span class="petunjuk" style="display:block;margin:0">termasuk poin ${esc(rpTeks(s.redeem))}</span>` : '') },
       { judul: 'Potongan kasbon', angka: true, render: (s) => rp(s.potongan_kasbon) +
           (s.status === 'DRAF' && sisaKb(s.kode_petugas) > 0
             ? `<span class="petunjuk" style="display:block;margin:0">sisa ${esc(rpTeks(sisaKb(s.kode_petugas)))}</span>` : '') },
@@ -14998,26 +15066,68 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           s.status === 'DIBAYAR'
             ? tombolBaris('', 'Cetak', IKON.cetak, `data-cetak-slip="${esc(s.id_slip)}"`, 'Cetak slip gaji')
             /* Bagian 418: Bayar (tindakan utama slip DRAF) tetap sekali ketuk; Ubah ke ⋯. */
-            : bolehUbah ? tombolBaris('utama', 'Bayar', IKON.bayar, `data-bayar-slip="${esc(s.id_slip)}"`, 'Bayar gaji ini') +
-                          menuTindakan({ id: 'menuSlip' + idAman(s.id_slip), idTombol: 'btnSlip' + idAman(s.id_slip), kunci: 'baris-slip', baris: true,
-                            isi: butirBaris('', 'Ubah', IKON.ubah, `data-ubah-slip="${esc(s.id_slip)}"`, 'Ubah slip') })
-            : ''}</div>` }
+            : (bolehUbah ? tombolBaris('utama', 'Bayar', IKON.bayar, `data-bayar-slip="${esc(s.id_slip)}"`, 'Bayar gaji ini') : '') +
+              (!bolehUbah && bolehBuat ? tombolBaris('bahaya', 'Hapus', IKON.hapus, `data-hapus-slip="${esc(s.id_slip)}"`, 'Hapus slip Draft') : '') +
+              menuTindakan({ id: 'menuSlip' + idAman(s.id_slip), idTombol: 'btnSlip' + idAman(s.id_slip), kunci: 'baris-slip', baris: true, tanda: bolehBuat ? 'bahaya' : '',
+                isi: !bolehUbah ? '' : butirBaris('', 'Ubah', IKON.ubah, `data-ubah-slip="${esc(s.id_slip)}"`, 'Ubah slip') +
+                     (bolehBuat ? butirBaris('bahaya', 'Hapus', IKON.hapus, `data-hapus-slip="${esc(s.id_slip)}"`, 'Hapus slip Draft') : '') })}</div>` }
     ];
-    /* Siapkan PALING KANAN (bagian 256, pemilik: "letakkan dipaling kanan"). */
+    /* Siapkan PALING KANAN di antara tombol (bagian 256); ⋮ sesudahnya (bagian 551). */
     const aksi = [
       dibayar.length ? `<button class="tombol" id="btnCetakSemuaSlip">${ikonAlat('cetak')}<span>Cetak semua slip</span></button>` : '',
-      bolehIzin('gaji', 'buat') ? `<button class="tombol" id="btnSiapkanGaji">${ikonAlat('tambah')}<span>Siapkan gaji bulan ini</span></button>` : ''
+      bolehBuat ? `<button class="tombol" id="btnSiapkanGaji">${ikonAlat('tambah')}<span>Siapkan gaji bulan ini</span></button>` : '',
+      menuTindakan({ id: 'menuGaji', idTombol: 'btnMenuGaji', kunci: 'gaji', tanda: 'bahaya',
+        isi: bolehBuat && slipUtuh().length ? butirBaris('bahaya', 'Hapus semua slip Draft', IKON.hapus, 'data-hapus-semua-slip="1"', 'Hapus slip Draft yang belum pernah diubah') : '' })
     ].join('');
     $('#hasilGaji').innerHTML = `<div class="kartu laporan-uang">
       <div class="bar-alat"><h3>Slip gaji ${esc(namaBulan(d.periode))}</h3>
         
-        ${aksi ? `<div class="kanan">${aksi}</div>` : ''}</div>
+        ${aksi ? `<div class="kanan kanan-menu">${aksi}</div>` : ''}</div>
       ${slip.length ? PETUNJUK_KLIK_BARIS('Klik baris untuk membuka rincian slipnya.') : ''}
       ${tabel(kolom, slip, { kosong: 'Belum ada slip untuk bulan ini. Tekan "Siapkan gaji bulan ini".', dataAttr: (s) => atributSumber('gaji', 'Rincian slip ' + s.nama, 'slip', { id: s.id_slip }) })}
     </div>`;
   }
 
   const slipDari = (id) => ((gajiData && gajiData.slip) || []).find((s) => s.id_slip === id);
+  /* Draft yang belum pernah diubah (`utuh`, dihitung server) di cabang yang sedang dilihat. */
+  const slipUtuh = () => ((gajiData && gajiData.slip) || []).filter((s) => s.status === 'DRAF' && s.utuh && (cabangGaji === '*' || s.cabang === cabangGaji));
+
+  /** Siapkan bertanya dulu (bagian 551): sekali tekan menulis puluhan slip. */
+  async function tanyaSiapkanGaji(t) {
+    const per = nilai('gajiPeriode');
+    /* Jumlahnya dibaca segar: layar yang lama terbuka bisa menyebut angka yang sudah lewat. */
+    const d = await API.daftarGaji({ periode: per });
+    if (!d.belum_disiapkan) return toast('Semua petugas aktif sudah punya slip bulan ini.');
+    if (!(await tanya('Siapkan gaji ' + namaBulan(per) + '?', `<p>Akan dibuat <strong>${esc(d.belum_disiapkan)} slip Draft</strong>, satu untuk tiap petugas aktif di semua cabang yang belum punya slip bulan ini.
+      Gaji pokok dan tunjangan disalin dari slip terakhir masing-masing. Belum ada uang yang keluar.</p>`, { ya: 'Siapkan' }))) return;
+    t.disabled = true;
+    try {
+      const r = await API.siapkanGaji({ periode: per });
+      toast(r.dibuat ? r.dibuat + ' slip dibuat.' : 'Semua petugas aktif sudah punya slip bulan ini.');
+      document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));   // bagian 393
+      await muatHasilGaji();
+    } finally { t.disabled = false; }
+  }
+
+  /** Hapus slip Draft (bagian 551): satu (`id`) atau semua yang belum pernah diubah di cabang yang dilihat. */
+  async function tanyaHapusSlip(id) {
+    const s = id ? slipDari(id) : null, utuh = id ? [] : slipUtuh(), bulan = namaBulan(gajiData ? gajiData.periode : '');
+    if (id ? !s : !utuh.length) return;
+    const semuaDraf = id ? 0 : gajiData.slip.filter((x) => x.status === 'DRAF' && (cabangGaji === '*' || x.cabang === cabangGaji)).length;
+    const cab = cabangGaji === '*' ? '' : ' cabang ' + cabangGaji;
+    const ya = s
+      ? await tanya('Hapus slip Draft ' + s.nama + '?', `<p>Slip ${esc(bulan)}${s.utuh ? '' : ' berikut angka yang sudah diketik'} dihapus. Slipnya bisa dibuat lagi dengan <strong>Siapkan gaji bulan ini</strong>.</p>`, { ya: 'Hapus slip', jenis: 'bahaya' })
+      : await tanya('Hapus ' + utuh.length + ' slip Draft ' + bulan + cab + '?', `<p>Yang dihapus hanya slip Draft yang <strong>belum pernah diubah</strong>${esc(cab)}.${
+          semuaDraf > utuh.length ? ` ${semuaDraf - utuh.length} slip Draft yang sudah diubah tetap ada.` : ''} Slip yang sudah dibayar tidak disentuh.
+          Slipnya bisa dibuat lagi dengan <strong>Siapkan gaji bulan ini</strong>.</p>`, { ya: 'Hapus ' + utuh.length + ' slip', jenis: 'bahaya' });
+    if (!ya) return;
+    try {
+      const r = await API.hapusGaji(s ? { id_slip: s.id_slip, diubah_dimuat: s.diubah } : { periode: gajiData.periode, cabang: cabangGaji, daftar: utuh.map((x) => x.id_slip) });
+      toast(r.dihapus + ' slip dihapus.' + (r.dilewati ? ' ' + r.dilewati + ' dilewati: pembayarannya sudah tercatat sebagian.' : ''));
+    } catch (e) { return konflikGaji(e); }
+    document.dispatchEvent(new CustomEvent('possk:segarkan-lencana', { detail: { segar: true } }));   // bagian 393
+    await muatHasilGaji();
+  }
 
   function bukaUbahSlip(id) {
     const s = slipDari(id);
@@ -15030,19 +15140,50 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       <label>Potongan kasbon</label>
       <input type="text" inputmode="numeric" class="uang" id="gj_potongan_kasbon" value="${ribuan(s.potongan_kasbon || 0)}" ${sisa > 0 || s.potongan_kasbon ? '' : 'disabled'}>
       <p class="petunjuk">Sisa kasbon ${esc(s.nama)}: <strong>${esc(rpTeks(sisa))}</strong>. Potongan tidak boleh melebihi sisanya.</p>
+      <label>Redeem poin</label>
+      <div class="baris2"><div class="grup"><label>Poin ditukar</label><input type="text" inputmode="decimal" id="gj_redeem_poin" value="${esc(String(s.redeem_poin || 0).replace('.', ','))}" autocomplete="off"></div>
+        <div class="grup"><label>Rupiah per poin</label><input type="text" inputmode="numeric" class="uang" id="gj_redeem_nilai" value="${ribuan(s.redeem_nilai || 0)}"></div></div>
+      <p class="petunjuk" id="gjKetPoin">Menghitung sisa poin…</p>
       <label>Cabang yang menanggung gaji</label>
       <select id="gj_cabang"><option value="">— pilih —</option>${daftarKodeCabang().map((c) =>
         `<option value="${esc(c)}" ${s.cabang === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      ${(kodeCabangPusat() || s.ditanggung_pusat) && APP_STATE.flag?.akses_lintas_cabang ? `<label class="cek"><input type="checkbox" id="gj_pusat" ${s.ditanggung_pusat ? 'checked' : ''}> Ditanggung ${esc(TEKS_KANTOR)}</label>
+      <p class="petunjuk">Bebannya masuk ${esc(TEKS_KANTOR)}, bukan cabang di atas. Cabang itu tetap tempat catatan kasnya. Tanda ini ikut disalin ke slip bulan depan.</p>` : ''}
       <label>Catatan</label>
       <input type="text" id="gj_catatan" value="${esc(s.catatan || '')}" maxlength="200">
     </div>`,
     `<button class="tombol" data-tutup="1">Batal</button>
      <button class="tombol utama" data-simpan-slip="${esc(s.id_slip)}">Simpan</button>`);
+    isiSaldoPoinSlip(s);
+  }
+
+  /* Poin ditukar boleh pecahan (2 angka), jadi bukan kotak uang. */
+  /* Titik TUNGGAL = desimal (papan ketik HP berbahasa Inggris), bukan ribuan: "12.5" tidak boleh jadi 125. */
+  const poinKetik = (id) => {
+    const t = String(nilai(id) || '').replace(/\s/g, '');
+    if (t === '') return 0;
+    if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(t)) return Number(t.replace(/\./g, '').replace(',', '.'));
+    return /^\d+([.,]\d{1,2})?$/.test(t) ? Number(t.replace(',', '.')) : NaN;
+  };
+  /** Saldo poin dibaca di latar sesudah borangnya terbuka (bagian 555): menghitungnya membaca klaim semua cabang. */
+  async function isiSaldoPoinSlip(s) {
+    const el = $('#gjKetPoin'), kotak = $('#gj_redeem_nilai');
+    let d;
+    try { d = await API.saldoPoinGaji({ id_slip: s.id_slip }); }
+    catch (e) { if (document.contains(el)) el.textContent = 'Sisa poin tidak terbaca: ' + e.message; return; }
+    if (!document.contains(el)) return;
+    const p = (n) => String(Number(n) || 0).replace('.', ',');
+    el.innerHTML = `Sisa poin ${esc(s.nama)} sejak ${esc(tglTampil(d.mulai))}: <strong>${esc(p(d.sisa))}</strong> <span class="redup">(didapat ${esc(p(d.dapat))}${d.retur ? ', diretur −' + esc(p(d.retur)) : ''}${d.tukar ? ', sudah ditukar −' + esc(p(d.tukar)) : ''})</span>.`;
+    if (!s.redeem_nilai && d.nilai_terakhir && angka('gj_redeem_nilai') === 0) kotak.value = ribuan(d.nilai_terakhir);
   }
 
   async function simpanSlipLayar(id) {
     const p = { id_slip: id, cabang: nilai('gj_cabang'), catatan: nilai('gj_catatan') };
     KOMPONEN_GAJI.forEach(([k]) => { p[k] = angka('gj_' + k); });
+    p.redeem_poin = poinKetik('gj_redeem_poin');
+    if (!(p.redeem_poin >= 0)) return toast('Poin ditukar tidak terbaca. Tulis angka, misalnya 120 atau 12,5.', 'galat');
+    p.redeem_nilai = p.redeem_poin > 0 ? angka('gj_redeem_nilai') : 0;
+    if ($('#gj_pusat')) p.ditanggung_pusat = centang('gj_pusat');
     if (!$('#gj_potongan_kasbon').disabled) p.potongan_kasbon = angka('gj_potongan_kasbon');
     /* Cap waktu slip yang dilihat layar ini: server menolak bila slipnya sudah
        diubah orang lain sejak dimuat (bagian 370). */
@@ -15072,7 +15213,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal('Bayar gaji — ' + s.nama, `<div class="baris-form">
       <p>Gaji ${esc(namaBulan(s.periode))}: <strong>${rp(s.bruto)}</strong>
          ${s.potongan_kasbon ? `dikurangi kasbon <strong>${rp(s.potongan_kasbon)}</strong>` : ''}.
-         Uang yang diserahkan <strong>${rp(s.diterima)}</strong>, dibebankan ke ${esc(s.cabang)}.</p>
+         Uang yang diserahkan <strong>${rp(s.diterima)}</strong>, dibebankan ke ${esc(s.ditanggung_pusat ? TEKS_KANTOR : s.cabang)}.</p>
       <label>Dibayar dari</label>
       <select id="gjSumber">${akun.map(([k, l]) => `<option value="${esc(k)}" ${k === '1-1150' ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
       <label>Tanggal bayar</label>
@@ -15096,9 +15237,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
              slipnya terkunci dan angkanya tidak bisa diubah lagi.</p>
            <table class="tabel" style="margin:8px 0"><tbody>
              <tr><td>Gaji</td><td class="kanan">${rp(s.bruto)}</td></tr>
+             ${s.redeem > 0 ? `<tr><td>Termasuk redeem ${esc(String(s.redeem_poin).replace('.', ','))} poin</td><td class="kanan">${rp(s.redeem)}</td></tr>` : ''}
              <tr><td>Potongan kasbon</td><td class="kanan">${rp(s.potongan_kasbon)}</td></tr>
              <tr><td><strong>Diserahkan</strong></td><td class="kanan"><strong>${rp(s.diterima)}</strong></td></tr>
-             <tr><td>Dari</td><td class="kanan">${esc(dari)}</td></tr></tbody></table>
+             <tr><td>Dari</td><td class="kanan">${esc(dari)}</td></tr>
+             <tr><td>Beban</td><td class="kanan">${esc(s.ditanggung_pusat ? TEKS_KANTOR : s.cabang)}</td></tr></tbody></table>
            <p class="petunjuk">Belum yakin? Tekan Batal dan periksa lewat Ubah — slip Draft aman diubah kapan saja.</p>`,
           { ya: 'Ya, bayar', jenis: 'bahaya' }))) return;
     /* Cap waktu slip yang angkanya tampil di konfirmasi: server menolak bila
@@ -15125,7 +15268,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <tr><td class="k">Cabang</td><td>${esc(s.cabang)}</td><td class="k">No. slip</td><td>${esc(s.id_slip)}</td></tr></table>
       <div class="dua">
         <table class="isi"><thead><tr><th>Penerimaan</th><th class="n">Rp</th></tr></thead><tbody>
-          ${KOMPONEN_GAJI.map(([k, l]) => baris(l, s[k])).join('')}</tbody>
+          ${KOMPONEN_GAJI.map(([k, l]) => baris(l, s[k])).join('')}${s.redeem > 0 ? baris('Redeem poin (' + String(s.redeem_poin).replace('.', ',') + ' × ' + ribuan(s.redeem_nilai) + ')', s.redeem) : ''}</tbody>
           <tfoot><tr><td>Total penerimaan</td><td class="n">${esc(ribuan(s.bruto))}</td></tr></tfoot></table>
         <table class="isi"><thead><tr><th>Potongan</th><th class="n">Rp</th></tr></thead><tbody>
           ${baris('Kasbon', s.potongan_kasbon)}
@@ -15175,7 +15318,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const baris = Object.keys(peta).map((k) => Object.assign({ kode: k, nama: (nama[k] || {}).nama || k,
       cabang: (nama[k] || {}).cabang || '' }, peta[k])).sort((a, b) => urutNama(a.nama, b.nama));
     const kolom = [
-      { judul: 'Petugas', render: (r) => `<strong>${esc(r.nama)}</strong><span class="petunjuk" style="display:block;margin:0">${esc(r.cabang || '')}</span>` },
+      { judul: 'Petugas', render: (r) => orangPetugas(r.kode, `<strong>${esc(r.nama)}</strong><span class="petunjuk" style="display:block;margin:0">${esc(r.cabang || '')}</span>`) },
       { judul: 'Diberikan', angka: true, render: (r) => rp(r.beri) },
       { judul: 'Sudah dipotong', angka: true, render: (r) => rp(r.potong) },
       { judul: 'Sisa', angka: true, render: (r) => `<strong>${rp(r.sisa)}</strong>` },
@@ -15669,9 +15812,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }
       if (t.id === 'btnPetugasBaru')   return editorPetugas(null);
       if (d.editPetugas)               return editorPetugas(d.editPetugas);
+      if (t.id === 'ptFotoPilih') { $('#ptFoto').click(); return; }
+      if (t.id === 'ptFotoHapus') { pasangPratinjauFoto(''); return; }
       if (t.id === 'btnSimpanPetugas') {
         try {
-          await API.simpanPetugas({
+          const foto = fotoPetugasBaru;
+          const tersimpan = await API.simpanPetugas({
             kode: nilai('ptKode') || undefined, nama: nilai('ptNama'),
             peran_utama: nilai('ptPeran'), telepon: nilai('ptTelepon'),
             bisa_jual: centang('ptBisaJual'), bisa_pasang: centang('ptBisaPasang'),
@@ -15679,8 +15825,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           });
           // Daftar petugas ikut turun lewat tarik_master, jadi layar kasir di
           // perangkat ini langsung mengenal nama baru itu tanpa perlu login ulang.
+          let fotoGagal = '';
+          if (foto !== undefined && tersimpan && tersimpan.kode) {
+            try { await API.simpanFotoPetugas({ kode: tersimpan.kode, foto }); gantiFotoPetugas(tersimpan.kode, foto); }
+            catch (x) { fotoGagal = x.message; }
+          }
           await Sync.tarikMaster(true);
           await sukses('Petugas tersimpan.', 'petugas');
+          if (fotoGagal) toast('Data petugas tersimpan, fotonya belum: ' + fotoGagal, 'galat');
         } catch (x) { toast(x.message, 'galat'); }
         return;
       }
@@ -15792,6 +15944,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       if (t.id === 'btnIzinAbsen') return formIzinAbsen();
       if (d.koreksiAbsensi)        return formKoreksiAbsen(d.koreksiAbsensi);
       if (d.batalAbsensi)          return formBatalAbsen(d.batalAbsensi);
+      if (d.hapusAbsensi)          return tanyaHapusAbsen(d.hapusAbsensi);
       if (t.id === 'btnSimpanIzinAbsen' || t.id === 'btnSimpanKoreksiAbsen' || t.id === 'btnSimpanBatalAbsen') {
         t.disabled = true;
         try {
@@ -15806,15 +15959,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return cetakSlip(gajiData.slip.filter((s) => s.status === 'DIBAYAR' &&
           (cabangGaji === '*' || s.cabang === cabangGaji)));
       }
-      if (t.id === 'btnSiapkanGaji') {
-        t.disabled = true;
-        try {
-          const r = await API.siapkanGaji({ periode: nilai('gajiPeriode') });
-          toast(r.dibuat ? r.dibuat + ' slip dibuat.' : 'Semua petugas aktif sudah punya slip bulan ini.');
-          await muatHasilGaji();
-        } finally { t.disabled = false; }
-        return;
-      }
+      if (t.id === 'btnSiapkanGaji') return tanyaSiapkanGaji(t);
+      if (d.hapusSlip)             return tanyaHapusSlip(d.hapusSlip);
+      if (d.hapusSemuaSlip)        return tanyaHapusSlip('');
       /* Tombol yang menulis dimatikan selama menunggu: dua ketukan cepat pada
          Bayar atau Beri kasbon = dua kali uang keluar (servernya juga menolak,
          tapi orang tidak perlu ditolak untuk tahu). */

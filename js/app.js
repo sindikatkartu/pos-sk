@@ -1171,7 +1171,10 @@ function tulisJudulLayar() {
   const m = menuJudulLayar;
   const el = m && m.id !== 'kasir' ? $('.layar.aktif') : null;
   const tabEl = el ? Array.from(el.querySelectorAll('.tab-modal button.aktif')).find((b) => b.offsetParent !== null) : null;
-  const tab = tabEl ? tabEl.textContent.replace(/\s+/g, ' ').trim() : '';
+  /* Lencana hitungan ada DI DALAM tombol tab: tanpa dibuang, judulnya "Gaji24" (bagian 551). */
+  const isiTab = tabEl ? tabEl.cloneNode(true) : null;
+  if (isiTab) isiTab.querySelectorAll('[data-lencana-tab]').forEach((x) => x.remove());
+  const tab = isiTab ? isiTab.textContent.replace(/\s+/g, ' ').trim() : '';
   const kunci = m ? [m.grup || '', m.label, tab].join('|') : '';
   if (h.dataset.jejak === kunci && h.childNodes.length) return;
   h.dataset.jejak = kunci;
@@ -5187,7 +5190,7 @@ async function bukaLaporanShift(idShift, cabang, dariDaftar) {
       <h4 style="margin:16px 0 6px">Poin &amp; omzet petugas</h4>
       ${d.petugas.length ? `<div class="gulir-x"><table>
         <tr><th>Petugas</th><th class="angka">Poin</th><th class="angka">Omzet</th></tr>
-        ${d.petugas.map(x => `<tr><td>${esc(x.nama)}</td>
+        ${d.petugas.map(x => `<tr><td>${orangPetugas(x.kode, esc(x.nama))}</td>
           <td class="angka">${x.poin}</td><td class="angka">${rp(x.omzet)}</td></tr>`).join('')}</table></div>`
         : '<p class="petunjuk">Belum ada klaim petugas di shift ini.</p>'}`;
   } catch (e) {
@@ -7599,6 +7602,29 @@ async function tampilkanBukuBesar() {
   }
 }
 
+/* Keterangan koreksi HPP stok minus (bagian 554): dibaca di latar, sekali per bulan|cabang selama
+   10 menit. Yang di bawah 1 % HPP cabangnya tidak ditulis. Gagal dibaca = tanpa kalimat. */
+const _koreksiHpp = new Map();
+async function isiKetKoreksiHpp(w, d, par, pc, tiket) {
+  const kunci = d.periode + '|' + par.cabang + '|' + ((APP_STATE.user || {}).id_user || '');
+  let x = _koreksiHpp.get(kunci);
+  if (!x || Date.now() - x.waktu > 600000) {
+    x = { waktu: Date.now(), janji: API.koreksiHppBulan({ periode: d.periode, cabang: par.cabang }) };
+    _koreksiHpp.set(kunci, x);
+    x.janji.catch(() => _koreksiHpp.delete(kunci));
+  }
+  let h;
+  try { h = await x.janji; } catch (e) { return; }
+  if (tiket !== _keuTiket) return;
+  const el = w.querySelector('[data-ket-hpp]');
+  if (!el) return;
+  const hppDari = {};
+  (pc || [{ cabang: d.cabang, penjualan_bersih: d.penjualan_bersih, laba_kotor: d.laba_kotor }]).forEach((c) => { hppDari[c.cabang] = Math.abs((Number(c.penjualan_bersih) || 0) - (Number(c.laba_kotor) || 0)); });
+  const isi = ((h && h.per_cabang) || []).filter((c) => Math.abs(c.koreksi) >= 0.01 * (hppDari[c.cabang] || 0));
+  el.hidden = !isi.length;
+  el.innerHTML = isi.length ? 'HPP bulan ini memuat koreksi stok minus: ' + isi.map((c) => esc(c.cabang === kodeCabangPusat() ? TEKS_KANTOR : c.cabang) + ' ' + (c.koreksi > 0 ? '+' : '−') + rp(Math.abs(c.koreksi))).join(' · ') + '. Sebagian bisa berasal dari penjualan bulan sebelumnya.' : '';
+}
+
 async function tampilkanLabaRugi() {
   const w = $('#hasilKeuangan');
   const tiket = ++_keuTiket;
@@ -7622,7 +7648,7 @@ async function tampilkanLabaRugi() {
       <tbody>${pc.map((x) => brsCab(x.cabang === kodeCabangPusat() ? TEKS_KANTOR : x.cabang, x, '',
         `class="baris-klik" tabindex="0" title="Buka Laba Rugi ${esc(x.cabang)}" data-lr-cabang="${esc(x.cabang)}"`)).join('')}
       ${brsCab('Semua cabang', { penjualan_bersih: d.penjualan_bersih, laba_kotor: d.laba_kotor, beban_operasional: d.beban_operasional, lain_lain: (Number(d.pendapatan_lain) || 0) - (Number(d.beban_lain) || 0), laba_bersih: d.laba_bersih, margin_bersih_persen: d.margin_bersih_persen }, 'tebal pisah')}</tbody>
-      </table></div>${PETUNJUK_KLIK_BARIS('Klik baris cabang untuk membuka Laba Rugi cabang itu.')}<p class="ket-lr-cabang">Beban kantor hanya masuk baris ${TEKS_KANTOR} bila dicatat dengan Ditanggung oleh: ${TEKS_KANTOR}; selebihnya ikut toko pencatatnya.</p></div>` : '';
+      </table></div>${PETUNJUK_KLIK_BARIS('Klik baris cabang untuk membuka Laba Rugi cabang itu.')}<p class="ket-lr-cabang">Beban kantor hanya masuk baris ${TEKS_KANTOR} bila dicatat dengan Ditanggung oleh: ${TEKS_KANTOR}; selebihnya ikut toko pencatatnya.</p>${'<p class="ket-lr-cabang" data-ket-hpp hidden></p>'}</div>` : '';
     w.innerHTML = tombolUnduh('laba_rugi', par) + ringkasCab + `<div class="kartu laporan-uang laporan-sempit"><div class="bar-alat"><h3>Laba Rugi — ${esc(d.periode)} · ${esc(namaCabangBuku(d.cabang))}</h3></div>${d.rincian_beban.length && bolehIzin('laporan_keuangan', 'lihat') ? PETUNJUK_KLIK_BARIS('Klik baris beban untuk membuka Buku besar akunnya.') : ''}<div class="gulir-x"><table>
       ${brs('Penjualan Bruto', d.penjualan_bruto)}
       ${brs('(−) Diskon Penjualan', -d.diskon_penjualan)}
@@ -7637,7 +7663,8 @@ async function tampilkanLabaRugi() {
       ${brs('(+) Pendapatan Lain', d.pendapatan_lain)}
       ${brs('(−) Beban Lain', -d.beban_lain)}
       ${brs('LABA BERSIH (' + d.margin_bersih_persen + '%)', d.laba_bersih, 'tebal pisah')}
-      </table></div></div>`;
+      </table></div>${pc ? '' : '<p class="ket-lr-cabang" data-ket-hpp hidden></p>'}</div>`;
+    isiKetKoreksiHpp(w, d, par, pc, tiket);
   };
   try {
     await denganSimpananLap(w, 'laba_rugi', par, () => API.labaRugi(par), gambarLR,

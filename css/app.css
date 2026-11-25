@@ -2686,16 +2686,37 @@ a.mini-tautan:focus-visible { outline: 2px solid var(--utama); outline-offset: 2
    "4 nota · margin 33.2%". Satu kolom (4 ÷ 1 tetap membagi habis). */
 @media (max-width: 359px) { .petak-sub.kol-4 { grid-template-columns: 1fr; } }
 
-/* Strip peringatan di atas KPI: yang menuntut tindakan sekarang berdiri di
-   atas, bukan di kartu kedelapan. */
-.strip-dash { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin-bottom: var(--irama); flex-wrap: wrap;
-              background: var(--peringatan-lembut); border: 1px solid var(--peringatan); border-radius: var(--radius); font-size: var(--fs-12); }
+/* Avatar petugas (bagian 552). Margin tegak negatif: lingkarannya tidak menambah tinggi baris. */
+.orang { display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; max-width: 100%; min-width: 0; text-align: left; }
+.orang .orang-isi { min-width: 0; }
+.av { display: inline-flex; width: 26px; height: 26px; margin: -4px 0; border-radius: 50%; flex: none; overflow: hidden;
+      background: var(--panel-2); color: var(--teks-redup); border: 1px solid var(--garis); }
+.av svg, .av img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.av.kecil { width: 20px; height: 20px; margin: -3px 8px -3px 0; vertical-align: middle; }
+.av.besar { width: 40px; height: 40px; margin: 0; }
+.pt-foto { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Pita di atas KPI (bagian 551): netral; `.perlu` oranye bila menuntut tindakan. Tiap shift satu butir yang tidak pecah. */
+.strip-dash { display: flex; align-items: center; gap: 6px 18px; padding: 8px 14px; margin-bottom: var(--irama); flex-wrap: wrap;
+              background: var(--panel); border: 1px solid var(--garis); border-radius: var(--radius); font-size: var(--fs-14); }
+.strip-dash.perlu { background: var(--peringatan-lembut); border-color: var(--peringatan); }
+.sd-kepala { display: inline-flex; align-items: center; gap: 8px; }
+.sd-butir { white-space: nowrap; }
+.sd-butir .jam { color: var(--teks-redup); font-variant-numeric: tabular-nums; }
+.strip-dash.perlu .sd-butir .jam { color: inherit; }
+.sd-sekat { width: 1px; align-self: stretch; background: var(--garis); }
 .strip-dash .ikon-svg { width: 15px; height: 15px; color: var(--peringatan); flex: none; }
-.strip-dash .pisah { color: var(--teks-redup); }
-/* Di HP pitanya melipat per kalimat, dan titik pemisahnya tertinggal sendirian
-   di ujung baris (pemilik 22 Nov 2026). Tiap kalimat sudah di barisnya sendiri. */
-@media (max-width: 620px) { .strip-dash .pisah { display: none; } }
 .strip-dash .strip-tautan { margin-left: auto; white-space: nowrap; }
+/* HP: judul dan tautannya sebaris, di bawahnya dua butir per baris yang lurus. */
+@media (max-width: 620px) {
+  .strip-dash { gap: 6px 16px; }
+  .strip-dash > * { order: 2; }
+  .strip-dash > .sd-kepala:first-child { order: 0; }
+  .strip-dash > .strip-tautan { order: 1; }
+  .strip-dash > .sd-kepala:not(:first-child) { flex: 1 0 100%; }
+  .sd-butir { flex: 0 0 calc(50% - 8px); }
+  .sd-sekat { display: none; }
+}
 
 /* Dropdown periode & cabang TIDAK diperkecil di layar mana pun (keputusan
    pemilik 12 Sep 2026): tinggi dan hurufnya sama di HP, tablet, PC. Dijaga
@@ -3958,6 +3979,10 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
   .jumlah-baris { margin-left: 0; }
   .bar-alat > .kanan > * { width: 100%; }
   .bar-alat > .kanan > .ekspor { display: grid; }
+  /* Tombol terakhir dan ⋮ sebaris; tombol lain selebar penuh (Gaji, bagian 551). */
+  .bar-alat > .kanan.kanan-menu { grid-template-columns: 1fr auto; }
+  .bar-alat > .kanan.kanan-menu > .tombol:not(#btnSiapkanGaji) { grid-column: 1 / -1; }
+  .bar-alat > .kanan.kanan-menu > #btnSiapkanGaji:last-child { grid-column: 1 / -1; }
   .jumlah-baris { text-align: right; }
 
   /* ---- Bar alat kasir ----

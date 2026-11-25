@@ -874,6 +874,36 @@ function orangTampil(nama, id) {
   return esc(n || k) + (n && k && n !== k ? ' <span class="kode-redup">' + esc(k) + '</span>' : '');
 }
 
+/* ---------- Avatar petugas (bagian 552) ----------
+   Foto bila diisi, siluet netral bila kosong — sama untuk semua orang. Fotonya ditarik SEKALI per
+   pemuatan halaman, di latar, dan hanya disimpan di memori (bukan di perangkat). */
+let _fotoPetugas = null, _fotoMilik = '', _fotoMuat = null, _fotoLokal = {};
+const SILUET_PETUGAS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="9.4" r="4.5" fill="currentColor"/><path d="M3.2 24c0-5.4 3.9-9 8.8-9s8.8 3.6 8.8 9z" fill="currentColor"/></svg>';
+const isiAvatar = (kode) => { const f = (_fotoPetugas || {})[kode]; return f ? '<img alt="" src="data:image/jpeg;base64,' + esc(f) + '">' : SILUET_PETUGAS; };
+function muatFotoPetugas() {
+  const u = typeof APP_STATE !== 'undefined' && APP_STATE.user ? String(APP_STATE.user.id_user || '') : '';
+  if (_fotoMilik !== u) { _fotoPetugas = null; _fotoMuat = null; _fotoLokal = {}; _fotoMilik = u; }
+  if (_fotoMuat || !u || typeof API === 'undefined' || typeof API.fotoPetugas !== 'function' || !bolehIzin('petugas', 'lihat')) return;
+  _fotoMuat = API.fotoPetugas({ latar: true }).then((d) => {
+    if (_fotoMilik !== u) return;
+    _fotoPetugas = Object.assign({}, d && d.foto, _fotoLokal);   // yang baru disimpan menang atas bacaan sebelum tulisan
+    document.querySelectorAll('[data-av]').forEach((e) => { e.innerHTML = isiAvatar(e.dataset.av); });
+  }).catch(() => { setTimeout(() => { _fotoMuat = null; }, 60000); });   // gagal: siluet tetap, dicoba lagi nanti
+}
+/** Foto yang baru disimpan langsung tampil di semua avatar petugas itu. */
+function gantiFotoPetugas(kode, foto) {
+  _fotoLokal[kode] = foto;
+  _fotoPetugas = Object.assign({}, _fotoPetugas, _fotoLokal);
+  document.querySelectorAll('[data-av]').forEach((e) => { if (e.dataset.av === String(kode)) e.innerHTML = isiAvatar(e.dataset.av); });
+}
+function avatarPetugas(kode, kelas) {
+  if (_fotoMilik !== String((APP_STATE.user || {}).id_user || '')) _fotoPetugas = null;   // ganti akun: foto akun lama tidak terlukis
+  if (!_fotoMuat || !_fotoPetugas) queueMicrotask(muatFotoPetugas);
+  return '<span class="av ' + (kelas || '') + '" aria-hidden="true"' + (kelas === 'besar' ? '' : ' data-av="' + esc(String(kode || '')) + '"') + '>' + isiAvatar(String(kode || '')) + '</span>';
+}
+/** Nama petugas berikut avatarnya; `isi` = HTML yang sudah aman. */
+const orangPetugas = (kode, isi) => '<span class="orang">' + avatarPetugas(kode) + '<span class="orang-isi">' + isi + '</span></span>';
+
 function urutNama(a, b) {
   const x = String(a == null ? '' : a), y = String(b == null ? '' : b);
   return _KOLATOR ? _KOLATOR.compare(x, y) : (x < y ? -1 : x > y ? 1 : 0);
