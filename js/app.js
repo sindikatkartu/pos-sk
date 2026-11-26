@@ -5687,9 +5687,14 @@ const LAP_TARIK = {
   /* Per pelanggan (bagian 396). */
   pelanggan: (par) => API.laporanPelanggan(par),
   /* Per produk (bagian 452). */
-  produk: (par) => API.laporanProduk(par)
+  produk: (par) => API.laporanProduk(par),
+  /* Kunjungan (bagian 557): 53 minggu terakhir, semua cabang yang berhak — TIDAK memakai periode & cabang bar. */
+  kunjungan: () => API.laporanKunjungan({})
 };
 
+/* Tab yang TIDAK memakai periode (bagian 557): tidak ikut dokumen cetak laporan penjualan — dokumen itu
+   satu rentang tanggal. Bar Cetak/⋮ disembunyikan di tab ini; dijaga uji.js. */
+const LAP_TANPA_CETAK = ['kunjungan'];
 /* Urutan dan judul bagian — dipakai tab di layar DAN dokumen cetak. */
 const LAP_BAGIAN = [
   { id: 'ringkas', judul: 'Ringkasan' },
@@ -5901,6 +5906,83 @@ async function tarikTabLaporan(tab) {
   return LAP.data[tab];
 }
 
+/* Tab Kunjungan (bagian 557): kalender setahun, satu kotak satu hari, warna = jumlah nota AKTIF.
+   Pemilik 26 Nov 2026: "monitoring dalam setahun percabang & semua cabang, berdasarkan frekwensi
+   kunjungan"; keputusannya: 12 bulan terakhir, bertumpuk (Semua cabang lalu tiap cabang), tingkat
+   warna diukur per cabang sendiri. Tanggal dihitung dari awal/sampai SERVER (zona waktu toko),
+   bukan dari jam perangkat. */
+const HARI_KK = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const BULAN_KK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const rangkaKunjungan = () => Array.from({ length: 2 }, () => `<div class="kartu" aria-busy="true" aria-label="Memuat kunjungan">
+  <span class="rangka" style="width:140px"></span><div class="rangka-baris"><span class="rangka tinggi" style="width:100%;height:104px"></span></div></div>`).join('');
+
+/** Deret hari awal..sampai (YYYY-MM-DD) — hitungan UTC, tidak terpengaruh zona waktu perangkat. */
+function hariKunjungan(awal, sampai) {
+  const out = [], d = new Date(awal + 'T00:00:00Z'), akhir = new Date(sampai + 'T00:00:00Z');
+  const dua = (n) => String(n).padStart(2, '0');
+  for (; d <= akhir; d.setUTCDate(d.getUTCDate() + 1)) out.push(d.getUTCFullYear() + '-' + dua(d.getUTCMonth() + 1) + '-' + dua(d.getUTCDate()));
+  return out;
+}
+
+/** Tingkat 0–4 per seri: 0 = tanpa nota; 1–4 = kuartil hari BERISI seri itu sendiri; -1 = belum mencatat. */
+function tingkatKunjungan(nilai) {
+  const isi = nilai.filter((x) => x > 0).sort((a, b) => a - b);
+  const q = (f) => isi[Math.min(isi.length - 1, Math.floor(isi.length * f))];
+  const amb = isi.length ? [q(.25), q(.5), q(.75)] : [0, 0, 0];
+  return (x) => x === null ? -1 : x === 0 ? 0 : x <= amb[0] ? 1 : x <= amb[1] ? 2 : x <= amb[2] ? 3 : 4;
+}
+
+function kartuKunjungan(judul, hari, nilai, ket) {
+  const tingkat = tingkatKunjungan(nilai), berisi = nilai.filter((x) => x !== null);
+  const jumlah = berisi.reduce((a, b) => a + b, 0);
+  const rata = berisi.length ? Math.round(jumlah / berisi.length) : 0;
+  /* Server mengirim awal = Senin; kalau tidak, kolom pertama digeser supaya baris tetap Sen..Min. */
+  const hari0 = new Date(hari[0] + 'T00:00:00Z').getUTCDay(), geser = (hari0 + 6) % 7;
+  let sel = '', bulan = '';
+  hari.forEach((t, i) => {
+    const k = Math.floor((i + geser) / 7) + 2, b = ((i + geser) % 7) + 2, tg = tingkat(nilai[i]);
+    const ket1 = nilai[i] === null ? 'belum mencatat' : ribuan(nilai[i]) + ' nota';
+    sel += `<i class="kk-s t${tg}" style="grid-column:${k};grid-row:${b}" data-tgl="${t}" title="${HARI_KK[(hari0 + i) % 7]} ${tglTampil(t)} · ${ket1}"></i>`;
+    if (b === 2 && Number(t.slice(8)) <= 7 && k > 2) bulan += `<span class="kk-b" style="grid-column:${k} / span 4">${BULAN_KK[Number(t.slice(5, 7)) - 1]}</span>`;
+  });
+  /* Baris 1 ikut ditutup: nama bulan yang digulir ke kiri tidak mengintip di bawah label hari. */
+  const label = ['', 'Sen', '', 'Rab', '', 'Jum', '', ''].map((x, i) => `<span class="kk-h" style="grid-row:${i + 1}">${x}</span>`).join('');
+  const kolom = Math.ceil((hari.length + geser) / 7);
+  return `<div class="kartu kartu-kunjungan" data-kunjungan="${esc(judul)}">
+    <div class="kk-kepala"><h3>${esc(judul)}</h3><span class="petunjuk">${ribuan(jumlah)} nota · rata-rata ${ribuan(rata)}/hari</span></div>
+    ${ket || ''}
+    <div class="kk-gulir"><div class="kk" style="--kk-kolom:${kolom}">${bulan}${label}${sel}</div></div>
+    <div class="kk-kaki"><span>Sepi</span>${[0, 1, 2, 3, 4].map((x) => `<i class="kk-s t${x}"></i>`).join('')}<span>Ramai</span></div>
+  </div>`;
+}
+
+function gambarLapKunjungan(w, d) {
+  const hari = hariKunjungan(d.awal, d.sampai);
+  /* Hari sebelum nota pertama cabang itu = belum mencatat (kotak putus-putus), bukan nol. */
+  const seri = (d.cabang || []).map((c) => {
+    const nota = c.nota || {}, ada = Object.keys(nota).filter((t) => nota[t] > 0).sort()[0] || '9999';
+    return { judul: c.nama || c.kode, nilai: hari.map((t) => t < ada ? null : Number(nota[t] || 0)) };
+  });
+  const gagal = d.gagal || [];
+  /* Cabang gagal TIDAK digambar nol (setahun nol = cabang tanpa pembeli); Semua cabang menyebut kekurangannya. */
+  const ketGagal = gagal.length
+    ? `<div class="pesan galat">Tanpa ${esc(gagal.map((g) => g.nama || g.kode).join(', '))} — gagal dibaca. Buka tab ini lagi untuk mencoba ulang.</div>` : '';
+  const kartu = [];
+  if (seri.length > 1 || gagal.length) {
+    const semua = hari.map((_, i) => {
+      const a = seri.map((s) => s.nilai[i]).filter((x) => x !== null);
+      return a.length ? a.reduce((p, q) => p + q, 0) : null;
+    });
+    kartu.push(kartuKunjungan('Semua cabang', hari, semua, ketGagal));
+  }
+  seri.forEach((s) => kartu.push(kartuKunjungan(s.judul, hari, s.nilai)));
+  gagal.forEach((g) => kartu.push(`<div class="kartu kartu-kunjungan" data-kunjungan="${esc(g.nama || g.kode)}"><h3>${esc(g.nama || g.kode)}</h3><div class="pesan galat">Gagal dibaca: ${esc(g.pesan || '')}</div></div>`));
+  w.innerHTML = kartu.join('') +
+    `<p class="petunjuk">Satu kotak = satu hari; warna = jumlah nota (tanpa void), dibanding hari-hari cabang itu sendiri. Dihitung ${esc(d.dihitung || '')}.</p>`;
+  /* HP: kalender lebih lebar dari layar — mulai dari ujung kanan (hari ini). */
+  w.querySelectorAll('.kk-gulir').forEach((g) => { g.scrollLeft = g.scrollWidth; });
+}
+
 /* Tab Diskon (bagian 305): isinya digambar penggambar laporan diskon di admin.js. */
 function gambarLapDiskonTab(w, d) { Admin.gambarLapDiskon(w, d, { dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang }); }
 
@@ -6094,10 +6176,13 @@ async function gambarTabLaporan(tab) {
   LAP.tab = tab;
   $$('#tabLaporan button').forEach(b => b.classList.toggle('aktif', b.dataset.tabLap === tab));
   const w = $('#hasilLaporan');
-  if (!LAP.dari || !LAP.sampai) return gambarPetunjukLaporan('Pilih periode di atas untuk menampilkan laporan.');
+  /* Kunjungan (bagian 557) tidak memakai periode, cabang, Cetak, dan ⋮: bar alatnya disembunyikan di tab itu. */
+  $('#layarLaporan .bar-alat')?.closest('.kartu')?.classList.toggle('sembunyi', tab === 'kunjungan');
+  if (tab !== 'kunjungan' && (!LAP.dari || !LAP.sampai)) return gambarPetunjukLaporan('Pilih periode di atas untuk menampilkan laporan.');
   const gambar = { ringkas: gambarLapRingkas, nota: gambarLapNota, shift: gambarLapShift,
                    petugas: gambarLapPetugas, void: gambarLapVoid,
-                   diskon: gambarLapDiskonTab, pelanggan: gambarLapPelanggan, produk: gambarLapProduk }[tab];
+                   diskon: gambarLapDiskonTab, pelanggan: gambarLapPelanggan, produk: gambarLapProduk,
+                   kunjungan: gambarLapKunjungan }[tab];
   if (!LAP.data[tab]) {
     /* Balapan tab: yang tiba belakangan untuk tab yang sudah ditinggalkan
        tidak boleh menimpa tab yang sedang dibuka. */
@@ -6105,7 +6190,7 @@ async function gambarTabLaporan(tab) {
     const par = { dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
     /* Data terakhir dulu (bagian 365). Angka lama TIDAK masuk LAP.data — cetak
        & ekspor menarik yang baru sendiri lewat tarikTabLaporan. */
-    if (!bacaSimpanLap('lap_' + tab, par)) Rangka.pasang(w, rangkaLaporan());   // bentuk asli diingat (bagian 262)
+    if (!bacaSimpanLap('lap_' + tab, par)) Rangka.pasang(w, tab === 'kunjungan' ? rangkaKunjungan() : rangkaLaporan());   // bentuk asli diingat (bagian 262)
     try {
       await denganSimpananLap(w, 'lap_' + tab, par, () => tarikTabLaporan(tab),
         (d, segar, ulang) => { if (!segar || ulang) gambar(w, d); }, () => !tiketLaporanBasi(tiket));

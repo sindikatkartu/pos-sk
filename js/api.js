@@ -120,7 +120,7 @@ const API = (() => {
   const HANYA_BACA = new Set([
     'absen_siap', 'daftar_absensi', 'foto_absen',
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
-    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
+    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_kunjungan', 'laporan_produk',
     'laporan_diskon', 'laba_rugi', 'hpp_stok_minus', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
@@ -244,7 +244,7 @@ const API = (() => {
   const AMAN_DIULANG = new Set([
     /* pembacaan */
     'ping', 'tarik_master', 'shift_aktif', 'daftar_shift', 'laporan_shift',
-    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_produk',
+    'stok_terkini', 'kartu_stok', 'daftar_kas', 'laporan_penjualan', 'laporan_nota', 'laporan_pelanggan', 'laporan_kunjungan', 'laporan_produk',
     'laporan_diskon', 'laba_rugi', 'hpp_stok_minus', 'neraca', 'neraca_saldo', 'uji_kebenaran', 'ringkasan_dashboard',
     'daftar_produk', 'produk_satu', 'peta_sku', 'lencana_nav', 'produk_terjual', 'daftar_pelanggan',
     'daftar_supplier', 'daftar_user', 'daftar_peran', 'daftar_cabang_admin',
@@ -722,6 +722,7 @@ let _pernahJawab = false;
        tombol Setujui/Tolak yang berdiri di layar yang sama. */
     pantauVoid:      (d) => panggil('laporan_nota', d, { latar: true, timeout: 90000 }),
     laporanPelanggan: (d) => panggil('laporan_pelanggan', d, { timeout: 90000 }),   // bagian 396
+    laporanKunjungan: (d) => panggil('laporan_kunjungan', d, { timeout: 90000 }),   // bagian 557
     laporanProduk:    (d) => panggil('laporan_produk', d, { timeout: 90000 }),      // bagian 452
     laporanDiskon:   (d) => panggil('laporan_diskon', d, { timeout: 60000 }),
     otorisasiDiskon: (d) => panggil('otorisasi_diskon', d),

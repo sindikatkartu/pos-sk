@@ -7391,7 +7391,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         ], rows, { kosong: 'Belum ada cabang', pisahNonaktif: true, kunci: 'cabang', dataAttr: r => atributInduk('cabang', 'cabang', r.kode_cabang, r.nama) })}
       </div>
       ${gambarLini()}`;
-    pasangTabKartu(w, 'cabang', { cabang: 'Cabang', meja: 'Meja & lini usaha' },   // bagian 432
+    pasangTabKartu(w, 'cabang', { cabang: 'Daftar cabang', meja: 'Meja & lini usaha' },   // bagian 432
       'Cabang menjawab di mana sebuah nota lahir; meja menjawab divisi mana yang memilikinya.');
   }
 
@@ -12509,7 +12509,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      Server: 26_Produksi.gs. Angka saldo & modal dibaca dari jurnal, bukan
      dihitung ulang di sini. */
   const KATEGORI_BAHAN = 'Bahan Produksi';
-  const TAB_PROD = [['produksi', 'Produksi'], ['saldo', 'Saldo aplikasi'], ['laporan', 'Laporan']];
+  const TAB_PROD = [['produksi', 'Catat produksi'], ['saldo', 'Saldo aplikasi'], ['laporan', 'Laporan']];
   const PERIODE_PROD = { id: 'prodPeriodePilih', dari: 'prodDari', sampai: 'prodSampai', nilai: 'bulan', judul: 'Periode produksi' };
   const NAMA_AKUN_BAYAR = { '1-1150': 'Kas Admin', '1-1201': 'Bank BCA', '1-1202': 'Bank BNI', '1-1203': 'Bank BRI', '1-1204': 'Bank Mandiri' };
   let tabProd = 'produksi', prodData = null, prodTerpasang = false;
@@ -14984,7 +14984,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!$('#panelGaji')) {
       w.innerHTML = `
         <div class="kartu"><div class="tab-modal" id="tabGaji">
-          <button data-tab-gaji="gaji" class="aktif">Gaji${lencanaTabHtml('gaji', 'gaji')}</button>
+          <button data-tab-gaji="gaji" class="aktif">Slip gaji${lencanaTabHtml('gaji', 'gaji')}</button>
           <button data-tab-gaji="kasbon">Kasbon</button></div>
           <p class="petunjuk">Gaji petugas per bulan: tekan <strong>Siapkan gaji bulan ini</strong>,
              periksa angkanya lewat <strong>Ubah</strong>, lalu <strong>Bayar</strong> dan cetak slipnya.
@@ -15055,7 +15055,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       { judul: 'Gaji pokok', angka: true, render: (s) => rp(s.gaji_pokok) },
       { judul: 'Tunjangan', angka: true, render: (s) => rp(s.tunj_kesehatan + s.tunj_makan) },
       { judul: 'Bonus + komisi', angka: true, render: (s) => rp(s.bonus + s.komisi + (s.redeem || 0)) +
-          (s.redeem > 0 ? `<span class="petunjuk" style="display:block;margin:0">termasuk poin ${esc(rpTeks(s.redeem))}</span>` : '') },
+          (s.redeem > 0 ? `<span class="petunjuk" style="display:block;margin:0">poin ${esc(ribuan(s.redeem))}</span>` : '') },
       { judul: 'Potongan kasbon', angka: true, render: (s) => rp(s.potongan_kasbon) +
           (s.status === 'DRAF' && sisaKb(s.kode_petugas) > 0
             ? `<span class="petunjuk" style="display:block;margin:0">sisa ${esc(rpTeks(sisaKb(s.kode_petugas)))}</span>` : '') },

@@ -4857,3 +4857,29 @@ label.cek input.sakelar:focus-visible { outline: none; box-shadow: var(--cincin)
 /* HP tidak dipakai absen (petugas memakai tablet/PC) dan kepalanya sempit. */
 @media (max-width: 620px) { #btnAbsen { display: none; } }
 
+
+/* Kalender kunjungan (bagian 557): 53 kolom minggu x 7 hari. Kotak memenuhi lebar kartu sampai 16 px,
+   di bawah 10 px kalendernya digulir (HP) dan label hari menempel di kiri. Warna dari lime grafik
+   (temaDash: #6f9300 terang, #c5f135 gelap), empat tingkat dicampur dengan warna kartu. */
+.kk-kepala { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 8px; }
+.kk-kepala h3 { margin: 0; }
+.kk-kepala .petunjuk { margin: 0; }
+.kk-gulir { overflow-x: auto; padding-bottom: 4px; }
+.kk, .kk-kaki { --kk: #6f9300; }
+.kk { --kk-kolom: 53; }
+html[data-tema="gelap"] .kk, html[data-tema="gelap"] .kk-kaki { --kk: #c5f135; }
+.kk { display: grid; grid-template-columns: 28px repeat(var(--kk-kolom), minmax(10px, 16px));
+      gap: 2px; width: max-content; min-width: 100%; justify-content: start; }
+.kk-s { display: block; aspect-ratio: 1; min-width: 10px; border-radius: 2px; }
+.kk-kaki .kk-s { width: 12px; }
+.kk-b, .kk-h { font-size: 11px; line-height: 1; color: var(--teks-redup); white-space: nowrap; }
+.kk-b { grid-row: 1; padding-bottom: 4px; }
+.kk-h { grid-column: 1; position: sticky; left: 0; z-index: 1; background: var(--panel); display: flex; align-items: center; }
+.kk-s.t-1 { outline: 1px dashed color-mix(in srgb, var(--teks-redup) 30%, transparent); outline-offset: -1px; }
+.kk-s.t0 { background: color-mix(in srgb, var(--teks-redup) 16%, transparent); }
+.kk-s.t1 { background: color-mix(in srgb, var(--kk) 25%, var(--panel)); }
+.kk-s.t2 { background: color-mix(in srgb, var(--kk) 50%, var(--panel)); }
+.kk-s.t3 { background: color-mix(in srgb, var(--kk) 75%, var(--panel)); }
+.kk-s.t4 { background: var(--kk); }
+.kk-kaki { display: flex; gap: 4px; align-items: center; justify-content: flex-end; font-size: 11px; color: var(--teks-redup); margin-top: 8px; }
+.kk-kaki span { margin: 0 4px; }
