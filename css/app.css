@@ -1734,7 +1734,7 @@ body:not(:has(#layarKasir.aktif)) .tombol.bahaya:hover { filter: brightness(.9);
    tidak lurus. Itu satu-satunya beda antara layar yang terasa dikerjakan dan
    layar yang terasa asal jadi. */
 select, input[type=text], input[type=number], input[type=password], input[type=date],
-input[type=month], input[type=tel], input[type=search], textarea {
+input[type=time], input[type=month], input[type=tel], input[type=search], textarea {
   padding: 8px 12px; background: var(--panel); border: 1px solid var(--garis);
   border-radius: var(--radius); width: 100%; box-shadow: none;
   min-height: 36px; font-size: var(--fs-14);
@@ -4003,7 +4003,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
      tekan jadi lumrah, dan di layar Produk salah tekan berarti membuka form
      produk yang salah. */
   select, input[type=text], input[type=number], input[type=password],
-  input[type=date], input[type=month], input[type=tel], input[type=search],
+  input[type=date], input[type=time], input[type=month], input[type=tel], input[type=search],
   textarea, .tombol { min-height: 42px; }
   .tombol.kecil { min-height: 40px; padding: 8px 14px; font-size: var(--fs-13); }
 }
@@ -4039,7 +4039,7 @@ tr.baris-pindai > td { animation: sorot-pindai 1.2s ease-out; }
      di bawah tidak menjangkaunya. */
   .popover-item { min-height: 40px; }
   select, input[type=text], input[type=number], input[type=password],
-  input[type=date], input[type=month], input[type=tel], input[type=search] {
+  input[type=date], input[type=time], input[type=month], input[type=tel], input[type=search] {
     min-height: 40px;
   }
   .tombol { min-height: 40px; }
@@ -4883,3 +4883,43 @@ html[data-tema="gelap"] .kk, html[data-tema="gelap"] .kk-kaki { --kk: #c5f135; }
 .kk-s.t4 { background: var(--kk); }
 .kk-kaki { display: flex; gap: 4px; align-items: center; justify-content: flex-end; font-size: 11px; color: var(--teks-redup); margin-top: 8px; }
 .kk-kaki span { margin: 0 4px; }
+
+/* TANGGAL DOKUMEN di dialog Isi saldo & Redeem bonus (titipan Y1, 26 Nov 2026).
+   Isi saldo: Tanggal · Nominal · Dibayar dari BERTIGA sebaris di layar lebar —
+   dua baris membuat borangnya bergulir di HP datar 844x390. Di HP tegak:
+   Tanggal | Nominal, lalu Dibayar dari selebar penuh. Redeem: Tanggal | Nominal. */
+.petak.petak-tanggal-dok { grid-template-columns: 1fr 1fr; }
+.petak.petak-tanggal-dok.tiga { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 620px) {
+  .petak.petak-tanggal-dok.tiga { grid-template-columns: 1fr 1fr; }
+  .petak.petak-tanggal-dok.tiga > :last-child { grid-column: 1 / -1; }
+}
+
+/* PILIHAN CENTANG di Pengaturan Sistem & Sumber saldo (titipan Y2 a–c): kisi dua
+   kolom seperti metode bayar cabang; keterangan kecil (kode akun) di bawah nama. */
+.kisi-centang { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+.kisi-centang label.cek { margin-bottom: 0; }
+.kisi-centang .cek-semua { grid-column: 1 / -1; }
+.kisi-centang label.cek:has(input:disabled) { opacity: .55; }
+.kisi-centang em { display: block; font-style: normal; font-size: var(--fs-12); color: var(--teks-redup); font-variant-numeric: tabular-nums; }
+
+/* PEMECAH BARIS di bar isian (titipan Y1): Transfer bank jadi dua baris yang
+   tetap — Tanggal · (Cabang) · Dari · Ke, lalu Nilai · Biaya — alih-alih Biaya
+   yang jatuh sendirian di baris kedua pada lebar tertentu. Di HP bar ini grid
+   dua kolom, jadi pemecahnya tidak dipakai. */
+.saring-baris > .pecah-baris { flex-basis: 100%; height: 0; }
+@media (max-width: 620px) { .saring-baris > .pecah-baris { display: none; } }
+
+/* PEMILIH JAM (titipan Y2-d): isian bawaan Chrome menambah ±2,7 px di dalam
+   kotaknya, jadi ia lebih tinggi dari kotak teks di sebelahnya. Tingginya DIKUNCI
+   pada min-height yang sama; di HP aturan min-height 40/42 px tetap menang. */
+input[type=time] { height: 36px; }
+
+/* PESAN WHATSAPP (titipan Y2-f): dua tombol + satu pilihan sebaris di atas kotak,
+   pratinjau gelembung di bawahnya. */
+.wa-alat { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.wa-alat select { width: auto; flex: 1 1 140px; }
+.wa-pratinjau { margin-top: 8px; }
+.wa-gelembung { margin-top: 4px; padding: 8px 12px; border-radius: var(--radius); background: var(--panel-2);
+  border: 1px solid var(--garis); font-size: var(--fs-14); line-height: 1.45; overflow-wrap: anywhere; }
+.wa-gelembung .wa-salah { background: none; color: var(--bahaya); text-decoration: underline wavy; }

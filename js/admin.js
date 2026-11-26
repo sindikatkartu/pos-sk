@@ -9617,11 +9617,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         </select></div>
         <div class="grup"><label>Urutan</label><input type="text" id="spUrutan" value="${esc(String(s?.urutan ?? 99))}"></div>
       </div>
-      <div class="grup"><label>Cabang</label><input type="text" id="spCabang" value="${esc(String(s?.cabang || '*'))}" placeholder="* atau SK01,SK02"></div>
-      <p class="petunjuk">Isi <code>*</code> kalau sumber ini dipakai seluruh cabang, atau daftar
-         kode cabang dipisah koma. Kode yang tidak dikenal ditolak server — salah ketik di
-         sini baru terlihat berbulan-bulan kemudian sebagai sumber yang tidak pernah muncul
-         di cabang mana pun.</p>
+      <div class="grup"><label>Cabang</label>${(() => {
+        /* titipan Y2-c: centang, bukan ketikan "* atau SK01,SK02". Kode tersimpan
+           yang tidak ada di daftar tetap tergambar, supaya Simpan tidak mencabutnya. */
+        const nilaiCab = String(s?.cabang || '*').trim() || '*';
+        const semua = nilaiCab === '*';
+        const dipilih = semua ? [] : pisahKode(nilaiCab).map(k => k.toUpperCase());
+        const opsi = daftarKodeCabang().map(k => [String(k).toUpperCase(), String(k).toUpperCase()]);
+        dipilih.forEach(k => { if (!opsi.some(o => o[0] === k)) opsi.push([k, k]); });
+        return kisiCentang('spCabang', opsi, dipilih, { semua: 'Semua cabang', semuaDipilih: semua });
+      })()}</div>
+      <p class="petunjuk">Centang Semua cabang kalau sumber ini dipakai seluruh cabang.</p>
       ${s ? `<label class="cek"><input type="checkbox" id="spAktif" ${s.aktif === false ? '' : 'checked'}> Aktif</label>` : ''}`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanSumber">${ikonAlat('simpan')}<span>Simpan</span></button>`);
@@ -9737,7 +9743,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      ia diisi rutin migrasi bersama jurnal reklasnya. Diubah tangan, saldo bank
      terbelah antara cabang lama dan pusat. */
   /* metode_cabang diatur di borang Cabang (bagian 351, izin cabang·ubah). */
-  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim', 'cabang_pusat', 'metode_cabang'];
+  /* Empat berikutnya (titipan Y2-g) tidak punya arti sebagai kotak ketik:
+     nama_tipe_sku (diatur Master), label_profil (Stiker), produksi_aplikasi
+     (daftar aplikasi Produksi). cabang_produksi TIDAK punya layar — hanya dibaca
+     dengan bawaan SKG01 (26_Produksi.gs) dan tidak disemai; bila kelak perlu
+     diganti, lewat rutin. Digambar mentah di "Lainnya", ketikan nyasar ikut
+     tersimpan tanpa diperiksa (keputusan pemilik: kartu Lainnya disembunyikan). */
+  const SETTING_PUNYA_LAYAR_SENDIRI = ['bobot_peran_klaim', 'cabang_pusat', 'metode_cabang',
+    'nama_tipe_sku', 'label_profil', 'produksi_aplikasi', 'cabang_produksi'];
+
+  /** Nilai berbentuk JSON (objek/larik) bukan untuk diketik tangan. */
+  const nilaiJson = (v) => { const s = String(v == null ? '' : v).trim();
+    if (!/^[[{]/.test(s)) return false;
+    try { JSON.parse(s); return true; } catch (e) { return false; } };
 
   /* LABEL. Dipendekkan sampai jadi NAMA setelan saja. Penjelasannya pindah ke
      `.set-bantu` di bawah kotak dan `<em>` di dalam kartu centang: label yang
@@ -9770,15 +9788,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     npwp: 'Hanya dipakai bila PKP menyala.',
     tarif_ppn: 'Hanya dipakai bila PKP menyala.',
     footer_struk: 'Baris terakhir sebelum kertas terpotong.',
-    wa_draft_kepala: 'Bisa memakai {usaha}, {cabang}, {tanggal}, {jam}, {pelanggan}. *tebal* dan _miring_ mengikuti WhatsApp. Kosong = tanpa kepala.',
-    wa_draft_kaki: 'Ditaruh sesudah Total. Isian dan format sama dengan kepala. Kosong = tanpa kaki.',
-    lebar_struk: '58 atau 80.',
+    lebar_struk: 'Sesuai lebar gulungan kertas printer.',
+    wa_draft_kepala: 'Kosong = tanpa kepala.',
+    wa_draft_kaki: 'Ditaruh sesudah Total. Kosong = tanpa kaki.',
     mdr_qris: 'Dicatat sebagai beban di jurnal.',
     tema: 'Berlaku untuk SEMUA perangkat, bukan perangkat ini saja.',
-    toko_grosir: 'Kode toko, pisahkan dengan koma. Kasir di toko ini hanya menampilkan pelanggan grosir dan boleh menerima transfer; toko lain hanya pelanggan eceran, tunai & QRIS. Kosong = tidak dipisah.',
-    bank_aktif: 'Kode akun bank yang dipakai, pisahkan dengan koma: 1-1201 BCA, 1-1202 BNI, 1-1203 BRI, 1-1204 Mandiri. Hanya rekening ini yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Kosong = BCA & BRI.',
+    toko_grosir: 'Kasir di toko yang dicentang hanya menampilkan pelanggan grosir dan boleh menerima transfer; toko lain hanya pelanggan eceran, tunai & QRIS. Tidak ada yang dicentang = tidak dipisah.',
+    bank_aktif: 'Hanya rekening yang dicentang yang ditawarkan di kasir grosir, topup, pembayaran, dan transfer bank. Minimal satu.',
     teks_berjalan: 'Tampil berurutan di bilah atas layar Kasir semua toko, di tablet & PC (tidak di HP), dipisah tanda •. Warna titik = level pesannya. Semua kosong = tidak tampil.',
-    absen_jam_masuk_pagi: 'Ditulis JJ:MM. Shift dihitung dari jam masuk yang terdekat.',
+    absen_jam_masuk_pagi: 'Shift dihitung dari jam masuk yang terdekat.',
     absen_jam_masuk_malam: 'Sekaligus jam pulang shift pagi. Pulang sebelum jam ini ditandai pulang awal.',
     absen_jam_pulang_malam: 'Pulang sebelum jam ini ditandai pulang awal.',
     absen_toleransi_menit: 'Masuk lewat jam masuk + toleransi ini dihitung terlambat.'
@@ -9795,13 +9813,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
   /* Satuan yang duduk DI DALAM kotak. Ditulis di label, ia terbaca sebagai
      bagian dari nama setelannya — "Tarif PPN (%)" adalah nama yang aneh. */
-  const SATUAN_SETTING = { tarif_ppn: '%', mdr_qris: '%', lebar_struk: 'mm', absen_toleransi_menit: 'menit' };
+  const SATUAN_SETTING = { tarif_ppn: '%', mdr_qris: '%', absen_toleransi_menit: 'menit' };
 
   /* Contoh isi untuk kotak yang masih kosong. Kotak kosong tanpa contoh tidak
      memberi tahu bentuk isian yang diharapkan. */
   const CONTOH_SETTING = {
-    alamat_usaha: 'Jl. …', telepon_usaha: '08…', npwp: '00.000.000.0-000.000',
-    toko_grosir: 'SKG01', bank_aktif: '1-1201,1-1203'
+    alamat_usaha: 'Jl. …', telepon_usaha: '08…', npwp: '00.000.000.0-000.000'
   };
 
   /* `klaim_petugas_wajib` ikut di sini sejak v1.132.0. Sebelumnya ia tidak
@@ -9834,7 +9851,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      ketik — dan yang terjadi kemudian bukan galat melainkan tema yang diam-diam
      tidak berubah, tanpa satu pun petunjuk kenapa. */
   const SETTING_PILIHAN = {
-    tema: [['terang', 'Terang'], ['gelap', 'Gelap']]
+    tema: [['terang', 'Terang'], ['gelap', 'Gelap']],
+    /* titipan Y2-e: dua ukuran kertas yang ada, bukan kotak angka. */
+    lebar_struk: [['58', '58 mm'], ['80', '80 mm']]
   };
 
   /* LEVEL PESAN BERJALAN (bagian 514, pemilik 17 Nov 2026: "sekali jalan bisa
@@ -9976,6 +9995,112 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     `<div class="set-kepala">${ikonSetting(g.ikon)}` +
     `<div><b>${esc(g.judul)}</b><span>${esc(g.ket)}</span></div></div>`;
 
+  /* PILIHAN CENTANG (titipan Y2 a–c, 26 Nov 2026). Rekening bank aktif, toko
+     grosir, dan cabang sumber saldo dulu kotak ketik "kode dipisah koma" — salah
+     ketik diabaikan diam-diam. Nilai yang tersimpan TETAP teks dipisah koma
+     (server tidak disentuh); yang berubah cara mengisinya. Bentuknya sama dengan
+     blokMetodeCabang: label.cek dalam kisi dua kolom. */
+  const pisahKode = (v) => String(v == null ? '' : v).split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+
+  /** Kisi centang. opsi: [[nilai, nama, keterangan kecil di bawah nama?]].
+      o.semua = label centang "semua" (nilai '*'), o.semuaDipilih = keadaannya. */
+  function kisiCentang(grup, opsi, dipilih, o = {}) {
+    return `<div class="kisi-centang" data-kisi-centang="${esc(grup)}">
+      ${o.semua ? `<label class="cek cek-semua"><input type="checkbox" data-centang-semua="${esc(grup)}" ${o.semuaDipilih ? 'checked' : ''}> <span>${esc(o.semua)}</span></label>` : ''}
+      ${opsi.map(([v, nama, kecil]) => `<label class="cek"><input type="checkbox" data-centang="${esc(grup)}" value="${esc(v)}"
+        ${dipilih.includes(v) ? 'checked' : ''} ${o.semuaDipilih ? 'disabled' : ''}> <span>${esc(nama)}${kecil ? `<em>${esc(kecil)}</em>` : ''}</span></label>`).join('')}
+    </div>`;
+  }
+  /** Teks dari kisi: '*' bila "semua" dicentang, selain itu nilai tercentang menurut urutan opsi. */
+  function nilaiKisi(grup, akar) {
+    const r = akar || document;
+    const s = r.querySelector(`[data-centang-semua="${grup}"]`);
+    if (s && s.checked) return '*';
+    return [...r.querySelectorAll(`[data-centang="${grup}"]`)].filter(c => c.checked).map(c => c.value).join(',');
+  }
+  /** Centang "semua" mematikan butir lainnya — sama dengan Dijual di cabang (produk). */
+  function terapkanCentangSemua(el) {
+    const kisi = el.closest('[data-kisi-centang]');
+    if (kisi) kisi.querySelectorAll('[data-centang]').forEach(c => { c.disabled = el.checked; });
+  }
+
+  /* Opsi centang per setelan. Bank: nama dengan kode akunnya kecil di bawah. */
+  const OPSI_CENTANG = {
+    bank_aktif: () => BANK_SEMUA.map(b => [b[0], b[3], b[0]]),
+    toko_grosir: () => daftarKodeCabang().map(k => [String(k).toUpperCase(), String(k).toUpperCase()])
+  };
+
+  /** Tulis nilai kisi ke <input type=hidden data-setting>-nya. */
+  function rakitCentangSetting(c) {
+    const k = c.dataset.centang, isi = $(`#isiSistem [data-setting="${k}"]`);
+    if (!isi) return;
+    const v = nilaiKisi(k, $('#isiSistem'));
+    if (k === 'bank_aktif' && !v) {
+      c.checked = true;
+      toast('Minimal satu rekening bank tetap aktif.', 'galat');
+      return;
+    }
+    isi.value = v;
+  }
+
+  /* JAM ABSENSI (titipan Y2-d): pemilih jam, bukan ketikan JJ:MM. Server tetap
+     memeriksa bentuk & urutannya (apiSimpanSetting). */
+  const SETTING_JAM = ['absen_jam_masuk_pagi', 'absen_jam_masuk_malam', 'absen_jam_pulang_malam'];
+
+  /* PESAN WHATSAPP (titipan Y2-f): tombol Tebal & Miring membungkus teks
+     terpilih, satu pilihan "Sisipkan…" untuk isian, dan pratinjau di bawah tiap
+     kotak. Isian salah tulis ({cabng}) terkirim mentah — pratinjau menandainya. */
+  const ISIAN_WA = [['usaha', 'Nama usaha'], ['cabang', 'Cabang'], ['tanggal', 'Tanggal'], ['jam', 'Jam'], ['pelanggan', 'Pelanggan']];
+  function contohIsianWa() {
+    const n = new Date();
+    const usaha = $('#isiSistem [data-setting="nama_usaha"]');
+    return { usaha: (usaha && usaha.value) || 'Nama usaha',
+      cabang: (typeof APP_STATE !== 'undefined' && (APP_STATE.namaCabang || APP_STATE.cabang)) || 'Cabang',
+      tanggal: tglTampil(tanggalLokal()),
+      jam: String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'),
+      pelanggan: 'Budi' };
+  }
+  /** Teks pesan → HTML seperti tampil di WhatsApp: *tebal*, _miring_, baris baru. */
+  function htmlWa(teks) {
+    const contoh = contohIsianWa();
+    let h = esc(String(teks == null ? '' : teks)
+      .replace(/\{(usaha|cabang|tanggal|jam|pelanggan)\}/g, (m, k) => contoh[k]));
+    h = h.replace(/\{[^}\n]*\}/g, (m) => '<mark class="wa-salah" title="Isian tidak dikenal — terkirim apa adanya">' + m + '</mark>');
+    h = h.replace(/\*(\S(?:[^*\n]*?\S)?)\*/g, (m, x) => '<b>' + x + '</b>');
+    h = h.replace(/(^|[\s>])_(\S(?:[^_\n]*?\S)?)_(?=$|[\s<.,!?])/gm, (m, a, x) => a + '<i>' + x + '</i>');
+    return h.replace(/\n/g, '<br>') || '<span class="set-bantu">(kosong — tidak ditulis)</span>';
+  }
+  function segarkanPratinjauWa() {
+    $$('#isiSistem [data-wa-pratinjau]').forEach(p => {
+      const ta = $(`#isiSistem textarea[data-setting="${p.dataset.waPratinjau}"]`);
+      if (ta) p.innerHTML = htmlWa(ta.value);
+    });
+  }
+  /** Ganti teks terpilih di kotak pesan, lalu beri tahu penyimak jejak & pratinjau. */
+  function sisipTeksWa(k, bentuk) {
+    const ta = $(`#isiSistem textarea[data-setting="${k}"]`);
+    if (!ta) return;
+    const a = ta.selectionStart, b = ta.selectionEnd, v = ta.value;
+    const [depan, tengah, belakang] = bentuk(v.slice(a, b));
+    ta.value = v.slice(0, a) + depan + tengah + belakang + v.slice(b);
+    ta.focus();
+    ta.setSelectionRange(a + depan.length, a + depan.length + tengah.length);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function isianWa(r, label, bantu) {
+    const k = esc(r.kunci);
+    return `<div class="grup set-panjang"><label>${esc(label)}</label>
+        <div class="wa-alat" role="group" aria-label="Format pesan">
+          <button type="button" class="tombol kecil" data-wa-bungkus="*" data-wa-untuk="${k}"><b>Tebal</b></button>
+          <button type="button" class="tombol kecil" data-wa-bungkus="_" data-wa-untuk="${k}"><i>Miring</i></button>
+          <select data-wa-sisip="${k}" aria-label="Sisipkan isian"><option value="">Sisipkan…</option>${
+            ISIAN_WA.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>
+        </div>
+        <textarea rows="3" data-setting="${k}">${esc(r.nilai)}</textarea>
+        <div class="wa-pratinjau"><span class="set-bantu">Tampil di WhatsApp</span>
+          <div class="wa-gelembung" data-wa-pratinjau="${k}">${htmlWa(r.nilai)}</div></div>${bantu}</div>`;
+  }
+
   /** Satu kendali setelan. */
   function isianSetting(r) {
     const label = LABEL_SETTING[r.kunci] || r.kunci;
@@ -9990,8 +10115,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     }
     if (r.kunci === 'teks_berjalan') return isianPesanJalan(r);
     /* Warnanya kini per pesan (bagian 514). Setelan lama tetap dititipkan,
-       tersembunyi: ia warna baris lama yang belum berawalan, dan nilainya
-       tidak boleh hilang saat Simpan menyapu semua [data-setting]. */
+       tersembunyi: ia warna baris lama yang belum berawalan. (Sejak titipan Y2-g
+       Simpan hanya mengirim yang berubah, jadi nilainya tidak lagi terancam
+       hilang; titipannya tetap supaya jejak perubahan membacanya.) */
     if (r.kunci === 'teks_berjalan_warna') {
       return `<input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">`;
     }
@@ -10005,7 +10131,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const tombol = SETTING_PILIHAN[r.kunci].map(([v, t]) =>
         `<button type="button" class="${String(r.nilai) === v ? 'pas' : ''}"` +
         ` data-segmen="${esc(r.kunci)}" data-segmen-nilai="${esc(v)}">` +
-        ikonSetting(v) + `<span>${esc(t)}</span></button>`).join('');
+        (IKON[v] ? ikonSetting(v) : '') + `<span>${esc(t)}</span></button>`).join('');
       return `<div class="grup"><label>${esc(label)}</label>
         <input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
         <div class="segmen">${tombol}</div>${bantu}</div>`;
@@ -10015,6 +10141,22 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <input type="checkbox" class="sakelar" data-setting="${esc(r.kunci)}" ${String(r.nilai) === 'true' ? 'checked' : ''}>
         <span><b>${esc(label)}</b><em>${esc(SUB_SETTING[r.kunci] || '')}</em></span></label>`;
     }
+    if (OPSI_CENTANG[r.kunci]) {
+      const opsi = OPSI_CENTANG[r.kunci]();
+      /* Bank: kosong/salah tulis = BCA & BRI, sama dengan server — yang tergambar
+         adalah yang BERLAKU. Toko grosir: kode yang tersimpan tapi tidak ada di
+         daftar cabang tetap tergambar tercentang, supaya Simpan tidak mencabutnya. */
+      const dipilih = r.kunci === 'bank_aktif' ? akunBankAktif({ bank_aktif: r.nilai })
+        : pisahKode(r.nilai).map(x => x.toUpperCase());
+      if (r.kunci !== 'bank_aktif') dipilih.forEach(k => { if (!opsi.some(o => o[0] === k)) opsi.push([k, k]); });
+      return `<div class="grup set-centang"><label>${esc(label)}</label>
+        <input type="hidden" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">
+        ${kisiCentang(r.kunci, opsi, dipilih)}${bantu}</div>`;
+    }
+    if (SETTING_JAM.includes(r.kunci)) {
+      return `<div class="grup"><label>${esc(label)}</label>
+        <input type="time" step="60" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}">${bantu}</div>`;
+    }
     if (SATUAN_SETTING[r.kunci]) {
       return `<div class="grup"><label>${esc(label)}</label>
         <div class="isian-satuan">
@@ -10022,10 +10164,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <span>${esc(SATUAN_SETTING[r.kunci])}</span>
         </div>${bantu}</div>`;
     }
-    if (SETTING_PANJANG.includes(r.kunci)) {
-      return `<div class="grup set-panjang"><label>${esc(label)}</label>
-        <textarea rows="3" data-setting="${esc(r.kunci)}">${esc(r.nilai)}</textarea>${bantu}</div>`;
-    }
+    if (SETTING_PANJANG.includes(r.kunci)) return isianWa(r, label, bantu);
     return `<div class="grup"><label>${esc(label)}</label>
       <input type="text" data-setting="${esc(r.kunci)}" value="${esc(r.nilai)}" placeholder="${esc(CONTOH_SETTING[r.kunci] || '')}">${bantu}</div>`;
   }
@@ -10084,7 +10223,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       const b = bobotSekarang();
       const rows = (await API.daftarSetting())
         .filter(r => !SETTING_PUNYA_LAYAR_SENDIRI.includes(r.kunci))
-        .filter(r => !SETTING_DIBUANG.includes(r.kunci));
+        .filter(r => !SETTING_DIBUANG.includes(r.kunci))
+        /* JSON hanya ditolak di luar GRUP_SETTING: kunci yang terkelompok
+           punya kendalinya sendiri (mis. teks_berjalan). */
+        .filter(r => GRUP_SETTING.some(g => g.kunci.includes(r.kunci)) || !nilaiJson(r.nilai));
       _warnaPesanLama = String((rows.find(r => r.kunci === 'teks_berjalan_warna') || {}).nilai || 'biasa');
       $('#isiSistem').innerHTML = `
         <div class="kartu"><p class="petunjuk">Setelan toko: nama usaha, pajak, struk, dan tampilan. Perubahan berlaku untuk seluruh cabang dan sampai ke perangkat kasir dalam beberapa menit.</p></div>
@@ -10140,6 +10282,14 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          berawalan, dan jejaknya menghitung perubahan yang tidak dibuat orang. */
       const ketik = (e) => {
         if (e.target.closest('[data-pj]')) rakitPesanJalan();
+        if (e.target.matches('[data-centang]')) rakitCentangSetting(e.target);
+        if (e.type === 'change' && e.target.matches('[data-wa-sisip]') && e.target.value) {
+          const v = e.target.value;
+          e.target.value = '';
+          sisipTeksWa(e.target.dataset.waSisip, () => ['', '{' + v + '}', '']);
+          return;                 // sisipTeksWa memicu 'input' yang menyegarkan semuanya
+        }
+        segarkanPratinjauWa();
         segarkanJejakSetting();
       };
       $('#isiSistem').oninput = ketik;
@@ -12818,7 +12968,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     lepasUuidDokumen('isi_saldo');           // dokumen BARU — lihat uuidDokumen()
     bukaModal('Isi saldo ' + a.nama, `
       <p class="petunjuk">Saldo buku sekarang ${rp(a.saldo)}.</p>
-      <div class="petak petak-form">
+      <div class="petak petak-form petak-tanggal-dok tiga">
+        <label>Tanggal<input type="date" id="isiTanggal" value="${esc(tanggalLokal())}" max="${esc(tanggalLokal())}"></label>
         <label>Nominal<input type="text" class="uang" id="isiNominal" inputmode="numeric" autocomplete="off"></label>
         <label>Dibayar dari<select id="isiAkun">${prodData.akun_bayar.map((k) => `<option value="${k}">${esc(NAMA_AKUN_BAYAR[k] || k)}</option>`).join('')}</select></label>
       </div>
@@ -12831,14 +12982,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const nominal = angkaDari($('#isiNominal').value || '');
     if (!(nominal > 0)) return toast('Isi nominalnya.', 'galat');
     const akun = $('#isiAkun').value, apl = prodData.aplikasi.find((a) => a.kode === btn.dataset.kode);
-    const ket = ($('#isiKet').value || '').trim();
+    const ket = ($('#isiKet').value || '').trim(), tgl = $('#isiTanggal').value;
+    if (galatTanggalDok(tgl)) return toast(galatTanggalDok(tgl), 'galat');
     if (!(await tanya('Catat isi saldo ' + (apl ? apl.nama : '') + '?',
-      `<p class="petunjuk"><strong>${rp(nominal)}</strong> dibayar dari ${esc(NAMA_AKUN_BAYAR[akun] || akun)}.</p>`,
+      `<p class="petunjuk"><strong>${rp(nominal)}</strong> dibayar dari ${esc(NAMA_AKUN_BAYAR[akun] || akun)}, tanggal ${tanggalKonfirmasi(tgl)}.</p>`,
       { ya: 'Catat isi saldo' }))) return;
     btn.disabled = true;
     try {
       await API.isiSaldoInject({ uuid: uuidDokumen('isi_saldo'), kode: btn.dataset.kode,
-        nominal, akun_bayar: akun, keterangan: ket });
+        tanggal: tgl, nominal, akun_bayar: akun, keterangan: ket });
       lepasUuidDokumen('isi_saldo');
       tutupModal(); toast('Saldo ' + rpTeks(nominal) + ' dicatat.', 'sukses'); await muatHasilProduksi();
     } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
@@ -12855,7 +13007,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     bukaModal('Redeem bonus poin ' + a.nama, `
       <p class="petunjuk">Catat saat poin bonus dari aplikasi ditukar jadi saldo. Saldo buku sekarang ${rp(a.saldo)};
          nominalnya menambah saldo ini dan dicatat sebagai Pendapatan Bonus Inject — tidak ada uang kas yang keluar.</p>
-      <label>Nominal<input type="text" class="uang" id="bonusNominal" inputmode="numeric" autocomplete="off"></label>
+      <div class="petak petak-form petak-tanggal-dok">
+        <label>Tanggal<input type="date" id="bonusTanggal" value="${esc(tanggalLokal())}" max="${esc(tanggalLokal())}"></label>
+        <label>Nominal<input type="text" class="uang" id="bonusNominal" inputmode="numeric" autocomplete="off"></label>
+      </div>
       <label>Keterangan<input type="text" id="bonusKet" maxlength="120" autocomplete="off" placeholder="mis. tukar 5.000 poin"></label>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
        <button class="tombol utama" id="btnSimpanBonus" data-kode="${esc(kode)}"><span>Catat redeem</span></button>`);
@@ -12865,14 +13020,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const nominal = angkaDari($('#bonusNominal').value || '');
     if (!(nominal > 0)) return toast('Isi nominalnya.', 'galat');
     const apl = prodData.aplikasi.find((a) => a.kode === btn.dataset.kode);
-    const ket = ($('#bonusKet').value || '').trim();
+    const ket = ($('#bonusKet').value || '').trim(), tgl = $('#bonusTanggal').value;
+    if (galatTanggalDok(tgl)) return toast(galatTanggalDok(tgl), 'galat');
     if (!(await tanya('Catat redeem bonus poin ' + (apl ? apl.nama : '') + '?',
-      `<p class="petunjuk">Saldo aplikasi bertambah <strong>${rp(nominal)}</strong>, dicatat sebagai Pendapatan Bonus Inject.
+      `<p class="petunjuk">Saldo aplikasi bertambah <strong>${rp(nominal)}</strong> tanggal ${tanggalKonfirmasi(tgl)}, dicatat sebagai Pendapatan Bonus Inject.
          Tidak bisa dibatalkan — salah ketik dibetulkan Owner lewat Cocokkan saldo.</p>`,
       { ya: 'Catat redeem' }))) return;
     btn.disabled = true;
     try {
-      await API.redeemBonusInject({ uuid: uuidDokumen('redeem_bonus'), kode: btn.dataset.kode, nominal, keterangan: ket });
+      await API.redeemBonusInject({ uuid: uuidDokumen('redeem_bonus'), kode: btn.dataset.kode, tanggal: tgl, nominal, keterangan: ket });
       lepasUuidDokumen('redeem_bonus');
       tutupModal(); toast('Redeem bonus ' + rpTeks(nominal) + ' dicatat.', 'sukses'); await muatHasilProduksi();
     } catch (e) { toast(e.message, 'galat'); btn.disabled = false; }
@@ -14013,6 +14169,19 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      — saldo, Mutasi kas, ekspor, dan Koreksi balik ikut dengan sendirinya.
      Laci toko (1-1100) tidak ditawarkan: uang laci keluar lewat Terima setoran. */
   const akunTransfer = () => akunKasAktif().filter((k) => k !== '1-1100');
+  /* TANGGAL DOKUMEN YANG BOLEH MUNDUR (titipan Y1): Transfer bank, Isi saldo,
+     Redeem bonus. Sama dengan #dokTanggal BKM/BKK — kalender, maks hari ini. */
+  const kotakTanggalDok = (id) => `<div class="kendali-tetap"><label>Tanggal</label>
+    <input type="date" id="${id}" class="kendali-tetap" value="${esc(tanggalLokal())}" max="${esc(tanggalLokal())}"></div>`;
+  /** Selisih HARI kalender antara hari ini dan tgl (YYYY-MM-DD); 0 bila hari ini. */
+  const hariMundur = (tgl) => Math.round((Date.parse(tanggalLokal() + 'T00:00:00Z') - Date.parse(tgl + 'T00:00:00Z')) / 86400000);
+  /** Baris tanggal untuk dialog konfirmasi: tanggal + lencana "N hari lalu" bila mundur. */
+  const tanggalKonfirmasi = (tgl) => esc(tglTampil(tgl)) +
+    (hariMundur(tgl) > 0 ? ' ' + lencanaDash(hariMundur(tgl) + ' hari lalu', 'kuning') : '');
+  /** Periksa tanggal di klien sebelum dikirim; memulangkan pesan galat atau ''. */
+  const galatTanggalDok = (tgl) => !tgl ? 'Isi tanggalnya.'
+    : tgl > tanggalLokal() ? 'Tanggal tidak boleh sesudah hari ini.' : '';
+
   function kartuTransferBank(kas) {
     const rows = (kas && kas.kas) || [];
     const biaya = {};
@@ -14021,11 +14190,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const banyakCabang = cabangKas === '*';
     const form = bolehIzin('kas', 'buat') ? `
       <div class="saring-baris">
+        ${kotakTanggalDok('tbTanggal')}
         ${banyakCabang && bolehCabangDash() ? `<div class="kendali-tetap" id="wadahTbCabang"><label>Cabang</label>
           <select id="tbCabang" class="kendali-tetap">${daftarKodeCabang().map((c) =>
             `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select></div>` : ''}
         <div class="kendali-penuh"><label>Dari akun</label><select id="tbDari"></select></div>
         <div class="kendali-penuh"><label>Ke akun</label><select id="tbKe"></select></div>
+        <i class="pecah-baris" aria-hidden="true"></i>
         <div class="kendali-tetap"><label>Nilai</label>
           <input type="text" inputmode="numeric" class="uang kendali-tetap" id="tbJumlah" placeholder="0"></div>
         <div class="kendali-tetap"><label>Biaya transfer</label>
@@ -14091,7 +14262,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function simpanTransferBank() {
     const dari = nilai('tbDari'), ke = nilai('tbKe');
     const jumlah = angka('tbJumlah'), biaya = angka('tbBiaya') || 0;
-    const ket = nilai('tbKet').trim();
+    const ket = nilai('tbKet').trim(), tgl = nilai('tbTanggal');
+    if (galatTanggalDok(tgl)) return toast(galatTanggalDok(tgl), 'galat');
     if (!dari || !ke) return toast('Pilih akun asal dan tujuannya.', 'galat');
     if (dari === ke) return toast('Akun asal dan tujuan tidak boleh sama.', 'galat');
     if (!(jumlah > 0)) return toast('Nilai transfer harus lebih dari nol.', 'galat');
@@ -14102,10 +14274,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const baris = (l, v) => `<tr><td>${esc(l)}</td><td class="kanan">${v}</td></tr>`;
     if (!(await tanya('Simpan transfer bank?',
           `<table class="tabel"><tbody>
+             ${baris('Tanggal', tanggalKonfirmasi(tgl))}
              ${baris('Dari', esc(namaAkun(dari)))}${baris('Ke', esc(namaAkun(ke)))}
              ${baris('Nilai', rp(jumlah))}${baris('Biaya transfer', rp(biaya))}
              ${baris('Total keluar dari asal', rp(jumlah + biaya))}</tbody></table>
-           <p class="petunjuk">${cabangTransferPerlu() ? 'Cabang ' + esc(cab) : 'Antar akun back office'}. Jurnalnya dicatat sekarang; salah catat dibetulkan dengan
+           <p class="petunjuk">${cabangTransferPerlu() ? 'Cabang ' + esc(cab) : 'Antar akun back office'}. Jurnalnya bertanggal dokumen di atas; salah catat dibetulkan dengan
              Koreksi balik di Mutasi kas.</p>`,
           { ya: 'Simpan transfer' }))) return;
     const b = $('#btnSimpanTransferBank');
@@ -14113,7 +14286,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     try {
       const r = await API.transferBank({ cabang: cab,
         uuid: _uuidTb || (_uuidTb = 'TB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)),
-        dari, ke, jumlah, biaya, keterangan: ket });
+        tanggal: tgl, dari, ke, jumlah, biaya, keterangan: ket });
       _uuidTb = null;
       toast('Transfer ' + (r.no || '') + ' tersimpan.');
       await muatHasilKas();
@@ -16475,11 +16648,13 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
       if (t.id === 'btnSimpanSumber') {
+        const cabSumber = nilaiKisi('spCabang');
+        if (!cabSumber) return toast('Centang minimal satu cabang, atau Semua cabang.', 'galat');
         t.disabled = true;
         try {
           await API.simpanSumberPulsa({
             kode_sumber: $('#spKode').value, nama: nilai('spNama'),
-            jenis: $('#spJenis').value, cabang: nilai('spCabang'),
+            jenis: $('#spJenis').value, cabang: cabSumber,
             urutan: angka('spUrutan'),
             aktif: $('#spAktif') ? centang('spAktif') : true
           });
@@ -17301,10 +17476,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      /* --- setting: Tebal/Miring pesan WhatsApp (titipan Y2-f) --- */
+      if (d.waBungkus) {
+        const tanda = d.waBungkus;
+        sisipTeksWa(d.waUntuk, (pilih) => [tanda, pilih || (tanda === '*' ? 'tebal' : 'miring'), tanda]);
+        return;
+      }
+
       /* --- setting: kendali bersegmen ---
          Nilainya tidak disimpan di tombolnya melainkan dituliskan ke
          `<input type=hidden data-setting>` di sebelahnya, supaya penyimpan di
-         bawah — yang menyapu SETIAP `[data-setting]` — tidak perlu tahu bentuk
+         bawah — yang membaca SETIAP `[data-setting]` di #isiSistem lalu mengirim
+         yang berubah — tidak perlu tahu bentuk
          kendalinya. */
       if (d.segmen) {
         const isi = $(`#isiSistem [data-setting="${d.segmen}"]`);
@@ -17317,10 +17500,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
 
       /* --- setting --- */
       if (t.id === 'btnSimpanSetting') {
+        /* HANYA kunci yang berubah terhadap titik nol layar ini (titipan Y2-g).
+           Mengirim semua membuat halaman yang dibuka sejak pagi menimpa setelan
+           yang siangnya diubah dari layar lain — server menulis setiap kunci
+           yang diterimanya tanpa membandingkan. Dibaca lewat bacaSetting(),
+           yang terbatas #isiSistem, bukan seluruh dokumen. */
+        const kini = bacaSetting();
         const setting = {};
-        $$('[data-setting]').forEach(i => {
-          setting[i.dataset.setting] = i.type === 'checkbox' ? String(i.checked) : i.value;
-        });
+        Object.keys(kini).forEach(k => { if (kini[k] !== _awalSetting[k]) setting[k] = kini[k]; });
+        if (!Object.keys(setting).length) return;
         try {
           await API.simpanSetting({ setting });
           await Sync.tarikMaster(true);
@@ -17567,6 +17755,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     document.addEventListener('change', async (e) => {
       if (e.target.id === 'pbDimuka') { const x = $('#pbDimukaIsi'); if (x) x.hidden = !e.target.checked; return; }
       if (e.target.id === 'pCabangSemua') { terapkanCabangSemua(); return; }
+      if (e.target.dataset && e.target.dataset.centangSemua) { terapkanCentangSemua(e.target); return; }
       /* Periode dashboard menembak ulang API — beda dengan penyaring layar Produk
          yang menggambar ulang dari data di tangan. Di sini memang harus: omzet,
          peringkat, dan pembandingnya semua dihitung server per rentang tanggal,
