@@ -542,13 +542,30 @@ function jamTampil(v) {
   return m ? m[1] : s;
 }
 
-/** Penomoran nota yang aman offline: prefix cabang + kode perangkat + urutan lokal. */
+/**
+ * Penomoran nota yang aman offline: prefix cabang + kode perangkat + urutan lokal.
+ *
+ * Urutannya disimpan DUA tempat: IndexedDB (sumber utama, dinaikkan dalam satu
+ * transaksi) dan cadangan di localStorage. Yang dipakai selalu yang terbesar.
+ * Lahir dari bagian 564: 01/11/2026 IndexedDB tablet SK01 hilang di tengah
+ * hari, sedangkan localStorage selamat — identitas perangkat pulih (kode SLW
+ * tetap, lihat idPerangkat di app.js), tetapi penghitungnya mulai lagi dari 1
+ * dan enam nomor nota terpakai dua kali. Pola cadangannya sama dengan
+ * id_perangkat: dua penyimpanan jarang hilang bersamaan, dan kalau keduanya
+ * hilang perangkatnya mendapat kode baru, jadi nomornya tetap tidak kembar.
+ */
 async function nomorNotaBerikutnya(prefixCabang, kodePerangkat) {
   const d = new Date();
   const ym = String(d.getFullYear()).slice(-2) + String(d.getMonth() + 1).padStart(2, '0');
+  const kunci = 'urut_' + ym;
+  let cadangan = 0;
+  try { cadangan = Number(localStorage.getItem(kunci)) || 0; } catch (e) { cadangan = 0; }
   // Dinaikkan dalam satu transaksi — lihat DB.naikkan(). Pola baca-lalu-tulis
   // yang lama bisa menghasilkan dua nota bernomor sama dari dua tab sekaligus.
-  const urut = await DB.naikkan('urut_' + ym);
+  const urut = await DB.naikkan(kunci, cadangan);
+  try {
+    if (urut > (Number(localStorage.getItem(kunci)) || 0)) localStorage.setItem(kunci, String(urut));
+  } catch (e) { /* localStorage diblokir — IndexedDB tetap sumbernya */ }
   return `${prefixCabang}-${kodePerangkat}/${ym}/${String(urut).padStart(5, '0')}`;
 }
 

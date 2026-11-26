@@ -10294,6 +10294,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       };
       $('#isiSistem').oninput = ketik;
       $('#isiSistem').onchange = ketik;
+      /* Pratinjau digambar ulang SESUDAH isinya terpasang: saat isianWa merakit
+         HTML-nya, kotak nama_usaha belum ada di #isiSistem, jadi {usaha} terbaca
+         dari layar yang lama (atau "Nama usaha"). */
+      segarkanPratinjauWa();
       _awalSetting = bacaSetting();
       segarkanJejakSetting();
     } catch (e) { galat('#isiSistem', e); }

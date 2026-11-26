@@ -185,8 +185,12 @@ const DB = (() => {
      * keduanya menulis 42 — dan dua nota berbeda tercetak dengan nomor yang sama.
      * IndexedDB menjamin satu transaksi readwrite berjalan sendirian, jadi
      * membaca dan menulis di dalamnya menutup celah itu.
+     *
+     * `lantai` = batas bawah: nilai baru tidak pernah <= lantai, walau yang
+     * tersimpan di sini lebih kecil atau hilang (bagian 564 — cadangan di
+     * localStorage yang selamat saat IndexedDB dibuang peramban).
      */
-    async naikkan(k, awal = 0) {
+    async naikkan(k, lantai = 0) {
       const db = await buka();
       return new Promise((res, rej) => {
         const t = db.transaction('kv', 'readwrite');
@@ -194,7 +198,8 @@ const DB = (() => {
         const g = st.get(k);
         let nilai;
         g.onsuccess = () => {
-          nilai = (g.result === undefined ? awal : Number(g.result.v) || 0) + 1;
+          const ada = g.result === undefined ? 0 : Number(g.result.v) || 0;
+          nilai = Math.max(ada, Number(lantai) || 0) + 1;
           st.put({ k, v: nilai });
         };
         t.oncomplete = () => res(nilai);
