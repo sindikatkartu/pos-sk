@@ -127,7 +127,7 @@ const API = (() => {
     'daftar_gaji', 'saldo_poin_gaji', 'daftar_kasbon', 'matriks_pulsa', 'daftar_aset', 'daftar_coa',
     'daftar_setting', 'daftar_piutang', 'daftar_utang', 'daftar_bayar_utang', 'log_audit', 'log_galat',
     'daftar_pembelian', 'rincian_pembelian', 'daftar_petugas', 'foto_petugas', 'laporan_poin', 'daftar_transfer',
-    'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli',
+    'stok_semua_cabang', 'cek_stok_terkini', 'daftar_permintaan', 'daftar_retur_beli', 'daftar_rencana_beli', 'produk_supplier',
     'cari_pembelian', 'data_grafik', 'ukuran_berkas', 'daftar_opname', 'detail_opname',
     'shift_belum_setor', 'arus_kas', 'filter_opname', 'daftar_retur', 'pantau_retur', 'cari_nota', 'daftar_perangkat',
     'daftar_minta_void', 'daftar_lini', 'keadaan_pulsa_pos', 'daftar_sumber_pulsa',
@@ -265,6 +265,8 @@ const API = (() => {
     /* tulisan yang servernya menjaga duplikat per uuid */
     'simpan_kas', 'transfer_bank', 'dokumen_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'daftar_koreksi', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
     'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
+    /* ADR-0581: draft & pesan PO dijaga uuid-nya (pesan yang diulang dijawab nomor yang sama). */
+    'simpan_rencana_beli', 'pesan_rencana_beli', 'daftar_rencana_beli', 'produk_supplier',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
     'bayar_piutang', 'bayar_utang',
     /* Pengajuan void dijaga uuid-nya sendiri di MASTER; keputusan yang sudah
@@ -304,7 +306,7 @@ const API = (() => {
      sebuah endpoint baca yang lupa didaftarkan akan melempar galat ke layar
      tiap kali Google menjawab 404 sesaat. */
   const TIDAK_DIULANG = new Set([
-    'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer',
+    'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer', 'batal_rencana_beli',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
     'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'koreksi_absen', 'hapus_absen', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
@@ -920,6 +922,12 @@ let _pernahJawab = false;
        pekerjaan yang tetap berlanjut di server. */
     prosesPermintaan: (d) => panggil('proses_permintaan', d, { timeout: 90000 }),
     batalPermintaan:  (d) => panggil('batal_permintaan', d, { timeout: 60000 }),
+    /* --- rencana pembelian / PO (ADR-0581) --- */
+    simpanRencanaBeli: (d) => panggil('simpan_rencana_beli', d, { timeout: 60000 }),
+    pesanRencanaBeli:  (d) => panggil('pesan_rencana_beli', d, { timeout: 60000 }),
+    batalRencanaBeli:  (d) => panggil('batal_rencana_beli', d, { timeout: 60000 }),
+    daftarRencanaBeli: (d) => panggil('daftar_rencana_beli', d, { timeout: 60000 }),
+    produkSupplier:    (d) => panggil('produk_supplier', d, { timeout: 90000 }),
     stokSemuaCabang: (d, o) => panggil('stok_semua_cabang', d, { timeout: 60000, ...o }),
     // Menghitung ulang satu SKU di semua cabang — sengaja diberi tenggang panjang
     cekStokTerkini:  (d) => panggil('cek_stok_terkini', d, { timeout: 120000 }),

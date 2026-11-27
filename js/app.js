@@ -1165,6 +1165,27 @@ let layarKini = null;
  * Di HP — tegak maupun mendatar — CSS hanya memajang nama menunya (judul lama).
  */
 let menuJudulLayar = null;
+/* ISTILAH LAZIM judul layar (pemilik 27–28 Nov 2026, ADR-0583): "setiap judul
+   layar dikasih disertai bahasa lazim dan umum", huruf awal besar. Tampil sebagai
+   TOOLTIP judul atas ("Inventory › Stock"), bukan di dalam judulnya — dalam kurung
+   judulnya terpotong di tablet. Sidebar tidak (pilihan 1a). Nama yang sudah
+   berbahasa Inggris (Dashboard, Shift, Supplier, Accurate, Audit, COA) memakai
+   namanya sendiri. Kasir tanpa tooltip (layar Kasir tidak diutak-atik). */
+const ISTILAH_LAZIM = {
+  grup: { Ringkasan: 'Overview', Penjualan: 'Sales', Persediaan: 'Inventory', Keuangan: 'Finance',
+    Relasi: 'Contacts', Karyawan: 'Employees', Laporan: 'Reports', Akuntansi: 'Accounting',
+    Konsolidasi: 'Consolidation', Sistem: 'System', Akun: 'Account' },
+  menu: { persetujuan: 'Approvals', riwayat: 'Shift Receipts', pulsa: 'Top-up', kas: 'Cash & Bank',
+    retur: 'Sales Return', pembatalan: 'Void Receipt', produk: 'Products', stok: 'Stock',
+    transfer: 'Stock Transfer', permintaan: 'Stock Request', opname: 'Stock Count', produksi: 'Production',
+    pembelian: 'Purchases', returbeli: 'Purchase Return', pelanggan: 'Customers', petugas: 'Staff',
+    absen: 'Attendance', gaji: 'Payroll', piutang: 'Receivables', utang: 'Payables',
+    laporan: 'Sales Report', keuangan: 'Financial Statements', poin: 'Points & Performance',
+    jurnal: 'Journal & Closing', aset: 'Assets & Amortization', konsolidasi: 'Consolidated Summary',
+    pengguna: 'Users', peran: 'Roles & Permissions', perangkat: 'Registered Devices', cabang: 'Branches',
+    sistem: 'System Settings', arsip: 'Archive', akun: 'My Account', tentang: 'About', bantuan: 'Help',
+    pengaturan: 'Devices & Printers' }
+};
 function tulisJudulLayar() {
   const h = $('#judulLayar');
   if (!h) return;
@@ -1183,10 +1204,25 @@ function tulisJudulLayar() {
   const tambah = (kelas, teks, hias) => { const s = document.createElement('span'); s.className = kelas; s.textContent = teks; if (hias) s.setAttribute('aria-hidden', 'true'); h.appendChild(s); };
   /* Kasir dikecualikan (pemilik 22 Nov 2026): layar Kasir tidak diutak-atik, judulnya
      tetap "Kasir" saja di semua lebar — tanpa grup di depannya. Dijaga uji-judul-alamat. */
-  if (m.grup && m.id !== 'kasir') { tambah('jl-induk jl-grup', m.grup); tambah('jl-pisah', '›', true); }
+  if (m.grup && m.id !== 'kasir') { tambah('jl-induk jl-grup', m.grup); tambah('jl-pisah jl-pisah-grup', '›', true); }
   tambah(tab ? 'jl-induk jl-menu' : 'jl-kini jl-menu', m.label);
   if (tab) { tambah('jl-pisah jl-pisah-tab', '›', true); tambah('jl-kini jl-tab', tab); }
+  ringkasJudulLayar();
+  /* Istilah lazim sebagai TOOLTIP, bukan di dalam judul (ADR-0583): dalam kurung,
+     47 judul terpotong di tablet 768 px; pemilik memilih "hanya saat kursor diarahkan". */
+  h.title = m.id === 'kasir' ? '' : [m.grup && (ISTILAH_LAZIM.grup[m.grup] || m.grup), ISTILAH_LAZIM.menu[m.id] || m.label].filter(Boolean).join(' › ');
 }
+/* Huruf induk disamakan dengan bagian yang dibuka (ADR-0583), jadi di tablet tegak
+   judul terpanjang tidak muat ("Laporan › Laporan Keuangan › Kerugian persediaan"
+   di 768 px). HANYA bila tidak muat, nama GRUP disembunyikan — menu dan tab tetap
+   utuh. Diukur ulang tiap judul ditulis dan tiap ukuran jendela berubah. */
+function ringkasJudulLayar() {
+  const h = $('#judulLayar');
+  if (!h) return;
+  h.classList.remove('jl-ringkas');
+  if (h.scrollWidth > h.clientWidth + 1) h.classList.add('jl-ringkas');
+}
+window.addEventListener('resize', () => ringkasJudulLayar(), { passive: true });
 let _jadwalJudulLayar = 0;
 const pengamatJudulLayar = typeof MutationObserver === 'function' ? new MutationObserver(() => {
   if (_jadwalJudulLayar) return;
@@ -6048,52 +6084,6 @@ function jumlahProdukLap(rows) {
   t.margin_persen = t.omzet ? Math.round(t.laba / t.omzet * 10000) / 100 : 0;
   return t;
 }
-/* ==================== SISA STOK DI LAPORAN PER PRODUK (bagian 575) ====================
- * Pemesan barang membandingkan penjualan per produk dengan sisa stok untuk
- * memutuskan pesanan ke supplier (pemilik 27 Nov 2026, bentuk B): di tiap sel
- * qty per cabang, sisa stok cabang itu ditulis kecil di bawah angka terjual;
- * di sel Qty, stok gabungan cabang-cabang laporan itu; total kategori ikut.
- *
- * Sumbernya salinan stok SEMUA cabang yang sudah ada di perangkat
- * (store stok_cabang, ditarik tiap 10 menit dari stok_ringkas yang diperbarui
- * server tiap 30 menit) — tanpa panggilan server baru. stok_ringkas hanya
- * menyimpan baris berstok bukan nol, jadi SKU yang tidak ada di cabang yang
- * datanya ada = 0. Salinan yang belum ada sama sekali (izin stok tidak ada,
- * atau perangkat baru login) = TIDAK DIKETAHUI: angka kecilnya tidak ditulis,
- * dan keterangannya bilang begitu — bukan 0. Stok minus tampil apa adanya
- * (stok minus disengaja, bagian 171). Varian dijumlah per SKU.
- */
-let _stokLap = null;   /* { per: { cabang: { sku: qty } }, waktu } atau null */
-async function muatStokLapProduk() {
-  try {
-    const semua = await DB.all('stok_cabang');
-    if (!semua || !semua.length) { _stokLap = null; return; }
-    const per = {};
-    semua.forEach((s) => {
-      const c = String(s.cabang), k = String(s.sku);
-      per[c] = per[c] || {};
-      per[c][k] = (per[c][k] || 0) + (Number(s.qty) || 0);
-    });
-    _stokLap = { per, waktu: await DB.kvGet('stok_cabang_diperbarui', null) };
-  } catch (e) { _stokLap = null; }
-}
-/** Sisa stok sekumpulan SKU di sekumpulan cabang; null = tidak diketahui. */
-function stokLapProduk(skus, cabang) {
-  if (!_stokLap) return null;
-  let t = 0;
-  skus.forEach((sku) => cabang.forEach((c) => { t += ((_stokLap.per[c] || {})[sku] || 0); }));
-  return t;
-}
-/** Angka kecil "stok N" di bawah angka terjual; kosong bila tidak diketahui. */
-const stokKecilLap = (x, cabang) => {
-  const n = stokLapProduk(x._total ? (x.skus || []) : [x.sku], cabang);
-  return n === null ? '' : `<br><small class="ket-pelanggan">stok ${qtyTeks(n)}</small>`;
-};
-/** Satu kalimat di bawah judul — layar DAN kertas. */
-const keteranganStokLap = () => _stokLap
-  ? `<p class="petunjuk">Angka kecil = sisa stok saat ini${_stokLap.waktu ? ' (diperbarui ' + esc(waktuTampil(_stokLap.waktu)) + ')' : ''}; angka besar = terjual pada periode.</p>`
-  : '<p class="petunjuk">Sisa stok belum tersedia di perangkat ini — muncul sesudah stok semua cabang ditarik.</p>';
-
 function kelompokProdukLaporan(d) {
   const s = LAP.produkSaring, q = String(s.cari || '').toLowerCase().trim();
   const cocok = (d.produk || []).filter((x) =>
@@ -6121,8 +6111,7 @@ function angkaProdukLaporan(d, g) {
 }
 /** Baris total satu kategori, bentuknya sama dengan baris produk. */
 const barisTotalProduk = (k) => ({ _total: true, nama: k.nama, sku: '', qty: k.qty, omzet: k.omzet,
-  laba: k.laba, margin_persen: k.margin_persen, per_cabang: k.per_cabang,
-  skus: k.produk.map((p) => p.sku) });   /* sisa stok kategori (bagian 575) */
+  laba: k.laba, margin_persen: k.margin_persen, per_cabang: k.per_cabang });
 function gambarLapProduk(w, d) {
   const s = LAP.produkSaring;
   const kategori = [...new Set((d.produk || []).map((x) => x.kategori || NAMA_TANPA_KATEGORI))].sort((a, b) => a.localeCompare(b));
@@ -6145,12 +6134,6 @@ function gambarLapProduk(w, d) {
     <p class="petunjuk" style="margin:0">Omzet barang = harga jual sebelum diskon nota dan sebelum retur, sama dengan Produk terlaris di Ringkasan. Kategori dan produk diurut dari qty terbanyak.</p></div>
     <div id="lapProdukHasil"></div>`;
   gambarHasilLapProduk(d);
-  /* Salinan stok dibaca ulang tiap tab dibuka; bila berubah, tabelnya
-     digambar ulang (bagian 575). Yang sudah ada dipakai dulu, tanpa menunggu. */
-  const sebelum = JSON.stringify(_stokLap);
-  muatStokLapProduk().then(() => {
-    if (JSON.stringify(_stokLap) !== sebelum && LAP.tab === 'produk' && $('#lapProdukHasil')) gambarHasilLapProduk(d);
-  });
 }
 /** Kotak angka + akordeon; digambar ulang sendiri supaya kotak Cari tidak kehilangan fokus. */
 function gambarHasilLapProduk(d) {
@@ -6160,7 +6143,7 @@ function gambarHasilLapProduk(d) {
   $('#lapProdukKotak').innerHTML = petakAngka(angkaProdukLaporan(d, g), 'petak-4');
   const buka = !!String(LAP.produkSaring.cari || '').trim();
   const sel = (k, x) => `<td class="${k.angka ? 'angka' : ''}" data-l="${esc(k.judul)}">${k.render(x)}</td>`;
-  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>${keteranganStokLap()}${petunjukStok()}
+  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>${petunjukStok()}
     ${g.kat.map((k, i) => `<details class="nota-pelanggan"${buka || i === 0 ? ' open' : ''}>
       <summary><span><strong>${esc(k.nama)}</strong> <small class="ket-pelanggan">${k.produk.length} produk · ${g.total.omzet ? Math.round(k.omzet / g.total.omzet * 1000) / 10 : 0}% omzet</small></span>
         <span>${qtyTeks(k.qty)} pcs · ${rp(k.omzet)}</span></summary>
@@ -6298,8 +6281,8 @@ const KOLOM_LAP = {
   produkPer: (d, cab) => [
     { judul: 'Produk', render: x => x._total ? `<strong>Total ${esc(x.nama)}</strong>`
         : `${esc(x.nama)}<br><small class="ket-pelanggan">${esc(x.sku)}</small>` },
-    ...cab.map(c => ({ judul: c, angka: true, render: x => ((x.per_cabang || {})[c] ? qtyTeks(x.per_cabang[c]) : '—') + stokKecilLap(x, [c]) })),
-    { judul: 'Qty', angka: true, render: x => (x._total ? `<strong>${qtyTeks(x.qty)}</strong>` : qtyTeks(x.qty)) + stokKecilLap(x, d.cabang || []) },
+    ...cab.map(c => ({ judul: c, angka: true, render: x => (x.per_cabang || {})[c] ? qtyTeks(x.per_cabang[c]) : '—' })),
+    { judul: 'Qty', angka: true, render: x => x._total ? `<strong>${qtyTeks(x.qty)}</strong>` : qtyTeks(x.qty) },
     { judul: 'Omzet', angka: true, render: x => x._total ? `<strong>${rp(x.omzet)}</strong>` : rp(x.omzet) },
     ...(d.margin ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba) },
                     { judul: 'Margin', angka: true, render: x => x.margin_persen + '%' }] : [])
@@ -7207,7 +7190,7 @@ const CETAK_LAP_BAGIAN = {
     const g = kelompokProdukLaporan(d), kol = KOLOM_LAP.produkPer(d, cabangKolomProduk(d)), s = LAP.produkSaring;
     const saring = [s.kategori ? 'kategori ' + s.kategori : '', s.cari ? 'cari "' + s.cari + '"' : ''].filter(Boolean).join(' · ');
     return kotakCetakLaporan(angkaProdukLaporan(d, g)) +
-      (saring ? `<p class="sub">Disaring: ${esc(saring)}</p>` : '') + keteranganStokLap() +
+      (saring ? `<p class="sub">Disaring: ${esc(saring)}</p>` : '') +
       (g.kat.length ? g.kat.map(k => tabelCetakLaporan(k.nama + ' — ' + qtyTeks(k.qty) + ' pcs · ' + rpTeks(k.omzet), kol,
         k.produk.concat([barisTotalProduk(k)]), '')).join('') : '<p class="sub">Belum ada penjualan pada rentang ini.</p>');
   },
@@ -9871,11 +9854,6 @@ function pasangEvent() {
   });
   document.addEventListener('stok:diperbarui', () => gambarProduk($('#inpCari').value));
   document.addEventListener('stok_cabang:diperbarui', () => gambarProduk($('#inpCari').value));
-  document.addEventListener('stok_cabang:diperbarui', () => {   /* bagian 575 */
-    if (LAP.tab === 'produk' && LAP.data.produk && $('#lapProdukHasil')) {
-      muatStokLapProduk().then(() => gambarHasilLapProduk(LAP.data.produk));
-    }
-  });
 
   /* --- pintasan keyboard (kasir PC bisa bekerja tanpa mouse) --- */
   document.addEventListener('keydown', e => {
