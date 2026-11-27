@@ -546,6 +546,16 @@
          Yang MENCATAT dan MENGUNCI pembukuan, dipisah dari yang membacanya.
          Urutannya urutan kerja penutupan: catat penyesuaian, periksa, kunci. -->
     <section class="layar" id="layarJurnal">
+      <!-- Bagian 572: dua tab, bingkai seperti Keuangan (bagian 436) — bilah tab
+           di kepala, saringan & hasil di badan. Periode, Cabang, Uji kebenaran,
+           dan Tutup buku milik KEDUA tab: daftar koreksi dibaca sebelum
+           bulannya dikunci (keputusan pemilik bagian 569). -->
+      <div class="tab-jendela">
+        <div class="tab-modal tanpa-cetak" id="tabJrn">
+          <button data-tab-jrn="penyesuaian" class="aktif">Jurnal penyesuaian</button>
+          <button data-tab-jrn="koreksi">Daftar koreksi</button>
+        </div>
+      <div class="tab-badan">
       <div class="kartu">
         <div class="saring-baris">
           <span class="wadah-periode" id="wadahPeriodeJrn"></span>
@@ -555,10 +565,12 @@
           <button class="tombol bahaya sembunyi" id="btnTutupBuku">Tutup buku</button>
           </div>
         </div>
-        <p class="petunjuk">Jurnal penyesuaian untuk membetulkan catatan yang bukan uang tunai, lalu penutupan periode. Jalankan Uji kebenaran dulu sebelum Tutup buku — periode yang dikunci tidak menerima transaksi baru.</p>
+        <p class="petunjuk">Jurnal penyesuaian untuk membetulkan catatan yang bukan uang tunai, lalu penutupan periode. Sebelum Tutup buku: baca Daftar koreksi bulan itu, lalu jalankan Uji kebenaran — periode yang dikunci tidak menerima transaksi baru.</p>
       </div>
       <div id="hasilUji"></div>
       <div id="hasilJurnal"></div>
+      <div id="hasilKoreksi" class="sembunyi"></div>
+      </div></div>
     </section>
 
     <!-- ---------- KONSOLIDASI: master sumber saldo pulsa ---------- -->

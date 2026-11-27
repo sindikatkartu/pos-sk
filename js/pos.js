@@ -895,7 +895,12 @@ function orangTampil(nama, id) {
    Foto bila diisi, siluet netral bila kosong — sama untuk semua orang. Fotonya ditarik SEKALI per
    pemuatan halaman, di latar, dan hanya disimpan di memori (bukan di perangkat). */
 let _fotoPetugas = null, _fotoMilik = '', _fotoMuat = null, _fotoLokal = {};
-const SILUET_PETUGAS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="9.4" r="4.5" fill="currentColor"/><path d="M3.2 24c0-5.4 3.9-9 8.8-9s8.8 3.6 8.8 9z" fill="currentColor"/></svg>';
+/* Gambar orang DIPUSATKAN di kotak 24 (bagian 576): kepala cy 8,5, bahu
+   berakhir di y 20,5 — pusat gambar di y 12. Bentuk lama (bahu sampai y 24)
+   duduk 2,5 px di bawah tengah lingkaran, dan di kartu gelap, tempat
+   lingkarannya hampir tak terlihat, avatar terbaca "tidak sejajar lurus"
+   (pemilik 27 Nov 2026, pilihan A). */
+const SILUET_PETUGAS = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4.1" fill="currentColor"/><path d="M5 19.3c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5c0 .7-.5 1.2-1.2 1.2H6.2c-.7 0-1.2-.5-1.2-1.2z" fill="currentColor"/></svg>';
 const isiAvatar = (kode) => { const f = (_fotoPetugas || {})[kode]; return f ? '<img alt="" src="data:image/jpeg;base64,' + esc(f) + '">' : SILUET_PETUGAS; };
 function muatFotoPetugas() {
   const u = typeof APP_STATE !== 'undefined' && APP_STATE.user ? String(APP_STATE.user.id_user || '') : '';

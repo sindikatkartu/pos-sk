@@ -2091,7 +2091,7 @@ function bukaLayar(id) {
      saat pertama dibuka; berikutnya yang memuat ulang adalah periode/cabang. */
   /* Juga bila masih menampilkan angka tersimpan (gagal diperbarui): tandanya
      menyuruh membuka ulang, jadi membuka ulang wajib memuat (bagian 369). */
-  if (id === 'jurnal' && (!jrnDimuat || $('#hasilJurnal')?.dataset.basi)) { jrnDimuat = true; return tampilkanJurnalManual(); }
+  if (id === 'jurnal' && (!jrnDimuat || $('#hasilJurnal')?.dataset.basi)) { jrnDimuat = true; return muatTabJrn(); }
   if (id === 'riwayat') return gambarRiwayat();
   if (id === 'pengaturan') {
     pasangTabKartu($('#layarPengaturan .petak'), 'pengaturan', { printer: 'Printer', label: 'Kertas label', data: 'Data & sinkronisasi' },   // bagian 432
@@ -6048,6 +6048,52 @@ function jumlahProdukLap(rows) {
   t.margin_persen = t.omzet ? Math.round(t.laba / t.omzet * 10000) / 100 : 0;
   return t;
 }
+/* ==================== SISA STOK DI LAPORAN PER PRODUK (bagian 575) ====================
+ * Pemesan barang membandingkan penjualan per produk dengan sisa stok untuk
+ * memutuskan pesanan ke supplier (pemilik 27 Nov 2026, bentuk B): di tiap sel
+ * qty per cabang, sisa stok cabang itu ditulis kecil di bawah angka terjual;
+ * di sel Qty, stok gabungan cabang-cabang laporan itu; total kategori ikut.
+ *
+ * Sumbernya salinan stok SEMUA cabang yang sudah ada di perangkat
+ * (store stok_cabang, ditarik tiap 10 menit dari stok_ringkas yang diperbarui
+ * server tiap 30 menit) — tanpa panggilan server baru. stok_ringkas hanya
+ * menyimpan baris berstok bukan nol, jadi SKU yang tidak ada di cabang yang
+ * datanya ada = 0. Salinan yang belum ada sama sekali (izin stok tidak ada,
+ * atau perangkat baru login) = TIDAK DIKETAHUI: angka kecilnya tidak ditulis,
+ * dan keterangannya bilang begitu — bukan 0. Stok minus tampil apa adanya
+ * (stok minus disengaja, bagian 171). Varian dijumlah per SKU.
+ */
+let _stokLap = null;   /* { per: { cabang: { sku: qty } }, waktu } atau null */
+async function muatStokLapProduk() {
+  try {
+    const semua = await DB.all('stok_cabang');
+    if (!semua || !semua.length) { _stokLap = null; return; }
+    const per = {};
+    semua.forEach((s) => {
+      const c = String(s.cabang), k = String(s.sku);
+      per[c] = per[c] || {};
+      per[c][k] = (per[c][k] || 0) + (Number(s.qty) || 0);
+    });
+    _stokLap = { per, waktu: await DB.kvGet('stok_cabang_diperbarui', null) };
+  } catch (e) { _stokLap = null; }
+}
+/** Sisa stok sekumpulan SKU di sekumpulan cabang; null = tidak diketahui. */
+function stokLapProduk(skus, cabang) {
+  if (!_stokLap) return null;
+  let t = 0;
+  skus.forEach((sku) => cabang.forEach((c) => { t += ((_stokLap.per[c] || {})[sku] || 0); }));
+  return t;
+}
+/** Angka kecil "stok N" di bawah angka terjual; kosong bila tidak diketahui. */
+const stokKecilLap = (x, cabang) => {
+  const n = stokLapProduk(x._total ? (x.skus || []) : [x.sku], cabang);
+  return n === null ? '' : `<br><small class="ket-pelanggan">stok ${qtyTeks(n)}</small>`;
+};
+/** Satu kalimat di bawah judul — layar DAN kertas. */
+const keteranganStokLap = () => _stokLap
+  ? `<p class="petunjuk">Angka kecil = sisa stok saat ini${_stokLap.waktu ? ' (diperbarui ' + esc(waktuTampil(_stokLap.waktu)) + ')' : ''}; angka besar = terjual pada periode.</p>`
+  : '<p class="petunjuk">Sisa stok belum tersedia di perangkat ini — muncul sesudah stok semua cabang ditarik.</p>';
+
 function kelompokProdukLaporan(d) {
   const s = LAP.produkSaring, q = String(s.cari || '').toLowerCase().trim();
   const cocok = (d.produk || []).filter((x) =>
@@ -6075,7 +6121,8 @@ function angkaProdukLaporan(d, g) {
 }
 /** Baris total satu kategori, bentuknya sama dengan baris produk. */
 const barisTotalProduk = (k) => ({ _total: true, nama: k.nama, sku: '', qty: k.qty, omzet: k.omzet,
-  laba: k.laba, margin_persen: k.margin_persen, per_cabang: k.per_cabang });
+  laba: k.laba, margin_persen: k.margin_persen, per_cabang: k.per_cabang,
+  skus: k.produk.map((p) => p.sku) });   /* sisa stok kategori (bagian 575) */
 function gambarLapProduk(w, d) {
   const s = LAP.produkSaring;
   const kategori = [...new Set((d.produk || []).map((x) => x.kategori || NAMA_TANPA_KATEGORI))].sort((a, b) => a.localeCompare(b));
@@ -6098,6 +6145,12 @@ function gambarLapProduk(w, d) {
     <p class="petunjuk" style="margin:0">Omzet barang = harga jual sebelum diskon nota dan sebelum retur, sama dengan Produk terlaris di Ringkasan. Kategori dan produk diurut dari qty terbanyak.</p></div>
     <div id="lapProdukHasil"></div>`;
   gambarHasilLapProduk(d);
+  /* Salinan stok dibaca ulang tiap tab dibuka; bila berubah, tabelnya
+     digambar ulang (bagian 575). Yang sudah ada dipakai dulu, tanpa menunggu. */
+  const sebelum = JSON.stringify(_stokLap);
+  muatStokLapProduk().then(() => {
+    if (JSON.stringify(_stokLap) !== sebelum && LAP.tab === 'produk' && $('#lapProdukHasil')) gambarHasilLapProduk(d);
+  });
 }
 /** Kotak angka + akordeon; digambar ulang sendiri supaya kotak Cari tidak kehilangan fokus. */
 function gambarHasilLapProduk(d) {
@@ -6107,7 +6160,7 @@ function gambarHasilLapProduk(d) {
   $('#lapProdukKotak').innerHTML = petakAngka(angkaProdukLaporan(d, g), 'petak-4');
   const buka = !!String(LAP.produkSaring.cari || '').trim();
   const sel = (k, x) => `<td class="${k.angka ? 'angka' : ''}" data-l="${esc(k.judul)}">${k.render(x)}</td>`;
-  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>${petunjukStok()}
+  w.innerHTML = g.kat.length ? `<div class="kartu laporan-uang" data-bagian="Per produk"><h3>Per produk</h3>${keteranganStokLap()}${petunjukStok()}
     ${g.kat.map((k, i) => `<details class="nota-pelanggan"${buka || i === 0 ? ' open' : ''}>
       <summary><span><strong>${esc(k.nama)}</strong> <small class="ket-pelanggan">${k.produk.length} produk · ${g.total.omzet ? Math.round(k.omzet / g.total.omzet * 1000) / 10 : 0}% omzet</small></span>
         <span>${qtyTeks(k.qty)} pcs · ${rp(k.omzet)}</span></summary>
@@ -6245,8 +6298,8 @@ const KOLOM_LAP = {
   produkPer: (d, cab) => [
     { judul: 'Produk', render: x => x._total ? `<strong>Total ${esc(x.nama)}</strong>`
         : `${esc(x.nama)}<br><small class="ket-pelanggan">${esc(x.sku)}</small>` },
-    ...cab.map(c => ({ judul: c, angka: true, render: x => (x.per_cabang || {})[c] ? qtyTeks(x.per_cabang[c]) : '—' })),
-    { judul: 'Qty', angka: true, render: x => x._total ? `<strong>${qtyTeks(x.qty)}</strong>` : qtyTeks(x.qty) },
+    ...cab.map(c => ({ judul: c, angka: true, render: x => ((x.per_cabang || {})[c] ? qtyTeks(x.per_cabang[c]) : '—') + stokKecilLap(x, [c]) })),
+    { judul: 'Qty', angka: true, render: x => (x._total ? `<strong>${qtyTeks(x.qty)}</strong>` : qtyTeks(x.qty)) + stokKecilLap(x, d.cabang || []) },
     { judul: 'Omzet', angka: true, render: x => x._total ? `<strong>${rp(x.omzet)}</strong>` : rp(x.omzet) },
     ...(d.margin ? [{ judul: 'Laba', angka: true, render: x => rp(x.laba) },
                     { judul: 'Margin', angka: true, render: x => x.margin_persen + '%' }] : [])
@@ -7154,7 +7207,7 @@ const CETAK_LAP_BAGIAN = {
     const g = kelompokProdukLaporan(d), kol = KOLOM_LAP.produkPer(d, cabangKolomProduk(d)), s = LAP.produkSaring;
     const saring = [s.kategori ? 'kategori ' + s.kategori : '', s.cari ? 'cari "' + s.cari + '"' : ''].filter(Boolean).join(' · ');
     return kotakCetakLaporan(angkaProdukLaporan(d, g)) +
-      (saring ? `<p class="sub">Disaring: ${esc(saring)}</p>` : '') +
+      (saring ? `<p class="sub">Disaring: ${esc(saring)}</p>` : '') + keteranganStokLap() +
       (g.kat.length ? g.kat.map(k => tabelCetakLaporan(k.nama + ' — ' + qtyTeks(k.qty) + ' pcs · ' + rpTeks(k.omzet), kol,
         k.produk.concat([barisTotalProduk(k)]), '')).join('') : '<p class="sub">Belum ada penjualan pada rentang ini.</p>');
   },
@@ -7406,6 +7459,65 @@ async function tampilkanJurnalManual() {
   }
 }
 let _jrnTiket = 0;
+
+/* ==================== DAFTAR KOREKSI BULANAN (bagian 572) ====================
+ * Tab kedua di Jurnal & Tutup Buku. Keputusan pemilik bagian 569: semua
+ * koreksi atas buku sebulan dibaca pemilik atau Head Admin SEBELUM bulan
+ * dikunci. Kriteria dan nilainya disusun server (apiDaftarKoreksi) — layar
+ * tidak menyaring sendiri. Periode & Cabang milik kedua tab: berpindah tab
+ * memuat tab itu dengan saringan yang sedang dipilih.
+ */
+let jrnTab = 'penyesuaian';
+let _korTiket = 0;
+
+function muatTabJrn() {
+  return jrnTab === 'koreksi' ? tampilkanKoreksi() : tampilkanJurnalManual();
+}
+
+function pilihTabJrn(tab) {
+  jrnTab = tab === 'koreksi' ? 'koreksi' : 'penyesuaian';
+  $$('#tabJrn button').forEach(b => b.classList.toggle('aktif', b.dataset.tabJrn === jrnTab));
+  $('#hasilJurnal').classList.toggle('sembunyi', jrnTab !== 'penyesuaian');
+  $('#hasilKoreksi').classList.toggle('sembunyi', jrnTab !== 'koreksi');
+  return muatTabJrn();
+}
+
+async function tampilkanKoreksi() {
+  const w = $('#hasilKoreksi');
+  /* Nomor panggilan (bagian 369): jawaban periode/cabang lama yang tiba
+     belakangan tidak menimpa yang baru dipilih. */
+  const tiket = ++_korTiket;
+  const par = { periode: $('#jrnPeriode').value, cabang: $('#jrnCabang').value };
+  Rangka.pasang(w, rangkaLaporan());
+  try {
+    const d = await API.daftarKoreksi(par);
+    if (tiket !== _korTiket) return;
+    const daftar = d.jurnal || [];
+    const ringkas = (d.ringkas || []).map(r => esc(r.jenis) + ' ' + r.jumlah).join(' · ');
+    const baris = (j) => `<tr ${atributJurnal(j.uuid)}>
+      <td data-l="Tanggal">${esc(tglTampil(j.tanggal))}<span class="petunjuk" style="display:block">${esc(j.no_jurnal)} · ${esc(j.cabang)}</span></td>
+      <td data-l="Jenis"><span class="lencana">${esc(j.jenis)}</span></td>
+      <td data-l="Keterangan">${esc(j.keterangan)}
+        <span class="petunjuk" style="display:block">${(j.baris || []).map(b =>
+          `${esc(b.kode_akun)} ${esc(b.nama_akun)}: ${b.debit ? 'D ' + rpTeks(b.debit) : 'K ' + rpTeks(b.kredit)}`).join(' · ')}</span></td>
+      <td class="kanan" data-l="Nilai">${rp(j.nilai)}</td>
+    </tr>`;
+    w.innerHTML = `<div class="kartu laporan-uang">
+      <div class="bar-alat"><h3>Daftar koreksi ${esc(d.periode)}</h3></div>
+      <p class="petunjuk">Semua koreksi atas buku di bulan ini: jurnal koreksi, pembalik, jurnal susulan,
+         dan koreksi oleh Claude. Dibaca sebelum Tutup buku. Nilai dihitung tanpa baris antar cabang.</p>
+      ${daftar.length ? `<p class="petunjuk">${daftar.length} jurnal — ${ringkas}</p>
+        ${PETUNJUK_KLIK_BARIS('Klik baris untuk membuka rincian jurnalnya.')}
+        <div class="gulir-x"><table>
+        <thead><tr><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th class="kanan">Nilai</th></tr></thead>
+        <tbody>${daftar.map(baris).join('')}</tbody></table></div>`
+        : '<p class="petunjuk">Tidak ada koreksi di periode ini.</p>'}
+      ${d.terpotong ? '<p class="petunjuk">Hanya 500 jurnal terbaru yang ditampilkan.</p>' : ''}
+    </div>`;
+  } catch (e) {
+    if (tiket === _korTiket) w.innerHTML = `<div class="kartu"><div class="pesan galat">${esc(e.message)}</div></div>`;
+  }
+}
 
 async function simpanJurnalManual() {
   const h = await API.jurnalManual({
@@ -9489,7 +9601,7 @@ function pasangEvent() {
      dimuat ulang, dan hasil uji bulan sebelumnya dibuang — hasil uji yang
      tertinggal di bawah bulan lain terbaca sebagai milik bulan itu. */
   $('#wadahPeriodeJrn').innerHTML = Periode.html(PERIODE_JRN);
-  const muatUlangJurnal = () => { $('#hasilUji').innerHTML = ''; jrnDimuat = true; return tampilkanJurnalManual(); };
+  const muatUlangJurnal = () => { $('#hasilUji').innerHTML = ''; jrnDimuat = true; return muatTabJrn(); };
   Periode.pasang(PERIODE_JRN, muatUlangJurnal);
   $('#jrnCabang').addEventListener('change', muatUlangJurnal);
   $('#hasilKeuangan').addEventListener('click', e => {
@@ -9498,6 +9610,10 @@ function pasangEvent() {
   $('#tabKeu').addEventListener('click', e => {
     const t = e.target.closest('[data-tab-keu]');
     if (t) pilihTabKeu(t.dataset.tabKeu);
+  });
+  $('#tabJrn').addEventListener('click', e => {   /* bagian 572 */
+    const t = e.target.closest('[data-tab-jrn]');
+    if (t) pilihTabJrn(t.dataset.tabJrn);
   });
   /* Borang jurnal penyesuaian (bagian 220): satu pendengar untuk seluruh
      kartunya, karena barisnya lahir dan hilang selama diisi. */
@@ -9755,6 +9871,11 @@ function pasangEvent() {
   });
   document.addEventListener('stok:diperbarui', () => gambarProduk($('#inpCari').value));
   document.addEventListener('stok_cabang:diperbarui', () => gambarProduk($('#inpCari').value));
+  document.addEventListener('stok_cabang:diperbarui', () => {   /* bagian 575 */
+    if (LAP.tab === 'produk' && LAP.data.produk && $('#lapProdukHasil')) {
+      muatStokLapProduk().then(() => gambarHasilLapProduk(LAP.data.produk));
+    }
+  });
 
   /* --- pintasan keyboard (kasir PC bisa bekerja tanpa mouse) --- */
   document.addEventListener('keydown', e => {

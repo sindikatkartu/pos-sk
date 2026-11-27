@@ -133,7 +133,7 @@ const API = (() => {
     'daftar_minta_void', 'daftar_lini', 'keadaan_pulsa_pos', 'daftar_sumber_pulsa',
     'shift_pulsa_aktif', 'daftar_shift_pulsa', 'riwayat_koreksi_shift_pulsa', 'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
-    'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
+    'daftar_jurnal_manual', 'daftar_koreksi', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
     /* Pengajuan diskon ke Owner (bagian 288): kasir menanyakan keputusan tiap
        beberapa detik, Owner membaca antreannya — keduanya membaca saja. */
     'cek_diskon', 'daftar_diskon_minta',
@@ -263,7 +263,7 @@ const API = (() => {
     'foto_pulsa',
     'rincian_shift_pulsa', 'saldo_pulsa_cabang', 'ringkasan_konsolidasi', 'accurate_periode',
     /* tulisan yang servernya menjaga duplikat per uuid */
-    'simpan_kas', 'transfer_bank', 'dokumen_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
+    'simpan_kas', 'transfer_bank', 'dokumen_kas', 'jurnal_manual', 'daftar_jurnal_manual', 'daftar_koreksi', 'buku_besar', 'daftar_akun_bergerak', 'rincian_jurnal', 'rincian_nota',
     'simpan_pembelian', 'kirim_transfer', 'buat_permintaan',
     'buat_retur', 'buat_retur_beli', 'buat_opname', 'posting_opname',
     'bayar_piutang', 'bayar_utang',
@@ -874,6 +874,7 @@ let _pernahJawab = false;
     jurnalManual:      (d) => panggil('jurnal_manual', d, { timeout: 60000 }),
     balikJurnalManual: (d) => panggil('balik_jurnal_manual', d, { timeout: 60000 }),
     daftarJurnalManual:(d) => panggil('daftar_jurnal_manual', d, { timeout: 60000 }),
+    daftarKoreksi:     (d) => panggil('daftar_koreksi', d, { timeout: 60000 }),   /* bagian 572 */
     bukuBesar:         (d) => panggil('buku_besar', d, { timeout: 60000 }),
     daftarAkunBergerak:(d) => panggil('daftar_akun_bergerak', d, { timeout: 60000 }),
     rincianJurnal:     (d) => panggil('rincian_jurnal', d),   /* bagian 538 */

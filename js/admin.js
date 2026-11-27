@@ -7869,18 +7869,65 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       </div>
 
       <div id="kekayaanKons"></div>
+      <div id="rinciAccKons"></div>
 
       <p class="petunjuk">Gabungan = penjumlahan langsung ketiga sumber, tanpa
          eliminasi. POS dan Pulsa dihitung dari jurnal yang SAMA — yang membedakan
          kolomnya cuma kode akunnya (${esc((d.akun_pulsa || []).join(', '))}). Akun
          yang dipakai bersama tetap masuk kolom POS, karena jurnalnya memang tidak
          memisahkannya. Accurate punya bagan akunnya sendiri, jadi kolomnya hanya
-         terisi di baris total — rinciannya ada di menu Accurate.</p>`;
+         terisi di baris total — rinciannya ada di blok Rincian Accurate.</p>`;
 
     /* Tidak ditunggu: rapornya sudah tergambar, dan baris ini butuh beberapa
        detik. Menunggunya berarti layar kosong selama itu — tapi karena tidak
        ditunggu, ia WAJIB membawa tiketnya. */
     muatKekayaan(d.accurate_neraca, tiket);
+    muatRinciAccKons(d.periode, !!acc.dari_berkas, tiket);   /* bagian 574 */
+  }
+
+  /* RINCIAN ACCURATE DI RINGKASAN GABUNGAN (bagian 574, keputusan pemilik:
+     blok sendiri, semua tingkat). Kolom Accurate di tabel hanya terisi di
+     baris total, jadi beban yang dibukukan di Accurate (gaji September,
+     bagian 417) tidak terbaca di layar ini. Blok ini memajang Laba Rugi
+     Accurate APA ADANYA, dengan bagan akunnya sendiri — tidak dipetakan ke
+     akun POS (sebabnya di _barisTotal, 25_Pulsa.gs: padanan yang dikarang
+     adalah hitungan kedua atas angka yang sama).
+
+     Panggilan kedua yang menyusul, seperti muatKekayaan: rapornya sudah
+     tergambar, jadi ia WAJIB membawa tiketnya. Bulan tanpa berkas Laba Rugi
+     Accurate tidak memanggil apa pun — tidak ada yang dirinci. */
+  async function muatRinciAccKons(periode, ada, tiket) {
+    const w0 = $('#rinciAccKons');
+    if (!w0 || tiket !== tiketKons) return;
+    if (!ada) { w0.innerHTML = ''; return; }
+    try {
+      const d = await API.accuratePeriode({ periode });
+      /* Wadahnya DICARI LAGI sesudah menunggu: layar bisa sudah digambar
+         ulang, dan yang ditulis harus wadah yang sedang tampil — hanya bila
+         tiketnya masih yang terakhir. */
+      if (tiket !== tiketKons) return;
+      const w = $('#rinciAccKons');
+      if (!w) return;
+      const lap = (d.laporan || {}).LR;
+      if (!lap) { w.innerHTML = ''; return; }
+      w.innerHTML = `<div class="kartu laporan-uang">
+        <h3>Rincian Accurate — Laba Rugi <span class="sub">${esc(lap.periode_teks || '')}</span></h3>
+        <p class="petunjuk">Dari berkas Accurate apa adanya, dengan bagan akunnya sendiri — tidak
+           dipetakan ke akun POS. ${esc(lap.nama_berkas || '')} · ${esc(waktuTampil(lap.diunggah))}</p>
+        <div class="gulir-x">
+          <table class="tabel">
+            <thead><tr><th>Keterangan</th><th class="kanan">Nilai</th></tr></thead>
+            <tbody>${barisAccHtml(lap.baris)}</tbody>
+          </table>
+        </div>
+      </div>`;
+    } catch (e) {
+      const w = $('#rinciAccKons');
+      if (w && tiket === tiketKons) {
+        w.innerHTML = `<div class="kartu"><p class="pesan galat">Rincian Accurate tidak bisa
+          dibaca: ${esc(e.message)}. Angka di atas tetap benar.</p><p>${tombolUlangKons()}</p></div>`;
+      }
+    }
   }
 
   /* Neraca POS diukur 28 detik lewat POS sungguhan (19 Sep 2026): ia memanggil
@@ -8198,6 +8245,15 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
      paling buruk satu lencana abu yang seharusnya merah. */
   const BULAN_BERJALAN = () => tanggalLokal().substring(0, 7);
 
+  /* Baris tabel Accurate apa adanya: deskripsi menjorok menurut tingkatnya
+     (acc-lv0–4), nilai kosong untuk baris judul. SATU pembuat untuk menu
+     Accurate dan blok Rincian Accurate di Ringkasan Gabungan (bagian 574) —
+     dua salinan pasti berpisah jalan. */
+  const barisAccHtml = (baris) => (baris || []).map((x) => `<tr>
+              <td data-l="Keterangan" class="acc-lv${Math.min(x.level || 0, 4)}">${esc(x.deskripsi)}</td>
+              <td class="kanan" data-l="Nilai">${x.nilai === null ? '' : rp(x.nilai)}</td>
+            </tr>`).join('');
+
   function kartuAcc(jenis, lap) {
     const judul = JUDUL_ACC[jenis];
     if (!lap) {
@@ -8224,10 +8280,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div class="gulir-x">
           <table class="tabel">
             <thead><tr><th>Keterangan</th><th class="kanan">Nilai</th></tr></thead>
-            <tbody>${baris.map((x) => `<tr>
-              <td data-l="Keterangan" class="acc-lv${Math.min(x.level || 0, 4)}">${esc(x.deskripsi)}</td>
-              <td class="kanan" data-l="Nilai">${x.nilai === null ? '' : rp(x.nilai)}</td>
-            </tr>`).join('')}</tbody>
+            <tbody>${barisAccHtml(baris)}</tbody>
           </table>
         </div>
       </div>
