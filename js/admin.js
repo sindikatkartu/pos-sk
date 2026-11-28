@@ -491,6 +491,7 @@ const Admin = (() => {
        ada — 89 galat di satu PC dalam sehari. bukaKeranjangLabel memasangnya
        lagi SESUDAH memanggil bukaModal. */
     $('#modalUmum')._label = null;
+    $('#modalUmum')._cetak = null;   /* cetak milik dokumen yang SEDANG terbuka saja (bukaDokumen) */
     /* Setiap pembukaan mulai TANPA gaya kertas — hanya bukaDokumen yang memasangnya. */
     $('#modalUmum').classList.remove('kertas');
     /* Juga TANPA panel geser — hanya bukaPanel yang memasangnya (ADR-0582). */
@@ -507,12 +508,48 @@ const Admin = (() => {
    *  gelap (bagian 431). Dokumen yang masih bisa ditindak (Pembelian: Periksa/Lunas,
    *  Hasil opname: Posting) ikut — pemilik: "semua rincian dokumen". Dialog isian
    *  (Bayar, Terima, Koreksi, borang baru) tetap bukaModal. */
-  function bukaDokumen(judul, isi, aksi) {
-    bukaModal(judul, isi, aksi);
+  function bukaDokumen(judul, isi, aksi, cetak) {
+    /* `cetak` (ADR-0584, pemilik: "semua yang berunsur dokumen beri fitur cetak"):
+       fungsi yang memulangkan HTML kertas A4. Tombol Cetak ditaruh paling kiri
+       bilah aksi; dokumen yang sudah punya tombol cetak sendiri (Transfer,
+       Dokumen kas) tidak mengirimnya. */
+    const tombolCetak = cetak ? `<button class="tombol" id="btnCetakDokumen">${ikonAlat('cetak')}<span>Cetak</span></button>` : '';
+    bukaModal(judul, isi, tombolCetak + (aksi || ('<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>')));
+    $('#modalUmum')._cetak = cetak ? { judul, isi: cetak } : null;
     $('#modalUmum').classList.add('kertas');
+    /* Dokumen dibuka sebagai panel geser dari kanan (ADR-0584): daftar asalnya
+       tetap terlihat di sebelahnya — pola side sheet untuk rincian. */
+    $('#tiraiUmum').classList.add('laci');
+  }
+  /** Konteks kertas cetak — pola cetakTransfer: jam dari komponen LOKAL, bukan toISOString (UTC). */
+  function konteksCetak() {
+    const kini = new Date();
+    return { setting: APP_STATE.setting || {}, user: (APP_STATE.user && APP_STATE.user.nama) || '',
+      versi: CONFIG.VERSI, waktu: tanggalLokal(kini) + 'T' + kini.toTimeString().substring(0, 8) };
+  }
+  /** Kertas A4 bersama (ADR-0584) — bentuk yang sama dengan dokumenTransfer/dokumenPO:
+   *  kop usaha · judul · tabel info · tabel isi · tanda tangan · kaki pencetak.
+   *  info: [[label, htmlNilai]] (falsy dilewati); kolom: [judul, fn(baris)→html, angka?];
+   *  ttd: [[peran, keterangan, nama]]. Setiap nilai WAJIB lewat esc() di pemanggil. */
+  function kertasDokumen(judulBesar, info, kolom, baris, kaki, ttd, k) {
+    const s = k.setting || {}, usaha = String(s.nama_usaha || 'SINDIKAT KARTU');
+    const th = kolom.map(([j, , n]) => `<th${n ? ' class="n"' : ''}>${esc(j)}</th>`).join('');
+    const tb = baris.length
+      ? baris.map((b, i) => '<tr>' + kolom.map(([, f, n]) => `<td${n ? ' class="n"' : ''}>${f(b, i)}</td>`).join('') + '</tr>').join('')
+      : `<tr><td colspan="${kolom.length}" class="kosong">Tidak ada rincian barang.</td></tr>`;
+    return `<h1>${esc(usaha.toUpperCase())}</h1>` +
+      (s.alamat_usaha ? `<p class="sub">${esc(s.alamat_usaha)}</p>` : '') +
+      (s.telepon_usaha ? `<p class="sub">${esc(s.telepon_usaha)}</p>` : '') +
+      `<h2>${esc(judulBesar)}</h2>
+      <table class="info">${info.filter(Boolean).map(([a, b]) => `<tr><td class="k">${esc(a)}</td><td>${b}</td></tr>`).join('')}</table>
+      <table class="isi"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody>${kaki ? `<tfoot>${kaki}</tfoot>` : ''}</table>
+      <table class="ttd"><tr>${ttd.map(([p, c, n]) => `<td><div class="peran">${esc(p)}</div><div class="cab">${esc(c || '')}</div><div class="garis"></div><div class="nama">${esc(n || '')}&nbsp;</div></td>`).join('')}</tr></table>
+      <p class="kaki">Dicetak ${esc(waktuTampil(k.waktu))} oleh ${esc(k.user || '—')} · ${esc(usaha)} · v${esc(k.versi || '')}</p>`;
   }
   /** Modal yang sama sebagai PANEL GESER dari kanan, setinggi layar (ADR-0582).
-   *  Dipakai Prapesan; layar lain tetap bukaModal (pop-up di tengah). */
+   *  Dipakai Prapesan, semua rincian dokumen (bukaDokumen), dan formulir besar
+   *  — Pembelian, Kirim barang, Minta barang, Retur beli (ADR-0584). Formulir
+   *  pendek dan konfirmasi tetap bukaModal (pop-up di tengah). */
   function bukaPanel(judul, isi, aksi) {
     bukaModal(judul, isi, aksi);
     $('#tiraiUmum').classList.add('laci');
@@ -5565,8 +5602,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   /** Dokumen yang penampilnya dulu bergantung daftar layarnya (bagian 549): diambil sendiri, lalu penampil yang sama. */
   async function bukaDokumenLuar(d) {
     const JUDUL = { TRANSFER: 'Transfer', RETUR_BELI: 'Retur beli', PRODUKSI: 'Produksi', KAS: 'Dokumen kas' };
-    bukaModal(JUDUL[d.jenis], rangkaBaris(5, ['70%', '54%', '64%', '46%']));
-    const tak = (t) => bukaModal(JUDUL[d.jenis], `<div class="pesan galat">${esc(t)}</div>`);
+    bukaPanel(JUDUL[d.jenis], rangkaBaris(5, ['70%', '54%', '64%', '46%']));
+    const tak = (t) => bukaPanel(JUDUL[d.jenis], `<div class="pesan galat">${esc(t)}</div>`);
     try {
       if (d.jenis === 'TRANSFER') {
         const t = (await API.daftarTransfer({ uuid: d.uuid })).find((x) => x.uuid === d.uuid);
@@ -5750,12 +5787,12 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
    * mencari barisnya lagi, lalu menebak apakah itu memang yang tadi dilihat.
    */
   async function rincianPembelian(uuid) {
-    bukaModal('Rincian pembelian', rangkaBaris(6, ['72%', '56%', '66%', '48%']));
+    bukaPanel('Rincian pembelian', rangkaBaris(6, ['72%', '56%', '66%', '48%']));
     let d;
     try {
       d = await API.rincianPembelian({ uuid, cabang: cabBeli(uuid) });
     } catch (x) {
-      return bukaModal('Rincian pembelian', `<div class="pesan galat">${esc(x.message)}</div>`);
+      return bukaPanel('Rincian pembelian', `<div class="pesan galat">${esc(x.message)}</div>`);
     }
     const item = d.item || [];
     const janggal = item.filter(i => i.sebab_janggal);
@@ -5818,7 +5855,28 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
          : ''}
        ${bolehBatal && !bolehPeriksa
          ? `<button class="tombol bahaya" data-batal-pembelian="${esc(d.uuid)}">Batalkan pembelian</button>`
-         : ''}`);
+         : ''}`, () => kertasPembelian(d, konteksCetak()));
+  }
+
+  /** Kertas A4 pembelian (ADR-0584). Harga hanya bila server mengirimnya (lihat modal). */
+  function kertasPembelian(d, k) {
+    const item = d.item || [], harga = item.some((i) => i.harga_satuan !== undefined);
+    const uang = (n) => esc(rpTeks(n));
+    const kaki = harga ? [['Subtotal', d.subtotal], d.diskon && ['Diskon dokumen', -d.diskon], d.ppn && ['PPN', d.ppn], ['TOTAL', d.total]]
+      .filter(Boolean).map(([l, n]) => `<tr><td colspan="7">${esc(l)}</td><td class="n">${uang(n)}</td></tr>`).join('') : '';
+    return kertasDokumen('BUKTI PEMBELIAN', [
+      ['No dokumen', `<strong>${esc(d.no_dokumen || '(tanpa nomor)')}</strong>`],
+      ['Tanggal', esc(tglTampil(d.tanggal))],
+      ['Supplier', esc(d.nama_supplier || '—')],
+      ['Status', esc(kodeRapi(d.status))],
+      d.jatuh_tempo && ['Jatuh tempo', esc(tglTampil(d.jatuh_tempo))],
+      d.catatan && ['Catatan', esc(d.catatan)],
+      ['Dicatat oleh', esc(d.nama_pencatat || d.id_user || '—')]
+    ], [['No', (b, i) => i + 1, true], ['SKU', (b) => esc(b.sku)], ['Nama produk', (b) => esc(b.nama)],
+        ['Qty', (b) => esc(b.qty), true], ['Satuan', (b) => esc(b.satuan || '')],
+        ['Masuk stok', (b) => esc(b.qty_dasar) + ' ' + esc(b.satuan_dasar || ''), true]]
+      .concat(harga ? [['Harga beli', (b) => uang(b.harga_satuan), true], ['Subtotal', (b) => uang(b.subtotal), true]] : []),
+    item, kaki, [['Diterima', 'Gudang / cabang', ''], ['Diperiksa', 'Head Admin', ''], ['Supplier', d.nama_supplier || '', '']], k);
   }
 
   /**
@@ -5894,7 +5952,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       API.daftarProduk({ ramping: true })
     ]);
     uuidPembelian = crypto.randomUUID ? crypto.randomUUID() : 'B' + Date.now();
-    bukaModal(o.po ? 'Pembelian dari ' + o.po.no_dokumen : 'Pembelian baru', `
+    bukaPanel(o.po ? 'Pembelian dari ' + o.po.no_dokumen : 'Pembelian baru', `
       <div class="baris3">
         <div class="grup"><label>Tanggal</label><input type="date" id="beliTanggal" value="${tanggalLokal()}"></div>
         <div class="grup"><label>No dokumen / faktur</label><input type="text" id="beliNo" placeholder="Kosong = nomor otomatis"></div>
@@ -6149,7 +6207,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $$('#tabBeli [data-tab-beli]').forEach((b) => b.classList.toggle('aktif', b.dataset.tabBeli === tabBeli));
     if ($('#isiPembelian')) $('#isiPembelian').hidden = tabBeli !== 'beli';
     if ($('#isiRencanaBeli')) $('#isiRencanaBeli').hidden = tabBeli !== 'po';
-    if (tabBeli === 'po') return muatRencanaBeli();   /* tab Prapesan (PreOrder) */
+    if (tabBeli === 'po') return muatRencanaBeli();   /* tab Prapesan */
     return muatPembelian();
   }
 
@@ -6250,7 +6308,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     };
     const opsiSup = urutkanOleh((sup || []).filter((s) => s.aktif !== false || (r && s.kode === r.kode_supplier)), (s) => s.nama)
       .map((s) => `<option value="${esc(s.kode)}"${r && s.kode === r.kode_supplier ? ' selected' : ''}>${esc(s.nama)}</option>`).join('');
-    bukaPanel(r ? 'Ubah prapesan (PreOrder)' : 'Prapesan baru (PreOrder)', `
+    bukaPanel(r ? 'Ubah prapesan' : 'Prapesan baru', `
       <div class="baris3">
         <div class="grup"><label>Supplier</label><select id="poSupplier"><option value="">— pilih supplier —</option>${opsiSup}</select></div>
         ${bolehPilihCabang() ? `<div class="grup"><label>Diterima di cabang</label><select id="poCabang">
@@ -6263,8 +6321,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input type="text" class="input-cari" id="poCari" placeholder="Cari nama atau SKU…" autocomplete="off" style="flex:1;min-width:200px;max-width:360px">
           <button class="tombol" id="btnPOProdukBaru">${ikonAlat('tambah')}<span>Produk baru</span></button>
+          <button class="tombol" id="btnPODariJual" aria-expanded="false" aria-controls="poDariJual">${ikonAlat('laporan')}<span>Isi dari penjualan</span></button>
         </div>
-        <div id="poHasil"></div></div>
+        <div id="poHasil"></div>
+        <div id="poDariJual" hidden></div></div>
       <div class="gulir-x" id="poTabel"></div>
       <div class="grup" style="margin-top:10px"><label>Catatan untuk supplier</label><input type="text" id="poCatatan" value="${esc(r ? r.catatan : '')}" placeholder="Opsional"></div>
       <div class="total-baris" id="poTotal"></div>
@@ -6300,6 +6360,107 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     ket.push('Saran = terjual − stok, paling kecil 0; qty boleh diubah.');
     if ($('#poKet')) $('#poKet').innerHTML = ket.join(' ');
     gambarTabelPO();
+    gambarDariJualPO();
+  }
+
+  /* ---------- Isi dari penjualan (ADR-0584) ----------
+     Pemilik 28 Nov 2026: menyusun PO dengan membuka Laporan Per produk dan Stok
+     berdampingan ("harus multitask"). Daftar ini menggabungkan keduanya di dalam
+     panel: produk TERJUAL di periode editor + stok saat ini + saran, dicentang
+     lalu masuk draft. Sumbernya muatan yang SAMA dengan kolom Terjual/Stok draft
+     (ed.terjual, ed.stok) — tanpa panggilan server baru dan tanpa hitungan kedua. */
+  function gambarDariJualPO() {
+    const w = $('#poDariJual');
+    if (!w || !poEd) return;
+    const ed = poEd;
+    w.hidden = !ed.jualBuka;
+    $('#btnPODariJual')?.setAttribute('aria-expanded', String(!!ed.jualBuka));
+    if (!ed.jualBuka) return;
+    const tj = ed.terjual;
+    if (!tj) { w.innerHTML = '<p class="petunjuk">Memuat penjualan…</p>'; return; }
+    /* Daftar dari panggilan yang GAGAL tidak digambar: daftar kosong akan terbaca "tidak ada yang laku". */
+    if (tj.galat) { w.innerHTML = `<div class="pesan galat">Penjualan gagal dimuat: ${esc(tj.galat)} — daftar tidak ditampilkan.</div>`; return; }
+    w.innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 6px">
+        <input type="text" class="input-cari" id="poJualCari" placeholder="Cari produk terjual…" autocomplete="off" value="${esc(ed.jualCari || '')}" style="flex:1;min-width:180px;max-width:320px">
+        <label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="poJualKurang"${ed.jualKurang ? ' checked' : ''}> Hanya yang perlu dipesan</label>
+      </div>
+      <p class="petunjuk" id="poJualKet"></p>
+      <div class="gulir-x" id="poJualDaftar" style="max-height:50vh;overflow:auto"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button class="tombol utama" id="btnPOJualTambah" disabled>${ikonAlat('tambah')}<span>Tambahkan ke draft</span></button>
+      </div>`;
+    isiDaftarJualPO();
+  }
+
+  /** Baris daftar terjual: terjual & stok dijumlah atas cabang tujuan editor, saran = terjual − stok. */
+  function barisJualPO() {
+    const ed = poEd, tj = ed.terjual, cab = ed.cabang;
+    return Object.keys(tj.per || {}).map((sku) => {
+      const info = (tj.info || {})[sku] || {}, kat = ed.kat.get(sku) || {};
+      const terjual = jumlahPO(tj.per[sku], cab);
+      const stok = ed.stok ? jumlahPO(ed.stok[sku], cab) : null;
+      return { sku, nama: String(kat.nama || info.nama || sku), kategori: String(info.kategori || kat.kategori || ''),
+        terjual, stok, saran: stok === null ? null : Math.max(0, terjual - stok) };
+    }).filter((x) => x.terjual > 0);
+  }
+
+  function isiDaftarJualPO() {
+    const w = $('#poJualDaftar');
+    if (!w || !poEd || !poEd.terjual || poEd.terjual.galat) return;
+    const ed = poEd, cab = ed.cabang, tj = ed.terjual;
+    ed.jualPilih = ed.jualPilih || new Set();
+    const ada = new Set(ed.baris.map((b) => b.sku).filter(Boolean));
+    const q = String(ed.jualCari || '').toLowerCase().trim();
+    const semua = barisJualPO();
+    const cocok = semua.filter((x) => (!ed.jualKurang || (x.saran || 0) > 0) &&
+      (!q || (x.nama + ' ' + x.sku + ' ' + x.kategori).toLowerCase().includes(q)))
+      .sort((a, b) => (b.saran || 0) - (a.saran || 0) || b.terjual - a.terjual || a.nama.localeCompare(b.nama, 'id'));
+    const BATAS = 300, tampil = cocok.slice(0, BATAS);
+    const ket = [`${semua.length} produk terjual ${esc(tglTampil(tj.dari))}–${esc(tglTampil(tj.sampai))}`,
+      ed.stok ? 'stok saat ini' : '<span class="bahaya">stok cabang belum tersedia di perangkat ini — saran tidak diisi</span>',
+      'cabang ' + esc(cab.join(', '))];
+    if ((tj.gagal || []).length) ket.push(`<span class="bahaya">sebagian data gagal dibaca — angka terjual TIDAK lengkap: ${esc(tj.gagal.join(' · '))}</span>`);
+    if (cocok.length > BATAS) ket.push(`${BATAS} teratas dari ${cocok.length} — persempit lewat cari`);
+    if ($('#poJualKet')) $('#poJualKet').innerHTML = ket.join(' · ') + '. Centang lalu tambahkan; qty terisi saran dan boleh diubah.';
+    const bisa = tampil.filter((x) => !ada.has(x.sku));
+    /* Rincian per cabang di bawah angkanya, sama dengan tabel draft (gambarTabelPO). */
+    const perCab = (peta) => cab.length > 1 ? `<div class="meta-kecil" style="white-space:nowrap">${cab.map((c) => esc(c) + ' ' + (Number((peta || {})[c]) || 0)).join('<br>')}</div>` : '';
+    w.innerHTML = tampil.length ? `<table class="tabel-po">
+      <thead><tr><th><input type="checkbox" id="poJualSemua" aria-label="Centang semua yang tampil"${bisa.length && bisa.every((x) => ed.jualPilih.has(x.sku)) ? ' checked' : ''}${bisa.length ? '' : ' disabled'}></th>
+        <th>Produk</th><th class="angka">Terjual</th><th class="angka">Stok</th><th class="angka">Saran</th></tr></thead>
+      <tbody>${tampil.map((x) => {
+        const diDraft = ada.has(x.sku);
+        return `<tr${diDraft ? ' class="redup"' : ''}>
+          <td><input type="checkbox" data-po-jual="${esc(x.sku)}" aria-label="Pilih ${esc(x.nama)}"${diDraft || ed.jualPilih.has(x.sku) ? ' checked' : ''}${diDraft ? ' disabled' : ''}></td>
+          <td data-l="Produk">${esc(x.nama)}<div class="meta-kecil">${esc(x.sku)}${x.kategori ? ' · ' + esc(x.kategori) : ''}${diDraft ? ' · sudah di draft' : ''}</div></td>
+          <td class="angka" data-l="Terjual"><span class="jml">${x.terjual}</span>${perCab((tj.per || {})[x.sku])}</td>
+          <td class="angka" data-l="Stok"><span class="jml">${x.stok === null ? '—' : x.stok}</span>${x.stok === null ? '' : perCab((ed.stok || {})[x.sku])}</td>
+          <td class="angka" data-l="Saran"><strong>${x.saran === null ? '—' : x.saran}</strong></td></tr>`;
+      }).join('')}</tbody></table>`
+      : `<p class="petunjuk">${semua.length ? 'Tidak ada yang cocok dengan saringan.' : 'Tidak ada penjualan di periode ini.'}</p>`;
+    const n = [...ed.jualPilih].filter((s) => !ada.has(s)).length;
+    const t = $('#btnPOJualTambah');
+    if (t) { t.disabled = !n; t.querySelector('span').textContent = n ? `Tambahkan ke draft (${n})` : 'Tambahkan ke draft'; }
+  }
+
+  function tambahDariJualPO() {
+    const ed = poEd;
+    if (!ed || !ed.jualPilih || !ed.terjual) return;
+    const info = ed.terjual.info || {};
+    const ada = new Set(ed.baris.map((b) => b.sku).filter(Boolean));
+    let n = 0;
+    [...ed.jualPilih].forEach((sku) => {
+      if (ada.has(sku)) return;
+      const p = ed.kat.get(sku) || {};
+      const b = { sku, nama: String(p.nama || (info[sku] || {}).nama || sku), baru: false, qty: '', harga: 0 };
+      b.harga = hargaAwalPO(b);
+      const s = saranPO(b); if (s !== null) { b.qty = s; b.qtyAuto = true; }
+      ed.baris.push(b); ada.add(sku); n++;
+    });
+    ed.jualPilih.clear();
+    gambarTabelPO();
+    if (n) toast(n + ' produk ditambahkan ke draft.', 'info');
   }
 
   async function isiDariSupplierPO() {
@@ -6360,6 +6521,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       }).join('')}</tbody></table>`
       : '<p class="petunjuk">Belum ada barang. Pilih supplier untuk mengisi produk langganannya, atau tambahkan lewat cari / Produk baru.</p>';
     hitungTotalPO();
+    isiDaftarJualPO();   /* tanda "sudah di draft" ikut baris yang ditambah/dihapus */
   }
 
   function hitungTotalPO() {
@@ -6445,7 +6607,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   async function batalPO(uuid) {
     const r = poDari(uuid);
     if (!r) return;
-    const alasan = await tanya('Batalkan prapesan (PreOrder)?',
+    const alasan = await tanya('Batalkan prapesan?',
       `<p class="petunjuk">${esc(r.no_dokumen || 'Draft')} · ${esc(r.nama_supplier)}. Prapesan yang dibatalkan tetap tercatat beserta alasannya.</p>`,
       { isian: 'Alasan pembatalan (minimal 5 karakter)', minimal: 5, ya: 'Batalkan', jenis: 'bahaya' });
     if (alasan === null || alasan === false || alasan === undefined) return;
@@ -6544,6 +6706,8 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (!poEd) return;
     if (t.closest('#btnPOProdukBaru')) { poEd.baris.push({ sku: '', nama: '', baru: true, qty: 1, harga: 0 }); gambarTabelPO(); return void $(`[data-po-nama="${poEd.baris.length - 1}"]`)?.focus(); }
     if ((u = a('data-po-tambah'))) return void tambahProdukPO(u);
+    if (t.closest('#btnPODariJual')) { poEd.jualBuka = !poEd.jualBuka; return void gambarDariJualPO(); }
+    if (t.closest('#btnPOJualTambah')) return void tambahDariJualPO();
     if ((u = a('data-po-hapus')) !== null && u !== undefined) { poEd.baris.splice(Number(u), 1); return void gambarTabelPO(); }
     if (t.closest('#btnPOSimpan')) return void simpanPO(false);
     if (t.closest('#btnPOPesan')) return void simpanPO(true);
@@ -6552,6 +6716,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const t = e.target;
     if (!poEd || !t.dataset) return;
     if (t.id === 'poCari') return cariProdukPO(t.value);
+    if (t.id === 'poJualCari') { poEd.jualCari = t.value; return isiDaftarJualPO(); }
     if (t.dataset.poQty !== undefined) {
       const b = poEd.baris[Number(t.dataset.poQty)]; if (!b) return;
       b.qty = t.value === '' ? '' : Number(t.value); b.qtyAuto = false;
@@ -6570,13 +6735,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   document.addEventListener('change', (e) => {
     if (e.target.id === 'poSupplier' && poEd) isiDariSupplierPO();
     if (e.target.id === 'poCabang' && poEd) gambarTabelPO();
+    /* Isi dari penjualan (ADR-0584): pilihan disimpan per SKU, jadi tetap tercentang walau saringan berganti. */
+    if (!poEd) return;
+    const t = e.target;
+    if (t.id === 'poJualKurang') { poEd.jualKurang = t.checked; return isiDaftarJualPO(); }
+    if (t.dataset && t.dataset.poJual !== undefined) {
+      poEd.jualPilih = poEd.jualPilih || new Set();
+      if (t.checked) poEd.jualPilih.add(t.dataset.poJual); else poEd.jualPilih.delete(t.dataset.poJual);
+      return isiDaftarJualPO();
+    }
+    if (t.id === 'poJualSemua') {
+      poEd.jualPilih = poEd.jualPilih || new Set();
+      $('#poJualDaftar').querySelectorAll('input[data-po-jual]:not(:disabled)').forEach((c) => {
+        if (t.checked) poEd.jualPilih.add(c.dataset.poJual); else poEd.jualPilih.delete(c.dataset.poJual);
+      });
+      return isiDaftarJualPO();
+    }
   });
 
   /** PO yang sudah dipesan/diterima/dibatalkan: dibaca saja, aksinya di bawah. */
   function lihatPO(r) {
     const harga = poDaftar && poDaftar.harga;
     const buat = bolehIzin('pembelian', 'buat');
-    bukaPanel('Prapesan (PreOrder) ' + (r.no_dokumen || 'draft') + ' · ' + r.nama_supplier, `
+    bukaPanel('Prapesan ' + (r.no_dokumen || 'draft') + ' · ' + r.nama_supplier, `
       <p class="petunjuk">${lencanaPO(r.status)} · ${esc(tglTampil(r.tanggal))} · diterima di cabang ${esc(r.cabang_tujuan)}${r.no_pembelian ? ' · pembelian ' + esc(r.no_pembelian) : ''}${r.alasan_batal ? ' · dibatalkan: ' + esc(r.alasan_batal) : ''}</p>
       <div class="gulir-x"><table>
         <thead><tr><th>Produk</th><th class="angka">Qty</th>${harga ? '<th class="angka">Harga</th><th class="angka">Nilai</th>' : ''}</tr></thead>
@@ -11152,7 +11333,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       return bukaModal('Kirim barang', '<div class="pesan info">Belum ada cabang lain sebagai tujuan. Tambahkan cabang dulu di menu Cabang.</div>');
     }
 
-    bukaModal('Kirim barang ke cabang lain', `
+    bukaPanel('Kirim barang ke cabang lain', `
       <div class="baris3">
         <div class="grup"><label>Dari</label><input type="text" value="${esc(APP_STATE.cabang)}" disabled></div>
         <div class="grup"><label>Ke cabang *</label><select id="tfTujuan">
@@ -11734,6 +11915,9 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
             /* Satu aksi = tombol ikon + teks; Detail + Batal = menu ⋮ (bagian 274, 502). */
             { judul: '', render: r => aksiBaris('Pm' + idAman(r.uuid), 'baris-permintaan', [
                 { gaya: '', label: 'Detail', ikon: IKON.tampil, atribut: `data-detail-permintaan="${esc(r.uuid)}"` },
+                /* Ubah (ADR-0584): penanda dari server — pihak peminta, sebelum gudang memproses. */
+                r.bisa_diubah && bolehIzin('permintaan', 'ubah') &&
+                  { gaya: '', label: 'Ubah', ikon: IKON.ubah, atribut: `data-ubah-permintaan="${esc(r.uuid)}"` },
                 r.bisa_dibatalkan && bolehIzin('permintaan', 'hapus') &&
                   { gaya: 'bahaya', label: 'Batal', ikon: IKON.batal, atribut: `data-batal-permintaan="${esc(r.uuid)}"` }
               ], 'bahaya') }
@@ -11743,8 +11927,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     });
   }
 
-  async function formPermintaanBaru() {
-    lepasUuidDokumen('permintaan');          // dokumen BARU — lihat uuidDokumen()
+  /** Formulir permintaan. Dengan `t` (baris daftar) = UBAH permintaan yang belum
+   *  diproses gudang (ADR-0584): gudang, tujuan, dan tanggal terkunci; barang,
+   *  qty, dan catatan boleh diubah. */
+  async function formPermintaanBaru(t) {
+    if (!t) lepasUuidDokumen('permintaan');  // dokumen BARU — lihat uuidDokumen()
     /* `daftarCabangAdmin` menuntut izin `cabang.lihat`, dan Staf Gudang tidak
        punya itu. Ditangkap lalu jatuh ke daftar yang sudah ada di memori —
        pola yang sama persis dipakai formKirimTransfer, dan alasannya sama:
@@ -11758,32 +11945,34 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
        Kepala cabang meminta untuk cabangnya sendiri; pemilik dan manajer, yang
        berbendera akses lintas cabang, bebas memilih untuk cabang mana pun. */
     const lintas = !!APP_STATE.flag?.akses_lintas_cabang;
-    const tujuanBoleh = lintas ? semua : [APP_STATE.cabang];
-    const asalBoleh = semua.filter(k => k !== (lintas ? '' : APP_STATE.cabang));
+    const tujuanBoleh = t ? [String(t.cabang_tujuan)] : lintas ? semua : [APP_STATE.cabang];
+    const asalBoleh = t ? [String(t.cabang_asal)] : semua.filter(k => k !== (lintas ? '' : APP_STATE.cabang));
 
     if (!asalBoleh.length) {
       return bukaModal('Minta barang',
         '<div class="pesan info">Belum ada cabang lain sebagai gudang asal. Tambahkan cabang dulu di menu Cabang.</div>');
     }
 
-    bukaModal('Minta barang ke gudang', `
+    bukaPanel(t ? 'Ubah permintaan ' + t.no_dokumen : 'Minta barang ke gudang', `
       <div class="baris3">
-        <div class="grup"><label>Diminta ke gudang *</label><select id="pmAsal">
+        <div class="grup"><label>Diminta ke gudang *</label><select id="pmAsal"${t ? ' disabled' : ''}>
           ${asalBoleh.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select></div>
-        <div class="grup"><label>Untuk cabang *</label><select id="pmTujuan"${lintas ? '' : ' disabled'}>
+        <div class="grup"><label>Untuk cabang *</label><select id="pmTujuan"${lintas && !t ? '' : ' disabled'}>
           ${tujuanBoleh.map(k => `<option value="${esc(k)}"${k === APP_STATE.cabang ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
-        <div class="grup"><label>Tanggal</label><input type="date" id="pmTanggal" value="${tanggalLokal()}"></div>
+        <div class="grup"><label>Tanggal</label><input type="date" id="pmTanggal" value="${t ? esc(String(t.tanggal).slice(0, 10)) : tanggalLokal()}"${t ? ' disabled' : ''}></div>
       </div>
+      ${t ? '<p class="petunjuk">Gudang, cabang tujuan, dan tanggal tidak bisa diganti — untuk itu batalkan lalu buat permintaan baru. Perubahan ditolak bila gudang sudah mulai menyiapkannya.</p>' : ''}
       <label>Barang yang diminta</label>
       <p class="petunjuk">Stok gudang <strong>tidak</strong> diperiksa di sini — yang tahu isi rak adalah gudang, saat
         menyiapkannya. Satu SKU cukup satu baris: gabungkan qty-nya, jangan menulisnya dua kali.</p>
       <div id="barisPm"></div>
       <button class="tombol" id="btnTambahBarisPm">+ Tambah baris</button>
       <div class="grup" style="margin-top:14px"><label>Catatan</label>
-        <input type="text" id="pmCatatan" placeholder="mis. stok etalase habis, butuh sebelum akhir pekan"></div>
+        <input type="text" id="pmCatatan" placeholder="mis. stok etalase habis, butuh sebelum akhir pekan" value="${t ? esc(t.catatan || '') : ''}"></div>
       <div id="pesanPm"></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Batal</span></button>
-       <button class="tombol utama" id="btnSimpanPermintaan">${ikonAlat('kirim')}<span>Kirim permintaan</span></button>`);
+       ${t ? `<button class="tombol utama" id="btnSimpanPermintaan" data-ubah="${esc(t.uuid)}">${ikonAlat('simpan')}<span>Simpan perubahan</span></button>`
+           : `<button class="tombol utama" id="btnSimpanPermintaan">${ikonAlat('kirim')}<span>Kirim permintaan</span></button>`}`);
     daftarPilihProduk = prod.produk;
     timpaStokPerangkat(daftarPilihProduk);   // "stok N" di hasil pemilih (bagian 295)
 
@@ -11811,7 +12000,20 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     $('#pmAsal').addEventListener('change', segarkanStokPm);
     $('#pmTujuan').addEventListener('change', segarkanStokPm);
 
-    tambahBarisPm();
+    if (!t) return tambahBarisPm();
+    /* UBAH: baris lama diisi seperti hasil memilih produk (SKU tersembunyi + teks). */
+    (t.item || []).forEach((it) => {
+      tambahBarisPm();
+      const b = $$('[data-anak="pm"]').pop();
+      const p = _produkSku(it.sku);
+      b.querySelector('input[data-f="sku"]').value = it.sku;
+      const k = b.querySelector('.cari-prd');
+      k.value = p ? teksProduk(p) : (it.nama_produk || it.sku);
+      k.title = k.value;
+      b.querySelector('[data-f="kode_varian"]').value = it.kode_varian || '';
+      b.querySelector('[data-f="qty"]').value = it.qty_minta;
+    });
+    if (!(t.item || []).length) tambahBarisPm();
   }
 
   function tambahBarisPm() {
@@ -11846,7 +12048,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           <td class="angka">${i.qty_minta}</td>
           <td class="angka">${i.qty_proses}</td>
           <td class="angka">${i.qty_sisa}</td>
-          <td><input type="number" data-siap-baris="${i.baris}" value="${i.qty_sisa}"
+          <td><input type="number" data-siap-baris="${i.baris}" data-siap-sku="${esc(i.sku)}" data-siap-varian="${esc(i.kode_varian || '')}" value="${i.qty_sisa}"
                      min="0" max="${i.qty_sisa}"${i.qty_sisa ? '' : ' disabled'}></td>
         </tr>`).join('')}</tbody>
       </table></div>
@@ -11881,7 +12083,25 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         { judul: 'Tanggal', tgl: true, kunci: 'tanggal' },
         { judul: 'No dokumen', kunci: 'no_dokumen' },
         { judul: 'Status transfer', render: r => esc(kodeRapi(r.status)) }
-      ], t.transfer, { kosong: 'Belum ada satu pun kiriman' })}`);
+      ], t.transfer, { kosong: 'Belum ada satu pun kiriman' })}`, undefined, () => kertasPermintaan(t, konteksCetak()));
+  }
+
+  /** Kertas A4 permintaan barang (ADR-0584) — daftar kerja gudang, tanpa harga. */
+  function kertasPermintaan(t, k) {
+    const jml = (kunci) => t.item.reduce((a, i) => a + (Number(i[kunci]) || 0), 0);
+    return kertasDokumen('PERMINTAAN BARANG', [
+      ['No dokumen', `<strong>${esc(t.no_dokumen)}</strong>`],
+      ['Tanggal', esc(tglTampil(t.tanggal))],
+      ['Rute', esc(t.cabang_asal) + ' &rarr; ' + esc(t.cabang_tujuan)],
+      ['Peminta', esc(t.nama_peminta || '—')],
+      ['Status', esc(kodeRapi(t.status))],
+      t.catatan && ['Catatan', esc(t.catatan)],
+      (t.transfer || []).length && ['Transfer', esc(t.transfer.map((x) => x.no_dokumen).join(', '))]
+    ], [['No', (b, i) => i + 1, true], ['SKU', (b) => esc(b.sku) + (b.kode_varian ? ' (' + esc(b.kode_varian) + ')' : '')],
+        ['Nama produk', (b) => esc(b.nama_produk)], ['Diminta', (b) => esc(b.qty_minta), true],
+        ['Disiapkan', (b) => esc(b.qty_proses), true], ['Sisa', (b) => esc(b.qty_sisa), true]],
+    t.item, `<tr><td colspan="3">${t.item.length} baris</td><td class="n">${jml('qty_minta')}</td><td class="n">${jml('qty_proses')}</td><td class="n">${jml('qty_sisa')}</td></tr>`,
+    [['Peminta', t.cabang_tujuan, t.nama_peminta], ['Gudang', t.cabang_asal, ''], ['Disetujui', 'Owner / Head Admin', '']], k);
   }
 
   /* ==================== STOK OPNAME ==================== */
@@ -12316,13 +12536,32 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            ${bolehIzin('opname', 'hapus')
              ? `<button class="tombol bahaya" data-batal-opname="${esc(d.uuid)}">Batalkan stok opname</button>` : ''}
            ${d.boleh_posting ? `<button class="tombol sukses" id="btnPostingOpname" data-uuid="${esc(d.uuid)}">
-             Posting &amp; sesuaikan stok</button>` : ''}`);
+             Posting &amp; sesuaikan stok</button>` : ''}`, () => kertasOpname(d, konteksCetak()));
     /* Batalkan di layar REVIEW (bagian 386, titipan sesi data bagian 383):
        server sudah membolehkan membatalkan opname yang belum diposting, tapi
        tombolnya dulu hanya ada di layar menghitung (DRAFT). Cabang dengan
        opname REVIEW tidak bisa membuka opname baru, dan satu-satunya jalan
        keluar dari layar ini adalah posting. Penangannya sama (data-batal-opname:
        bertanya + alasan). */
+  }
+
+  /** Kertas A4 hasil stok opname (ADR-0584): ringkasan + baris SELISIH saja, sama dengan layarnya. */
+  function kertasOpname(d, k) {
+    const selisih = d.item.filter((i) => i.selisih !== 0 && i.selisih !== undefined);
+    const nilai = d.nilai_selisih !== undefined;
+    return kertasDokumen('HASIL STOK OPNAME', [
+      ['No dokumen', `<strong>${esc(d.no_dokumen)}</strong>`],
+      ['Cabang', esc(cabangDari('opname'))],
+      ['Dibuka', esc(waktuTampil(d.waktu_buka)) + ' oleh ' + esc(d.nama_user || d.id_user || '—')],
+      ['Status', esc(kodeRapi(d.status))],
+      d.status === 'POSTED' && ['Diposting', esc(waktuTampil(d.waktu_posting)) + ' oleh ' + esc(d.nama_user_posting || d.id_user_posting || '—')],
+      ['Ringkasan', `${d.item.length} dihitung · ${d.item.length - selisih.length} cocok · ${selisih.length} selisih`],
+      nilai && ['Nilai bersih', esc((d.nilai_selisih < 0 ? '− ' : '+ ') + rpTeks(Math.abs(d.nilai_selisih)))]
+    ], [['No', (b, i) => i + 1, true], ['SKU', (b) => esc(b.sku)], ['Nama produk', (b) => esc(b.nama_produk)],
+        ['Sistem', (b) => esc(b.qty_sistem), true], ['Fisik', (b) => esc(b.qty_fisik), true],
+        ['Selisih', (b) => (b.selisih > 0 ? '+' : '') + esc(b.selisih), true]]
+      .concat(nilai ? [['Nilai', (b) => esc(rpTeks(b.nilai_selisih)), true]] : []),
+    selisih, '', [['Penghitung', cabangDari('opname'), d.nama_user || ''], ['Diperiksa', 'Kepala cabang', ''], ['Disetujui', 'Owner / Head Admin', '']], k);
   }
 
   /** Kumpulkan hanya baris yang benar-benar diisi — kosong berarti belum dihitung. */
@@ -12713,7 +12952,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
   function formReturBeli() {
     lepasUuidDokumen('retur_beli');  // dokumen BARU — lihat uuidDokumen()
     beliTerpilih = null;
-    bukaModal('Retur beli baru', `
+    bukaPanel('Retur beli baru', `
       <div class="grup">
         <label>Cari faktur pembelian (nomor dokumen atau nama supplier)</label>
         <div style="display:flex;gap:8px">
@@ -13438,7 +13677,7 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     const x = luar || (prodData?.produksi || []).find((p) => p.uuid === u);
     if (!x) return;
     const baris = (l, v) => `<tr><td data-l="Rincian">${esc(l)}</td><td class="angka" data-l="Nilai">${v}</td></tr>`;
-    bukaModal('Produksi ' + (x.no_dokumen || ''), `
+    bukaDokumen('Produksi ' + (x.no_dokumen || ''), `
       <p class="petunjuk">${esc(tglTampil(x.tanggal))} ${esc(x.waktu)} · oleh ${esc(x.nama_user || x.id_user)}${x.catatan ? ' · ' + esc(x.catatan) : ''}</p>
       <div class="gulir-x"><table><tbody>
         ${baris('Barang jadi', esc(x.nama_jadi) + ' × ' + x.qty_jadi)}
@@ -13452,7 +13691,29 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
       ${x.ditolak ? `<div class="pesan peringatan">Ditolak${x.nama_penolak ? ' oleh ' + esc(x.nama_penolak) : ''}: ${esc(x.alasan_tolak)}</div>`
         : x.batal ? '<div class="pesan peringatan">Produksi ini sudah dibatalkan.</div>'
         : x.menunggu ? '<div class="pesan info">Menunggu diterima Admin Stok — belum masuk stok siap jual.</div>'
-        : x.nama_penerima ? `<p class="petunjuk">Diterima oleh ${esc(x.nama_penerima)}.</p>` : ''}`);
+        : x.nama_penerima ? `<p class="petunjuk">Diterima oleh ${esc(x.nama_penerima)}.</p>` : ''}`, undefined, () => kertasProduksi(x, konteksCetak()));
+  }
+
+  /** Kertas A4 produksi (ADR-0584) — rincian yang sama dengan layarnya. */
+  function kertasProduksi(x, k) {
+    const uang = (n) => esc(rpTeks(n));
+    const status = x.ditolak ? 'Ditolak' + (x.alasan_tolak ? ': ' + x.alasan_tolak : '') : x.batal ? 'Dibatalkan'
+      : x.menunggu ? 'Menunggu diterima Admin Stok' : 'Diterima' + (x.nama_penerima ? ' oleh ' + x.nama_penerima : '');
+    return kertasDokumen('BUKTI PRODUKSI', [
+      ['No dokumen', `<strong>${esc(x.no_dokumen || '—')}</strong>`],
+      ['Tanggal', esc(tglTampil(x.tanggal)) + ' ' + esc(x.waktu || '')],
+      ['Dicatat oleh', esc(x.nama_user || x.id_user || '—')],
+      ['Status', esc(status)],
+      x.catatan && ['Catatan', esc(x.catatan)]
+    ], [['Rincian', (b) => esc(b[0])], ['Nilai', (b) => b[1], true]], [
+      ['Barang jadi', esc(x.nama_jadi) + ' × ' + esc(x.qty_jadi)],
+      ['Bahan terpakai', esc(x.nama_bahan) + ' · ' + uang(x.nilai_bahan)],
+      ['Inject ' + (x.nama_aplikasi || ''), uang(x.modal_paket) + ' × ' + esc(x.qty_jadi) + ' = ' + uang(x.nilai_inject)],
+      ['Cashback', x.cashback ? '− ' + uang(x.cashback) : '—'],
+      ['Gagal inject', x.qty_gagal ? esc(x.qty_gagal) + ' · ' + uang(x.nilai_gagal) + ' (beban rusak)' : '—'],
+      ['Modal per unit', uang(x.modal_satuan)]
+    ], `<tr><td>Nilai masuk stok</td><td class="n">${uang(x.nilai_jadi)}</td></tr>`,
+    [['Dibuat', 'Produksi', x.nama_user || ''], ['Diterima', 'Admin Stok', x.nama_penerima || ''], ['Disetujui', 'Owner / Head Admin', '']], k);
   }
 
   async function terimaProduksi(u) {
@@ -14250,30 +14511,46 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (tabKas === 'koran') return muatKoran();
     if (tabKas === 'rekon') return muatRekon();
     const parKas = { cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') };
-    await muatTersimpan('#hasilKas', 'kas', 'kas', parKas, async () => {
-      /* TIGA panggilan sekaligus, bukan berurutan. Tiap panggilan Apps Script
-         membayar ~0,8 detik memuat proyek; berurutan berarti menunggu tiga
-         kali lipat untuk data yang tidak saling bergantung. */
-      const [kas, setor, ner, arus, pusat5] = await Promise.all([
-        API.daftarKas({ cabang: cabangKas,
-                        dari: nilai('kasDari'), sampai: nilai('kasSampai') }),
-        API.shiftBelumSetor({ cabang: cabangKas }),
+    const tab = tabKas, perlu = PERLU_TAB_KAS[tab] || PERLU_TAB_KAS.ringkasan;
+    const kunciPar = JSON.stringify(parKas);
+    await muatTersimpan('#hasilKas', 'kas', 'kas_' + tab, parKas, async () => {
+      /* HANYA data yang digambar tab ini (ADR-0585). Dulu kelimanya ditarik untuk tiap
+         tab: Setoran (cukup shift belum setor, 3,4 dtk) menunggu neraca 10,3 dtk dan
+         arus kas 7,3 dtk — 13 dtk terukur di toko. Yang diperlukan tetap BERSAMAAN:
+         tiap panggilan Apps Script membayar ~0,8 dtk memuat proyek. */
+      const per = (nilai('kasSampai') || '').substring(0, 7);
+      const tarik = {
+        kas: () => API.daftarKas({ cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') }),
+        setor: () => API.shiftBelumSetor({ cabang: cabangKas }),
         /* Neracanya ikut lingkupnya juga — saldo gabungan di atas daftar satu
            cabang akan terbaca sebagai saldo cabang itu. */
-        API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7),
-                     cabang: cabangKas }),
-        API.arusKas({ cabang: cabangKas, bulan: 6 }),
+        ner: () => API.neraca({ periode: per, cabang: cabangKas }),
+        arus: () => API.arusKas({ cabang: cabangKas, bulan: 6 }),
         /* Kas Admin & bank itu rekening PUSAT: saldonya dibaca dari cabang
            pusat, apa pun toko yang dipilih (bagian 330). Diukur 4 Okt 2026:
            memilih satu toko membuat kartunya NOL padahal rekeningnya berisi.
            "Semua cabang" sudah memuat pusat, jadi tidak ada panggilan kedua. */
-        (cabangKas !== '*' && bolehCabangDash() && kodeCabangPusat())
-          ? API.neraca({ periode: (nilai('kasSampai') || '').substring(0, 7), cabang: kodeCabangPusat() })
-          : null
-      ]);
-      return { kas, setor, ner, arus, nerPusat: pusat5 };
-    }, (d) => { kasData = d; gambarKas(); });
+        nerPusat: () => (cabangKas !== '*' && bolehCabangDash() && kodeCabangPusat())
+          ? API.neraca({ periode: per, cabang: kodeCabangPusat() }) : null
+      };
+      const hasil = await Promise.all(perlu.map((k) => tarik[k]()));
+      const d = {};
+      perlu.forEach((k, i) => { d[k] = hasil[i]; });
+      return d;
+    }, (d) => {
+      /* Data tab lain pada lingkup & rentang YANG SAMA ikut dibawa (nama akun dari
+         neraca dipakai Rekening koran & Transfer); lingkup lain dibuang. */
+      kasData = Object.assign({}, kasData && kasData._kunci === kunciPar ? kasData : {}, d, { _kunci: kunciPar });
+      if (tabKas === tab) gambarKas();
+    });
   }
+  /** Data yang digambar tiap tab Kas (ADR-0585) — lihat gambarKas. */
+  const PERLU_TAB_KAS = {
+    setoran: ['setor'],
+    penerimaan: ['kas'], pembayaran: ['kas'], mutasi: ['kas'],
+    transfer: ['kas', 'ner', 'nerPusat'],   /* saldo 1-1200 sebagai asal transfer (bagian 439) */
+    ringkasan: ['ner', 'nerPusat', 'arus']
+  };
 
   function gambarKas() {
     const w = $('#hasilKas');
@@ -14413,7 +14690,10 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <tfoot><tr><th colspan="2">Total</th><th class="kanan">${rp(d.total)}</th><th></th></tr></tfoot>
       </table></div>`,
       `<button class="tombol" data-tutup="1">${ikonAlat('batal')}<span>Tutup</span></button>
-       ${d.no && !luar ? `<button class="tombol utama" data-cetak-dok-kas="${esc(d.id)}">Cetak</button>` : ''}`);
+       ${d.no && !luar ? `<button class="tombol utama" data-cetak-dok-kas="${esc(d.id)}">Cetak</button>` : ''}`,
+      /* Dibuka dari LUAR layar Kas (kartu stok, jurnal): dokumennya tidak ada di daftar
+         yang dibaca cetakDokKas — dicetak dari objek yang sudah di tangan (ADR-0584). */
+      d.no && luar ? () => dokumenKasA4(d, konteksCetak()) : undefined);
   }
 
   function dokumenKasA4(d, konteks) {
@@ -14586,6 +14866,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         <select id="koranAkun" class="kendali-tetap" title="Akun">${akunKasAktif().concat(bankUmumBersaldo() ? [AKUN_BANK_UMUM] : []).map((k) =>
           `<option value="${k}" ${k === akunKoran ? 'selected' : ''}>${esc(nm[k] || k)}</option>`).join('')}</select></div>
       <div id="isiKoran"></div></div>`;
+    /* 1-1200 ditawarkan selama bersaldo (bagian 439) — dibaca dari neraca. Sejak Kas
+       per tab (ADR-0585) neraca belum tentu termuat (Kas dibuka lewat Setoran/Penerimaan):
+       ditarik di LATAR, pilihannya ditambahkan sesudah datang; daftar tidak menunggu. */
+    const kunciKas = JSON.stringify({ cabang: cabangKas, dari: nilai('kasDari'), sampai: nilai('kasSampai') });
+    if (!(kasData && kasData._kunci === kunciKas && kasData.ner)) {
+      const pusat = cabangKas !== '*' && bolehCabangDash() && kodeCabangPusat();
+      Promise.all([API.neraca({ periode, cabang: cabangKas }), pusat ? API.neraca({ periode, cabang: kodeCabangPusat() }) : null])
+        .then(([ner, nerPusat]) => {
+          kasData = Object.assign({}, kasData && kasData._kunci === kunciKas ? kasData : {}, { ner, nerPusat, _kunci: kunciKas });
+          const s = $('#koranAkun');
+          if (s && bankUmumBersaldo() && ![...s.options].some((o) => o.value === AKUN_BANK_UMUM)) {
+            s.insertAdjacentHTML('beforeend', `<option value="${AKUN_BANK_UMUM}">${esc(nm[AKUN_BANK_UMUM] || AKUN_BANK_UMUM)}</option>`);
+          }
+        }, () => { /* tanpa neraca 1-1200 tidak ditawarkan — sama dengan sebelum ADR-0585 saat Koran dibuka pertama */ });
+    }
     const parKoran = { akun: akunKoran, periode, cabang: cabangKas };
     await muatTersimpan('#isiKoran', 'kas', 'kas_koran', parKoran,
       () => API.bukuBesar({ kode_akun: parKoran.akun, periode, cabang: parKoran.cabang }), (bb) => {
@@ -15627,7 +15922,26 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           { judul: 'Harga beli', angka: true, render: (i) => rp(i.harga_beli) },
           { judul: 'Klaim', angka: true, render: (i) => rp(i.subtotal_klaim) }
         ], r.item || [], { kosong: 'Tidak ada barang.', dataAttr: (i) => atributKartuStok(i.sku, cabang) })}
-        ${daftarRinci([['Nilai klaim', rp(r.nilai_klaim)], modal && ['Nilai persediaan', rp(r.nilai_persediaan)], modal && ['Selisih', rp(r.selisih_nilai)], r.ppn && ['PPN', rp(r.ppn)]])}`);
+        ${daftarRinci([['Nilai klaim', rp(r.nilai_klaim)], modal && ['Nilai persediaan', rp(r.nilai_persediaan)], modal && ['Selisih', rp(r.selisih_nilai)], r.ppn && ['PPN', rp(r.ppn)]])}`,
+        undefined, () => kertasReturBeli(r, konteksCetak()));
+  }
+  /** Kertas A4 retur beli (ADR-0584) — bukti barang dikembalikan ke supplier. */
+  function kertasReturBeli(r, k) {
+    const item = r.item || [];
+    return kertasDokumen('RETUR PEMBELIAN', [
+      ['No dokumen', `<strong>${esc(r.no_dokumen)}</strong>`],
+      ['Tanggal', esc(tglTampil(r.tanggal))],
+      ['Supplier', esc(r.nama_supplier || '—')],
+      ['Faktur asal', esc(r.no_dok_pembelian || '—')],
+      ['Penyelesaian', r.penyelesaian === 'POTONG_UTANG' ? 'Potong utang' : 'Uang kembali'],
+      r.alasan && ['Alasan', esc(r.alasan)],
+      ['Dicatat oleh', esc(r.nama_user || r.id_user || '—')]
+    ], [['No', (b, i) => i + 1, true], ['SKU', (b) => esc(b.sku)], ['Nama produk', (b) => esc(b.nama_produk)],
+        ['Qty', (b) => esc(b.qty) + ' ' + esc(b.satuan || ''), true], ['Harga beli', (b) => esc(rpTeks(b.harga_beli)), true],
+        ['Klaim', (b) => esc(rpTeks(b.subtotal_klaim)), true]],
+    item, [['Nilai klaim', r.nilai_klaim], r.ppn && ['PPN', r.ppn]].filter(Boolean)
+      .map(([l, n]) => `<tr><td colspan="5">${esc(l)}</td><td class="n">${esc(rpTeks(n))}</td></tr>`).join(''),
+    [['Dikirim oleh', 'Gudang / cabang', r.nama_user || ''], ['Diterima supplier', r.nama_supplier || '', '']], k);
   }
   function bukaRincianBaris(jenis, isi) {
     if (jenis === 'induk') return bukaRincianInduk(isi);
@@ -15641,14 +15955,17 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
     if (jenis === 'slip') {
       const s = slipDari(isi.id);
       if (!s) return;
-      return bukaModal('Slip gaji — ' + s.nama + ', ' + namaBulan(s.periode), daftarRinci([
+      return bukaDokumen('Slip gaji — ' + s.nama + ', ' + namaBulan(s.periode), daftarRinci([
         ['Petugas', esc(s.nama) + ' <span class="kode-redup">' + esc(s.kode_petugas) + '</span>'], ['Cabang', t(s.cabang)], s.ditanggung_pusat && ['Ditanggung', esc(TEKS_KANTOR)],
         ['Status', s.status === 'DIBAYAR' ? lencanaDash('Dibayar', 'hijau') : lencanaDash('Draft', '')],
         ...KOMPONEN_GAJI.map(([k, l]) => [l, rp(s[k] || 0)]),
         s.redeem > 0 && ['Redeem poin', rp(s.redeem) + ' <span class="redup">(' + esc(String(s.redeem_poin).replace('.', ',')) + ' poin × ' + esc(ribuan(s.redeem_nilai)) + ')</span>'],
         ['Potongan kasbon', rp(s.potongan_kasbon || 0)], ['Diterima', '<strong>' + rp(s.diterima) + '</strong>'],
         s.status === 'DIBAYAR' && ['Dibayar', esc(tglTampil(s.tanggal_bayar)) + ' · ' + t(s.akun_kas)],
-        s.catatan && ['Catatan', esc(s.catatan)]]));
+        s.catatan && ['Catatan', esc(s.catatan)]]),
+        /* Cetak slip (ADR-0584): jalur cetakSlip yang sama dengan tombol di daftar — hanya slip DIBAYAR. */
+        (s.status === 'DIBAYAR' ? `<button class="tombol" data-cetak-slip="${esc(s.id_slip)}">${ikonAlat('cetak')}<span>Cetak</span></button>` : '') +
+        '<button class="tombol" data-tutup="1">' + ikonAlat('batal') + '<span>Tutup</span></button>');
     }
     if (jenis === 'absen' || jenis === 'absen_petugas') {
       const hariIni = tanggalLokal(), semua = (absenData && absenData.baris) || [];
@@ -17565,10 +17882,21 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
         return;
       }
 
+      /* Cetak dokumen yang sedang terbuka di panel (ADR-0584). */
+      if (t.id === 'btnCetakDokumen') {
+        const c = $('#modalUmum')._cetak;
+        if (!c) return;
+        try { Struk.cetakDokumen(c.judul, c.isi()); } catch (x) { toast(x.message, 'galat'); }
+        return;
+      }
       /* --- permintaan barang --- */
       if (t.id === 'btnPermintaanBaru')  return formPermintaanBaru();
       if (t.id === 'btnTambahBarisPm')   return tambahBarisPm();
       if (d.detailPermintaan)            return detailPermintaan(d.detailPermintaan);
+      if (d.ubahPermintaan) {
+        const r = ($('#isiPermintaan')._rows || []).find((x) => x.uuid === d.ubahPermintaan);
+        return r && formPermintaanBaru(r);
+      }
       if (d.prosesPermintaan)            return dialogProsesPermintaan(d.prosesPermintaan);
       if (t.id === 'btnSimpanPermintaan') {
         const item = kumpulkanAnak('pm').filter(i => i.sku && Number(i.qty) > 0)
@@ -17581,6 +17909,18 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
           return toast(`Barang ${item[ganda].sku} disebut lebih dari sekali — gabungkan qty-nya jadi satu baris.`, 'galat');
         }
         t.disabled = true;
+        if (t.dataset.ubah) {
+          try {
+            const r = await API.ubahPermintaan({ uuid: t.dataset.ubah, catatan: nilai('pmCatatan'), item });
+            await sukses('Permintaan ' + r.no_dokumen + ' diubah.', 'permintaan');
+            if ((r.peringatan || []).length) toast('Perhatian: ' + r.peringatan.join('; ') + '.', 'info');
+          } catch (x) {
+            $('#pesanPm').innerHTML = `<div class="pesan galat">${esc(x.message)}
+              ${x.detail ? `<ul style="margin:8px 0 0 16px">${x.detail.map(g => `<li>${esc(g)}</li>`).join('')}</ul>` : ''}</div>`;
+            t.disabled = false;
+          }
+          return;
+        }
         try {
           const r = await API.buatPermintaan({
             uuid: uuidDokumen('permintaan'),
@@ -17604,8 +17944,11 @@ AC-CS-010	Softcase Bening	25000	18000"></textarea>
            tombol ini lagi; dengan uuid yang sama, kiriman kedua dikenali sebagai
            duplikat dan stok tidak keluar dua kali. */
         const uuidTf = uuidDokumen('proses_permintaan');
+        /* sku + varian ikut (ADR-0585, temuan peninjau): sejak permintaan bisa DIUBAH,
+           nomor baris saja bisa menunjuk barang lain — server mencocokkan keduanya. */
         const item = $$('[data-siap-baris]').map(i => ({
-          baris: Number(i.dataset.siapBaris), qty_siap: Number(i.value || 0)
+          baris: Number(i.dataset.siapBaris), qty_siap: Number(i.value || 0),
+          sku: i.dataset.siapSku, kode_varian: i.dataset.siapVarian || ''
         }));
         /* Konfirmasi (bagian 245): menyiapkan = transfer terbit, stok gudang keluar. */
         if (!(await tanya('Siapkan dan kirim barang ini?',

@@ -275,7 +275,7 @@ html[data-tema="gelap"] {
   /* Bayangan GELAP yang tegas (pemilik 27 Nov 2026, bagian 573): "layaknya
      bayangan gelap, bukan terang". Sejak batang gulir sidebar dihilangkan,
      inilah satu-satunya tanda menu masih berlanjut. */
-  --gulir-bayang:      rgba(0,0,0,.8);
+  --gulir-bayang:      rgba(0,0,0,.6);
   --tombol-tekan:      #2b2f35;
   --aksen-aktif:       #c5f135;
   --logo-bg:           #c5f135;
@@ -496,18 +496,22 @@ button { cursor: pointer; border: none; border-radius: var(--radius); }
    dan terpotong tepat di tengah sebuah kelompok; tanpa tanda apa pun itu
    terbaca sebagai menu yang HILANG, bukan menu yang tergulung — dan itulah
    yang membuat orang mencari-cari menu yang sebenarnya ada.
-   Dua lapis pertama menempel pada ISI (`local`) dan menutupi bayangnya saat
-   sudah mentok; dua lapis terakhir menempel pada KOTAK (`scroll`) dan itulah
-   bayangnya. Hasilnya: bayang atas hanya muncul setelah digulir, bayang bawah
-   hilang begitu ujung daftar tercapai. Murni CSS — tidak ada penyimak gulir
-   yang harus dijalankan tiap frame. */
-.sisi-isi {
-  background:
-    linear-gradient(var(--sisi-bg) 30%, transparent)    top    / 100% 24px no-repeat local,
-    linear-gradient(transparent, var(--sisi-bg) 70%)    bottom / 100% 24px no-repeat local,
-    linear-gradient(var(--gulir-bayang), transparent)   top    / 100% 14px no-repeat scroll,
-    linear-gradient(transparent, var(--gulir-bayang))   bottom / 100% 14px no-repeat scroll;
+   Bayangnya LAPISAN DI ATAS ISI (ADR-0584), bukan latar `.sisi-isi`. Latar
+   dilukis di BELAKANG anak-anaknya: teks menu dan blok hijau menu aktif
+   tergambar di atas bayangan, jadi bayangnya hanya terlihat di sela-sela
+   (potret pemilik 28 Nov 2026). Dua pseudo-elemen `sticky` menempel di tepi
+   atas/bawah kotak gulir, `pointer-events: none` supaya klik tembus. Kapan
+   tampil diatur kelas `ada-atas`/`ada-bawah` dari `tandaiGulirSisi()` (app.js)
+   — bayang atas hanya setelah digulir, bayang bawah hilang di ujung daftar.
+   Tebal 8 px (pemilik: "bayangnya rubah jadi lebih tipis"; dulu 14 px). */
+.sisi-isi::before, .sisi-isi::after {
+  content: ''; display: block; position: sticky; z-index: 3; pointer-events: none;
+  height: 8px; margin-left: -10px; margin-right: -10px;
+  opacity: 0; transition: opacity .15s;
 }
+.sisi-isi::before { top: -4px; margin-bottom: -8px; background: linear-gradient(var(--gulir-bayang), transparent); }
+.sisi-isi::after  { bottom: -14px; margin-top: -8px; background: linear-gradient(transparent, var(--gulir-bayang)); }
+.sisi-isi.ada-atas::before, .sisi-isi.ada-bawah::after { opacity: 1; }
 /* Batang gulirnya ikut aturan bersama (bagian 436, dekat .tab-modal). */
 
 .sisi-grup {
@@ -1918,8 +1922,9 @@ html[data-tema="gelap"] .kertas { box-shadow: 0 12px 32px rgba(0,0,0,.45); }
 .modal.lebar { max-width: 880px; }
 
 /* PANEL GESER dari kanan (ADR-0582, pemilik 28 Nov 2026: "bukan pop up, tapi
-   slide dari kanan ke kiri"). Hanya untuk yang dibuka lewat bukaPanel() —
-   editor & tampilan Prapesan. Setinggi layar, tombol aksi menempel di bawah;
+   slide dari kanan ke kiri"). Hanya untuk yang dibuka lewat bukaPanel() /
+   bukaDokumen() — Prapesan, rincian dokumen, formulir besar (ADR-0584).
+   Setinggi layar, tombol aksi menempel di bawah;
    gerakannya sama dengan laci sidebar HP (.sisi). bukaModal() melepas kelas
    ini, jadi modal berikutnya kembali pop-up di tengah. */
 .tirai.laci { justify-content: flex-end; align-items: stretch; padding: 0; }
@@ -1930,6 +1935,16 @@ html[data-tema="gelap"] .kertas { box-shadow: 0 12px 32px rgba(0,0,0,.45); }
 }
 .tirai.laci > .modal > .aksi-modal { position: sticky; bottom: -22px; background: var(--panel);
   padding: 12px 0 14px; margin-top: auto; border-top: 1px solid var(--garis); z-index: 2; }
+/* Dokumen bergaya kertas berpadding 14 px, bukan 22 px: tanpa ini tombolnya
+   tergantung 8 px di bawah layar HP landscape (ADR-0584). */
+.tirai.laci > .modal.kertas > .aksi-modal { bottom: -14px; }
+/* Formulir ≠ dokumen (ADR-0584, pemilik 28 Nov 2026: "supaya pengguna bisa
+   membedakan mana dokumen mana bagian dari aplikasi"). Dokumen tetap kertas
+   putih (.kertas); panel formulir memakai warna LATAR aplikasi (--bg) dengan
+   kotak isian putih. Di tema gelap --bg gelap; di tema terang --panel putih
+   nyaris sama dengan warna kertas, karena itu bukan --panel. */
+.tirai.laci > .modal:not(.kertas),
+.tirai.laci > .modal:not(.kertas) > .aksi-modal { background: var(--bg); }
 /* Isi panel TIDAK boleh menyusut: di HP landscape (tinggi 390) flex kolom
    menggencet wadah tabel ber-overflow (.gulir-x) sampai tingginya 0 — tabel
    barangnya hilang. Panel yang menggulir, bukan isinya. */

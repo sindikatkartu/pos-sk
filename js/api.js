@@ -306,7 +306,7 @@ const API = (() => {
      sebuah endpoint baca yang lupa didaftarkan akan melempar galat ke layar
      tiap kali Google menjawab 404 sesaat. */
   const TIDAK_DIULANG = new Set([
-    'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'batal_transfer', 'batal_rencana_beli',
+    'batal_opname', 'batal_pembelian', 'batal_bayar_utang', 'periksa_pembelian', 'batal_permintaan', 'ubah_permintaan', 'batal_transfer', 'batal_rencana_beli',
     'buka_shift', 'buka_shift_pulsa', 'catat_cetak_ulang',
     'buka_kunci', 'catat_keluar_paksa', 'ekspor', 'ganti_cabang', 'ganti_pin',
     'hapus_perangkat', 'hapus_shift_pulsa', 'batal_shift_pulsa', 'koreksi_shift_pulsa', 'koreksi_shift', 'koreksi_kas_shift', 'koreksi_bayar_nota', 'koreksi_absen', 'hapus_absen', 'susulan_shift_pulsa', 'rapikan_setoran_ganda', 'impor_master', 'impor_produk',
@@ -922,6 +922,7 @@ let _pernahJawab = false;
        pekerjaan yang tetap berlanjut di server. */
     prosesPermintaan: (d) => panggil('proses_permintaan', d, { timeout: 90000 }),
     batalPermintaan:  (d) => panggil('batal_permintaan', d, { timeout: 60000 }),
+    ubahPermintaan:   (d) => panggil('ubah_permintaan', d, { timeout: 60000 }),
     /* --- rencana pembelian / PO (ADR-0581) --- */
     simpanRencanaBeli: (d) => panggil('simpan_rencana_beli', d, { timeout: 60000 }),
     pesanRencanaBeli:  (d) => panggil('pesan_rencana_beli', d, { timeout: 60000 }),

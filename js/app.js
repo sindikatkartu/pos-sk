@@ -1184,8 +1184,45 @@ const ISTILAH_LAZIM = {
     jurnal: 'Journal & Closing', aset: 'Assets & Amortization', konsolidasi: 'Consolidated Summary',
     pengguna: 'Users', peran: 'Roles & Permissions', perangkat: 'Registered Devices', cabang: 'Branches',
     sistem: 'System Settings', arsip: 'Archive', akun: 'My Account', tentang: 'About', bantuan: 'Help',
-    pengaturan: 'Devices & Printers' }
+    pengaturan: 'Devices & Printers' },
+  /* Per menu, karena label tab berulang antarmenu ("Ringkasan", "Laporan", "Per petugas").
+     Tab yang sudah berbahasa Inggris tetap dicantumkan apa adanya: daftar lengkap lebih
+     mudah dijaga test daripada daftar kecualian (ADR-0584). */
+  tab: {
+    gaji: { 'Slip gaji': 'Payslips', Kasbon: 'Cash Advance' },
+    kas: { Ringkasan: 'Overview', Setoran: 'Deposits', Penerimaan: 'Receipts', Pembayaran: 'Payments',
+      'Transfer bank': 'Bank Transfer', 'Rekening koran': 'Bank Statement', Rekonsiliasi: 'Reconciliation',
+      'Mutasi kas': 'Cash Movements' },
+    pembelian: { 'Daftar pembelian': 'Purchase List', Prapesan: 'Pre-Order' },
+    utang: { 'Belum lunas': 'Unpaid', 'Riwayat pembayaran': 'Payment History' },
+    jurnal: { 'Jurnal penyesuaian': 'Adjusting Entries', 'Daftar koreksi': 'Corrections' },
+    laporan: { Ringkasan: 'Summary', 'Riwayat transaksi': 'Transaction History', 'Per shift': 'By Shift',
+      'Per petugas': 'By Staff', Void: 'Void', Diskon: 'Discounts', 'Per pelanggan': 'By Customer',
+      'Per produk': 'By Product', Kunjungan: 'Visits' },
+    poin: { 'Peringkat cabang': 'Branch Ranking', 'Per petugas': 'By Staff', 'Rincian klaim': 'Claim Details' },
+    keuangan: { 'Buku besar': 'General Ledger', 'Neraca saldo': 'Trial Balance', 'Laba Rugi': 'Profit & Loss',
+      Neraca: 'Balance Sheet', 'Kerugian persediaan': 'Inventory Loss' },
+    pulsa: { Shift: 'Shift', 'Sumber Saldo': 'Balance Sources', Laporan: 'Report', Saldo: 'Balance' },
+    produksi: { 'Catat produksi': 'Record Production', 'Saldo aplikasi': 'App Balance', Laporan: 'Report' },
+    cabang: { 'Daftar cabang': 'Branch List', 'Meja & lini usaha': 'Desks & Business Lines' },
+    audit: { 'Jejak audit': 'Audit Trail', 'Error aplikasi': 'App Errors' },
+    pengaturan: { Printer: 'Printer', 'Kertas label': 'Label Paper', 'Data & sinkronisasi': 'Data & Sync' }
+  }
 };
+/** Teks tab tanpa angka lencananya ("Gaji24" → "Slip gaji", bagian 551). */
+function teksTab(b) {
+  const c = b.cloneNode(true);
+  c.querySelectorAll('[data-lencana-tab]').forEach((x) => x.remove());
+  return c.textContent.replace(/\s+/g, ' ').trim();
+}
+const istilahTab = (idMenu, teks) => ((ISTILAH_LAZIM.tab[idMenu] || {})[teks]) || teks;
+/** Tooltip istilah lazim di tombol tab layar yang terbuka (ADR-0584). Tab sering
+ *  digambar ulang layarnya, jadi dipasang ulang tiap judul layar diperiksa. */
+function pasangTooltipTab(idMenu) {
+  const el = $('.layar.aktif');
+  if (!el || !idMenu) return;
+  el.querySelectorAll('.tab-modal button').forEach((b) => { const t = istilahTab(idMenu, teksTab(b)); if (b.title !== t) b.title = t; });
+}
 function tulisJudulLayar() {
   const h = $('#judulLayar');
   if (!h) return;
@@ -1193,9 +1230,8 @@ function tulisJudulLayar() {
   const el = m && m.id !== 'kasir' ? $('.layar.aktif') : null;
   const tabEl = el ? Array.from(el.querySelectorAll('.tab-modal button.aktif')).find((b) => b.offsetParent !== null) : null;
   /* Lencana hitungan ada DI DALAM tombol tab: tanpa dibuang, judulnya "Gaji24" (bagian 551). */
-  const isiTab = tabEl ? tabEl.cloneNode(true) : null;
-  if (isiTab) isiTab.querySelectorAll('[data-lencana-tab]').forEach((x) => x.remove());
-  const tab = isiTab ? isiTab.textContent.replace(/\s+/g, ' ').trim() : '';
+  const tab = tabEl ? teksTab(tabEl) : '';
+  if (el) pasangTooltipTab(m.id);
   const kunci = m ? [m.grup || '', m.label, tab].join('|') : '';
   if (h.dataset.jejak === kunci && h.childNodes.length) return;
   h.dataset.jejak = kunci;
@@ -1210,7 +1246,10 @@ function tulisJudulLayar() {
   ringkasJudulLayar();
   /* Istilah lazim sebagai TOOLTIP, bukan di dalam judul (ADR-0583): dalam kurung,
      47 judul terpotong di tablet 768 px; pemilik memilih "hanya saat kursor diarahkan". */
-  h.title = m.id === 'kasir' ? '' : [m.grup && (ISTILAH_LAZIM.grup[m.grup] || m.grup), ISTILAH_LAZIM.menu[m.id] || m.label].filter(Boolean).join(' › ');
+  /* Tab ikut (ADR-0584): dulu berhenti di menu, jadi tooltipnya "Inventory › Purchases"
+     di bawah judul tiga bagian. */
+  h.title = m.id === 'kasir' ? '' : [m.grup && (ISTILAH_LAZIM.grup[m.grup] || m.grup), ISTILAH_LAZIM.menu[m.id] || m.label,
+    tab && istilahTab(m.id, tab)].filter(Boolean).join(' › ');
 }
 /* Huruf induk disamakan dengan bagian yang dibuka (ADR-0583), jadi di tablet tegak
    judul terpanjang tidak muat ("Laporan › Laporan Keuangan › Kerugian persediaan"
@@ -1248,6 +1287,13 @@ function simpanLipatGrup(peta) {
   try { localStorage.setItem(KUNCI_NAV_GRUP, JSON.stringify(peta)); } catch (e) { /* diblokir */ }
 }
 
+/** Bayang tepi sidebar tampil hanya bila memang ada isi tersembunyi di sisi itu (ADR-0584). */
+function tandaiGulirSisi() {
+  const n = $('.sisi-isi');
+  if (!n) return;
+  n.classList.toggle('ada-atas', n.scrollTop > 1);
+  n.classList.toggle('ada-bawah', n.scrollTop + n.clientHeight < n.scrollHeight - 1);
+}
 function bangunNav() {
   const daftar = menuTampil();
 
@@ -1296,7 +1342,8 @@ function bangunNav() {
        ter-hover — gelembungnya tidak pernah lahir, dan cacat lama itu tidak
        kembali. */
     `<li><a class="item-nav${m.modul ? ' modul' : ''}" href="#/${m.id}" data-layar="${m.id}" tabindex="-1">` +
-    `${svgIkon(m.id)}<span class="item-nama"${m.modul ? ' title="Modul tambahan"' : ''}>${esc(m.label)}</span>` +
+    /* Istilah lazim ikut di title yang sama (ADR-0584) — tetap di .item-nama, alasannya di atas. */
+    `${svgIkon(m.id)}<span class="item-nama" title="${esc([ISTILAH_LAZIM.menu[m.id] || m.label, m.modul ? 'Modul tambahan' : ''].filter(Boolean).join(' · '))}">${esc(m.label)}</span>` +
     /* Pil itu penanda VISUAL — ia berkata "ini lain", bukan "ini modul".
        Kalimatnya tetap ada bagi pembaca layar, dan itu yang membuat
        penandanya tetap punya arti bagi yang tidak bisa melihat bentuknya. */
@@ -1316,7 +1363,7 @@ function bangunNav() {
       `<button class="sisi-grup-tombol" id="${idGrup}" data-grup="${esc(g.nama)}"` +
       ` aria-expanded="${buka}" aria-controls="${idDaftar}">` +
       `<svg class="ikon-svg tanda-lipat" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>` +
-      `<span>${esc(g.nama)}</span>` +
+      `<span title="${esc(ISTILAH_LAZIM.grup[g.nama] || g.nama)}">${esc(g.nama)}</span>` +
       /* Jumlah tugas di grup ini — tampil hanya saat grupnya tertutup (bagian 393). */
       `<span class="sisi-lencana" data-lencana-grup="${esc(g.nama)}" hidden></span></button></h2>` +
       `<ul class="sisi-daftar${buka ? '' : ' tutup'}" id="${idDaftar}" aria-labelledby="${idGrup}">` +
@@ -6223,7 +6270,10 @@ async function gambarTabLaporan(tab) {
     /* Balapan tab: yang tiba belakangan untuk tab yang sudah ditinggalkan
        tidak boleh menimpa tab yang sedang dibuka. */
     const tiket = { tab, dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
-    const par = { dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
+    /* Kunjungan tidak memakai periode & cabang bar: kuncinya TETAP (ADR-0585). Dengan
+       periode di kuncinya, simpanannya hampir tidak pernah cocok — layar kosong 6,7 dtk
+       terukur di toko, padahal kalender kemarin sudah ada di perangkat. */
+    const par = tab === 'kunjungan' ? {} : { dari: LAP.dari, sampai: LAP.sampai, cabang: LAP.cabang };
     /* Data terakhir dulu (bagian 365). Angka lama TIDAK masuk LAP.data — cetak
        & ekspor menarik yang baru sendiri lewat tarikTabLaporan. */
     if (!bacaSimpanLap('lap_' + tab, par)) Rangka.pasang(w, tab === 'kunjungan' ? rangkaKunjungan() : rangkaLaporan());   // bentuk asli diingat (bagian 262)
@@ -7535,6 +7585,13 @@ async function balikJurnalManual(uuid, no) {
  * mengira laporannya rusak.
  */
 let _bbAkun = '';
+/* Akun Buku besar terakhir DIINGAT per pengguna di perangkat (ADR-0585): dengan akun
+   yang sudah diketahui, daftar akun dan isi buku besarnya diminta BERSAMAAN — dulu
+   berurutan, dua kali ±5 dtk server = 16 dtk terukur. Penyimpanan peramban bisa
+   ditolak (mode pribadi); gagalnya cuma kembali ke urutan lama. */
+const _kunciBbAkun = () => 'bb_akun|' + ((APP_STATE.user || {}).id_user || '');
+function bacaBbAkun() { try { return localStorage.getItem(_kunciBbAkun()) || ''; } catch (e) { return ''; } }
+function ingatBbAkun(kode) { try { if (kode) localStorage.setItem(_kunciBbAkun(), String(kode)); } catch (e) { /* abaikan */ } }
 
 /* ==================== KLIK BARIS → SUMBER (bagian 538) ====================
  * Pemilik 23 Nov 2026: "setiap baris tabel bisa diklik dan lari ke sumber".
@@ -7689,33 +7746,43 @@ async function tampilkanBukuBesar() {
   const w = $('#hasilKeuangan');
   const tiket = ++_keuTiket;
   const par = { periode: $('#keuPeriode').value, cabang: $('#keuCabang').value };
+  if (!_bbAkun) _bbAkun = bacaBbAkun();
   const diminta = _bbAkun;
   /* Daftar akun + buku besarnya SATU simpanan (bagian 365): akun yang
      ditawarkan menentukan akun yang ditarik. */
   const ambil = async () => {
-    const daftar = await API.daftarAkunBergerak(par);
+    /* Akun sudah diketahui → kedua panggilan BERSAMAAN (ADR-0585). Galat buku besar
+       ditahan dulu: keputusannya baru bisa diambil sesudah daftar akunnya datang. */
+    const [daftar, bbDiminta] = await Promise.all([
+      API.daftarAkunBergerak(par),
+      diminta ? API.bukuBesar({ ...par, kode_akun: diminta }).then((d) => ({ d }), (galat) => ({ galat })) : null
+    ]);
     let akun = daftar.akun || [];
+    if (diminta && akun.some(a => a.kode === diminta)) {
+      if (bbDiminta.galat) throw bbDiminta.galat;
+      return { akun, kode: diminta, d: bbDiminta.d };
+    }
     /* Akun yang DIMINTA dibuka walau tidak bergerak di periode ini (bagian 538):
        klik dari COA/Neraca harus mendarat di akun yang diklik, bukan diam-diam
        di akun pertama daftar. Ia ditambahkan ke pilihan; kalau akunnya memang
        tidak ada lagi, baru jatuh ke akun pertama. */
-    if (diminta && !akun.some(a => a.kode === diminta)) {
-      try {
-        const d = await API.bukuBesar({ ...par, kode_akun: diminta });
+    if (diminta) {
+      if (!bbDiminta.galat) {
+        const d = bbDiminta.d;
         akun = [{ kode: d.akun.kode, nama: d.akun.nama, tipe: d.akun.tipe, normal: d.akun.normal, diam: true }].concat(akun);
         return { akun, kode: diminta, d };
-      } catch (e) {
-        /* Hanya "akun tidak dikenal" yang jatuh ke akun pertama; galat jaringan dilempar —
-           layar menulis galatnya, bukan diam-diam membuka akun lain (peninjau-rilis bagian 538). */
-        if (e && e.kode !== 'NOTFOUND') throw e;
       }
+      /* Hanya "akun tidak dikenal" yang jatuh ke akun pertama; galat jaringan dilempar —
+         layar menulis galatnya, bukan diam-diam membuka akun lain (peninjau-rilis bagian 538). */
+      if (bbDiminta.galat && bbDiminta.galat.kode !== 'NOTFOUND') throw bbDiminta.galat;
     }
-    const kode = akun.some(a => a.kode === diminta) ? diminta : (akun.length ? akun[0].kode : '');
+    const kode = akun.length ? akun[0].kode : '';
     return { akun, kode, d: kode ? await API.bukuBesar({ ...par, kode_akun: kode }) : null };
   };
   const gambarBB = (h, segar) => {
     const akun = h.akun || [];
     _bbAkun = h.kode;
+    if (segar) ingatBbAkun(h.kode);
     /* Akun yang DIMINTA bisa kosong/hilang (pembukaan pertama: belum ada
        pilihan) — simpan juga di bawah akun yang TERPILIH, karena itulah yang
        diminta pada pembukaan berikutnya. */
@@ -8582,6 +8649,17 @@ function pasangEvent() {
      piksel gulir lebih mahal daripada menutupnya; yang mau melihatnya lagi
      tinggal berhenti di ikonnya. `passive` supaya gulirnya tidak tersendat. */
   $('.sisi-isi').addEventListener('scroll', sembunyiFlyoutSisi, { passive: true });
+  /* Bayang tepi sidebar (ADR-0584): kelas ada-atas/ada-bawah. Gulir, ukuran kotak,
+     dan tinggi isi (grup dibuka/ditutup, nav digambar ulang) sama-sama mengubahnya. */
+  $('.sisi-isi').addEventListener('scroll', tandaiGulirSisi, { passive: true });
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => tandaiGulirSisi());
+    ro.observe($('.sisi-isi'));
+    new MutationObserver(() => { ro.disconnect(); ro.observe($('.sisi-isi')); $('.sisi-isi').querySelectorAll('.sisi-daftar').forEach((d) => ro.observe(d)); tandaiGulirSisi(); })
+      .observe($('.sisi-isi'), { childList: true });
+    $('.sisi-isi').querySelectorAll('.sisi-daftar').forEach((d) => ro.observe(d));
+  }
+  tandaiGulirSisi();
   /* Jaring pengaman, dan bukan pengulangan: gulir yang dimulai DI LUAR nav
      (halaman, atau layar sentuh yang menggulir seluruh badan) tidak pernah
      sampai ke pendengar di atas, sementara letak flyoutnya sudah salah begitu
